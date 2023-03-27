@@ -1,4 +1,4 @@
-package com.games.highfive.sunoh.music.radio;
+package games.highfive.sunoh.music.radio;
 
 import com.facebook.react.ReactActivity;
 import com.facebook.react.ReactActivityDelegate;
@@ -13,7 +13,7 @@ public class MainActivity extends ReactActivity {
    */
   @Override
   protected String getMainComponentName() {
-    return "sunoh";
+    return "Sunoh";
   }
 
   /**

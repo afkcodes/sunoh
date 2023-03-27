@@ -93,9 +93,9 @@ android {
 
     compileSdkVersion rootProject.ext.compileSdkVersion
 
-    namespace "com.games.highfive.sunoh.music.radio"
+    namespace "games.highfive.sunoh.music.radio"
     defaultConfig {
-        applicationId "com.games.highfive.sunoh.music.radio"
+        applicationId "games.highfive.sunoh.music.radio"
         minSdkVersion rootProject.ext.minSdkVersion
         targetSdkVersion rootProject.ext.targetSdkVersion
         versionCode 1

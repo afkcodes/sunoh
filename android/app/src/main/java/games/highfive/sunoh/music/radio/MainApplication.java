@@ -1,4 +1,4 @@
-package com.games.highfive.sunoh.music.radio;
+package games.highfive.sunoh.music.radio;
 
 import android.app.Application;
 import com.facebook.react.PackageList;

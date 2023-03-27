@@ -15,9 +15,9 @@
             <BuildableReference
                BuildableIdentifier = "primary"
                BlueprintIdentifier = "13B07F861A680F5B00A75B9A"
-               BuildableName = "sunoh.app"
-               BlueprintName = "sunoh"
-               ReferencedContainer = "container:sunoh.xcodeproj">
+               BuildableName = "Sunoh.app"
+               BlueprintName = "Sunoh"
+               ReferencedContainer = "container:Sunoh.xcodeproj">
             </BuildableReference>
          </BuildActionEntry>
       </BuildActionEntries>
@@ -33,9 +33,9 @@
             <BuildableReference
                BuildableIdentifier = "primary"
                BlueprintIdentifier = "00E356ED1AD99517003FC87E"
-               BuildableName = "sunohTests.xctest"
-               BlueprintName = "sunohTests"
-               ReferencedContainer = "container:sunoh.xcodeproj">
+               BuildableName = "SunohTests.xctest"
+               BlueprintName = "SunohTests"
+               ReferencedContainer = "container:Sunoh.xcodeproj">
             </BuildableReference>
          </TestableReference>
       </Testables>
@@ -55,9 +55,9 @@
          <BuildableReference
             BuildableIdentifier = "primary"
             BlueprintIdentifier = "13B07F861A680F5B00A75B9A"
-            BuildableName = "sunoh.app"
-            BlueprintName = "sunoh"
-            ReferencedContainer = "container:sunoh.xcodeproj">
+            BuildableName = "Sunoh.app"
+            BlueprintName = "Sunoh"
+            ReferencedContainer = "container:Sunoh.xcodeproj">
          </BuildableReference>
       </BuildableProductRunnable>
    </LaunchAction>
@@ -72,9 +72,9 @@
          <BuildableReference
             BuildableIdentifier = "primary"
             BlueprintIdentifier = "13B07F861A680F5B00A75B9A"
-            BuildableName = "sunoh.app"
-            BlueprintName = "sunoh"
-            ReferencedContainer = "container:sunoh.xcodeproj">
+            BuildableName = "Sunoh.app"
+            BlueprintName = "Sunoh"
+            ReferencedContainer = "container:Sunoh.xcodeproj">
          </BuildableReference>
       </BuildableProductRunnable>
    </ProfileAction>
