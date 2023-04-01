@@ -23,6 +23,8 @@
     "semi": ["error", "always"],
     "jsx-quotes": ["error", "prefer-single"],
     "no-console": "warn",
-    "comma-dangle": "off"
+    "comma-dangle": "off",
+    "no-useless-return": "error",
+    "@typescript-eslint/explicit-function-return-type": "off"
   }
 }
