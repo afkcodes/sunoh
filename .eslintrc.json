@@ -19,5 +19,10 @@
     "@react-native-community"
   ],
   "overrides": [],
-  "rules": {}
+  "rules": {
+    "semi": ["error", "always"],
+    "jsx-quotes": ["error", "prefer-single"],
+    "no-console": "warn",
+    "comma-dangle": "off"
+  }
 }
