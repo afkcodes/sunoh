@@ -1,13 +1,13 @@
 import React from 'react';
 import { View } from 'react-native';
-import useTheme from '~helpers/hooks/useTheme.hook';
+import getStyles from './main.styles';
 
 interface MainProps {
   children: React.ReactElement;
 }
 const Main: React.FC<MainProps> = ({ children }) => {
-  useTheme();
-  return <View style={{ flex: 1 }}>{children}</View>;
+  const { styles } = getStyles('dark');
+  return <View style={styles.main}>{children}</View>;
 };
 
 export default Main;

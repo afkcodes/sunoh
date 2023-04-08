@@ -2,11 +2,12 @@ import { NavigationHandler } from 'navigation-react';
 import { NavigationBar, NavigationStack, Scene, TabBar, TabBarItem } from 'navigation-react-native';
 import React from 'react';
 
-import Home from '~screens/Home';
+import Main from '~containers/Main/Main';
+import Home from '~screens/Home/Home';
 import Podcast from '~screens/Podcast';
 import Profile from '~screens/Profile';
 import Settings from '~screens/Settings';
-import { FONTS, theme } from '~styles/theme';
+import { fonts, theme } from '~styles/theme';
 import {
   homeNavigator,
   podcastNavigator,
@@ -30,13 +31,15 @@ const Tabs = () => {
         <TabBarItem
           title='Home'
           image={require('../assets/images/home_inactive.png')}
-          fontFamily={FONTS.medium}
+          fontFamily={fonts.medium}
           fontSize={12}
         >
           <NavigationHandler stateNavigator={homeNavigator}>
             <NavigationStack>
               <Scene stateKey='home'>
-                <Home />
+                <Main>
+                  <Home />
+                </Main>
               </Scene>
               <Scene stateKey='podcast'>
                 <Podcast />
@@ -44,10 +47,11 @@ const Tabs = () => {
             </NavigationStack>
           </NavigationHandler>
         </TabBarItem>
+
         <TabBarItem
           title='Search'
           image={require('../assets/images/search_inactive.png')}
-          fontFamily={FONTS.medium}
+          fontFamily={fonts.medium}
           fontSize={12}
         >
           <NavigationHandler stateNavigator={profileNavigator}>
@@ -61,7 +65,7 @@ const Tabs = () => {
         <TabBarItem
           title='Podcast'
           image={require('../assets/images/podcast_inactive.png')}
-          fontFamily={FONTS.medium}
+          fontFamily={fonts.medium}
           fontSize={12}
         >
           <NavigationHandler stateNavigator={podcastNavigator}>
@@ -75,7 +79,7 @@ const Tabs = () => {
         <TabBarItem
           title='Settings'
           image={require('../assets/images/settings_inactive.png')}
-          fontFamily={FONTS.medium}
+          fontFamily={fonts.medium}
           fontSize={12}
         >
           <NavigationHandler stateNavigator={settingsNavigator}>
