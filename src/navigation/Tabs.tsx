@@ -3,7 +3,7 @@ import { NavigationBar, NavigationStack, Scene, TabBar, TabBarItem } from 'navig
 import React from 'react';
 
 import Main from '~containers/Main/Main';
-import Home from '~screens/Home/Home';
+import Home from '~screens/Home';
 import Podcast from '~screens/Podcast';
 import Profile from '~screens/Profile';
 import Settings from '~screens/Settings';
@@ -57,7 +57,9 @@ const Tabs = () => {
           <NavigationHandler stateNavigator={profileNavigator}>
             <NavigationStack>
               <Scene stateKey='profile'>
-                <Profile />
+                <Main>
+                  <Profile />
+                </Main>
               </Scene>
             </NavigationStack>
           </NavigationHandler>
@@ -71,7 +73,9 @@ const Tabs = () => {
           <NavigationHandler stateNavigator={podcastNavigator}>
             <NavigationStack>
               <Scene stateKey='podcast'>
-                <Podcast />
+                <Main>
+                  <Podcast />
+                </Main>
               </Scene>
             </NavigationStack>
           </NavigationHandler>
@@ -85,7 +89,9 @@ const Tabs = () => {
           <NavigationHandler stateNavigator={settingsNavigator}>
             <NavigationStack>
               <Scene stateKey='settings'>
-                <Settings />
+                <Main>
+                  <Settings />
+                </Main>
               </Scene>
             </NavigationStack>
           </NavigationHandler>

@@ -46,6 +46,6 @@ export const theme = {
 export const fonts = {
   regular: 'Gilroy-Regular',
   medium: 'Gilroy-Medium',
-  semiB: 'Gilroy-Semibold',
+  semibold: 'Gilroy-Semibold',
   bold: 'Gilroy-Bold'
 };

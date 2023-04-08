@@ -1,13 +1,14 @@
 import React from 'react';
-import { Text } from 'react-native';
 import { SView } from '~components';
-import { theme } from '~styles';
+import SText from '~components/SText/SText';
 import { spacing } from '~styles/utilities';
 
 const Home: React.FC<any> = () => {
   return (
     <SView color='primary' flex={1} paddingTop={spacing.md}>
-      <Text style={{ color: theme.dark.text.primary, fontSize: 20 }}>Home</Text>
+      <SText color='primary' fontSize={40}>
+        Hello here is cool text
+      </SText>
     </SView>
   );
 };

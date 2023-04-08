@@ -1,12 +1,15 @@
 import React from 'react';
-import { Text, View } from 'react-native';
-import { theme } from '~styles/theme';
+import { SView } from '~components';
+import SText from '~components/SText/SText';
+import { spacing } from '~styles/utilities';
 
 const Podcast = () => {
   return (
-    <View>
-      <Text style={{ color: theme.light.text.primary, fontSize: 20 }}>Podcast</Text>
-    </View>
+    <SView color='primary' flex={1} paddingTop={spacing.md}>
+      <SText color='primary' fontSize={40}>
+        Hello here is cool text
+      </SText>
+    </SView>
   );
 };
 
