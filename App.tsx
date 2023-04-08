@@ -1,12 +1,20 @@
+import { StateNavigator } from 'navigation';
+import { NavigationHandler } from 'navigation-react';
+import { NavigationStack, Scene } from 'navigation-react-native';
 import React from 'react';
-import Main from '~containers/Main';
-import Home from '~screens/Home';
+import Tabs from '~navigation/Tabs';
+
+const stateNavigator = new StateNavigator([{ key: 'tabs' }]);
 
 const App: React.FC<any> = () => {
   return (
-    <Main>
-      <Home />
-    </Main>
+    <NavigationHandler stateNavigator={stateNavigator}>
+      <NavigationStack>
+        <Scene stateKey='tabs'>
+          <Tabs />
+        </Scene>
+      </NavigationStack>
+    </NavigationHandler>
   );
 };
 
