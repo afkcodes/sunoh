@@ -1,13 +1,15 @@
 import { NavigationHandler } from 'navigation-react';
 import { NavigationBar, NavigationStack, Scene, TabBar, TabBarItem } from 'navigation-react-native';
-import React from 'react';
+import React, { useContext } from 'react';
 
 import Main from '~containers/Main/Main';
+import { ThemeContext } from '~contexts/theme.context';
 import Home from '~screens/Home';
 import Podcast from '~screens/Podcast';
 import Profile from '~screens/Profile';
 import Settings from '~screens/Settings';
 import { fonts, theme } from '~styles/theme';
+import { type ThemeType } from '~types/components.types';
 import {
   homeNavigator,
   podcastNavigator,
@@ -16,16 +18,16 @@ import {
 } from './stateNavigators';
 
 const Tabs = () => {
+  const { theme: currentTheme } = useContext(ThemeContext);
   return (
     <>
       <NavigationBar hidden={true} />
       <TabBar
         primary={true}
         bottomTabs={true}
-        unselectedTintColor={theme.dark.navigation.inactiveColor}
+        unselectedTintColor={theme[currentTheme as ThemeType].navigation.inactiveColor}
         selectedTintColor={theme.base.navBarIcons}
-        barTintColor={theme.dark.navigation.background}
-        rippleColor={theme.base.navBarIcons}
+        barTintColor={theme[currentTheme as ThemeType].navigation.background}
         labelVisibilityMode='unlabeled'
       >
         <TabBarItem

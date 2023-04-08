@@ -1,9 +1,9 @@
 import { StyleSheet, type ViewStyle } from 'react-native';
 import { theme } from '~styles/theme';
-import { type BaseColorType, type themeType } from '~types/components.types';
+import { type BaseColorType, type ThemeType } from '~types/components.types';
 
 const getViewStyles = (
-  currentTheme: themeType = 'light',
+  currentTheme: ThemeType = 'light',
   color: BaseColorType = 'primary',
   rest: ViewStyle
 ) => {

@@ -1,12 +1,14 @@
-import React from 'react';
+import React, { useContext } from 'react';
 import { View } from 'react-native';
+import { ThemeContext } from '~contexts/theme.context';
 import getStyles from './main.styles';
 
 interface MainProps {
   children: React.ReactElement;
 }
 const Main: React.FC<MainProps> = ({ children }) => {
-  const { styles } = getStyles('dark');
+  const { theme } = useContext(ThemeContext);
+  const { styles } = getStyles(theme);
   return <View style={styles.main}>{children}</View>;
 };
 

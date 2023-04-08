@@ -3,11 +3,11 @@ import { fonts, theme } from '~styles/theme';
 import {
   type BaseColorType,
   type FontFamilyWeightType,
-  type themeType
+  type ThemeType
 } from '~types/components.types';
 
 const getTextStyles = (
-  currentTheme: themeType = 'light',
+  currentTheme: ThemeType = 'light',
   color: BaseColorType = 'primary',
   family: FontFamilyWeightType = 'regular',
   rest: TextStyle
