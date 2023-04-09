@@ -1,12 +1,25 @@
-import React from 'react';
-import { Text, View } from 'react-native';
-import { theme } from '~styles/theme';
+import React, { useContext } from 'react';
+import { Pressable } from 'react-native';
+import { SView } from '~components';
+import SText from '~components/SText/SText';
+import { ThemeContext } from '~contexts/theme.context';
 
 const Home: React.FC<any> = () => {
+  const { theme, setTheme } = useContext(ThemeContext);
+  console.log(theme);
   return (
-    <View>
-      <Text style={{ color: theme.light.text.primary, fontSize: 20 }}>Home</Text>
-    </View>
+    <SView display='flex' flex={1}>
+      <Pressable
+        onPress={() => {
+          setTheme(theme === 'dark' ? 'light' : 'dark');
+        }}
+      >
+        <SText color='primary' fontSize={16}>
+          Hello here is cool text Hello here is cool text Hello here is cool text Hello here is cool
+          text
+        </SText>
+      </Pressable>
+    </SView>
   );
 };
 

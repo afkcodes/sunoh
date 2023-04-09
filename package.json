@@ -11,7 +11,7 @@
     "dev": "react-native start",
     "test": "jest",
     "prepare": "husky install",
-    "postinstall": "husky install"
+    "postinstall": "husky install && npx patch-package"
   },
   "dependencies": {
     "navigation": "^6.1.0",

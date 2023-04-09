@@ -25,7 +25,7 @@ export const theme = {
   },
   dark: {
     background: {
-      primary: colors.amoled[500],
+      primary: colors.amoled[800],
       secondary: colors.black[500]
     },
     text: {
@@ -37,24 +37,15 @@ export const theme = {
       active: colors.red[600]
     },
     navigation: {
-      background: colors.black[700],
+      background: colors.black[800],
       inactiveColor: colors.black[200]
     }
   }
 };
 
-export const FONTS = {
+export const fonts = {
   regular: 'Gilroy-Regular',
   medium: 'Gilroy-Medium',
-  semiB: 'Gilroy-Semibold',
-  bold: 'Gilroy-Bold',
-  sizeXS: 8,
-  sizeS: 12,
-  sizeSR: 14,
-  sizeR: 16,
-  sizeXR: 20,
-  sizeM: 24,
-  sizeXM: 28,
-  sizeL: 32,
-  sizeXL: 36
+  semibold: 'Gilroy-Semibold',
+  bold: 'Gilroy-Bold'
 };
