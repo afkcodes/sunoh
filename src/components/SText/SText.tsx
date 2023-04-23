@@ -14,7 +14,6 @@ const SText: React.FC<STextProps & TextStyle> = (props) => {
   const { theme } = useContext(ThemeContext);
   const { children, color, family, textConfig, ...rest } = props;
   const { styles } = getTextStyles(theme, color, family, rest);
-  console.log(textConfig);
   return (
     <Text style={styles.text} {...textConfig}>
       {children}

@@ -43,9 +43,25 @@ export const theme = {
   }
 };
 
+// export const fonts = {
+//   regular: 'Gilroy-Regular',
+//   medium: 'Gilroy-Medium',
+//   semibold: 'Gilroy-Semibold',
+//   bold: 'Gilroy-Bold'
+// };
+
+// export const fonts = {
+//   regular: 'Mont-Regular',
+//   medium: 'Mont-Book',
+//   semibold: 'Mont-SemiBold',
+//   heavy: 'Mont-Heavy',
+//   bold: 'Mont-Bold'
+// };
+
 export const fonts = {
-  regular: 'Gilroy-Regular',
-  medium: 'Gilroy-Medium',
-  semibold: 'Gilroy-Semibold',
-  bold: 'Gilroy-Bold'
+  regular: 'Nexa-Regular',
+  medium: 'Nexa-Book',
+  semibold: 'Nexa-Bold',
+  bold: 'Nexa-XBold',
+  heavy: 'Nexa-Heavy'
 };

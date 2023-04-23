@@ -1,4 +1,9 @@
 export type BaseColorType = 'primary' | 'secondary';
-export type SpacingType = 'none' | 'xs' | 'sm' | 'md' | 'lg' | 'xl' | '2xl' | '3xl' | '4xl';
+export type XSizes = 'xxs' | 'xxl';
+export type BaseSize = 'xs' | 'sm' | 'md' | 'lg' | 'xl';
+export type SpacingType = BaseSize | 'none' | 'xxl' | 'xxxl' | '4xl';
 export type ThemeType = 'dark' | 'light';
-export type FontFamilyWeightType = 'regular' | 'medium' | 'semibold' | 'bold';
+export type FontFamilyWeightType = 'regular' | 'medium' | 'semibold' | 'bold' | 'heavy';
+export type TileSize = BaseSize | XSizes;
+export type BorderRadius = SpacingType | 'none' | '5xl' | 'full';
+export type FontSize = BaseSize | XSizes | 'xxxl' | '4xl';
