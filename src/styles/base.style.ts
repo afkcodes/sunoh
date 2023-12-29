@@ -1,4 +1,4 @@
-import { FontSize, FontWeight, Radius } from "../types/common.types";
+import { FontSize, FontWeight, LineCount, Radius } from "../types/common.types";
 
 const radiusStyle: { [key in Radius]: string } = {
   xs: "rounded-sm",
@@ -29,4 +29,11 @@ const FontWeightStyle: { [key in FontWeight]: string } = {
   semibold: "font-semibold",
 };
 
-export { FontWeightStyle, fontSizeStyle, radiusStyle };
+const LineCountStyle: { [key in LineCount]: string } = {
+  1: "line-clamp-1",
+  2: "line-clamp-2",
+  3: "line-clamp-3",
+  4: "line-clamp-4",
+};
+
+export { FontWeightStyle, LineCountStyle, fontSizeStyle, radiusStyle };

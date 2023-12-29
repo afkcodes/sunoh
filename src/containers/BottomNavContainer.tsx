@@ -1,13 +1,14 @@
-import { useState } from "react";
 import { useNavigate } from "react-router-dom";
+import { useSnapshot } from "valtio";
 import Button from "~components/Button/Button";
 import { bottomNav } from "~constants/common";
+import { tabActions, tabState } from "~states/tab";
 
 const BottomNavContainer = () => {
-  const [selectedTab, setSelectedTab] = useState(0);
+  const snap = useSnapshot(tabState);
   const navigate = useNavigate();
   const onTabSelect = (id: number, path: string) => {
-    setSelectedTab(id);
+    tabActions.setTab(id);
     navigate(path);
   };
 
@@ -24,14 +25,14 @@ const BottomNavContainer = () => {
             <navItem.icon
               size={26}
               className={
-                selectedTab === idx ? "text-textAccent" : "bg-transparent"
+                snap.currentTab === idx ? "text-textAccent" : "bg-transparent"
               }
             />
           }
           iconPosition="top"
           customClass={`
           py-4 w-full  
-          active:bg-btnDarkHover hover:bg-btnDarkHover bg-transparent
+          active:bg-btnDarkHover hover:bg-transparent bg-transparent
           `}
           radius="none"
         />
