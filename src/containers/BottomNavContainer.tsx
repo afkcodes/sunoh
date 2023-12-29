@@ -13,7 +13,7 @@ const BottomNavContainer = () => {
   };
 
   return (
-    <div className="flex justify-between absolute bg-bgPrimary bottom-0 left-0 right-0 w-full shadow-md">
+    <div className="flex justify-between fixed bg-bgPrimary bottom-0 left-0 z-10 w-full shadow-md">
       {bottomNav.map((navItem, idx) => (
         <Button
           key={navItem.id}

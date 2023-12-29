@@ -4,14 +4,15 @@
   "version": "1.0.0",
   "type": "module",
   "scripts": {
-    "dev": "vite --port=3000 --host",
+    "dev": "vite --port=3600 --host",
     "build": "tsc && vite build",
     "lint": "eslint . --ext ts,tsx --report-unused-disable-directives --max-warnings 0",
-    "preview": "vite preview --port=3000"
+    "preview": "vite preview --port=3600"
   },
   "dependencies": {
     "@ark-ui/react": "^1.2.1",
     "@tanstack/react-query": "^5.15.0",
+    "audio_x": "^1.0.2",
     "react": "^18.2.0",
     "react-dom": "^18.2.0",
     "react-icons": "^4.12.0",

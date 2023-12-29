@@ -8,6 +8,7 @@ import {
   ImageLoading,
   LineCount,
   Shape,
+  TileSize,
 } from "~types/common.types";
 
 export interface FigureProps {
@@ -30,4 +31,14 @@ export interface TitleSubtitleProps {
   subtitleFontWeight?: FontWeight;
   noOfLinesTitle?: LineCount;
   noOfLinesSubtitle?: LineCount;
+}
+
+export interface TileStyleProps {
+  shape: Shape;
+  size: TileSize;
+  fit?: FitStrategy;
+  titleFontSize?: FontSize;
+  subtitleFontSize?: FontSize;
+  titleFontWeight?: FontWeight;
+  subtitleFontWeight?: FontWeight;
 }

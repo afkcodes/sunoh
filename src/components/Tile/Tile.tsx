@@ -1,51 +1,44 @@
 import Figure from "~components/Figure/Figure";
 import TitleSubtitle from "~components/TitleSubtitle/TitleSubtitle";
-import { Shape, TileSize } from "~types/common.types";
-import { FigureProps, TitleSubtitleProps } from "~types/component.types";
+import { dataExtractor } from "~helpers/common";
+
+import { TileStyleProps } from "~types/component.types";
 import { tileShape, tileSize } from "./tile.styles";
 
 interface TileProps {
-  figureConfig: FigureProps;
-  titleSubtitleConfig: TitleSubtitleProps;
-  tileConfig: {
-    size: TileSize;
-    shape: Shape;
-  };
+  data: any;
+  config: any;
+  styleConfig: TileStyleProps;
+  onClick: (params: any) => void;
 }
 
-const Tile: React.FC<TileProps> = ({
-  tileConfig = { size: "2xl", shape: "rounded_square" },
-  figureConfig = {
-    src: "",
-    size: "2xl",
-    alt: "",
-    shape: "rounded_square",
-    fit: "contain",
-  },
-  titleSubtitleConfig = {
-    title: "",
-    subTitle: "",
-  },
-}) => {
+const Tile: React.FC<TileProps> = ({ data, config, styleConfig, onClick }) => {
+  const src = dataExtractor(data, config.posterImage);
+  const title = dataExtractor(data, config.name);
+  const subTitle = dataExtractor(data, config.city);
+
+  const onTileClick = () => {
+    onClick(data);
+  };
+
   return (
-    <div
-      className={`flex flex-col gap-1
-      ${tileShape[tileConfig.shape]}
-      ${tileSize[tileConfig.size]}
+    <button
+      className={`flex flex-col gap-1 p-0 m-0 text-start
+      overflow-hidden
+      ${tileShape[styleConfig.shape]}
+      ${tileSize[styleConfig.size]}
     `}
+      onClick={onTileClick}
     >
       <Figure
-        src={figureConfig.src}
-        alt={figureConfig.alt}
-        size={figureConfig.size}
-        shape={figureConfig.shape}
-        fit={figureConfig.fit}
+        src={src}
+        alt={`${title} poster`}
+        size={styleConfig.size}
+        shape={styleConfig.shape}
+        fit={styleConfig.fit}
       />
-      <TitleSubtitle
-        title={titleSubtitleConfig.title}
-        subTitle={titleSubtitleConfig.subTitle}
-      />
-    </div>
+      <TitleSubtitle title={title} subTitle={subTitle} />
+    </button>
   );
 };
 

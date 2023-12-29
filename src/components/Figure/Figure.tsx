@@ -23,7 +23,7 @@ const Figure: React.FC<FigureProps> = ({
       tabIndex={0}
     >
       {mode === "single" ? (
-        <Image src={src} alt={alt} loading={loading} />
+        <Image src={src} alt={alt} loading={loading} fit={fit} />
       ) : null}
     </figure>
   );

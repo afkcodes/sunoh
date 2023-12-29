@@ -1,4 +1,5 @@
-import { ImageLoading } from "~types/common.types";
+import { fitStrategy } from "~components/Figure/figure.styles";
+import { FitStrategy, ImageLoading } from "~types/common.types";
 
 interface Image {
   src: string;
@@ -6,6 +7,7 @@ interface Image {
   height?: number | string | undefined;
   loading?: ImageLoading;
   width?: number | string | undefined;
+  fit: FitStrategy;
 }
 
 const Image: React.FC<Image> = ({
@@ -14,9 +16,17 @@ const Image: React.FC<Image> = ({
   height = "100%",
   width = "100%",
   loading = "lazy",
+  fit = "cover",
 }) => {
   return (
-    <img src={src} alt={alt} height={height} width={width} loading={loading} />
+    <img
+      src={src}
+      alt={alt}
+      height={height}
+      width={width}
+      loading={loading}
+      className={` h-full w-full ${fitStrategy[fit]}`}
+    />
   );
 };
 

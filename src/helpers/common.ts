@@ -1,6 +1,8 @@
 import { Track, TrackType } from "~types/common.types";
 
 export const isValidFunction = (fun: any) => typeof fun === "function";
+export const isValidArray = (arr: any[]) =>
+  arr && Array.isArray(arr) && arr.length > 0;
 
 export const deepCompare = (obj1: any, obj2: any): boolean => {
   // Check if the types of both objects are the same
