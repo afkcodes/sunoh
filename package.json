@@ -7,7 +7,8 @@
     "dev": "vite --port=3600 --host",
     "build": "tsc && vite build",
     "lint": "eslint . --ext ts,tsx --report-unused-disable-directives --max-warnings 0",
-    "preview": "vite preview --port=3600"
+    "preview": "vite preview --port=3600",
+    "deploy": "vercel deploy --prod"
   },
   "dependencies": {
     "@ark-ui/react": "^1.2.1",
@@ -33,6 +34,7 @@
     "postcss": "^8.4.32",
     "tailwindcss": "^3.4.0",
     "typescript": "^5.3.3",
+    "vercel": "^33.0.1",
     "vite": "^5.0.10",
     "vite-tsconfig-paths": "^4.2.2"
   }

@@ -1,4 +1,4 @@
-import { FigureShape, FigureSize, FitStrategy } from "~types/common.types";
+import { FigureSize, FitStrategy, Shape } from "~types/common.types";
 
 const figureSize: {
   [key in FigureSize]: string;
@@ -17,7 +17,7 @@ const figureSize: {
 };
 
 const figureShape: {
-  [key in FigureShape]: string;
+  [key in Shape]: string;
 } = {
   default: "overflow-hidden rounded-none",
   rounded_square: "overflow-hidden rounded",

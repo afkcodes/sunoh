@@ -11,7 +11,6 @@ const Figure: React.FC<FigureProps> = ({
   loading = "lazy",
   mode = "single",
   fit = "cover",
-  onLoad = () => {},
 }) => {
   return (
     <figure
