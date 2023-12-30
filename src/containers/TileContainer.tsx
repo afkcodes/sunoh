@@ -1,24 +1,29 @@
+import { Fragment } from "react";
+import SnapCarousel from "~components/Carousel/Carousel";
 import Tile from "~components/Tile/Tile";
 import { isValidArray } from "~helpers/common";
-import { TileStyleProps } from "~types/component.types";
-
-interface TileContainerProps {
-  data: any[];
-  config: any;
-  tileStyleConfig: TileStyleProps;
-  onClick: (item: any) => void;
-}
+import { TileContainerProps } from "~types/component.types";
 
 const TileContainer: React.FC<TileContainerProps> = ({
   data,
   config,
   tileStyleConfig,
   onClick,
+  displayType = "default",
 }) => {
-  return (
-    <>
-      {isValidArray(data)
-        ? data.map((item) => (
+  const Tiles = isValidArray(data)
+    ? data.map((item) => (
+        <Fragment key={item._id}>
+          {displayType === "carousel" ? (
+            <li key={item._id}>
+              <Tile
+                config={config}
+                styleConfig={tileStyleConfig}
+                data={item}
+                onClick={onClick}
+              />
+            </li>
+          ) : (
             <Tile
               config={config}
               styleConfig={tileStyleConfig}
@@ -26,8 +31,18 @@ const TileContainer: React.FC<TileContainerProps> = ({
               key={item._id}
               onClick={onClick}
             />
-          ))
-        : null}
+          )}
+        </Fragment>
+      ))
+    : null;
+
+  return (
+    <>
+      {displayType === "carousel" ? (
+        <SnapCarousel type="DEFAULT">{Tiles}</SnapCarousel>
+      ) : (
+        Tiles
+      )}
     </>
   );
 };

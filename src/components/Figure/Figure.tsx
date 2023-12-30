@@ -11,6 +11,7 @@ const Figure: React.FC<FigureProps> = ({
   loading = "lazy",
   mode = "single",
   fit = "cover",
+  dominantColor = "",
 }) => {
   return (
     <figure
@@ -20,6 +21,7 @@ const Figure: React.FC<FigureProps> = ({
         group pointer-events-none relative
       `}
       tabIndex={0}
+      style={{ backgroundColor: dominantColor }}
     >
       {mode === "single" ? (
         <Image src={src} alt={alt} loading={loading} fit={fit} />
