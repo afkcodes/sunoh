@@ -64,7 +64,11 @@ export default {
         // Disabled state
         disabled: "#666666",
       },
-      // ... (other theme properties)
+      boxShadow: {
+        "elevation-1": "0 2px 4px 0 rgba(0, 0, 0, 0.10)",
+        "elevation-2": "0 4px 8px 0 rgba(0, 0, 0, 0.12)",
+        "elevation-3": "0 8px 16px 0 rgba(0, 0, 0, 0.14)",
+      },
     },
   },
   plugins: [],

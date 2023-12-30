@@ -3,7 +3,7 @@ import TitleSubtitle from "~components/TitleSubtitle/TitleSubtitle";
 import { dataExtractor } from "~helpers/common";
 
 import { TileStyleProps } from "~types/component.types";
-import { tileShape, tileSize } from "./tile.styles";
+import { tileSize } from "./tile.styles";
 
 interface TileProps {
   data: any;
@@ -16,6 +16,7 @@ const Tile: React.FC<TileProps> = ({ data, config, styleConfig, onClick }) => {
   const src = dataExtractor(data, config.posterImage);
   const title = dataExtractor(data, config.name);
   const subTitle = dataExtractor(data, config.city);
+  const dominantColor = dataExtractor(data, config.dominantColor);
 
   const onTileClick = () => {
     onClick(data);
@@ -23,9 +24,9 @@ const Tile: React.FC<TileProps> = ({ data, config, styleConfig, onClick }) => {
 
   return (
     <button
-      className={`flex flex-col gap-1 p-0 m-0 text-start
+      className={`flex flex-col gap-1 p-0 m-0 
       overflow-hidden
-      ${tileShape[styleConfig.shape]}
+      ${styleConfig.shape === "circle" ? "text-center" : "text-start"}
       ${tileSize[styleConfig.size]}
     `}
       onClick={onTileClick}
@@ -36,6 +37,7 @@ const Tile: React.FC<TileProps> = ({ data, config, styleConfig, onClick }) => {
         size={styleConfig.size}
         shape={styleConfig.shape}
         fit={styleConfig.fit}
+        dominantColor={dominantColor}
       />
       <TitleSubtitle title={title} subTitle={subTitle} />
     </button>

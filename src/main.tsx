@@ -10,11 +10,18 @@ const queryClient = new QueryClient();
 const audio = new AudioX();
 
 audio.init({
-  mode: "REACT",
   autoPlay: false,
   useDefaultEventListeners: true,
-  enableHls: true,
+  mode: "REACT",
   showNotificationActions: true,
+  preloadStrategy: "auto",
+  playbackRate: 1,
+  enableEQ: true,
+  enablePlayLog: true,
+  enableHls: true,
+  hlsConfig: {
+    startLevel: -1,
+  },
 });
 
 ReactDOM.createRoot(document.getElementById("root")!).render(

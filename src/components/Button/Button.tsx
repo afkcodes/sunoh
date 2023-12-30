@@ -1,30 +1,12 @@
+import { ButtonProps } from "~types/component.types";
 import {
   FontWeightStyle,
   fontSizeStyle,
   radiusStyle,
 } from "../../styles/base.style";
-import {
-  FontSize,
-  FontWeight,
-  Position,
-  Radius,
-} from "../../types/common.types";
 import { buttonVariantStyle } from "./button.styles";
-import { Variant } from "./button.types";
 
-interface Button {
-  variant: Variant;
-  onClick: (param: any) => void;
-  text?: string;
-  radius?: Radius;
-  fontSize?: FontSize;
-  fontWeight?: FontWeight;
-  icon?: React.ReactNode;
-  iconPosition?: Position;
-  customClass?: string;
-}
-
-const Button: React.FC<Button> = ({
+const Button: React.FC<ButtonProps> = ({
   text,
   icon = null,
   onClick = () => {
@@ -36,6 +18,7 @@ const Button: React.FC<Button> = ({
   fontWeight = "medium",
   iconPosition = "left",
   customClass = "",
+  isCapitalized = false,
 }) => {
   return (
     <button
@@ -56,7 +39,14 @@ const Button: React.FC<Button> = ({
         `}
       >
         {icon ? <span>{icon}</span> : null}
-        {text ? <span>{text}</span> : null}
+        {text ? (
+          <span
+            className={`p-0 m-0
+            ${isCapitalized ? "inline-block leading-3 mt-0.5" : ""}`}
+          >
+            {text}
+          </span>
+        ) : null}
       </div>
     </button>
   );
