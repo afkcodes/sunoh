@@ -14,11 +14,16 @@ const routes = {
 const endpoints = {
   getStationsByLocationType: async (
     locationType: "city" | "state" | "country",
-    location: string
+    location: string,
+    page: number = 1,
+    offset: number = 10
   ) => {
-    const data = await http(`${baseURL}/station/${locationType}/${location}`, {
-      method: "GET",
-    });
+    const data = await http(
+      `${baseURL}/${locationType}/${location}?page=${page}&offset=${offset}`,
+      {
+        method: "GET",
+      }
+    );
     return data as Response;
   },
 

@@ -1,7 +1,6 @@
-import Figure from "~components/Figure/Figure";
-import TitleSubtitle from "~components/TitleSubtitle/TitleSubtitle";
 import { dataExtractor } from "~helpers/common";
 
+import FigureTitle from "~components/FigureTitle/FigureTitle";
 import { TileStyleProps } from "~types/component.types";
 import { tileSize } from "./tile.styles";
 
@@ -24,22 +23,29 @@ const Tile: React.FC<TileProps> = ({ data, config, styleConfig, onClick }) => {
 
   return (
     <button
-      className={`flex flex-col gap-1 p-0 m-0 
+      className={`flex flex-col p-0 m-0 
       overflow-hidden
       ${styleConfig.shape === "circle" ? "text-center" : "text-start"}
       ${tileSize[styleConfig.size]}
     `}
       onClick={onTileClick}
     >
-      <Figure
-        src={src}
-        alt={`${title} poster`}
-        size={styleConfig.size}
-        shape={styleConfig.shape}
-        fit={styleConfig.fit}
-        dominantColor={dominantColor}
+      <FigureTitle
+        figureConfig={{
+          src: src,
+          alt: `${title} poster`,
+          dominantColor: dominantColor,
+          fit: styleConfig.fit,
+          shape: styleConfig.shape,
+          size: styleConfig.size,
+        }}
+        titleConfig={{
+          title,
+          subTitle,
+        }}
+        gap="xs"
+        orientation="vertical"
       />
-      <TitleSubtitle title={title} subTitle={subTitle} />
     </button>
   );
 };

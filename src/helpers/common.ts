@@ -205,3 +205,36 @@ export const getGreeting = () => {
       : "Good evening !";
   return greeting;
 };
+
+export const isColorDark = (color: string) => {
+  // Convert color to RGB
+  const hexToRgb = (hex: string) => {
+    const bigint = parseInt(hex.replace("#", ""), 16);
+    return {
+      r: (bigint >> 16) & 255,
+      g: (bigint >> 8) & 255,
+      b: bigint & 255,
+    };
+  };
+
+  // Calculate perceived brightness
+  const calculatePerceivedBrightness = ({
+    r,
+    g,
+    b,
+  }: {
+    r: number;
+    g: number;
+    b: number;
+  }) => {
+    return Math.sqrt(r * r * 0.299 + g * g * 0.587 + b * b * 0.114);
+  };
+
+  const { r, g, b } = hexToRgb(color);
+  const brightness = calculatePerceivedBrightness({ r, g, b });
+
+  // Set a threshold value for determining darkness (adjust as needed)
+  const threshold = 100; // You can adjust this threshold as needed
+
+  return brightness < threshold;
+};
