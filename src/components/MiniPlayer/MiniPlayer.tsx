@@ -1,22 +1,23 @@
-import { useContext } from "react";
-import { useSnapshot } from "valtio";
 import Button from "~components/Button/Button";
 import FigureTitle from "~components/FigureTitle/FigureTitle";
 import PlayerStatusIndicator from "~components/PlayerStatusIndicator/PlayerStatusIndicator";
-import { AudioXContext } from "~contexts/audioX.context";
+import { AudioContextProps } from "~contexts/audioX.context";
 import { getColorWithOpacity } from "~helpers/common";
-import { playerState } from "~states/player";
 import { Track } from "~types/common.types";
 
-const MiniPlayer = () => {
-  const { currentTrack } = useSnapshot(playerState);
-  const audio = useContext(AudioXContext);
-  // console.log("STATUS A", audio.audioState);
+interface MiniPlayerProps {
+  currentTrack: Track;
+  audio: AudioContextProps;
+}
 
+const MiniPlayer: React.FC<MiniPlayerProps> = ({ currentTrack, audio }) => {
   return (
     <div
       style={{
-        backgroundColor: getColorWithOpacity(currentTrack.dominantColor, 0.3),
+        backgroundColor: getColorWithOpacity(
+          currentTrack.dominantColor as string,
+          0.3
+        ),
         backdropFilter: "blur(10px)",
       }}
       className={` transition-all duration-300 w-full flex justify-between items-start px-3 py-2 `}
@@ -43,8 +44,8 @@ const MiniPlayer = () => {
       <Button
         onClick={() => {
           audio.audioState.playbackState !== "playing"
-            ? audio.play()
-            : audio.pause();
+            ? audio.addMediaAndPlay(currentTrack) // this is only for live streams update this when a finite audio is played
+            : audio.reset();
         }}
         variant="unstyled"
         icon={<PlayerStatusIndicator currentTrack={currentTrack as Track} />}

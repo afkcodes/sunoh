@@ -1,8 +1,13 @@
+import { MediaTrack } from "audio_x";
 import { Track, TrackType } from "~types/common.types";
 
 export const isValidFunction = (fun: any) => typeof fun === "function";
 export const isValidArray = (arr: any[]) =>
   arr && Array.isArray(arr) && arr.length > 0;
+export const isValidWindow =
+  window instanceof Window && typeof window !== "undefined";
+export const isValidObject = (obj: any): boolean =>
+  obj !== null && typeof obj === "object" && !Array.isArray(obj);
 
 export const deepCompare = (obj1: any, obj2: any): boolean => {
   // Check if the types of both objects are the same
@@ -196,13 +201,20 @@ export const findDuplicatesAndRemove = <T>(
 };
 
 export const getGreeting = () => {
-  const currentHour = new Date().getHours();
-  const greeting =
-    currentHour < 12
-      ? "Good morning !"
-      : currentHour < 18
-      ? "Good afternoon !"
-      : "Good evening !";
+  const currentDate = new Date();
+  const currentHour = currentDate.getHours();
+
+  let greeting: string;
+
+  if (currentHour >= 5 && currentHour < 12) {
+    greeting = "Good morning !";
+  } else if (currentHour >= 12 && currentHour < 18) {
+    greeting = "Good afternoon !";
+  } else if (currentHour >= 18 && currentHour < 22) {
+    greeting = "Good evening !";
+  } else {
+    greeting = "Good night !";
+  }
   return greeting;
 };
 
@@ -237,4 +249,22 @@ export const isColorDark = (color: string) => {
   const threshold = 100; // You can adjust this threshold as needed
 
   return brightness < threshold;
+};
+
+export const createMediaTrack = (item: any) => {
+  const mediaTrack: MediaTrack = {
+    id: item._id,
+    artwork: [
+      {
+        src: item.imageUrl,
+        name: item.name,
+        sizes: "200x200",
+      },
+    ],
+    source: item.stream.url,
+    title: item.name,
+    artist: item.locations[0].city.name,
+  };
+
+  return mediaTrack;
 };

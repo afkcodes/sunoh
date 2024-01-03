@@ -9,7 +9,6 @@ const Greetings = () => {
     <section className="flex px-3 mb-4 justify-between items-center">
       <div className="flex flex-col">
         <TextLink fontSize="2xl" text={greeting} fontWeight="bold" />
-        {/* <TextLink fontSize="md" text="Ashish" fontWeight="semibold" /> */}
       </div>
       <div className="self-start">
         <Button

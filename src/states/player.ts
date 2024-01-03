@@ -5,23 +5,8 @@ interface PlayerActions {
   setCurrentTrack: (track: Track) => void;
 }
 
-const baseTrack: Track = {
-  artwork: [
-    {
-      src: "",
-      name: "",
-      sizes: "200x200",
-    },
-  ],
-  source: "",
-  dominantColor: "",
-  id: "",
-  title: "",
-  artist: "",
-};
-
-export const playerState = proxy({
-  currentTrack: baseTrack,
+export const playerState: { currentTrack: Track | null } = proxy({
+  currentTrack: null,
 });
 
 export const playerActions: PlayerActions = {

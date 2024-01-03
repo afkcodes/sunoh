@@ -1,15 +1,20 @@
-import { AudioX, MediaTrack } from "audio_x";
-import { Fragment } from "react";
+import { Fragment, useContext } from "react";
+import { useNavigate } from "react-router-dom";
 import Greetings from "~components/Greetings/Greetings";
 import SectionContainer from "~containers/SectionContainer";
-import { CITY_RADIO_TILE_CONFIG } from "~helpers/data.config";
+import { AudioXContext } from "~contexts/audioX.context";
+import { createMediaTrack } from "~helpers/common";
+import { TILE_CONFIG } from "~helpers/data.config";
 import useFetch from "~hooks/useFetch.hook";
 import endpoints from "~network/endpoints";
 import { playerState } from "~states/player";
-
-const audio = new AudioX();
+import { Track } from "~types/common.types";
+import { storage } from "~utils/storage";
 
 const Home = () => {
+  const audio = useContext(AudioXContext);
+  const navigate = useNavigate();
+
   const {
     data: cityData,
     isSuccess,
@@ -21,27 +26,18 @@ const Home = () => {
   });
 
   const onTileClick = (item: any) => {
-    const mediaTrack: MediaTrack = {
-      id: item._id,
-      artwork: [
-        {
-          src: item.imageUrl,
-          name: item.name,
-          sizes: "200x200",
-        },
-      ],
-      source: item.stream.url,
-      title: item.name,
-      artist: item.locations[0].city.name,
-    };
-    audio.addMediaAndPlay(mediaTrack);
-    playerState.currentTrack = {
+    const mediaTrack = createMediaTrack(item);
+    const track: Track = {
       ...mediaTrack,
       dominantColor: item.dominantColor,
     };
+    audio.addMediaAndPlay(mediaTrack);
+    storage.setItem("current_track", JSON.stringify(track));
+    playerState.currentTrack = track;
   };
+
   return (
-    <div className="justify-center w-full place-items-center gap-4 pt-4 pb-20">
+    <div className="justify-center w-full place-items-center gap-4 pt-4 pb-28">
       <Greetings />
       {!isError && isSuccess ? (
         <Fragment>
@@ -54,7 +50,9 @@ const Home = () => {
               },
               actionButtonConfig: {
                 text: "VIEW ALL",
-                onClick: () => {},
+                onClick: () => {
+                  navigate("/recently-added/view-all");
+                },
                 variant: "tertiary",
                 fontSize: "xs",
                 fontWeight: "bold",
@@ -66,7 +64,7 @@ const Home = () => {
             containerType="tile"
             containerConfig={{
               data: cityData?.data.stations.slice(10, 20),
-              config: CITY_RADIO_TILE_CONFIG,
+              config: TILE_CONFIG,
               tileStyleConfig: {
                 shape: "rounded_square",
                 size: "2xl",
@@ -97,7 +95,7 @@ const Home = () => {
             containerType="tile"
             containerConfig={{
               data: cityData?.data.stations.slice(0, 10),
-              config: CITY_RADIO_TILE_CONFIG,
+              config: TILE_CONFIG,
               tileStyleConfig: {
                 shape: "rounded_square",
                 size: "2xl",
@@ -128,7 +126,7 @@ const Home = () => {
             containerType="tile"
             containerConfig={{
               data: cityData?.data.stations.slice(20, 30),
-              config: CITY_RADIO_TILE_CONFIG,
+              config: TILE_CONFIG,
               tileStyleConfig: {
                 shape: "rounded_square",
                 size: "2xl",
