@@ -4,6 +4,7 @@ const tileSize: {
   [key in TileSize]: string;
 } = {
   "3xs": "w-8",
+  "2.5xs": "w-10",
   "2xs": "w-12",
   xs: "w-16",
   sm: "w-20",

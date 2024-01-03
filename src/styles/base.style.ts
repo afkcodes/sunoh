@@ -1,4 +1,10 @@
-import { FontSize, FontWeight, LineCount, Radius } from "../types/common.types";
+import {
+  FontSize,
+  FontWeight,
+  LineCount,
+  Radius,
+  Spacing,
+} from "../types/common.types";
 
 const radiusStyle: { [key in Radius]: string } = {
   xs: "rounded-sm",
@@ -36,4 +42,23 @@ const LineCountStyle: { [key in LineCount]: string } = {
   4: "line-clamp-4",
 };
 
-export { FontWeightStyle, LineCountStyle, fontSizeStyle, radiusStyle };
+const gapStyle: { [key in Spacing]: string } = {
+  "3xs": "gap-0.5",
+  "2xs": "gap-1",
+  xs: "gap-2",
+  sm: "gap-4",
+  md: "gap-6",
+  lg: "gap-8",
+  xl: "gap-10",
+  "2xl": "gap-12",
+  "3xl": "gap-14",
+  "4xl": "gap-16",
+};
+
+export {
+  FontWeightStyle,
+  LineCountStyle,
+  fontSizeStyle,
+  gapStyle,
+  radiusStyle,
+};

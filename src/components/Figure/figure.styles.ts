@@ -4,6 +4,7 @@ const figureSize: {
   [key in FigureSize]: string;
 } = {
   "3xs": "size-8",
+  "2.5xs": "size-10",
   "2xs": "size-12",
   xs: "size-16",
   sm: "size-20",

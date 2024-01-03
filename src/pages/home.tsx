@@ -1,10 +1,11 @@
-import { AudioState, AudioX, MediaTrack } from "audio_x";
+import { AudioX, MediaTrack } from "audio_x";
 import { Fragment } from "react";
 import Greetings from "~components/Greetings/Greetings";
 import SectionContainer from "~containers/SectionContainer";
 import { CITY_RADIO_TILE_CONFIG } from "~helpers/data.config";
 import useFetch from "~hooks/useFetch.hook";
 import endpoints from "~network/endpoints";
+import { playerState } from "~states/player";
 
 const audio = new AudioX();
 
@@ -16,15 +17,12 @@ const Home = () => {
   } = useFetch({
     queryKey: ["home"],
     queryFn: async () =>
-      await endpoints.getStationsByLocationType("city", "mumbai"),
-  });
-
-  audio.subscribe("AUDIO_X_STATE", (data: AudioState) => {
-    console.log({ ...data });
+      await endpoints.getStationsByLocationType("city", "mumbai", 1, 40),
   });
 
   const onTileClick = (item: any) => {
     const mediaTrack: MediaTrack = {
+      id: item._id,
       artwork: [
         {
           src: item.imageUrl,
@@ -37,6 +35,10 @@ const Home = () => {
       artist: item.locations[0].city.name,
     };
     audio.addMediaAndPlay(mediaTrack);
+    playerState.currentTrack = {
+      ...mediaTrack,
+      dominantColor: item.dominantColor,
+    };
   };
   return (
     <div className="justify-center w-full place-items-center gap-4 pt-4 pb-20">
@@ -63,7 +65,7 @@ const Home = () => {
             }}
             containerType="tile"
             containerConfig={{
-              data: cityData?.data.slice(10, 20),
+              data: cityData?.data.stations.slice(10, 20),
               config: CITY_RADIO_TILE_CONFIG,
               tileStyleConfig: {
                 shape: "rounded_square",
@@ -94,7 +96,7 @@ const Home = () => {
             }}
             containerType="tile"
             containerConfig={{
-              data: cityData?.data.slice(0, 10),
+              data: cityData?.data.stations.slice(0, 10),
               config: CITY_RADIO_TILE_CONFIG,
               tileStyleConfig: {
                 shape: "rounded_square",
@@ -125,7 +127,7 @@ const Home = () => {
             }}
             containerType="tile"
             containerConfig={{
-              data: cityData?.data.slice(20, 30),
+              data: cityData?.data.stations.slice(20, 30),
               config: CITY_RADIO_TILE_CONFIG,
               tileStyleConfig: {
                 shape: "rounded_square",
