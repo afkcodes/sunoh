@@ -13,7 +13,7 @@ export type Position = "left" | "right" | "top" | "bottom";
 export type TrackType = "hls" | "default";
 
 export interface Track extends MediaTrack {
-  dominantColor: string;
+  dominantColor?: string;
 }
 
 export interface Response {

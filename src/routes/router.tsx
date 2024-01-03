@@ -16,6 +16,10 @@ const router = createBrowserRouter([
         index: true,
       },
       {
+        path: "/:category/view-all",
+        element: <Search key="search" />,
+      },
+      {
         path: "/search",
         element: <Search key="search" />,
       },

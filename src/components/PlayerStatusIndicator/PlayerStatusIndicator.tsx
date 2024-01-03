@@ -19,16 +19,13 @@ const PlayerStatusIndicator: React.FC<PlayerStatusIndicatorProps> = ({
 
   const isPlaying = audio.audioState.playbackState === "playing";
   const isBuffering = audio.audioState.playbackState === "buffering";
+  const isDark = isColorDark(currentTrack.dominantColor as string);
 
   return (
     <Fragment>
       {!isPlaying && !isBuffering ? (
         <RiPlayCircleFill
-          color={
-            isColorDark(currentTrack.dominantColor)
-              ? "white"
-              : currentTrack.dominantColor
-          }
+          color={isDark ? "white" : currentTrack.dominantColor}
           className=""
           size={48}
         />
@@ -36,11 +33,7 @@ const PlayerStatusIndicator: React.FC<PlayerStatusIndicatorProps> = ({
 
       {isPlaying ? (
         <RiPauseCircleFill
-          color={
-            isColorDark(currentTrack.dominantColor)
-              ? "white"
-              : currentTrack.dominantColor
-          }
+          color={isDark ? "white" : currentTrack.dominantColor}
           className=""
           size={48}
         />
@@ -48,11 +41,7 @@ const PlayerStatusIndicator: React.FC<PlayerStatusIndicatorProps> = ({
 
       {isBuffering && !isPlaying ? (
         <RiLoader5Line
-          color={
-            isColorDark(currentTrack.dominantColor)
-              ? "white"
-              : currentTrack.dominantColor
-          }
+          color={isDark ? "white" : currentTrack.dominantColor}
           size={48}
           className="animate-spin"
         />
