@@ -1,4 +1,4 @@
-import { Fragment, useContext } from 'react';
+import { Fragment, memo, useContext } from 'react';
 import { useNavigate } from 'react-router-dom';
 import Greetings from '~components/Greetings/Greetings';
 import SectionContainer from '~containers/SectionContainer';
@@ -11,7 +11,7 @@ import { playerState } from '~states/player';
 import { Track } from '~types/common.types';
 import { storage } from '~utils/storage';
 
-const Home = () => {
+const Home = memo(() => {
   const audio = useContext(AudioXContext);
   const navigate = useNavigate();
 
@@ -35,8 +35,6 @@ const Home = () => {
     storage.setItem('current_track', JSON.stringify(track));
     playerState.currentTrack = track;
   };
-
-  console.log('RERendering home');
 
   return (
     <div className='justify-center w-full place-items-center gap-4 pt-4 pb-28'>
@@ -142,6 +140,6 @@ const Home = () => {
       ) : null}
     </div>
   );
-};
+});
 
 export default Home;
