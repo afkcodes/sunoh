@@ -1,8 +1,8 @@
-import { dataExtractor } from "~helpers/common";
+import { dataExtractor } from '~helpers/common';
 
-import FigureTitle from "~components/FigureTitle/FigureTitle";
-import { TileStyleProps } from "~types/component.types";
-import { tileSize } from "./tile.styles";
+import FigureTitle from '~components/FigureTitle/FigureTitle';
+import { TileStyleProps } from '~types/component.types';
+import { tileSize } from './tile.styles';
 
 interface TileProps {
   data: any;
@@ -25,11 +25,10 @@ const Tile: React.FC<TileProps> = ({ data, config, styleConfig, onClick }) => {
     <button
       className={`flex flex-col p-0 m-0 
       overflow-hidden
-      ${styleConfig.shape === "circle" ? "text-center" : "text-start"}
+      ${styleConfig.shape === 'circle' ? 'text-center' : 'text-start'}
       ${tileSize[styleConfig.size]}
     `}
-      onClick={onTileClick}
-    >
+      onClick={onTileClick}>
       <FigureTitle
         figureConfig={{
           src: src,
@@ -43,8 +42,8 @@ const Tile: React.FC<TileProps> = ({ data, config, styleConfig, onClick }) => {
           title,
           subTitle,
         }}
-        gap="xs"
-        orientation="vertical"
+        gap='xs'
+        orientation='vertical'
       />
     </button>
   );

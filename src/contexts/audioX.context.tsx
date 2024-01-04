@@ -1,8 +1,9 @@
 /* eslint-disable @typescript-eslint/no-unused-vars */
-import { AUDIO_STATE, AudioState, AudioX, MediaTrack } from "audio_x";
-import { createContext, useEffect, useState } from "react";
-import { playerState } from "~states/player";
-import { storage } from "~utils/storage";
+import { AUDIO_STATE, AudioState, AudioX, MediaTrack } from 'audio_x';
+import { createContext, useEffect } from 'react';
+import { useSnapshot } from 'valtio';
+import { playerActions, playerState } from '~states/player';
+import { storage } from '~utils/storage';
 
 interface AudioXProviderProps {
   children: React.ReactNode;
@@ -31,17 +32,17 @@ const AudioXProvider: React.FC<AudioXProviderProps> = ({
   children,
   audioX,
 }) => {
-  const [audioState, setAudioState] = useState(AUDIO_STATE);
+  const { audioState } = useSnapshot(playerState);
 
   useEffect(() => {
-    const lastTrack: string | null = storage.getItem("current_track");
+    const lastTrack: string | null = storage.getItem('current_track');
     if (lastTrack) {
       playerState.currentTrack = JSON.parse(lastTrack);
     }
   }, []);
 
-  audioX.subscribe("AUDIO_X_STATE", (data: AudioState) => {
-    setAudioState(data);
+  audioX.subscribe('AUDIO_X_STATE', (state: AudioState) => {
+    playerActions.setPlayerState(state);
   });
 
   const play = () => {
@@ -66,8 +67,14 @@ const AudioXProvider: React.FC<AudioXProviderProps> = ({
 
   return (
     <AudioXContext.Provider
-      value={{ audioState, pause, play, stop, addMediaAndPlay, reset }}
-    >
+      value={{
+        audioState: audioState as AudioState,
+        pause,
+        play,
+        stop,
+        addMediaAndPlay,
+        reset,
+      }}>
       {children}
     </AudioXContext.Provider>
   );

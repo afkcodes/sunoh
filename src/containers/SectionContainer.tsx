@@ -1,6 +1,6 @@
-import SectionHeader from "~components/SectionHeader/SectionHeader";
-import { SectionContainerConfig } from "~types/component.types";
-import TileContainer from "./TileContainer";
+import SectionHeader from '~components/SectionHeader/SectionHeader';
+import { SectionContainerConfig } from '~types/component.types';
+import TileContainer from './TileContainer';
 
 const SectionContainer: React.FC<SectionContainerConfig> = ({
   sectionHeaderConfig,
@@ -9,13 +9,13 @@ const SectionContainer: React.FC<SectionContainerConfig> = ({
 }) => {
   const { textLinkConfig, actionButtonConfig } = sectionHeaderConfig;
   return (
-    <section className="mb-8">
+    <section className='mb-8'>
       <SectionHeader
         textLinkConfig={textLinkConfig}
         actionButtonConfig={actionButtonConfig}
       />
-      <div className="mt-4">
-        {containerType === "tile" ? (
+      <div className='mt-4'>
+        {containerType === 'tile' ? (
           <TileContainer
             config={containerConfig.config}
             data={containerConfig.data}
