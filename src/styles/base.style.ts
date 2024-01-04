@@ -49,4 +49,17 @@ const gapStyle: { [key in Spacing]: string } = {
   '4xl': 'gap-16'
 };
 
-export { FontWeightStyle, LineCountStyle, fontSizeStyle, gapStyle, radiusStyle };
+const paddingStyle: { [key in Spacing]: string } = {
+  '3xs': 'p-0.5',
+  '2xs': 'p-1',
+  xs: 'p-2',
+  sm: 'p-4',
+  md: 'p-6',
+  lg: 'p-8',
+  xl: 'p-10',
+  '2xl': 'p-12',
+  '3xl': 'p-14',
+  '4xl': 'p-16'
+};
+
+export { FontWeightStyle, LineCountStyle, fontSizeStyle, gapStyle, paddingStyle, radiusStyle };

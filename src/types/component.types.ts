@@ -1,4 +1,4 @@
-import { Dispatch, SetStateAction } from 'react';
+import { ChangeEvent, Dispatch, FocusEvent, SetStateAction } from 'react';
 import { Variant } from '~components/Button/button.types';
 import {
   ArrangeMode,
@@ -11,6 +11,7 @@ import {
   Position,
   Radius,
   Shape,
+  Spacing,
   TileSize
 } from '~types/common.types';
 
@@ -84,4 +85,19 @@ export interface SectionContainerConfig {
   sectionHeaderConfig: SectionHeaderProps;
   containerType: 'tile' | 'audio_list';
   containerConfig: TileContainerProps;
+}
+
+export interface InputProps {
+  placeHolder: string;
+  value: string;
+  onChange?: (e: ChangeEvent<HTMLInputElement>) => void;
+  onFocus?: (e: FocusEvent<HTMLInputElement>) => void;
+  onBlur?: (e: FocusEvent<HTMLInputElement>) => void;
+  onKeyDown?: (e: React.KeyboardEvent<HTMLInputElement>) => void;
+  styleConfig: {
+    padding: Spacing;
+    fonWeight: FontWeight;
+    fontSize: FontSize;
+    radius: Radius;
+  };
 }

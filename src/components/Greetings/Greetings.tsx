@@ -6,9 +6,10 @@ import { getGreeting } from '~helpers/common';
 const Greetings = () => {
   const greeting = getGreeting();
   return (
-    <section className='flex px-3 mb-4 justify-between items-center'>
+    <section className='flex px-3 mb-8 justify-between items-center'>
       <div className='flex flex-col'>
         <TextLink fontSize='2xl' text={greeting} fontWeight='bold' />
+        <TextLink text='afkcodes' fontSize='sm' fontWeight='semibold' />
       </div>
       <div className='self-start'>
         <Button
