@@ -5,15 +5,12 @@ import TileContainer from './TileContainer';
 const SectionContainer: React.FC<SectionContainerConfig> = ({
   sectionHeaderConfig,
   containerType,
-  containerConfig,
+  containerConfig
 }) => {
   const { textLinkConfig, actionButtonConfig } = sectionHeaderConfig;
   return (
     <section className='mb-8'>
-      <SectionHeader
-        textLinkConfig={textLinkConfig}
-        actionButtonConfig={actionButtonConfig}
-      />
+      <SectionHeader textLinkConfig={textLinkConfig} actionButtonConfig={actionButtonConfig} />
       <div className='mt-4'>
         {containerType === 'tile' ? (
           <TileContainer

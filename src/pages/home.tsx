@@ -18,18 +18,17 @@ const Home = memo(() => {
   const {
     data: cityData,
     isSuccess,
-    isError,
+    isError
   } = useFetch({
     queryKey: ['home'],
-    queryFn: async () =>
-      await endpoints.getStationsByLocationType('city', 'mumbai', 1, 40),
+    queryFn: async () => await endpoints.getStationsByLocationType('city', 'mumbai', 1, 40)
   });
 
   const onTileClick = (item: any) => {
     const mediaTrack = createMediaTrack(item);
     const track: Track = {
       ...mediaTrack,
-      dominantColor: item.dominantColor,
+      dominantColor: item.dominantColor
     };
     audio.addMediaAndPlay(mediaTrack);
     storage.setItem('current_track', JSON.stringify(track));
@@ -46,7 +45,7 @@ const Home = memo(() => {
               textLinkConfig: {
                 text: 'Recently Added',
                 fontSize: 'xl',
-                fontWeight: 'bold',
+                fontWeight: 'bold'
               },
               actionButtonConfig: {
                 text: 'VIEW ALL',
@@ -58,8 +57,8 @@ const Home = memo(() => {
                 fontWeight: 'bold',
                 isCapitalized: true,
                 customClass: 'p-2',
-                radius: 'full',
-              },
+                radius: 'full'
+              }
             }}
             containerType='tile'
             containerConfig={{
@@ -68,10 +67,10 @@ const Home = memo(() => {
               tileStyleConfig: {
                 shape: 'rounded_square',
                 size: '2xl',
-                fit: 'fill',
+                fit: 'fill'
               },
               onClick: onTileClick,
-              displayType: 'carousel',
+              displayType: 'carousel'
             }}
           />
           <SectionContainer
@@ -79,7 +78,7 @@ const Home = memo(() => {
               textLinkConfig: {
                 text: 'Trending Now',
                 fontSize: 'xl',
-                fontWeight: 'bold',
+                fontWeight: 'bold'
               },
               actionButtonConfig: {
                 text: 'VIEW ALL',
@@ -89,8 +88,8 @@ const Home = memo(() => {
                 fontWeight: 'bold',
                 isCapitalized: true,
                 customClass: 'p-2',
-                radius: 'full',
-              },
+                radius: 'full'
+              }
             }}
             containerType='tile'
             containerConfig={{
@@ -99,10 +98,10 @@ const Home = memo(() => {
               tileStyleConfig: {
                 shape: 'rounded_square',
                 size: '2xl',
-                fit: 'fill',
+                fit: 'fill'
               },
               onClick: onTileClick,
-              displayType: 'carousel',
+              displayType: 'carousel'
             }}
           />
           <SectionContainer
@@ -110,7 +109,7 @@ const Home = memo(() => {
               textLinkConfig: {
                 text: 'Nearby Stations',
                 fontSize: 'xl',
-                fontWeight: 'bold',
+                fontWeight: 'bold'
               },
               actionButtonConfig: {
                 text: 'VIEW ALL',
@@ -120,8 +119,8 @@ const Home = memo(() => {
                 fontWeight: 'bold',
                 isCapitalized: true,
                 customClass: 'p-2',
-                radius: 'full',
-              },
+                radius: 'full'
+              }
             }}
             containerType='tile'
             containerConfig={{
@@ -130,10 +129,10 @@ const Home = memo(() => {
               tileStyleConfig: {
                 shape: 'rounded_square',
                 size: '2xl',
-                fit: 'fill',
+                fit: 'fill'
               },
               onClick: onTileClick,
-              displayType: 'carousel',
+              displayType: 'carousel'
             }}
           />
         </Fragment>

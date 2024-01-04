@@ -1,12 +1,12 @@
-import { Link } from "react-router-dom";
-import { FontWeightStyle, fontSizeStyle } from "~styles/base.style";
-import { TextLinkProps } from "~types/component.types";
+import { Link } from 'react-router-dom';
+import { FontWeightStyle, fontSizeStyle } from '~styles/base.style';
+import { TextLinkProps } from '~types/component.types';
 
 const TextLink: React.FC<TextLinkProps> = ({
   to,
   text,
-  fontSize = "base",
-  fontWeight = "normal",
+  fontSize = 'base',
+  fontWeight = 'normal'
 }) => {
   const fontSizeClass = fontSizeStyle[fontSize];
   const fontWeightClass = FontWeightStyle[fontWeight];

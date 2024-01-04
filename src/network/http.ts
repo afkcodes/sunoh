@@ -1,5 +1,5 @@
 /* eslint-disable @typescript-eslint/restrict-template-expressions */
-type HttpMethod = "GET" | "POST" | "PUT" | "DELETE";
+type HttpMethod = 'GET' | 'POST' | 'PUT' | 'DELETE';
 
 interface HttpOptions {
   method?: HttpMethod;
@@ -7,41 +7,35 @@ interface HttpOptions {
   headers?: Record<string, string>;
   body?: any;
   expectedStatus?: number | number[];
-  responseType?: "json" | "text";
+  responseType?: 'json' | 'text';
 }
 
-async function http<T>(
-  url: string,
-  options: HttpOptions = {}
-): Promise<T | null> {
+async function http<T>(url: string, options: HttpOptions = {}): Promise<T | null> {
   const {
-    method = "GET",
+    method = 'GET',
     params,
     headers = {},
     body,
     expectedStatus = 200,
-    responseType = "json",
+    responseType = 'json'
   } = options;
 
   const requestOptions: RequestInit = {
     method,
     headers: {
-      ...headers,
-    },
+      ...headers
+    }
   };
 
-  if (body && (method === "POST" || method === "PUT")) {
+  if (body && (method === 'POST' || method === 'PUT')) {
     if (body instanceof FormData) {
       requestOptions.body = body;
     } else {
-      (requestOptions.headers as Record<string, string>)["content-type"] =
-        "application/json";
+      (requestOptions.headers as Record<string, string>)['content-type'] = 'application/json';
       requestOptions.body = JSON.stringify(body);
     }
-  } else if (body && method !== "POST" && method !== "PUT") {
-    const invalidMethodError = new Error(
-      "Request body is only supported for POST and PUT methods"
-    );
+  } else if (body && method !== 'POST' && method !== 'PUT') {
+    const invalidMethodError = new Error('Request body is only supported for POST and PUT methods');
     console.error(`Invalid request: ${invalidMethodError.message}`);
     throw invalidMethodError;
   }
@@ -57,27 +51,22 @@ async function http<T>(
 
     if (
       !expectedStatus ||
-      (Array.isArray(expectedStatus) &&
-        !expectedStatus.includes(response.status)) ||
-      (typeof expectedStatus === "number" && response.status !== expectedStatus)
+      (Array.isArray(expectedStatus) && !expectedStatus.includes(response.status)) ||
+      (typeof expectedStatus === 'number' && response.status !== expectedStatus)
     ) {
-      const statusError = new Error(
-        `Request failed with status ${response.status}`
-      );
+      const statusError = new Error(`Request failed with status ${response.status}`);
       console.error(`Request error: ${statusError.message}`);
       throw statusError;
     }
 
-    if (responseType === "json") {
+    if (responseType === 'json') {
       const responseData = (await response.json()) as T;
       return responseData;
-    } else if (responseType === "text") {
+    } else if (responseType === 'text') {
       const responseData = (await response.text()) as T;
       return responseData;
     } else {
-      const invalidResponseError = new Error(
-        `Invalid responseType: ${responseType}`
-      );
+      const invalidResponseError = new Error(`Invalid responseType: ${responseType}`);
       console.error(`Response error: ${invalidResponseError.message}`);
       throw invalidResponseError;
     }

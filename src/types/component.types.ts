@@ -1,5 +1,5 @@
-import { Dispatch, SetStateAction } from "react";
-import { Variant } from "~components/Button/button.types";
+import { Dispatch, SetStateAction } from 'react';
+import { Variant } from '~components/Button/button.types';
 import {
   ArrangeMode,
   FigureSize,
@@ -11,8 +11,8 @@ import {
   Position,
   Radius,
   Shape,
-  TileSize,
-} from "~types/common.types";
+  TileSize
+} from '~types/common.types';
 
 export interface FigureProps {
   src: string;
@@ -52,7 +52,7 @@ export interface TileContainerProps {
   config: any;
   tileStyleConfig: TileStyleProps;
   onClick: (item: any) => void;
-  displayType: "carousel" | "default";
+  displayType: 'carousel' | 'default';
 }
 
 export interface ButtonProps {
@@ -82,6 +82,6 @@ export interface TextLinkProps {
 
 export interface SectionContainerConfig {
   sectionHeaderConfig: SectionHeaderProps;
-  containerType: "tile" | "audio_list";
+  containerType: 'tile' | 'audio_list';
   containerConfig: TileContainerProps;
 }

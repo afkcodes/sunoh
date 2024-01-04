@@ -12,7 +12,7 @@ export const playerState: {
   audioState: AudioState;
 } = proxy({
   currentTrack: null,
-  audioState: AUDIO_STATE,
+  audioState: AUDIO_STATE
 });
 
 export const playerActions: PlayerActions = {
@@ -21,5 +21,5 @@ export const playerActions: PlayerActions = {
   },
   setPlayerState: (state: AudioState) => {
     playerState.audioState = state;
-  },
+  }
 };

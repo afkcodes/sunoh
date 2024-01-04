@@ -25,13 +25,10 @@ export const AudioXContext: React.Context<AudioContextProps> = createContext({
   pause: () => {},
   stop: () => {},
   reset: () => {},
-  addMediaAndPlay: (_track: MediaTrack) => {},
+  addMediaAndPlay: (_track: MediaTrack) => {}
 });
 
-const AudioXProvider: React.FC<AudioXProviderProps> = ({
-  children,
-  audioX,
-}) => {
+const AudioXProvider: React.FC<AudioXProviderProps> = ({ children, audioX }) => {
   const { audioState } = useSnapshot(playerState);
 
   useEffect(() => {
@@ -73,8 +70,9 @@ const AudioXProvider: React.FC<AudioXProviderProps> = ({
         play,
         stop,
         addMediaAndPlay,
-        reset,
-      }}>
+        reset
+      }}
+    >
       {children}
     </AudioXContext.Provider>
   );

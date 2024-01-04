@@ -1,22 +1,18 @@
-import {
-  FontWeightStyle,
-  LineCountStyle,
-  fontSizeStyle,
-} from "~styles/base.style";
-import { TitleSubtitleProps } from "~types/component.types";
+import { FontWeightStyle, LineCountStyle, fontSizeStyle } from '~styles/base.style';
+import { TitleSubtitleProps } from '~types/component.types';
 
 const TitleSubtitle: React.FC<TitleSubtitleProps> = ({
   title,
   subTitle,
-  titleFontSize = "sm",
-  subtitleFontSize = "xs",
-  titleFontWeight = "semibold",
-  subtitleFontWeight = "medium",
+  titleFontSize = 'sm',
+  subtitleFontSize = 'xs',
+  titleFontWeight = 'semibold',
+  subtitleFontWeight = 'medium',
   noOfLinesTitle = 1,
-  noOfLinesSubtitle = 1,
+  noOfLinesSubtitle = 1
 }) => {
   return (
-    <div className="w-full">
+    <div className='w-full'>
       <p
         className={`
         ${fontSizeStyle[titleFontSize]}

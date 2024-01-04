@@ -1,5 +1,5 @@
-import { fitStrategy } from "~components/Figure/figure.styles";
-import { FitStrategy, ImageLoading } from "~types/common.types";
+import { fitStrategy } from '~components/Figure/figure.styles';
+import { FitStrategy, ImageLoading } from '~types/common.types';
 
 interface Image {
   src: string;
@@ -13,10 +13,10 @@ interface Image {
 const Image: React.FC<Image> = ({
   src,
   alt,
-  height = "100%",
-  width = "100%",
-  loading = "lazy",
-  fit = "cover",
+  height = '100%',
+  width = '100%',
+  loading = 'lazy',
+  fit = 'cover'
 }) => {
   return (
     <img
@@ -30,6 +30,6 @@ const Image: React.FC<Image> = ({
   );
 };
 
-Image.displayName = "Image";
+Image.displayName = 'Image';
 
 export default Image;

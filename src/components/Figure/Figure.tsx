@@ -1,17 +1,17 @@
-import Image from "~components/Image/Image";
+import Image from '~components/Image/Image';
 
-import { FigureProps } from "~types/component.types";
-import { figureShape, figureSize } from "./figure.styles";
+import { FigureProps } from '~types/component.types';
+import { figureShape, figureSize } from './figure.styles';
 
 const Figure: React.FC<FigureProps> = ({
   src,
   alt,
-  shape = "default",
-  size = "md",
-  loading = "lazy",
-  mode = "single",
-  fit = "cover",
-  dominantColor = "",
+  shape = 'default',
+  size = 'md',
+  loading = 'lazy',
+  mode = 'single',
+  fit = 'cover',
+  dominantColor = ''
 }) => {
   return (
     <figure
@@ -23,9 +23,7 @@ const Figure: React.FC<FigureProps> = ({
       tabIndex={0}
       style={{ backgroundColor: dominantColor }}
     >
-      {mode === "single" ? (
-        <Image src={src} alt={alt} loading={loading} fit={fit} />
-      ) : null}
+      {mode === 'single' ? <Image src={src} alt={alt} loading={loading} fit={fit} /> : null}
     </figure>
   );
 };
