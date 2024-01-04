@@ -1,20 +1,20 @@
-import { Fragment } from "react";
-import SnapCarousel from "~components/Carousel/Carousel";
-import Tile from "~components/Tile/Tile";
-import { isValidArray } from "~helpers/common";
-import { TileContainerProps } from "~types/component.types";
+import { Fragment } from 'react';
+import SnapCarousel from '~components/Carousel/Carousel';
+import Tile from '~components/Tile/Tile';
+import { isValidArray } from '~helpers/common';
+import { TileContainerProps } from '~types/component.types';
 
 const TileContainer: React.FC<TileContainerProps> = ({
   data,
   config,
   tileStyleConfig,
   onClick,
-  displayType = "default",
+  displayType = 'default',
 }) => {
   const Tiles = isValidArray(data)
     ? data.map((item) => (
         <Fragment key={item._id}>
-          {displayType === "carousel" ? (
+          {displayType === 'carousel' ? (
             <li key={item._id}>
               <Tile
                 config={config}
@@ -38,8 +38,8 @@ const TileContainer: React.FC<TileContainerProps> = ({
 
   return (
     <>
-      {displayType === "carousel" ? (
-        <SnapCarousel type="DEFAULT">{Tiles}</SnapCarousel>
+      {displayType === 'carousel' ? (
+        <SnapCarousel type='DEFAULT'>{Tiles}</SnapCarousel>
       ) : (
         Tiles
       )}
