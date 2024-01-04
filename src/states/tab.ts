@@ -2,7 +2,8 @@ import { proxy } from 'valtio';
 
 export const tabState = proxy({
   currentTab: 0,
-  data: null
+  data: null,
+  isInputFocussed: false
 });
 
 export const tabActions = {

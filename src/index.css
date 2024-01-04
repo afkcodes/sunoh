@@ -12,6 +12,7 @@ html {
   -webkit-tap-highlight-color: transparent;
   touch-action: pan-x pan-y;
   height: 100%;
+  background: #121212;
 }
 
 @layer utilities {
