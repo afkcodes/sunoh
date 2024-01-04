@@ -1,5 +1,5 @@
-import { Dispatch, SetStateAction, useCallback, useState } from "react";
-import { deepCompare, typeChecker } from "../helpers/common";
+import { Dispatch, SetStateAction, useCallback, useState } from 'react';
+import { deepCompare, typeChecker } from '../helpers/common';
 
 export type Value = string | any[] | object;
 
@@ -16,9 +16,9 @@ export interface FormValues {
   [field: string]: any;
 }
 
-export type Input = "text" | "select" | "checkbox" | "radio" | "upload";
+export type Input = 'text' | 'select' | 'checkbox' | 'radio' | 'upload';
 export type InputData = { name: string; value: Value; type: Input };
-export type FormOperationMode = "EDIT" | "VIEW";
+export type FormOperationMode = 'EDIT' | 'VIEW';
 
 const FormContainer = <T extends FormValues>({
   initialValues,
@@ -26,10 +26,10 @@ const FormContainer = <T extends FormValues>({
   validators,
   validateOnChange = false,
   onSubmit = () => {
-    console.log("submit form");
+    console.log('submit form');
   },
-  mode = "EDIT",
-  formatters,
+  mode = 'EDIT',
+  formatters
 }: {
   initialValues: T;
   children: (args: {
@@ -91,39 +91,36 @@ const FormContainer = <T extends FormValues>({
 
   const setFormValue = useCallback(
     (name: string, value: Value, type: Input) => {
-      const formattedValue: any = formatters?.[name]
-        ? getFormattedValue(name, value)
-        : value;
+      const formattedValue: any = formatters?.[name] ? getFormattedValue(name, value) : value;
 
       const initialValueType = typeChecker(initialValues[name]);
 
       switch (initialValueType) {
-        case "object": {
+        case 'object': {
           setValues((prev: T) => {
             return {
               ...prev,
-              [name]: { ...prev[name], ...formattedValue },
+              [name]: { ...prev[name], ...formattedValue }
             };
           });
           setFormattedValues((prev: T) => {
             return {
               ...prev,
-              [name]: { ...prev[name], ...formattedValue },
+              [name]: { ...prev[name], ...formattedValue }
             };
           });
           break;
         }
 
-        case "array": {
-          if (type === "checkbox") {
+        case 'array': {
+          if (type === 'checkbox') {
             const modifiedItem = formattedValue;
             setValues((prev: T) => {
               const existingItems = prev?.[name];
 
               // remove existing object from array
               let newItems = existingItems.filter(
-                (checkBoxItem: any) =>
-                  checkBoxItem?.name !== (modifiedItem as any)?.name
+                (checkBoxItem: any) => checkBoxItem?.name !== (modifiedItem as any)?.name
               );
               // push new object to array
               newItems.push(modifiedItem);
@@ -137,8 +134,7 @@ const FormContainer = <T extends FormValues>({
 
               // remove existing object from array
               let newItems = existingItems.filter(
-                (checkBoxItem: any) =>
-                  checkBoxItem?.name !== (modifiedItem as any)?.name
+                (checkBoxItem: any) => checkBoxItem?.name !== (modifiedItem as any)?.name
               );
               // push new object to array
               newItems.push(modifiedItem);
@@ -154,13 +150,13 @@ const FormContainer = <T extends FormValues>({
           setValues((prev: T) => {
             return {
               ...prev,
-              [name]: value,
+              [name]: value
             };
           });
           setFormattedValues((prev: T) => {
             return {
               ...prev,
-              [name]: formattedValue,
+              [name]: formattedValue
             };
           });
           break;
@@ -174,7 +170,7 @@ const FormContainer = <T extends FormValues>({
     (name: keyof T, message: any) => {
       let errorObj = { ...errors };
 
-      if (message === "") {
+      if (message === '') {
         delete errorObj[name];
       } else {
         errorObj = { ...errors, [name]: message };
@@ -200,23 +196,20 @@ const FormContainer = <T extends FormValues>({
     (name: keyof T, value: Value) => {
       const customValidatorsList = customValidators?.[name];
       const defaultValidatorsList = defaultValidators?.[name];
-      let message = "";
-      let customValidateMessage = "";
+      let message = '';
+      let customValidateMessage = '';
 
-      if (
-        Array.isArray(defaultValidatorsList) &&
-        defaultValidatorsList.length
-      ) {
+      if (Array.isArray(defaultValidatorsList) && defaultValidatorsList.length) {
         defaultValidatorsList.every((validator) => {
           message = validator(value, values);
-          return message === "";
+          return message === '';
         });
       }
 
       if (Array.isArray(customValidatorsList) && customValidatorsList.length) {
         customValidatorsList.every((validator) => {
           customValidateMessage = validator(value, values);
-          return customValidateMessage === "";
+          return customValidateMessage === '';
         });
       }
 
@@ -278,7 +271,7 @@ const FormContainer = <T extends FormValues>({
         onSubmit,
         mode: formOperationMode,
         setFormMode: setFormOperationMode,
-        reset,
+        reset
       })}
     </form>
   );

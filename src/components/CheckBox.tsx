@@ -4,14 +4,10 @@ interface CheckboxProps {
   customClass?: string;
 }
 
-const Checkbox: React.FC<CheckboxProps> = ({
-  checked,
-  onChange,
-  customClass,
-}) => {
+const Checkbox: React.FC<CheckboxProps> = ({ checked, onChange, customClass }) => {
   return (
     <input
-      type="checkbox"
+      type='checkbox'
       checked={checked}
       onChange={onChange}
       className={`h-4 w-4 accent-primaryAccent ${customClass}`}

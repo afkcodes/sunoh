@@ -1,35 +1,30 @@
-import {
-  RiHome5Line,
-  RiSearchLine,
-  RiSettings4Line,
-  RiUser3Line,
-} from "react-icons/ri";
+import { RiHome5Line, RiSearchLine, RiSettings4Line, RiUser3Line } from 'react-icons/ri';
 
 const bottomNav = [
   {
     id: 1,
-    text: "Home",
+    text: 'Home',
     icon: RiHome5Line,
-    path: "/",
+    path: '/'
   },
   {
     id: 2,
-    text: "Search",
+    text: 'Search',
     icon: RiSearchLine,
-    path: "/search",
+    path: '/search'
   },
   {
     id: 3,
-    text: "Profile",
+    text: 'Profile',
     icon: RiUser3Line,
-    path: "/profile",
+    path: '/profile'
   },
   {
     id: 4,
-    text: "Settings",
+    text: 'Settings',
     icon: RiSettings4Line,
-    path: "/settings",
-  },
+    path: '/settings'
+  }
 ];
 
 export { bottomNav };

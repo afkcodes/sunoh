@@ -9,19 +9,14 @@ const TileContainer: React.FC<TileContainerProps> = ({
   config,
   tileStyleConfig,
   onClick,
-  displayType = 'default',
+  displayType = 'default'
 }) => {
   const Tiles = isValidArray(data)
     ? data.map((item) => (
         <Fragment key={item._id}>
           {displayType === 'carousel' ? (
             <li key={item._id}>
-              <Tile
-                config={config}
-                styleConfig={tileStyleConfig}
-                data={item}
-                onClick={onClick}
-              />
+              <Tile config={config} styleConfig={tileStyleConfig} data={item} onClick={onClick} />
             </li>
           ) : (
             <Tile
@@ -37,13 +32,7 @@ const TileContainer: React.FC<TileContainerProps> = ({
     : null;
 
   return (
-    <>
-      {displayType === 'carousel' ? (
-        <SnapCarousel type='DEFAULT'>{Tiles}</SnapCarousel>
-      ) : (
-        Tiles
-      )}
-    </>
+    <>{displayType === 'carousel' ? <SnapCarousel type='DEFAULT'>{Tiles}</SnapCarousel> : Tiles}</>
   );
 };
 

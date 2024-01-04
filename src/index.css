@@ -3,7 +3,7 @@
 @tailwind utilities;
 
 html {
-  font-family: "Gilroy", sans-serif;
+  font-family: 'Gilroy', sans-serif;
   font-synthesis: none;
   text-rendering: optimizeLegibility;
   -webkit-font-smoothing: antialiased;

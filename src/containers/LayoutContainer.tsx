@@ -1,9 +1,9 @@
-import BottomNavContainer from "./BottomNavContainer";
-import ContentContainer from "./ContentContainer";
+import BottomNavContainer from './BottomNavContainer';
+import ContentContainer from './ContentContainer';
 
 const LayoutContainer = () => {
   return (
-    <main className="bg-bgPrimary text-textLight min-h-dvh ">
+    <main className='bg-bgPrimary text-textLight min-h-dvh '>
       <ContentContainer />
       <BottomNavContainer />
     </main>

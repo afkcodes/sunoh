@@ -28,7 +28,8 @@ const Tile: React.FC<TileProps> = ({ data, config, styleConfig, onClick }) => {
       ${styleConfig.shape === 'circle' ? 'text-center' : 'text-start'}
       ${tileSize[styleConfig.size]}
     `}
-      onClick={onTileClick}>
+      onClick={onTileClick}
+    >
       <FigureTitle
         figureConfig={{
           src: src,
@@ -36,11 +37,11 @@ const Tile: React.FC<TileProps> = ({ data, config, styleConfig, onClick }) => {
           dominantColor: dominantColor,
           fit: styleConfig.fit,
           shape: styleConfig.shape,
-          size: styleConfig.size,
+          size: styleConfig.size
         }}
         titleConfig={{
           title,
-          subTitle,
+          subTitle
         }}
         gap='xs'
         orientation='vertical'

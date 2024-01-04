@@ -1,28 +1,28 @@
-import Figure from "~components/Figure/Figure";
-import { tileSize } from "~components/Tile/tile.styles";
-import TitleSubtitle from "~components/TitleSubtitle/TitleSubtitle";
-import { gapStyle } from "~styles/base.style";
-import { FigureSize, Spacing } from "~types/common.types";
-import { FigureProps, TitleSubtitleProps } from "~types/component.types";
+import Figure from '~components/Figure/Figure';
+import { tileSize } from '~components/Tile/tile.styles';
+import TitleSubtitle from '~components/TitleSubtitle/TitleSubtitle';
+import { gapStyle } from '~styles/base.style';
+import { FigureSize, Spacing } from '~types/common.types';
+import { FigureProps, TitleSubtitleProps } from '~types/component.types';
 
 interface FigureTitleProps {
   figureConfig: FigureProps;
   titleConfig: TitleSubtitleProps;
-  orientation: "horizontal" | "vertical";
+  orientation: 'horizontal' | 'vertical';
   gap: Spacing;
 }
 
 const FigureTitle: React.FC<FigureTitleProps> = ({
   figureConfig = {
-    src: "",
-    size: "2xs",
+    src: '',
+    size: '2xs'
   },
   titleConfig,
-  orientation = "vertical",
-  gap = "sm",
+  orientation = 'vertical',
+  gap = 'sm'
 }) => {
   const orientationStyles =
-    orientation === "vertical"
+    orientation === 'vertical'
       ? `flex flex-col ${gapStyle[gap]}`
       : `flex items-center justify-center ${gapStyle[gap]}`;
 

@@ -1,6 +1,1 @@
-export type Variant =
-  | "primary"
-  | "secondary"
-  | "tertiary"
-  | "ghost"
-  | "unstyled";
+export type Variant = 'primary' | 'secondary' | 'tertiary' | 'ghost' | 'unstyled';

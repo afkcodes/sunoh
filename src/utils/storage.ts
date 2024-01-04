@@ -4,7 +4,7 @@ interface StorageProps {
   clear(): void;
   removeItem(key: string): void;
 }
-import { isValidWindow } from "~helpers/common";
+import { isValidWindow } from '~helpers/common';
 
 const storage: StorageProps = {
   getItem: (key: string) => {
@@ -31,7 +31,7 @@ const storage: StorageProps = {
     if (isValidWindow) {
       window.localStorage.removeItem(key);
     }
-  },
+  }
 };
 
 export { storage };

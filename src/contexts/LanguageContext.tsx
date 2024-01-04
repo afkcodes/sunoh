@@ -1,13 +1,13 @@
-import { createContext, useState } from "react";
+import { createContext, useState } from 'react';
 
-type Language = "EN" | "KA";
+type Language = 'EN' | 'KA';
 interface LanguageContextProps {
-  lang: "EN" | "KA";
+  lang: 'EN' | 'KA';
   changeLang: (lang: Language) => void;
 }
 export const LanguageContext = createContext<LanguageContextProps>({
-  lang: "EN",
-  changeLang: () => {},
+  lang: 'EN',
+  changeLang: () => {}
 });
 
 interface LanguageProvider {
@@ -15,7 +15,7 @@ interface LanguageProvider {
 }
 
 const LanguageProvider: React.FC<LanguageProvider> = ({ children }) => {
-  const [lang, setLang] = useState<Language>("EN");
+  const [lang, setLang] = useState<Language>('EN');
 
   const updateLanguage = (lang: Language) => {
     setLang(lang);

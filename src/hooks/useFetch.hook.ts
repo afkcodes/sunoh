@@ -1,28 +1,19 @@
-import { useQuery } from "@tanstack/react-query";
-import { Response } from "~types/common.types";
+import { useQuery } from '@tanstack/react-query';
+import { Response } from '~types/common.types';
 
 const useFetch = ({
   queryKey,
   queryFn,
-  shouldFetchOnLoad = true,
+  shouldFetchOnLoad = true
 }: {
   queryKey: string[];
   queryFn: (param?: any) => Promise<Response>;
   shouldFetchOnLoad?: boolean;
 }) => {
-  const {
-    isError,
-    isLoading,
-    isFetched,
-    refetch,
-    data,
-    isSuccess,
-    isPending,
-    status,
-  } = useQuery({
+  const { isError, isLoading, isFetched, refetch, data, isSuccess, isPending, status } = useQuery({
     queryKey,
     queryFn,
-    enabled: shouldFetchOnLoad,
+    enabled: shouldFetchOnLoad
   });
 
   return {
@@ -33,7 +24,7 @@ const useFetch = ({
     data,
     isSuccess,
     isPending,
-    status,
+    status
   };
 };
 

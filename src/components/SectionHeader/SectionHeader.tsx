@@ -1,13 +1,10 @@
-import Button from "~components/Button/Button";
-import TextLink from "~components/TextLink/TextLink";
-import { SectionHeaderProps } from "~types/component.types";
+import Button from '~components/Button/Button';
+import TextLink from '~components/TextLink/TextLink';
+import { SectionHeaderProps } from '~types/component.types';
 
-const SectionHeader: React.FC<SectionHeaderProps> = ({
-  actionButtonConfig,
-  textLinkConfig,
-}) => {
+const SectionHeader: React.FC<SectionHeaderProps> = ({ actionButtonConfig, textLinkConfig }) => {
   return (
-    <div className="flex justify-between items-center px-3">
+    <div className='flex justify-between items-center px-3'>
       <div>
         <TextLink
           text={textLinkConfig.text}

@@ -2,10 +2,8 @@ import { MediaTrack } from 'audio_x';
 import { Track, TrackType } from '~types/common.types';
 
 export const isValidFunction = (fun: any) => typeof fun === 'function';
-export const isValidArray = (arr: any[]) =>
-  arr && Array.isArray(arr) && arr.length > 0;
-export const isValidWindow =
-  window instanceof Window && typeof window !== 'undefined';
+export const isValidArray = (arr: any[]) => arr && Array.isArray(arr) && arr.length > 0;
+export const isValidWindow = window instanceof Window && typeof window !== 'undefined';
 export const isValidObject = (obj: any): boolean =>
   obj !== null && typeof obj === 'object' && !Array.isArray(obj);
 
@@ -16,10 +14,7 @@ export const deepCompare = (obj1: any, obj2: any): boolean => {
   }
 
   // Handle null and primitive types (string, number, boolean, etc.)
-  if (
-    obj1 === null ||
-    ['string', 'number', 'boolean', 'undefined'].includes(typeof obj1)
-  ) {
+  if (obj1 === null || ['string', 'number', 'boolean', 'undefined'].includes(typeof obj1)) {
     return obj1 === obj2;
   }
 
@@ -144,14 +139,11 @@ export const getTrackFromMetaData = (track: Track, config: any) => {
     genre,
     type,
     dominantColor,
-    blurHash,
+    blurHash
   };
 };
 
-export const getColorWithOpacity = (
-  hexColor: string,
-  opacity: number
-): string => {
+export const getColorWithOpacity = (hexColor: string, opacity: number): string => {
   // Ensure opacity is within the valid range of 0 to 1
   opacity = Math.min(1, Math.max(0, opacity));
 
@@ -176,11 +168,7 @@ export const getColorWithOpacity = (
   return newHexColor;
 };
 
-export const findDuplicatesAndRemove = <T>(
-  jsonArray: T[],
-  key: keyof T,
-  count?: number
-): T[] => {
+export const findDuplicatesAndRemove = <T>(jsonArray: T[], key: keyof T, count?: number): T[] => {
   const seen = new Set();
   const uniqueArray: T[] = [];
 
@@ -225,20 +213,12 @@ export const isColorDark = (color: string) => {
     return {
       r: (bigint >> 16) & 255,
       g: (bigint >> 8) & 255,
-      b: bigint & 255,
+      b: bigint & 255
     };
   };
 
   // Calculate perceived brightness
-  const calculatePerceivedBrightness = ({
-    r,
-    g,
-    b,
-  }: {
-    r: number;
-    g: number;
-    b: number;
-  }) => {
+  const calculatePerceivedBrightness = ({ r, g, b }: { r: number; g: number; b: number }) => {
     return Math.sqrt(r * r * 0.299 + g * g * 0.587 + b * b * 0.114);
   };
 
@@ -259,12 +239,12 @@ export const createMediaTrack = (item: any) => {
       {
         src: item.imageUrl,
         name: item.name,
-        sizes: '200x200',
-      },
+        sizes: '200x200'
+      }
     ],
     source: `${item.stream.url}?q=${++q}`,
     title: item.name,
-    artist: item.locations[0].city.name,
+    artist: item.locations[0].city.name
   };
 
   return mediaTrack;
