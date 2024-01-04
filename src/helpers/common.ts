@@ -1,13 +1,13 @@
-import { MediaTrack } from "audio_x";
-import { Track, TrackType } from "~types/common.types";
+import { MediaTrack } from 'audio_x';
+import { Track, TrackType } from '~types/common.types';
 
-export const isValidFunction = (fun: any) => typeof fun === "function";
+export const isValidFunction = (fun: any) => typeof fun === 'function';
 export const isValidArray = (arr: any[]) =>
   arr && Array.isArray(arr) && arr.length > 0;
 export const isValidWindow =
-  window instanceof Window && typeof window !== "undefined";
+  window instanceof Window && typeof window !== 'undefined';
 export const isValidObject = (obj: any): boolean =>
-  obj !== null && typeof obj === "object" && !Array.isArray(obj);
+  obj !== null && typeof obj === 'object' && !Array.isArray(obj);
 
 export const deepCompare = (obj1: any, obj2: any): boolean => {
   // Check if the types of both objects are the same
@@ -18,7 +18,7 @@ export const deepCompare = (obj1: any, obj2: any): boolean => {
   // Handle null and primitive types (string, number, boolean, etc.)
   if (
     obj1 === null ||
-    ["string", "number", "boolean", "undefined"].includes(typeof obj1)
+    ['string', 'number', 'boolean', 'undefined'].includes(typeof obj1)
   ) {
     return obj1 === obj2;
   }
@@ -60,16 +60,16 @@ export const deepCompare = (obj1: any, obj2: any): boolean => {
 };
 
 export const typeChecker = (data: any) => {
-  let type = "";
+  let type = '';
 
-  if (typeof data === "object" && !Array.isArray(data)) {
-    type = "object";
+  if (typeof data === 'object' && !Array.isArray(data)) {
+    type = 'object';
   }
   if (Array.isArray(data)) {
-    type = "array";
+    type = 'array';
   }
 
-  if (["string", "number", "boolean", "undefined"].includes(typeof data)) {
+  if (['string', 'number', 'boolean', 'undefined'].includes(typeof data)) {
     type = typeof data;
   }
 
@@ -85,7 +85,7 @@ export const dataExtractor = (obj: NestedObject, key: string): any | null => {
     return null;
   }
 
-  const keys = key.split("."); // Split the key by dot notation to get individual keys
+  const keys = key.split('.'); // Split the key by dot notation to get individual keys
   let currentObj: NestedObject | any[] | null = obj; // Initialize a variable to keep track of the current object
 
   for (const k of keys) {
@@ -121,16 +121,16 @@ export const dataExtractor = (obj: NestedObject, key: string): any | null => {
 };
 
 export const getTrackFromMetaData = (track: Track, config: any) => {
-  const url = dataExtractor(track, config.stream) || "";
-  const artist = dataExtractor(track, config.artist) || "";
-  const title = dataExtractor(track, config.title) || "";
+  const url = dataExtractor(track, config.stream) || '';
+  const artist = dataExtractor(track, config.artist) || '';
+  const title = dataExtractor(track, config.title) || '';
   const artwork =
     dataExtractor(track, config.artwork) ||
-    "https://cdn.statically.io/gh/megabyt-dev/def-img/6b991495/radio.png"; // use better fallback image
-  const genre = dataExtractor(track, config.genre) || "";
+    'https://cdn.statically.io/gh/megabyt-dev/def-img/6b991495/radio.png'; // use better fallback image
+  const genre = dataExtractor(track, config.genre) || '';
   const bufferPosition = 0;
   const currentPosition = 0;
-  const type: TrackType = url.includes("m3u8") ? "hls" : "default";
+  const type: TrackType = url.includes('m3u8') ? 'hls' : 'default';
   const blurHash = dataExtractor(track, config.blurHash);
   const dominantColor = dataExtractor(track, config.dominantColor);
 
@@ -166,9 +166,9 @@ export const getColorWithOpacity = (
   const newB: number = Math.round(b * opacity);
 
   // Convert the RGB values to hex and pad with zeros if needed
-  const newHexR: string = newR.toString(16).padStart(2, "0");
-  const newHexG: string = newG.toString(16).padStart(2, "0");
-  const newHexB: string = newB.toString(16).padStart(2, "0");
+  const newHexR: string = newR.toString(16).padStart(2, '0');
+  const newHexG: string = newG.toString(16).padStart(2, '0');
+  const newHexB: string = newB.toString(16).padStart(2, '0');
 
   // Create the new hex color with opacity
   const newHexColor: string = `#${newHexR}${newHexG}${newHexB}`;
@@ -207,13 +207,13 @@ export const getGreeting = () => {
   let greeting: string;
 
   if (currentHour >= 5 && currentHour < 12) {
-    greeting = "Good morning !";
+    greeting = 'Good morning !';
   } else if (currentHour >= 12 && currentHour < 18) {
-    greeting = "Good afternoon !";
+    greeting = 'Good afternoon !';
   } else if (currentHour >= 18 && currentHour < 22) {
-    greeting = "Good evening !";
+    greeting = 'Good evening !';
   } else {
-    greeting = "Good night !";
+    greeting = 'Good night !';
   }
   return greeting;
 };
@@ -221,7 +221,7 @@ export const getGreeting = () => {
 export const isColorDark = (color: string) => {
   // Convert color to RGB
   const hexToRgb = (hex: string) => {
-    const bigint = parseInt(hex.replace("#", ""), 16);
+    const bigint = parseInt(hex.replace('#', ''), 16);
     return {
       r: (bigint >> 16) & 255,
       g: (bigint >> 8) & 255,
@@ -251,6 +251,7 @@ export const isColorDark = (color: string) => {
   return brightness < threshold;
 };
 
+let q = 1;
 export const createMediaTrack = (item: any) => {
   const mediaTrack: MediaTrack = {
     id: item._id,
@@ -258,10 +259,10 @@ export const createMediaTrack = (item: any) => {
       {
         src: item.imageUrl,
         name: item.name,
-        sizes: "200x200",
+        sizes: '200x200',
       },
     ],
-    source: item.stream.url,
+    source: `${item.stream.url}?q=${++q}`,
     title: item.name,
     artist: item.locations[0].city.name,
   };
