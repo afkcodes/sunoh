@@ -3,13 +3,12 @@ import { useNavigate } from 'react-router-dom';
 import Greetings from '~components/Greetings/Greetings';
 import SectionContainer from '~containers/SectionContainer';
 import { AudioXContext } from '~contexts/audioX.context';
+import { updateTrackAndPlayerState } from '~helpers/business';
 import { createMediaTrack } from '~helpers/common';
 import { TILE_CONFIG } from '~helpers/data.config';
 import useFetch from '~hooks/useFetch.hook';
 import endpoints from '~network/endpoints';
-import { playerState } from '~states/player';
 import { Track } from '~types/common.types';
-import { storage } from '~utils/storage';
 
 const Home = memo(() => {
   const audio = useContext(AudioXContext);
@@ -31,8 +30,7 @@ const Home = memo(() => {
       dominantColor: item.dominantColor
     };
     audio.addMediaAndPlay(mediaTrack);
-    storage.setItem('current_track', JSON.stringify(track));
-    playerState.currentTrack = track;
+    updateTrackAndPlayerState(track);
   };
 
   return (

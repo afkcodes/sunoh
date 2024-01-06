@@ -5,13 +5,12 @@ import SearchBar from '~components/SearchBar/SearchBar';
 import AudioListItemContainer from '~containers/AudioListContainer';
 import SectionContainer from '~containers/SectionContainer';
 import { AudioXContext } from '~contexts/audioX.context';
-import { saveHistory } from '~helpers/business';
+import { saveHistory, updateTrackAndPlayerState } from '~helpers/business';
 import { createMediaTrack, isValidArray } from '~helpers/common';
 import { TILE_CONFIG } from '~helpers/data.config';
 import useFetch from '~hooks/useFetch.hook';
 import endpoints from '~network/endpoints';
 import { baseActions, baseState } from '~states/base';
-import { playerState } from '~states/player';
 import { Track } from '~types/common.types';
 import { SearchItem } from '~types/component.types';
 import { storage } from '~utils/storage';
@@ -76,8 +75,7 @@ const Search = () => {
       dominantColor: item.dominantColor
     };
     audio.addMediaAndPlay(mediaTrack);
-    storage.setItem('current_track', JSON.stringify(track));
-    playerState.currentTrack = track;
+    updateTrackAndPlayerState(track);
   };
 
   return (
