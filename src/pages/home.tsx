@@ -62,15 +62,17 @@ const Home = memo(() => {
             }}
             containerType='tile'
             containerConfig={{
-              data: cityData?.data.stations.slice(10, 20),
-              config: TILE_CONFIG,
-              tileStyleConfig: {
-                shape: 'rounded_square',
-                size: '2xl',
-                fit: 'fill'
-              },
-              onClick: onTileClick,
-              displayType: 'carousel'
+              tileContainerConfig: {
+                data: cityData?.data.stations.slice(10, 20),
+                config: TILE_CONFIG,
+                tileStyleConfig: {
+                  shape: 'rounded_square',
+                  size: '2xl',
+                  fit: 'fill'
+                },
+                onClick: onTileClick,
+                displayType: 'carousel'
+              }
             }}
           />
           <SectionContainer
@@ -93,15 +95,17 @@ const Home = memo(() => {
             }}
             containerType='tile'
             containerConfig={{
-              data: cityData?.data.stations.slice(0, 10),
-              config: TILE_CONFIG,
-              tileStyleConfig: {
-                shape: 'rounded_square',
-                size: '2xl',
-                fit: 'fill'
-              },
-              onClick: onTileClick,
-              displayType: 'carousel'
+              tileContainerConfig: {
+                data: cityData?.data.stations.slice(0, 10),
+                config: TILE_CONFIG,
+                tileStyleConfig: {
+                  shape: 'rounded_square',
+                  size: '2xl',
+                  fit: 'fill'
+                },
+                onClick: onTileClick,
+                displayType: 'carousel'
+              }
             }}
           />
           <SectionContainer
@@ -124,15 +128,17 @@ const Home = memo(() => {
             }}
             containerType='tile'
             containerConfig={{
-              data: cityData?.data.stations.slice(20, 30),
-              config: TILE_CONFIG,
-              tileStyleConfig: {
-                shape: 'rounded_square',
-                size: '2xl',
-                fit: 'fill'
-              },
-              onClick: onTileClick,
-              displayType: 'carousel'
+              tileContainerConfig: {
+                data: cityData?.data.stations.slice(20, 30),
+                config: TILE_CONFIG,
+                tileStyleConfig: {
+                  shape: 'rounded_square',
+                  size: '2xl',
+                  fit: 'fill'
+                },
+                onClick: onTileClick,
+                displayType: 'carousel'
+              }
             }}
           />
         </Fragment>

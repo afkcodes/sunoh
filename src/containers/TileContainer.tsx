@@ -7,7 +7,7 @@ import { TileContainerProps } from '~types/component.types';
 const TileContainer: React.FC<TileContainerProps> = ({
   data,
   config,
-  tileStyleConfig,
+  tileStyleConfig = { shape: 'rounded_square', size: '4xl', fit: 'contain' },
   onClick,
   displayType = 'default'
 }) => {

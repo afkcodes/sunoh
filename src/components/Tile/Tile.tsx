@@ -7,8 +7,8 @@ import { tileSize } from './tile.styles';
 interface TileProps {
   data: any;
   config: any;
-  styleConfig: TileStyleProps;
   onClick: (params: any) => void;
+  styleConfig: TileStyleProps;
 }
 
 const Tile: React.FC<TileProps> = ({ data, config, styleConfig, onClick }) => {

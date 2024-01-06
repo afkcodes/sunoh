@@ -8,7 +8,7 @@ const routes = {
   updateStreamStatus: '/station/update-stream',
   likeStation: '/station/update-likes',
   updatePlayCount: '/station/update-play-count',
-  searchStation: '/station/search'
+  searchStation: '/search'
 };
 
 const endpoints = {
@@ -82,12 +82,12 @@ const endpoints = {
     return data as Response;
   },
 
-  searchStation: async (term: string, limit: number, offset: number) => {
+  searchStation: async (term: string, page: number, offset: number) => {
     const data = await http(`${baseURL}${routes.searchStation}`, {
       method: 'GET',
       params: {
         term,
-        limit,
+        page,
         offset
       }
     });

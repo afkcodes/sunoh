@@ -1,4 +1,4 @@
-import { ChangeEvent, Dispatch, FocusEvent, SetStateAction } from 'react';
+import { Dispatch, FocusEvent, SetStateAction } from 'react';
 import { Variant } from '~components/Button/button.types';
 import {
   ArrangeMode,
@@ -51,9 +51,9 @@ export interface TileStyleProps {
 export interface TileContainerProps {
   data: any[];
   config: any;
-  tileStyleConfig: TileStyleProps;
   onClick: (item: any) => void;
   displayType: 'carousel' | 'default';
+  tileStyleConfig?: TileStyleProps;
 }
 
 export interface ButtonProps {
@@ -71,7 +71,7 @@ export interface ButtonProps {
 
 export interface SectionHeaderProps {
   textLinkConfig: TextLinkProps;
-  actionButtonConfig: ButtonProps;
+  actionButtonConfig?: ButtonProps;
 }
 
 export interface TextLinkProps {
@@ -83,21 +83,42 @@ export interface TextLinkProps {
 
 export interface SectionContainerConfig {
   sectionHeaderConfig: SectionHeaderProps;
-  containerType: 'tile' | 'audio_list';
-  containerConfig: TileContainerProps;
+  containerType: 'tile' | 'audio_list' | 'search_history';
+  containerConfig: {
+    tileContainerConfig?: TileContainerProps;
+    searchHistoryContainerConfig?: SearchHistoryContainerProps;
+  };
 }
 
 export interface InputProps {
   placeHolder: string;
   value: string;
-  onChange?: (e: ChangeEvent<HTMLInputElement>) => void;
-  onFocus?: (e: FocusEvent<HTMLInputElement>) => void;
-  onBlur?: (e: FocusEvent<HTMLInputElement>) => void;
-  onKeyDown?: (e: React.KeyboardEvent<HTMLInputElement>) => void;
+  onChange?: (value: string) => void;
+  onFocus?: (e?: FocusEvent<HTMLInputElement>) => void;
+  onBlur?: (e?: FocusEvent<HTMLInputElement>) => void;
+  onKeyDown?: (e?: React.KeyboardEvent<HTMLInputElement>) => void;
   styleConfig: {
     padding: Spacing;
     fonWeight: FontWeight;
     fontSize: FontSize;
     radius: Radius;
   };
+}
+
+export interface SearchHistoryItemProps {
+  data: SearchItem;
+  config: any;
+  onClick: (item: any) => void;
+}
+
+export interface SearchHistoryContainerProps {
+  data: SearchItem[];
+  config: any;
+  onClick: (item: any) => void;
+  tileStyleConfig?: any; // added because of type error
+  displayType?: any; // added because of type error
+}
+
+export interface SearchItem {
+  text: string;
 }
