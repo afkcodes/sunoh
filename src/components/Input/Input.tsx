@@ -1,4 +1,5 @@
-import { KeyboardEvent, useRef } from 'react';
+import { ChangeEvent, KeyboardEvent, useRef } from 'react';
+import { isValidFunction } from '~helpers/common';
 import { tabState } from '~states/tab';
 import { FontWeightStyle, fontSizeStyle, paddingStyle, radiusStyle } from '~styles/base.style';
 import { InputProps } from '~types/component.types';
@@ -31,6 +32,12 @@ const Input: React.FC<InputProps> = ({
     }
   };
 
+  const onValueChange = (e: ChangeEvent<HTMLInputElement>) => {
+    if (onChange && isValidFunction(onChange)) {
+      onChange(e.target.value);
+    }
+  };
+
   return (
     <input
       ref={inputRef}
@@ -43,7 +50,7 @@ const Input: React.FC<InputProps> = ({
         ${FontWeightStyle[styleConfig.fonWeight]}
         ${radiusStyle[styleConfig.radius]}
         `}
-      onChange={onChange}
+      onChange={onValueChange}
       onFocus={onFocus}
       onBlur={onBlur}
       value={value}

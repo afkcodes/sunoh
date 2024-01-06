@@ -169,7 +169,7 @@ export const getColorWithOpacity = (hexColor: string, opacity: number): string =
 };
 
 export const findDuplicatesAndRemove = <T>(jsonArray: T[], key: keyof T, count?: number): T[] => {
-  const seen = new Set();
+  const seen = new Set<any>();
   const uniqueArray: T[] = [];
 
   for (const item of jsonArray) {

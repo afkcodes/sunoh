@@ -12,18 +12,20 @@ const SectionHeader: React.FC<SectionHeaderProps> = ({ actionButtonConfig, textL
           fontWeight={textLinkConfig.fontWeight}
         />
       </div>
-      <div>
-        <Button
-          text={actionButtonConfig.text}
-          variant={actionButtonConfig.variant}
-          onClick={actionButtonConfig.onClick}
-          fontSize={actionButtonConfig.fontSize}
-          fontWeight={actionButtonConfig.fontWeight}
-          customClass={actionButtonConfig.customClass}
-          radius={actionButtonConfig.radius}
-          isCapitalized={actionButtonConfig.isCapitalized}
-        />
-      </div>
+      {actionButtonConfig ? (
+        <div>
+          <Button
+            text={actionButtonConfig.text}
+            variant={actionButtonConfig.variant}
+            onClick={actionButtonConfig.onClick}
+            fontSize={actionButtonConfig.fontSize}
+            fontWeight={actionButtonConfig.fontWeight}
+            customClass={actionButtonConfig.customClass}
+            radius={actionButtonConfig.radius}
+            isCapitalized={actionButtonConfig.isCapitalized}
+          />
+        </div>
+      ) : null}
     </div>
   );
 };
