@@ -14,7 +14,7 @@ const AudioListItemContainer: React.FC<AudioListItemContainerProps> = ({
   return (
     <div className='flex flex-col gap-4 px-3'>
       {data.map((item) => (
-        <AudioListItem data={item} config={config} onClick={onClick} />
+        <AudioListItem key={item.id} data={item} config={config} onClick={onClick} />
       ))}
     </div>
   );
