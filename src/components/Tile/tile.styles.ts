@@ -14,6 +14,8 @@ const tileSize: {
   '2xl': 'w-36',
   '3xl': 'w-40',
   '4xl': 'w-44',
+  '5xl': 'w-64',
+  '6xl': 'w-72',
   free: 'h-full w-full'
 };
 

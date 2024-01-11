@@ -13,7 +13,9 @@ const PlayerStatusIndicator: React.FC<PlayerStatusIndicatorProps> = ({ currentTr
 
   const isPlaying = audio.audioState.playbackState === 'playing';
   const isBuffering = audio.audioState.playbackState === 'buffering';
-  const isDark = isColorDark(currentTrack.dominantColor as string);
+  const isDark = currentTrack.dominantColor
+    ? isColorDark(currentTrack.dominantColor as string)
+    : '#121212';
 
   return (
     <Fragment>

@@ -8,9 +8,9 @@ interface AudioListItemProps {
 }
 
 const AudioListItem: React.FC<AudioListItemProps> = ({ data, config, onClick }) => {
-  const src = dataExtractor(data, config.posterImage);
-  const title = dataExtractor(data, config.name);
-  const subTitle = dataExtractor(data, config.city);
+  const src = dataExtractor(data, config.image);
+  const title = dataExtractor(data, config.title);
+  const subTitle = dataExtractor(data, config.subtitle);
   const dominantColor = dataExtractor(data, config.dominantColor);
 
   const onTileClick = () => {
@@ -31,7 +31,7 @@ const AudioListItem: React.FC<AudioListItemProps> = ({ data, config, onClick }) 
         gap='xs'
         orientation='horizontal'
         titleConfig={{
-          title: subTitle,
+          title: title,
           subTitle: subTitle
         }}
       />

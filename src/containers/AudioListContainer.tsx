@@ -1,10 +1,5 @@
 import AudioListItem from '~components/AudioListItem/AudioListItem';
-
-interface AudioListItemContainerProps {
-  data: any[];
-  config: any;
-  onClick: (item?: any) => void;
-}
+import { AudioListItemContainerProps } from '~types/component.types';
 
 const AudioListItemContainer: React.FC<AudioListItemContainerProps> = ({
   data,

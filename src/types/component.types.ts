@@ -67,6 +67,7 @@ export interface ButtonProps {
   iconPosition?: Position;
   customClass?: string;
   isCapitalized?: boolean;
+  iconGap?: Spacing;
 }
 
 export interface SectionHeaderProps {
@@ -79,6 +80,7 @@ export interface TextLinkProps {
   to?: string;
   fontSize?: FontSize;
   fontWeight?: FontWeight;
+  numOfLines?: LineCount;
 }
 
 export interface SectionContainerConfig {
@@ -87,6 +89,7 @@ export interface SectionContainerConfig {
   containerConfig: {
     tileContainerConfig?: TileContainerProps;
     searchHistoryContainerConfig?: SearchHistoryContainerProps;
+    audioListItemContainerConfig?: AudioListItemContainerProps;
   };
 }
 
@@ -121,4 +124,10 @@ export interface SearchHistoryContainerProps {
 
 export interface SearchItem {
   text: string;
+}
+
+export interface AudioListItemContainerProps {
+  data: any[];
+  config: any;
+  onClick: (item?: any) => void;
 }

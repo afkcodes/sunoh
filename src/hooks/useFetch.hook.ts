@@ -4,16 +4,19 @@ import { Response } from '~types/common.types';
 const useFetch = ({
   queryKey,
   queryFn,
-  shouldFetchOnLoad = true
+  shouldFetchOnLoad = true,
+  staleTime = 50000
 }: {
   queryKey: string[];
   queryFn: (param?: any) => Promise<Response>;
   shouldFetchOnLoad?: boolean;
+  staleTime?: number;
 }) => {
   const { isError, isLoading, isFetched, refetch, data, isSuccess, isPending, status } = useQuery({
     queryKey,
     queryFn,
-    enabled: shouldFetchOnLoad
+    enabled: shouldFetchOnLoad,
+    staleTime
   });
 
   return {

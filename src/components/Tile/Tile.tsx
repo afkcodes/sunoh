@@ -12,9 +12,10 @@ interface TileProps {
 }
 
 const Tile: React.FC<TileProps> = ({ data, config, styleConfig, onClick }) => {
-  const src = dataExtractor(data, config.posterImage);
-  const title = dataExtractor(data, config.name);
-  const subTitle = dataExtractor(data, config.city);
+  // const id = dataExtractor(data, config.id);
+  const src = dataExtractor(data, config.image);
+  const title = dataExtractor(data, config.title);
+  const subTitle = dataExtractor(data, config.subtitle);
   const dominantColor = dataExtractor(data, config.dominantColor);
 
   const onTileClick = () => {
@@ -41,7 +42,7 @@ const Tile: React.FC<TileProps> = ({ data, config, styleConfig, onClick }) => {
         }}
         titleConfig={{
           title,
-          subTitle
+          subTitle: subTitle !== '0' ? subTitle : ''
         }}
         gap='xs'
         orientation='vertical'

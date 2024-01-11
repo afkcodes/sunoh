@@ -48,7 +48,7 @@ const BottomNavContainer = () => {
     <div
       ref={bottomNavRef}
       className={`
-      flex flex-col justify-between fixed transition-all ease-in-out duration-300 bottom-0 bg-bgSecondary shadow-elevation-3 w-full  left-0 right-0 z-10
+      flex flex-col justify-between fixed transition-all ease-in-out duration-300 bottom-0 bg-bgSecondary shadow-elevation-3 w-full  left-0 right-0 z-20
 
       `}
     >

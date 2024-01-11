@@ -1,5 +1,6 @@
 import { MediaTrack } from 'audio_x';
 import { Track, TrackType } from '~types/common.types';
+import { SONG_H_CONFIG } from './data.config';
 
 export const isValidFunction = (fun: any) => typeof fun === 'function';
 export const isValidArray = (arr: any[]) => arr && Array.isArray(arr) && arr.length > 0;
@@ -231,20 +232,23 @@ export const isColorDark = (color: string) => {
   return brightness < threshold;
 };
 
-let q = 1;
 export const createMediaTrack = (item: any) => {
+  const title = dataExtractor(item, SONG_H_CONFIG.title);
+  const subtitle = dataExtractor(item, SONG_H_CONFIG.singer).join(', ');
+  const image = dataExtractor(item, SONG_H_CONFIG.image);
+  const url = dataExtractor(item, SONG_H_CONFIG.url);
   const mediaTrack: MediaTrack = {
     id: item._id,
     artwork: [
       {
-        src: item.imageUrl,
-        name: item.name,
+        src: image,
+        name: title,
         sizes: '200x200'
       }
     ],
-    source: `${item.stream.url}?q=${++q}`,
-    title: item.name,
-    artist: item.locations[0].city.name
+    source: url,
+    title: title,
+    artist: subtitle
   };
 
   return mediaTrack;

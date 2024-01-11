@@ -1,6 +1,7 @@
 import { createBrowserRouter } from 'react-router-dom';
 import LayoutContainer from '~containers/LayoutContainer';
 import Home from '~pages/home';
+import Playlist from '~pages/playlist';
 import Profile from '~pages/profile';
 import Search from '~pages/search';
 import Settings from '~pages/settings';
@@ -30,6 +31,10 @@ const router = createBrowserRouter([
       {
         path: '/settings',
         element: <Settings key='settings' />
+      },
+      {
+        path: '/playlist/:id',
+        element: <Playlist />
       }
     ]
   }

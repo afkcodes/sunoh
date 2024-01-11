@@ -10,7 +10,7 @@ const buttonVariantStyle: { [key in Variant]: string } = {
   ghost:
     'bg-btnGhost hover:bg-btnGhostHoverBg active:bg-btnGhostActiveBg hover:border-btnGhostHoverBorder active:border-btnGhostActiveBorder active:border  transition-all duration-300',
   unstyled:
-    'bg-transparent active:bg-transparent hover:bg-transparent outline-none ring-none border-none'
+    'bg-transparent active:bg-transparent hover:bg-transparent outline-transparent ring-transparent border-none'
 };
 
 export { buttonVariantStyle };

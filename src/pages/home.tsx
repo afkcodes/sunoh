@@ -1,36 +1,21 @@
-import { Fragment, memo, useContext } from 'react';
+import { Fragment, memo } from 'react';
 import { useNavigate } from 'react-router-dom';
 import Greetings from '~components/Greetings/Greetings';
 import SectionContainer from '~containers/SectionContainer';
-import { AudioXContext } from '~contexts/audioX.context';
-import { updateTrackAndPlayerState } from '~helpers/business';
-import { createMediaTrack } from '~helpers/common';
-import { TILE_CONFIG } from '~helpers/data.config';
+import { HOME_CONFIG } from '~helpers/data.config';
 import useFetch from '~hooks/useFetch.hook';
-import endpoints from '~network/endpoints';
-import { Track } from '~types/common.types';
+import { musicEndpoints } from '~network/music';
 
 const Home = memo(() => {
-  const audio = useContext(AudioXContext);
   const navigate = useNavigate();
 
-  const {
-    data: cityData,
-    isSuccess,
-    isError
-  } = useFetch({
+  const { data, isSuccess, isError } = useFetch({
     queryKey: ['home'],
-    queryFn: async () => await endpoints.getStationsByLocationType('city', 'mumbai', 1, 40)
+    queryFn: async () => await musicEndpoints.home()
   });
 
   const onTileClick = (item: any) => {
-    const mediaTrack = createMediaTrack(item);
-    const track: Track = {
-      ...mediaTrack,
-      dominantColor: item.dominantColor
-    };
-    audio.addMediaAndPlay(mediaTrack);
-    updateTrackAndPlayerState(track);
+    navigate(`/playlist/${item.id}`, { state: item });
   };
 
   return (
@@ -41,7 +26,7 @@ const Home = memo(() => {
           <SectionContainer
             sectionHeaderConfig={{
               textLinkConfig: {
-                text: 'Recently Added',
+                text: data?.data[0].title,
                 fontSize: 'xl',
                 fontWeight: 'bold'
               },
@@ -61,8 +46,8 @@ const Home = memo(() => {
             containerType='tile'
             containerConfig={{
               tileContainerConfig: {
-                data: cityData?.data.stations.slice(10, 20),
-                config: TILE_CONFIG,
+                data: data?.data[0].items,
+                config: HOME_CONFIG,
                 tileStyleConfig: {
                   shape: 'rounded_square',
                   size: '2xl',
@@ -76,13 +61,15 @@ const Home = memo(() => {
           <SectionContainer
             sectionHeaderConfig={{
               textLinkConfig: {
-                text: 'Trending Now',
+                text: data?.data[2].title,
                 fontSize: 'xl',
                 fontWeight: 'bold'
               },
               actionButtonConfig: {
                 text: 'VIEW ALL',
-                onClick: () => {},
+                onClick: () => {
+                  navigate('/recently-added/view-all');
+                },
                 variant: 'tertiary',
                 fontSize: 'xs',
                 fontWeight: 'bold',
@@ -94,8 +81,8 @@ const Home = memo(() => {
             containerType='tile'
             containerConfig={{
               tileContainerConfig: {
-                data: cityData?.data.stations.slice(0, 10),
-                config: TILE_CONFIG,
+                data: data?.data[2].items,
+                config: HOME_CONFIG,
                 tileStyleConfig: {
                   shape: 'rounded_square',
                   size: '2xl',
@@ -109,13 +96,15 @@ const Home = memo(() => {
           <SectionContainer
             sectionHeaderConfig={{
               textLinkConfig: {
-                text: 'Nearby Stations',
+                text: data?.data[3].title,
                 fontSize: 'xl',
                 fontWeight: 'bold'
               },
               actionButtonConfig: {
                 text: 'VIEW ALL',
-                onClick: () => {},
+                onClick: () => {
+                  navigate('/recently-added/view-all');
+                },
                 variant: 'tertiary',
                 fontSize: 'xs',
                 fontWeight: 'bold',
@@ -127,10 +116,80 @@ const Home = memo(() => {
             containerType='tile'
             containerConfig={{
               tileContainerConfig: {
-                data: cityData?.data.stations.slice(20, 30),
-                config: TILE_CONFIG,
+                data: data?.data[3].items,
+                config: HOME_CONFIG,
                 tileStyleConfig: {
                   shape: 'rounded_square',
+                  size: '2xl',
+                  fit: 'fill'
+                },
+                onClick: onTileClick,
+                displayType: 'carousel'
+              }
+            }}
+          />
+          <SectionContainer
+            sectionHeaderConfig={{
+              textLinkConfig: {
+                text: data?.data[4].title,
+                fontSize: 'xl',
+                fontWeight: 'bold'
+              },
+              actionButtonConfig: {
+                text: 'VIEW ALL',
+                onClick: () => {
+                  navigate('/recently-added/view-all');
+                },
+                variant: 'tertiary',
+                fontSize: 'xs',
+                fontWeight: 'bold',
+                isCapitalized: true,
+                customClass: 'p-2',
+                radius: 'full'
+              }
+            }}
+            containerType='tile'
+            containerConfig={{
+              tileContainerConfig: {
+                data: data?.data[4].items,
+                config: HOME_CONFIG,
+                tileStyleConfig: {
+                  shape: 'rounded_square',
+                  size: '2xl',
+                  fit: 'fill'
+                },
+                onClick: onTileClick,
+                displayType: 'carousel'
+              }
+            }}
+          />
+          <SectionContainer
+            sectionHeaderConfig={{
+              textLinkConfig: {
+                text: data?.data[6].title,
+                fontSize: 'xl',
+                fontWeight: 'bold'
+              },
+              actionButtonConfig: {
+                text: 'VIEW ALL',
+                onClick: () => {
+                  navigate('/recently-added/view-all');
+                },
+                variant: 'tertiary',
+                fontSize: 'xs',
+                fontWeight: 'bold',
+                isCapitalized: true,
+                customClass: 'p-2',
+                radius: 'full'
+              }
+            }}
+            containerType='tile'
+            containerConfig={{
+              tileContainerConfig: {
+                data: data?.data[6].items,
+                config: HOME_CONFIG,
+                tileStyleConfig: {
+                  shape: 'circle',
                   size: '2xl',
                   fit: 'fill'
                 },

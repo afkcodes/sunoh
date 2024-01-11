@@ -79,8 +79,8 @@ const Search = () => {
   };
 
   return (
-    <div className=' flex flex-col gap-4 pt-2'>
-      <div className='px-3'>
+    <div className='flex flex-col gap-4 pt-2 relative'>
+      <div className='px-3 sticky top-0 z-10 w-full'>
         <SearchBar
           inputConfig={{
             value: keyword,
@@ -108,30 +108,38 @@ const Search = () => {
         />
       </div>
       {isValidArray(results?.data?.stations) && keyword.length ? (
-        <AudioListItemContainer
-          data={results?.data?.stations}
-          config={TILE_CONFIG}
-          onClick={onAudioItemClick}
-        />
+        <div className='h-[70vh] pb-12 overflow-scroll no-scrollbar'>
+          <AudioListItemContainer
+            data={results?.data?.stations}
+            config={TILE_CONFIG}
+            onClick={onAudioItemClick}
+          />
+        </div>
       ) : (
-        <SectionContainer
-          containerType='search_history'
-          containerConfig={{
-            searchHistoryContainerConfig: {
-              config: search_history_config,
-              data: searchHistory as SearchItem[],
-              displayType: 'default',
-              onClick: onSearchHistoryActionPress
-            }
-          }}
-          sectionHeaderConfig={{
-            textLinkConfig: {
-              text: 'Recently Searched',
-              fontSize: 'xl',
-              fontWeight: 'bold'
-            }
-          }}
-        />
+        <div>
+          {isValidArray(searchHistory as SearchItem[]) ? (
+            <SectionContainer
+              containerType='search_history'
+              containerConfig={{
+                searchHistoryContainerConfig: {
+                  config: search_history_config,
+                  data: searchHistory as SearchItem[],
+                  displayType: 'default',
+                  onClick: onSearchHistoryActionPress
+                }
+              }}
+              sectionHeaderConfig={{
+                textLinkConfig: {
+                  text: 'Recently Searched',
+                  fontSize: 'xl',
+                  fontWeight: 'bold'
+                }
+              }}
+            />
+          ) : (
+            <div></div>
+          )}
+        </div>
       )}
     </div>
   );

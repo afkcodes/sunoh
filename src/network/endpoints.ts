@@ -1,3 +1,4 @@
+import { isValidWindow } from '~helpers/common';
 import { Response } from '~types/common.types';
 import http from './http';
 
@@ -92,6 +93,28 @@ const endpoints = {
       }
     });
     return data as Response;
+  },
+
+  setCsp: async (mediaURL: string) => {
+    console.log(mediaURL);
+    const data: any = await http(`${baseURL}/get-csp`, {
+      method: 'POST',
+      body: JSON.stringify({ mediaURL })
+    });
+
+    console.log(data);
+
+    if (data.csp) {
+      const cspHeader = data.csp;
+      if (isValidWindow) {
+        const meta = document.createElement('meta');
+        meta.httpEquiv = 'Content-Security-Policy';
+        meta.content = cspHeader;
+        document.head.appendChild(meta);
+      }
+    } else {
+      console.log('failed playing of media');
+    }
   }
 };
 
