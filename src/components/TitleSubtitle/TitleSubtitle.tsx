@@ -22,16 +22,18 @@ const TitleSubtitle: React.FC<TitleSubtitleProps> = ({
       >
         {title}
       </p>
-      <p
-        className={`
+      <div className='w-[80%]'>
+        <p
+          className={`
         text-textMedium
         ${fontSizeStyle[subtitleFontSize]}
         ${FontWeightStyle[subtitleFontWeight]}
         ${lineCountStyle[noOfLinesSubtitle]}
         `}
-      >
-        {subTitle}
-      </p>
+        >
+          {subTitle}
+        </p>
+      </div>
     </div>
   );
 };
