@@ -20,7 +20,6 @@ const Playlist = memo(() => {
   const onSongItemClick = async (item: any) => {
     const data = await musicEndpoints.getSongData(item.id);
     const mediaTrack = createMediaTrack(data.data);
-    console.log(mediaTrack);
     audio.addMediaAndPlay(mediaTrack);
     updateTrackAndPlayerState(mediaTrack);
   };

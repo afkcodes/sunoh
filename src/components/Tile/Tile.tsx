@@ -21,8 +21,6 @@ const Tile: React.FC<TileProps> = ({ data, config, styleConfig, onClick }) => {
   const onTileClick = () => {
     onClick(data);
   };
-
-  console.log(styleConfig);
   return (
     <button
       className={`flex flex-col p-0 m-0 

@@ -14,7 +14,6 @@ const HeroContainer: React.FC<HeroContainerProps> = ({ data, config }) => {
   const title = dataExtractor(data, config.title);
   const subTitle = dataExtractor(data, config.subtitle);
   // const dominantColor = dataExtractor(data, config.dominantColor);
-  console.log(src);
   return (
     <div className='relative'>
       <div className='absolute top-0 left-0 z-1 blur-2xl opacity-40'>
