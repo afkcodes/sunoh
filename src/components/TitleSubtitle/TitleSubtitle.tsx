@@ -1,4 +1,4 @@
-import { FontWeightStyle, LineCountStyle, fontSizeStyle } from '~styles/base.style';
+import { FontWeightStyle, fontSizeStyle, lineCountStyle } from '~styles/base.style';
 import { TitleSubtitleProps } from '~types/component.types';
 
 const TitleSubtitle: React.FC<TitleSubtitleProps> = ({
@@ -17,21 +17,23 @@ const TitleSubtitle: React.FC<TitleSubtitleProps> = ({
         className={`
         ${fontSizeStyle[titleFontSize]}
         ${FontWeightStyle[titleFontWeight]}
-        ${LineCountStyle[noOfLinesTitle]}
+        ${lineCountStyle[noOfLinesTitle]}
         `}
       >
         {title}
       </p>
-      <p
-        className={`
+      <div className='w-[80%]'>
+        <p
+          className={`
         text-textMedium
         ${fontSizeStyle[subtitleFontSize]}
         ${FontWeightStyle[subtitleFontWeight]}
-        ${LineCountStyle[noOfLinesSubtitle]}
+        ${lineCountStyle[noOfLinesSubtitle]}
         `}
-      >
-        {subTitle}
-      </p>
+        >
+          {subTitle}
+        </p>
+      </div>
     </div>
   );
 };

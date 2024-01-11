@@ -29,7 +29,7 @@ const FontWeightStyle: { [key in FontWeight]: string } = {
   semibold: 'font-semibold'
 };
 
-const LineCountStyle: { [key in LineCount]: string } = {
+const lineCountStyle: { [key in LineCount]: string } = {
   1: 'line-clamp-1',
   2: 'line-clamp-2',
   3: 'line-clamp-3',
@@ -62,4 +62,4 @@ const paddingStyle: { [key in Spacing]: string } = {
   '4xl': 'p-16'
 };
 
-export { FontWeightStyle, LineCountStyle, fontSizeStyle, gapStyle, paddingStyle, radiusStyle };
+export { FontWeightStyle, fontSizeStyle, gapStyle, lineCountStyle, paddingStyle, radiusStyle };

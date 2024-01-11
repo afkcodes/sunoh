@@ -24,13 +24,12 @@ const FigureTitle: React.FC<FigureTitleProps> = ({
   const orientationStyles =
     orientation === 'vertical'
       ? `flex flex-col ${gapStyle[gap]}`
-      : `flex items-center justify-center ${gapStyle[gap]}`;
+      : `flex items-center justify-center text-start ${gapStyle[gap]}`;
 
   return (
     <div
       className={`
       ${orientationStyles}
-      text-start
     `}
     >
       <div

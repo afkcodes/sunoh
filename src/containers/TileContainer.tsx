@@ -13,9 +13,9 @@ const TileContainer: React.FC<TileContainerProps> = ({
 }) => {
   const Tiles = isValidArray(data)
     ? data.map((item) => (
-        <Fragment key={item._id}>
+        <Fragment key={item?._id ? item._id : item.id}>
           {displayType === 'carousel' ? (
-            <li key={item._id}>
+            <li key={item?._id ? item._id : item.id}>
               <Tile config={config} styleConfig={tileStyleConfig} data={item} onClick={onClick} />
             </li>
           ) : (
@@ -23,7 +23,7 @@ const TileContainer: React.FC<TileContainerProps> = ({
               config={config}
               styleConfig={tileStyleConfig}
               data={item}
-              key={item._id}
+              key={item?._id ? item._id : item.id}
               onClick={onClick}
             />
           )}

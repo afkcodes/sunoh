@@ -14,6 +14,8 @@ const figureSize: {
   '2xl': 'size-36',
   '3xl': 'size-40',
   '4xl': 'size-44',
+  '5xl': 'size-64',
+  '6xl': 'size-72',
   free: 'h-full w-full'
 };
 

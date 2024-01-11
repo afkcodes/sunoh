@@ -1,10 +1,34 @@
 export const TILE_CONFIG = {
-  name: 'name',
+  title: 'name',
   categories: 'categories',
-  city: 'locations.0.city.name',
-  posterImage: 'imageUrl',
+  subtitle: 'locations.0.city.name',
+  image: 'imageUrl',
   iconImage: 'imageUrl',
   streams: 'stream',
   dominantColor: 'dominantColor',
   blurHash: 'blurHash'
+};
+
+export const HOME_CONFIG = {
+  id: 'id',
+  title: 'title',
+  subtitle: 'subtitle',
+  image: 'image',
+  dominantColor: ''
+};
+
+export const AUDIO_LIST_CONFIG = {
+  id: 'id',
+  title: 'title',
+  subtitle: 'subtitle',
+  image: 'img_small',
+  dominantColor: ''
+};
+
+export const SONG_H_CONFIG = {
+  title: 'title',
+  subtitle: 'subtitle',
+  url: 'urls.hd.url',
+  singer: 'artists',
+  image: 'small_img' // fix this in api
 };

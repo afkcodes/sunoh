@@ -3,6 +3,7 @@ import { MediaTrack } from 'audio_x';
 type ExtraSmallSize = '3xs' | '2xs';
 type BaseSize = 'xs' | 'sm' | 'md' | 'lg' | 'xl';
 type ExtraLargeSize = '2xl' | '3xl' | '4xl';
+type FigureXtraLarge = '5xl' | '6xl';
 
 export type Spacing = ExtraSmallSize | BaseSize | ExtraLargeSize;
 export type Radius = BaseSize | 'full' | 'none';
@@ -23,8 +24,20 @@ export interface Response {
   error: string;
 }
 
-export type TileSize = ExtraSmallSize | BaseSize | ExtraLargeSize | 'free' | '2.5xs';
-export type FigureSize = ExtraSmallSize | BaseSize | ExtraLargeSize | 'free' | '2.5xs';
+export type TileSize =
+  | ExtraSmallSize
+  | BaseSize
+  | ExtraLargeSize
+  | 'free'
+  | '2.5xs'
+  | FigureXtraLarge;
+export type FigureSize =
+  | ExtraSmallSize
+  | BaseSize
+  | ExtraLargeSize
+  | 'free'
+  | '2.5xs'
+  | FigureXtraLarge;
 export type Shape = 'default' | 'rounded_square' | 'circle';
 export type FitStrategy = 'default' | 'fill' | 'contain' | 'cover' | 'scale_down';
 

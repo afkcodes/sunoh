@@ -14,7 +14,9 @@ const MiniPlayer: React.FC<MiniPlayerProps> = ({ currentTrack, audio }) => {
   return (
     <div
       style={{
-        backgroundColor: getColorWithOpacity(currentTrack.dominantColor as string, 0.3),
+        backgroundColor: currentTrack.dominantColor
+          ? getColorWithOpacity(currentTrack.dominantColor as string, 0.3)
+          : '#121212',
         backdropFilter: 'blur(10px)'
       }}
       className={` transition-all duration-300 w-full flex justify-between items-start px-3 py-2 `}

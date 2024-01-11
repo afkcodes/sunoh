@@ -1,5 +1,5 @@
 import { ButtonProps } from '~types/component.types';
-import { FontWeightStyle, fontSizeStyle, radiusStyle } from '../../styles/base.style';
+import { FontWeightStyle, fontSizeStyle, gapStyle, radiusStyle } from '../../styles/base.style';
 import { buttonVariantStyle } from './button.styles';
 
 const Button: React.FC<ButtonProps> = ({
@@ -14,12 +14,20 @@ const Button: React.FC<ButtonProps> = ({
   fontWeight = 'medium',
   iconPosition = 'left',
   customClass = '',
-  isCapitalized = false
+  isCapitalized = false,
+  iconGap = 'sm'
 }) => {
+  const iconPositionMap = {
+    left: 'flex',
+    right: 'flex flex-row-reverse',
+    top: 'flex-col',
+    bottom: 'flex flex-col-reverse'
+  };
+
   return (
     <button
       className={`
-      text-white
+      text-white transition-all duration-300
       ${buttonVariantStyle[variant]}
       ${radiusStyle[radius]}
       ${fontSizeStyle[fontSize]}
@@ -29,9 +37,9 @@ const Button: React.FC<ButtonProps> = ({
       onClick={onClick}
     >
       <div
-        className={` justify-center items-center gap-1 
-        ${iconPosition === 'left' ? 'flex' : 'flex flex-row-reverse'}
-        ${iconPosition === 'top' ? 'flex-col' : 'flex flex-col-reverse'}
+        className={` flex items-center m-0 p-0
+        ${iconPositionMap[iconPosition]}
+        ${gapStyle[iconGap]}
         `}
       >
         {icon ? <span>{icon}</span> : null}
