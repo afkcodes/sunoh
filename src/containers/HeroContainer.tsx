@@ -7,8 +7,12 @@ import { dataExtractor } from '~helpers/common';
 interface HeroContainerProps {
   data: any;
   config: any;
+  playbackConfig: {
+    onPlay: () => void;
+    onShuffle: () => void;
+  };
 }
-const HeroContainer: React.FC<HeroContainerProps> = ({ data, config }) => {
+const HeroContainer: React.FC<HeroContainerProps> = ({ data, config, playbackConfig }) => {
   // const id = dataExtractor(data, config.id);
   const src = dataExtractor(data, config.image);
   const title = dataExtractor(data, config.title);
@@ -43,12 +47,11 @@ const HeroContainer: React.FC<HeroContainerProps> = ({ data, config }) => {
             fontWeight='semibold'
             radius='xl'
             variant='unstyled'
-            customClass='px-6 py-2.5  backdrop-blur-sm  bg-white w-40 hover:bg-white active:bg-white/70 text-textDark'
+            customClass='px-6 py-3  backdrop-blur-sm  bg-white w-40 hover:bg-white active:bg-white/70 text-textDark'
             icon={<RiPlayFill size={26} />}
             iconPosition='left'
-            onClick={() => {
-              console.log('play');
-            }}
+            isCapitalized={true}
+            onClick={playbackConfig.onPlay}
           />
           <Button
             text='Shuffle'
@@ -56,11 +59,10 @@ const HeroContainer: React.FC<HeroContainerProps> = ({ data, config }) => {
             radius='xl'
             fontWeight='semibold'
             variant='unstyled'
-            customClass='px-6 py-2.5 backdrop-blur-sm bg-white/30 w-40 hover:bg-white/30 active:bg-white/20'
+            customClass='px-6 py-3 backdrop-blur-sm bg-white/30 w-40 hover:bg-white/30 active:bg-white/20'
             icon={<RiShuffleFill />}
-            onClick={() => {
-              console.log('play');
-            }}
+            isCapitalized={true}
+            onClick={playbackConfig.onShuffle}
           />
         </div>
       </div>

@@ -1,10 +1,11 @@
+import { MediaTrack } from 'audio_x';
 import { memo, useContext } from 'react';
 import { useLocation } from 'react-router-dom';
 import HeroContainer from '~containers/HeroContainer';
 import SectionContainer from '~containers/SectionContainer';
 import { AudioXContext } from '~contexts/audioX.context';
 import { updateTrackAndPlayerState } from '~helpers/business';
-import { createMediaTrack } from '~helpers/common';
+import { createMediaTrack, createQueue } from '~helpers/common';
 import { AUDIO_LIST_CONFIG, HOME_CONFIG } from '~helpers/data.config';
 import useFetch from '~hooks/useFetch.hook';
 import { musicEndpoints } from '~network/music';
@@ -12,6 +13,7 @@ import { musicEndpoints } from '~network/music';
 const Playlist = memo(() => {
   const { state } = useLocation();
   const audio = useContext(AudioXContext);
+
   const { data, isSuccess, isError } = useFetch({
     queryKey: [`playlist${state.id}`],
     queryFn: async () => await musicEndpoints.playlist(state.id)
@@ -23,10 +25,35 @@ const Playlist = memo(() => {
     audio.addMediaAndPlay(mediaTrack);
     updateTrackAndPlayerState(mediaTrack);
   };
+
+  const onPlay = () => {
+    if (isSuccess && data?.data?.songs) {
+      const queue = createQueue(data?.data?.songs);
+      audio.addToQueue(queue, 'DEFAULT');
+      audio.addMediaAndPlay(null, async (currentTrack: MediaTrack) => {
+        const res = await musicEndpoints.getSongData(currentTrack.id as string);
+        currentTrack.source = res.data.urls.hd.url;
+        updateTrackAndPlayerState(currentTrack);
+      });
+    }
+  };
+
+  const onShuffle = () => {
+    if (isSuccess && data?.data?.songs) {
+      const queue = createQueue(data?.data?.songs);
+      audio.addToQueue(queue, 'SHUFFLE');
+      audio.addMediaAndPlay(null, async (currentTrack: MediaTrack) => {
+        const res = await musicEndpoints.getSongData(currentTrack.id as string);
+        currentTrack.source = res.data.urls.hd.url;
+        updateTrackAndPlayerState(currentTrack);
+      });
+    }
+  };
+
   return (
     <div className='pt-4 pb-28'>
       <div className='relative z-1'>
-        <HeroContainer data={state} config={HOME_CONFIG} />
+        <HeroContainer data={state} config={HOME_CONFIG} playbackConfig={{ onPlay, onShuffle }} />
       </div>
       <div className='mt-12'>
         {isSuccess && !isError ? (

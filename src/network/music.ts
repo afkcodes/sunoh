@@ -1,7 +1,7 @@
 import { Response } from '~types/common.types';
 import http from './http';
 
-const baseURL = 'http://localhost:3000';
+const baseURL = import.meta.env.VITE_BASE_API_URL;
 
 const musicEndpoints = {
   home: async () => {

@@ -8,20 +8,21 @@ import { Track } from '~types/common.types';
 interface MiniPlayerProps {
   currentTrack: Track;
   audio: AudioContextProps;
+  onClick: () => void;
 }
 
-const MiniPlayer: React.FC<MiniPlayerProps> = ({ currentTrack, audio }) => {
+const MiniPlayer: React.FC<MiniPlayerProps> = ({ currentTrack, audio, onClick }) => {
   return (
     <div
       style={{
         backgroundColor: currentTrack.dominantColor
           ? getColorWithOpacity(currentTrack.dominantColor as string, 0.3)
-          : '#121212',
+          : 'rgba(30,30,30,0.6)',
         backdropFilter: 'blur(10px)'
       }}
-      className={` transition-all duration-300 w-full flex justify-between items-start px-3 py-2 `}
+      className={` transition-all duration-300 w-full flex justify-between items-center px-3 py-2 `}
     >
-      <div>
+      <button className='w-[90%] p-0 m-0' onClick={onClick}>
         <FigureTitle
           orientation='horizontal'
           gap='xs'
@@ -38,13 +39,11 @@ const MiniPlayer: React.FC<MiniPlayerProps> = ({ currentTrack, audio }) => {
             subtitleFontSize: 'xs'
           }}
         />
-      </div>
+      </button>
 
       <Button
         onClick={() => {
-          audio.audioState.playbackState !== 'playing'
-            ? audio.addMediaAndPlay(currentTrack) // this is only for live streams update this when a finite audio is played
-            : audio.reset();
+          audio.audioState.playbackState !== 'playing' ? audio.play() : audio.pause();
         }}
         variant='unstyled'
         icon={<PlayerStatusIndicator currentTrack={currentTrack as Track} />}

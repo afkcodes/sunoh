@@ -1,61 +1,61 @@
-import { useContext, useEffect, useRef } from 'react';
+import { MediaTrack } from 'audio_x';
+import { useContext } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useSnapshot } from 'valtio';
 import Button from '~components/Button/Button';
 import MiniPlayer from '~components/MiniPlayer/MiniPlayer';
 import { bottomNav } from '~constants/common';
 import { AudioXContext } from '~contexts/audioX.context';
-import { isValidObject, isValidWindow } from '~helpers/common';
-import { playerState } from '~states/player';
+import { isValidObject } from '~helpers/common';
+import { playerActions, playerState } from '~states/player';
 import { tabActions, tabState } from '~states/tab';
-import { Track } from '~types/common.types';
 
 const BottomNavContainer = () => {
   const snap = useSnapshot(tabState);
-  const { currentTrack } = useSnapshot(playerState);
   const navigate = useNavigate();
+  const { currentTrack } = useSnapshot(playerState);
+  const audio = useContext(AudioXContext);
   const onTabSelect = (id: number, path: string) => {
     tabActions.setTab(id);
     navigate(path);
   };
-  const audio = useContext(AudioXContext);
-  const bottomNavRef = useRef<HTMLDivElement>(null);
-  const initialHeight = useRef<any>(null);
+  // const bottomNavRef = useRef<HTMLDivElement>(null);
+  // const initialHeight = useRef<any>(null);
 
-  useEffect(() => {
-    if (isValidWindow) {
-      initialHeight.current = window.innerHeight;
-      const handleResize = () => {
-        const latestHeight = window.innerHeight;
-        if (latestHeight < initialHeight.current && snap.isInputFocussed) {
-          if (bottomNavRef.current) {
-            bottomNavRef.current.style.bottom = `${-500}px`;
-          }
-        } else {
-          if (bottomNavRef.current) {
-            bottomNavRef.current.style.bottom = `${0}px`;
-          }
-        }
-      };
-      window.addEventListener('resize', handleResize);
-      return () => {
-        window.removeEventListener('resize', handleResize);
-      };
-    }
-  }, [snap.isInputFocussed]);
+  // useEffect(() => {
+  //   if (isValidWindow) {
+  //     initialHeight.current = window.innerHeight;
+  //     const handleResize = () => {
+  //       const latestHeight = window.innerHeight;
+  //       if (latestHeight < initialHeight.current && snap.isInputFocussed) {
+  //         if (bottomNavRef.current) {
+  //           bottomNavRef.current.style.bottom = `${-500}px`;
+  //         }
+  //       } else {
+  //         if (bottomNavRef.current) {
+  //           bottomNavRef.current.style.bottom = `${0}px`;
+  //         }
+  //       }
+  //     };
+  //     window.addEventListener('resize', handleResize);
+  //     return () => {
+  //       window.removeEventListener('resize', handleResize);
+  //     };
+  //   }
+  // }, [snap.isInputFocussed]);
 
   return (
-    <div
-      ref={bottomNavRef}
-      className={`
-      flex flex-col justify-between fixed transition-all ease-in-out duration-300 bottom-0 bg-bgSecondary shadow-elevation-3 w-full  left-0 right-0 z-20
-
-      `}
-    >
+    <div className='fixed bottom-0 w-full'>
       {isValidObject(currentTrack) ? (
-        <MiniPlayer currentTrack={currentTrack as Track} audio={audio} />
+        <MiniPlayer
+          audio={audio}
+          currentTrack={currentTrack as MediaTrack}
+          onClick={() => {
+            playerActions.setFullPlayerState(true);
+          }}
+        />
       ) : null}
-      <div className='flex'>
+      <div className='flex w-full bg-bgSecondary '>
         {bottomNav.map((navItem, idx) => (
           <Button
             key={navItem.id}
@@ -71,12 +71,13 @@ const BottomNavContainer = () => {
             }
             iconPosition='top'
             customClass={`
-          py-4 w-full  
+          py-4 w-full
           active:bg-btnDarkHover hover:bg-transparent bg-transparent
           `}
             radius='none'
           />
         ))}
+        M
       </div>
     </div>
   );

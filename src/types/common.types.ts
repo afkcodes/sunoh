@@ -15,6 +15,8 @@ export type TrackType = 'hls' | 'default';
 
 export interface Track extends MediaTrack {
   dominantColor?: string;
+  img_full?: string;
+  progress?: number;
 }
 
 export interface Response {
