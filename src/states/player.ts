@@ -5,14 +5,17 @@ import { Track } from '~types/common.types';
 interface PlayerActions {
   setCurrentTrack: (track: Track) => void;
   setPlayerState: (state: AudioState) => void;
+  setFullPlayerState: (state: boolean) => void;
 }
 
 export const playerState: {
   currentTrack: Track | null;
   audioState: AudioState;
+  fullPlayerOpen: boolean;
 } = proxy({
   currentTrack: null,
-  audioState: AUDIO_STATE
+  audioState: AUDIO_STATE,
+  fullPlayerOpen: false
 });
 
 export const playerActions: PlayerActions = {
@@ -21,5 +24,8 @@ export const playerActions: PlayerActions = {
   },
   setPlayerState: (state: AudioState) => {
     playerState.audioState = state;
+  },
+  setFullPlayerState: (state: boolean) => {
+    playerState.fullPlayerOpen = state;
   }
 };

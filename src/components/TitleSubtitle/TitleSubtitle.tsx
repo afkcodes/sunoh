@@ -22,7 +22,7 @@ const TitleSubtitle: React.FC<TitleSubtitleProps> = ({
       >
         {title}
       </p>
-      <div className='w-[80%]'>
+      <div className='w-[90%]'>
         <p
           className={`
         text-textMedium

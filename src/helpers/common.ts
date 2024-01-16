@@ -1,6 +1,6 @@
 import { MediaTrack } from 'audio_x';
 import { Track, TrackType } from '~types/common.types';
-import { SONG_H_CONFIG } from './data.config';
+import { AUDIO_LIST_CONFIG, SONG_H_CONFIG } from './data.config';
 
 export const isValidFunction = (fun: any) => typeof fun === 'function';
 export const isValidArray = (arr: any[]) => arr && Array.isArray(arr) && arr.length > 0;
@@ -233,17 +233,24 @@ export const isColorDark = (color: string) => {
 };
 
 export const createMediaTrack = (item: any) => {
+  const id = dataExtractor(item, SONG_H_CONFIG.id);
   const title = dataExtractor(item, SONG_H_CONFIG.title);
-  const subtitle = dataExtractor(item, SONG_H_CONFIG.singer).join(', ');
-  const image = dataExtractor(item, SONG_H_CONFIG.image);
+  const subtitle = dataExtractor(item, SONG_H_CONFIG.singer)?.join(', ');
+  const img_small = dataExtractor(item, SONG_H_CONFIG.image);
+  const img_full = dataExtractor(item, SONG_H_CONFIG.img_full);
   const url = dataExtractor(item, SONG_H_CONFIG.url);
   const mediaTrack: MediaTrack = {
-    id: item._id,
+    id: id,
     artwork: [
       {
-        src: image,
+        src: img_small,
         name: title,
         sizes: '200x200'
+      },
+      {
+        src: img_full,
+        name: title,
+        sizes: '500x500'
       }
     ],
     source: url,
@@ -252,4 +259,28 @@ export const createMediaTrack = (item: any) => {
   };
 
   return mediaTrack;
+};
+
+export const createQueue = (tracks: any[]) => {
+  const queue = tracks.map((track: any) => {
+    const image = dataExtractor(track, AUDIO_LIST_CONFIG.image);
+    const title = dataExtractor(track, AUDIO_LIST_CONFIG.title);
+    const subtitle = dataExtractor(track, AUDIO_LIST_CONFIG.subtitle);
+    const id = dataExtractor(track, AUDIO_LIST_CONFIG.id);
+    const mediaTrack: MediaTrack = {
+      id: id,
+      artwork: [
+        {
+          src: image,
+          name: `${title} poster`,
+          sizes: '200x200'
+        }
+      ],
+      source: '',
+      title: title,
+      artist: subtitle
+    };
+    return mediaTrack;
+  });
+  return queue;
 };

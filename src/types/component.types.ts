@@ -58,7 +58,7 @@ export interface TileContainerProps {
 
 export interface ButtonProps {
   variant: Variant;
-  onClick: (param: any) => void;
+  onClick: (param?: any) => void;
   text?: string;
   radius?: Radius;
   fontSize?: FontSize;

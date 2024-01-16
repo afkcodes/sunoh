@@ -26,3 +26,7 @@ export const updateTrackAndPlayerState = (track: Track) => {
   storage.setItem('current_track', JSON.stringify(track));
   playerState.currentTrack = track;
 };
+
+export const storeLastTrack = (track: Track) => {
+  storage.setItem('current_track', JSON.stringify(track));
+};

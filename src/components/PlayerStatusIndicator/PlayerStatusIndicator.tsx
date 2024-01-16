@@ -6,9 +6,13 @@ import { Track } from '~types/common.types';
 
 interface PlayerStatusIndicatorProps {
   currentTrack: Track;
+  size?: number;
 }
 
-const PlayerStatusIndicator: React.FC<PlayerStatusIndicatorProps> = ({ currentTrack }) => {
+const PlayerStatusIndicator: React.FC<PlayerStatusIndicatorProps> = ({
+  currentTrack,
+  size = 35
+}) => {
   const audio = useContext(AudioXContext);
 
   const isPlaying = audio.audioState.playbackState === 'playing';
@@ -23,7 +27,7 @@ const PlayerStatusIndicator: React.FC<PlayerStatusIndicatorProps> = ({ currentTr
         <RiPlayCircleFill
           color={isDark ? 'white' : currentTrack.dominantColor}
           className=''
-          size={48}
+          size={size}
         />
       ) : null}
 
@@ -31,14 +35,14 @@ const PlayerStatusIndicator: React.FC<PlayerStatusIndicatorProps> = ({ currentTr
         <RiPauseCircleFill
           color={isDark ? 'white' : currentTrack.dominantColor}
           className=''
-          size={48}
+          size={size}
         />
       ) : null}
 
       {isBuffering && !isPlaying ? (
         <RiLoader5Line
           color={isDark ? 'white' : currentTrack.dominantColor}
-          size={48}
+          size={size}
           className='animate-spin'
         />
       ) : null}

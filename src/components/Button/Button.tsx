@@ -27,7 +27,7 @@ const Button: React.FC<ButtonProps> = ({
   return (
     <button
       className={`
-      text-white transition-all duration-300
+      transition-all duration-300
       ${buttonVariantStyle[variant]}
       ${radiusStyle[radius]}
       ${fontSizeStyle[fontSize]}
