@@ -1,0 +1,138 @@
+name: sunoh
+description: "A new Flutter project."
+# The following line prevents the package from being accidentally published to
+# pub.dev using `flutter pub publish`. This is preferred for private packages.
+publish_to: 'none' # Remove this line if you wish to publish to pub.dev
+
+# The following defines the version and build number for your application.
+# A version number is three numbers separated by dots, like 1.2.43
+# followed by an optional build number separated by a +.
+# Both the version and the builder number may be overridden in flutter
+# build by specifying --build-name and --build-number, respectively.
+# In Android, build-name is used as versionName while build-number used as versionCode.
+# Read more about Android versioning at https://developer.android.com/studio/publish/versioning
+# In iOS, build-name is used as CFBundleShortVersionString while build-number is used as CFBundleVersion.
+# Read more about iOS versioning at
+# https://developer.apple.com/library/archive/documentation/General/Reference/InfoPlistKeyReference/Articles/CoreFoundationKeys.html
+# In Windows, build-name is used as the major, minor, and patch parts
+# of the product and file versions while build-number is used as the build suffix.
+version: 1.0.0+1
+
+environment:
+  sdk: ^3.11.5
+
+# Dependencies specify other packages that your package needs in order to work.
+# To automatically upgrade your package dependencies to the latest versions
+# consider running `flutter pub upgrade --major-versions`. Alternatively,
+# dependencies can be manually updated by changing the version numbers below to
+# the latest version available on pub.dev. To see which dependencies have newer
+# versions available, run `flutter pub outdated`.
+dependencies:
+  flutter:
+    sdk: flutter
+
+  # The following adds the Cupertino Icons font to your application.
+  # Use with the CupertinoIcons class for iOS style icons.
+  cupertino_icons: ^1.0.8
+  go_router: ^17.2.3
+  smooth_corner: ^1.1.1
+  dio: ^5.9.2
+  flutter_riverpod: ^3.3.1
+  cached_network_image: ^3.4.1
+  palette_generator: ^0.3.3+6
+  # Audio engine — libmpv-based, gives us DSP/EQ/gapless. The native libs
+  # are heavy (~10–15 MB to APK) but acceptable for this private app.
+  mpv_audio_kit: ^0.2.1
+  # OS integration: lockscreen, notification, headset, audio focus. ADDITIVE
+  # — if init fails or hangs, in-app playback (Phase 1) still works.
+  audio_service: ^0.18.18
+  # Runtime POST_NOTIFICATIONS request on Android 13+.
+  permission_handler: ^12.0.1
+  # Local persistence — RN's MMKV equivalent in the Flutter ecosystem. Pure
+  # Dart (no native deps), object-friendly, fast. We use separate boxes per
+  # concern: 'playback' (queue/index/position), and later 'library' /
+  # 'history' / 'settings'.
+  hive_ce: ^2.19.3
+  hive_ce_flutter: ^2.3.1
+  # The music APIs sometimes return HTML-escaped text in titles/subtitles
+  # (e.g. "Mama&#39;s Boy"). Decode once at parse time so the UI never sees
+  # the entities.
+  html_unescape: ^2.0.0
+  # Solar icon set — replaces Material icons everywhere for a consistent
+  # outline-style aesthetic. Use SolarIconsOutline by default and
+  # SolarIconsBold for active/selected states.
+  solar_icons: ^0.0.5
+  # Phosphor for the playback controls (play/pause/skip/shuffle/repeat).
+  # Solar's filled play/pause looked off — Phosphor's Fill weight has
+  # better proportions for media buttons. Used ONLY for transport icons;
+  # everything else stays on Solar.
+  phosphor_flutter: ^2.1.0
+
+dev_dependencies:
+  flutter_test:
+    sdk: flutter
+
+  # The "flutter_lints" package below contains a set of recommended lints to
+  # encourage good coding practices. The lint set provided by the package is
+  # activated in the `analysis_options.yaml` file located at the root of your
+  # package. See that file for information about deactivating specific lint
+  # rules and activating additional ones.
+  flutter_lints: ^6.0.0
+
+# For information on the generic Dart part of this file, see the
+# following page: https://dart.dev/tools/pub/pubspec
+
+# The following section is specific to Flutter packages.
+flutter:
+
+  # The following line ensures that the Material Icons font is
+  # included with your application, so that you can use the icons in
+  # the material Icons class.
+  uses-material-design: true
+
+  # Bundled fonts — shipped in the app so they load instantly, offline, with no
+  # runtime network fetch. Family names match SunohFonts in lib/theme/tokens.dart.
+  fonts:
+    - family: Gilroy
+      fonts:
+        - asset: assets/fonts/Gilroy-Regular.ttf
+          weight: 400
+        - asset: assets/fonts/Gilroy-Medium.ttf
+          weight: 500
+        - asset: assets/fonts/Gilroy-Semibold.ttf
+          weight: 600
+        - asset: assets/fonts/Gilroy-Bold.ttf
+          weight: 700
+        - asset: assets/fonts/Gilroy-Extrabold.ttf
+          weight: 800
+
+  # To add assets to your application, add an assets section, like this:
+  # assets:
+  #   - images/a_dot_burr.jpeg
+  #   - images/a_dot_ham.jpeg
+
+  # An image asset can refer to one or more resolution-specific "variants", see
+  # https://flutter.dev/to/resolution-aware-images
+
+  # For details regarding adding assets from package dependencies, see
+  # https://flutter.dev/to/asset-from-package
+
+  # To add custom fonts to your application, add a fonts section here,
+  # in this "flutter" section. Each entry in this list should have a
+  # "family" key with the font family name, and a "fonts" key with a
+  # list giving the asset and other descriptors for the font. For
+  # example:
+  # fonts:
+  #   - family: Schyler
+  #     fonts:
+  #       - asset: fonts/Schyler-Regular.ttf
+  #       - asset: fonts/Schyler-Italic.ttf
+  #         style: italic
+  #   - family: Trajan Pro
+  #     fonts:
+  #       - asset: fonts/TrajanPro.ttf
+  #       - asset: fonts/TrajanPro_Bold.ttf
+  #         weight: 700
+  #
+  # For details regarding fonts from package dependencies,
+  # see https://flutter.dev/to/font-from-package
