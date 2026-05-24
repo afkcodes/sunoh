@@ -1,31 +1,52 @@
-// Library tab — the user's saved + recently-played state.
+// Library tab — pinned shortcuts + filterable list of saved + liked.
 //
-// What it ISN'T (yet): saved albums / followed artists / playlists you've
-// created / downloads. Those would each need their own backend or store
-// surface; the pinned-tile + history layout is what makes sense with
-// today's persistence (just the liked-songs set + the played-history list).
+// Restored after a brief pared-down version: chips (All / Playlists / Albums
+// / Artists / Songs) + sort + grid/list toggle are back. The items list is
+// driven by REAL data now (LibraryStore-backed saved_albums /
+// saved_playlists / saved_artists / liked_songs) rather than the dummy
+// catalog. Pinned tiles: Liked Songs (count) + Recently Played (count).
 
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:solar_icons/solar_icons.dart';
 
 import '../api/dto.dart';
-import '../overlays/track_menu_sheet.dart';
+import '../data/models.dart';
 import '../providers/app_state_provider.dart';
 import '../router/router.dart';
+import '../state/app_state.dart';
 import '../theme/tokens.dart';
 import '../widgets/album_art.dart';
 import '../widgets/ui.dart';
 
-class LibraryScreen extends ConsumerWidget {
+enum _LibFilter { all, playlists, albums, artists, songs }
+
+extension on _LibFilter {
+  String get label => switch (this) {
+        _LibFilter.all => 'All',
+        _LibFilter.playlists => 'Playlists',
+        _LibFilter.albums => 'Albums',
+        _LibFilter.artists => 'Artists',
+        _LibFilter.songs => 'Songs',
+      };
+}
+
+class LibraryScreen extends ConsumerStatefulWidget {
   const LibraryScreen({super.key});
+  @override
+  ConsumerState<LibraryScreen> createState() => _LibraryScreenState();
+}
+
+class _LibraryScreenState extends ConsumerState<LibraryScreen> {
+  _LibFilter filter = _LibFilter.all;
+  bool grid = false;
+  String sort = 'Recent'; // 'Recent' | 'A–Z'
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
+  Widget build(BuildContext context) {
     final s = ref.watch(appStateProvider);
     final c = s.colors;
-    final liked = s.likedSongs;
-    final history = s.playedHistory;
+    final items = _itemsFor(s);
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -38,18 +59,103 @@ class LibraryScreen extends ConsumerWidget {
               Text('Library',
                   style: SunohType.heading(
                       fontSize: 28, color: c.fg, letterSpacing: -0.4)),
-              IconBtn(
-                  icon: SolarIconsOutline.magnifier,
-                  color: c.fgDim,
-                  size: 18,
-                  width: 32,
-                  height: 32,
-                  onTap: () {}),
+              Row(children: [
+                IconBtn(
+                    icon: SolarIconsOutline.magnifier,
+                    color: c.fgDim,
+                    size: 18,
+                    width: 32,
+                    height: 32,
+                    onTap: () {}),
+                IconBtn(
+                    icon: SolarIconsOutline.addCircle,
+                    color: c.fgDim,
+                    size: 18,
+                    width: 32,
+                    height: 32,
+                    onTap: () {}),
+              ]),
             ],
           ),
         ),
-        const SizedBox(height: 18),
-        // Pinned tiles. Real counts pulled from AppState.
+        // Filter chips — single horizontally-scrolling row.
+        SingleChildScrollView(
+          scrollDirection: Axis.horizontal,
+          padding: const EdgeInsets.fromLTRB(20, 14, 20, 10),
+          child: Row(
+            children: [
+              for (final f in _LibFilter.values)
+                Padding(
+                  padding: const EdgeInsets.only(right: 8),
+                  child: GestureDetector(
+                    onTap: () => setState(() => filter = f),
+                    child: AnimatedContainer(
+                      duration: const Duration(milliseconds: 150),
+                      padding: const EdgeInsets.symmetric(
+                          horizontal: 12, vertical: 6),
+                      decoration: BoxDecoration(
+                        color: f == filter ? c.fg : c.surface,
+                        borderRadius: BorderRadius.circular(999),
+                        border: f == filter
+                            ? null
+                            : Border.all(color: c.line, width: 0.5),
+                      ),
+                      child: Text(f.label,
+                          style: SunohType.sans(
+                              fontSize: 12,
+                              fontWeight: FontWeight.w500,
+                              color: f == filter ? c.bg : c.fgDim,
+                              letterSpacing: -0.1)),
+                    ),
+                  ),
+                ),
+            ],
+          ),
+        ),
+        Padding(
+          padding: const EdgeInsets.fromLTRB(20, 6, 20, 16),
+          child: Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              GestureDetector(
+                onTap: () =>
+                    setState(() => sort = sort == 'Recent' ? 'A–Z' : 'Recent'),
+                child: Row(
+                  children: [
+                    Icon(SolarIconsOutline.tuningSquare,
+                        size: 14, color: c.fgMute),
+                    const SizedBox(width: 6),
+                    eyebrow('SORT · $sort', c.fgMute,
+                        size: 10, letterSpacing: 1.2),
+                  ],
+                ),
+              ),
+              Row(children: [
+                IconBtn(
+                  icon: SolarIconsOutline.list,
+                  color: !grid ? c.fg : c.fgMute,
+                  size: 16,
+                  width: 32,
+                  height: 32,
+                  background: !grid ? c.surface : null,
+                  onTap: () => setState(() => grid = false),
+                ),
+                const SizedBox(width: 4),
+                IconBtn(
+                  icon: SolarIconsOutline.widget,
+                  color: grid ? c.fg : c.fgMute,
+                  size: 16,
+                  width: 32,
+                  height: 32,
+                  background: grid ? c.surface : null,
+                  onTap: () => setState(() => grid = true),
+                ),
+              ]),
+            ],
+          ),
+        ),
+        // Pinned shortcuts — Liked Songs + Recently Played. Both surface
+        // real counts and route into their dedicated screens.
         Padding(
           padding: const EdgeInsets.fromLTRB(20, 0, 20, 22),
           child: Row(
@@ -57,7 +163,8 @@ class LibraryScreen extends ConsumerWidget {
               Expanded(
                 child: _PinnedTile(
                   title: 'Liked Songs',
-                  sub: '${liked.length} ${liked.length == 1 ? 'song' : 'songs'}',
+                  sub: '${s.likedSongs.length} '
+                      '${s.likedSongs.length == 1 ? 'song' : 'songs'}',
                   icon: SolarIconsBold.heart,
                   gradient: [
                     s.resolvedAccent.withValues(alpha: 0.85),
@@ -69,66 +176,246 @@ class LibraryScreen extends ConsumerWidget {
               const SizedBox(width: 8),
               Expanded(
                 child: _PinnedTile(
-                  title: 'Downloaded',
-                  sub: '— offline',
-                  icon: SolarIconsOutline.downloadMinimalistic,
+                  title: 'Recently Played',
+                  sub: s.playedHistory.isEmpty
+                      ? 'No history yet'
+                      : '${s.playedHistory.length} '
+                          'recent ${s.playedHistory.length == 1 ? 'song' : 'songs'}',
+                  icon: SolarIconsOutline.clockCircle,
                   gradient: const [Color(0xFF1D3A3A), Color(0xFF0E1818)],
-                  onTap: () => s.flashToast('Downloads coming soon'),
-                ),
-              ),
-            ],
-          ),
-        ),
-        // Recently played — header + inline rows + "See all".
-        Padding(
-          padding: const EdgeInsets.fromLTRB(20, 0, 20, 14),
-          child: Row(
-            crossAxisAlignment: CrossAxisAlignment.end,
-            children: [
-              Expanded(
-                child: Text('Recently Played',
-                    style: SunohType.heading(
-                        fontSize: 19,
-                        color: c.fg,
-                        letterSpacing: -0.2,
-                        height: 1)),
-              ),
-              if (history.length > 5)
-                GestureDetector(
                   onTap: () => context.openRecentlyPlayed(),
-                  child: Text('See all →',
-                      style: SunohType.sans(
-                          fontSize: 12,
-                          fontWeight: FontWeight.w500,
-                          color: c.fgMute)),
                 ),
+              ),
             ],
           ),
         ),
-        if (history.isEmpty)
-          Padding(
-            padding: const EdgeInsets.fromLTRB(20, 12, 20, 12),
-            child: Text(
-                'Songs you play will show up here so you can jump back in.',
-                style: SunohType.sans(fontSize: 12.5, color: c.fgMute)),
-          )
+        if (items.isEmpty)
+          _EmptyState(filter: filter, colors: c)
+        else if (grid)
+          _GridList(items: items, colors: c, onTap: _onItemTap)
         else
-          for (var i = 0; i < history.length && i < 8; i++)
-            _LibRow(
-              song: history[i],
-              colors: c,
-              onTap: () => s.playApiQueue(history, i,
-                  sourceLabel: 'RECENTLY PLAYED'),
-            ),
+          for (final it in items)
+            _ListRow(item: it, colors: c, onTap: () => _onItemTap(it)),
         const SizedBox(height: 20),
       ],
     );
   }
+
+  /// Items to render under the chips for the active filter, sorted per
+  /// the active sort key.
+  List<FeedItem> _itemsFor(AppState s) {
+    List<FeedItem> base;
+    switch (filter) {
+      case _LibFilter.all:
+        // Newest-first across the whole library, deduped by id+type so an
+        // album that's also queued doesn't appear twice. We append in
+        // the "natural" order each bucket wants (saved buckets are
+        // already newest-first via LibraryStore) and let the sort below
+        // re-sort if the user picked A-Z.
+        base = [
+          ...s.savedAlbums,
+          ...s.savedPlaylists,
+          ...s.savedArtists,
+          ...s.likedSongs,
+        ];
+      case _LibFilter.playlists:
+        base = s.savedPlaylists;
+      case _LibFilter.albums:
+        base = s.savedAlbums;
+      case _LibFilter.artists:
+        base = s.savedArtists;
+      case _LibFilter.songs:
+        base = s.likedSongs;
+    }
+    if (sort == 'A–Z') {
+      final sorted = [...base]
+        ..sort((a, b) => a.title.toLowerCase().compareTo(b.title.toLowerCase()));
+      return sorted;
+    }
+    return base;
+  }
+
+  void _onItemTap(FeedItem item) {
+    final s = ref.read(appStateProvider);
+    if (item.type == 'song') {
+      s.playApiSong(item, sourceLabel: 'LIBRARY');
+      return;
+    }
+    if (item.type == 'album' ||
+        item.type == 'playlist' ||
+        item.type == 'artist') {
+      context
+          .openRef(DetailRef(item.type, item.id, source: item.source));
+    }
+  }
 }
 
-/// A tappable rectangular tile with a gradient backdrop + icon + title + sub.
-/// Pinned to the top of the library — visually distinct from the row list
-/// below so the user reads "shortcuts" vs "items" immediately.
+class _ListRow extends StatelessWidget {
+  const _ListRow({
+    required this.item,
+    required this.colors,
+    required this.onTap,
+  });
+  final FeedItem item;
+  final SunohColors colors;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    final c = colors;
+    final isArtist = item.type == 'artist';
+    final isSong = item.type == 'song';
+    final sub = _subFor(item);
+    return GestureDetector(
+      onTap: onTap,
+      behavior: HitTestBehavior.opaque,
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 8),
+        child: Row(
+          children: [
+            SunohArt(
+                id: item.id,
+                imageUrl: item.artwork,
+                size: 50,
+                radius: isArtist ? 999 : (isSong ? 6 : 8)),
+            const SizedBox(width: 12),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(item.title,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: SunohType.sans(
+                          fontSize: 14.5,
+                          fontWeight: FontWeight.w500,
+                          color: c.fg)),
+                  if (sub.isNotEmpty) ...[
+                    const SizedBox(height: 2),
+                    Text(sub,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style:
+                            SunohType.sans(fontSize: 11.5, color: c.fgMute)),
+                  ],
+                ],
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _GridList extends StatelessWidget {
+  const _GridList({
+    required this.items,
+    required this.colors,
+    required this.onTap,
+  });
+  final List<FeedItem> items;
+  final SunohColors colors;
+  final void Function(FeedItem) onTap;
+  @override
+  Widget build(BuildContext context) {
+    final c = colors;
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(20, 0, 20, 20),
+      child: GridView.count(
+        crossAxisCount: 3,
+        shrinkWrap: true,
+        physics: const NeverScrollableScrollPhysics(),
+        crossAxisSpacing: 10,
+        mainAxisSpacing: 10,
+        childAspectRatio: 0.78,
+        children: [
+          for (final it in items)
+            GestureDetector(
+              onTap: () => onTap(it),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  AspectRatio(
+                    aspectRatio: 1,
+                    child: SunohArt(
+                        id: it.id,
+                        imageUrl: it.artwork,
+                        width: double.infinity,
+                        radius: it.type == 'artist' ? 999 : 6),
+                  ),
+                  const SizedBox(height: 6),
+                  Text(it.title,
+                      maxLines: 2,
+                      overflow: TextOverflow.ellipsis,
+                      style: SunohType.sans(
+                          fontSize: 11.5,
+                          fontWeight: FontWeight.w500,
+                          color: c.fg,
+                          height: 1.25)),
+                ],
+              ),
+            ),
+        ],
+      ),
+    );
+  }
+}
+
+/// Subtitle picker — uses the FeedItem's displaySubtitle (which falls
+/// through artists → subtitle → kind label) but skips the literal
+/// "Song" / "Album" / etc. fallbacks so library rows don't read as
+/// broken under every entry.
+String _subFor(FeedItem item) {
+  final fromApi = (item.subtitle ?? '').trim();
+  if (fromApi.isNotEmpty) return fromApi;
+  final names = (item.artists ?? const <ApiArtistRef>[])
+      .map((a) => a.name.trim())
+      .where((n) => n.isNotEmpty)
+      .take(2)
+      .toList();
+  if (names.isNotEmpty) return names.join(', ');
+  switch (item.type) {
+    case 'song':
+      return 'Song';
+    case 'album':
+      return 'Album';
+    case 'playlist':
+      return 'Playlist';
+    case 'artist':
+      return 'Artist';
+    default:
+      return '';
+  }
+}
+
+class _EmptyState extends StatelessWidget {
+  const _EmptyState({required this.filter, required this.colors});
+  final _LibFilter filter;
+  final SunohColors colors;
+  @override
+  Widget build(BuildContext context) {
+    final c = colors;
+    final message = switch (filter) {
+      _LibFilter.all =>
+        'Save albums, playlists, or artists by tapping the heart on their page. Liked songs show up here too.',
+      _LibFilter.playlists =>
+        'No saved playlists yet. Tap the heart on a playlist to save it.',
+      _LibFilter.albums =>
+        'No saved albums yet. Tap the heart on an album to save it.',
+      _LibFilter.artists =>
+        'No followed artists yet. Tap the heart on an artist page to follow.',
+      _LibFilter.songs =>
+        'No liked songs yet. Tap the heart on any song to like it.',
+    };
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(20, 24, 20, 24),
+      child: Text(message,
+          style: SunohType.sans(fontSize: 12.5, color: c.fgMute, height: 1.5)),
+    );
+  }
+}
+
 class _PinnedTile extends StatelessWidget {
   const _PinnedTile({
     required this.title,
@@ -180,83 +467,6 @@ class _PinnedTile extends StatelessWidget {
                 ],
               ),
             ),
-          ],
-        ),
-      ),
-    );
-  }
-}
-
-class _LibRow extends ConsumerWidget {
-  const _LibRow({
-    required this.song,
-    required this.colors,
-    required this.onTap,
-  });
-  final FeedItem song;
-  final SunohColors colors;
-  final VoidCallback onTap;
-
-  @override
-  Widget build(BuildContext context, WidgetRef ref) {
-    final c = colors;
-    final s = ref.watch(appStateProvider);
-    final liked = s.isLikedId(song.id);
-    final accent = s.resolvedAccent;
-    final artistsLabel = (song.artists ?? const <ApiArtistRef>[])
-        .map((a) => a.name.trim())
-        .where((sa) => sa.isNotEmpty)
-        .take(2)
-        .join(', ');
-    return GestureDetector(
-      onTap: onTap,
-      behavior: HitTestBehavior.opaque,
-      child: Padding(
-        padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 8),
-        child: Row(
-          children: [
-            SunohArt(
-                id: song.id, imageUrl: song.artwork, size: 44, radius: 6),
-            const SizedBox(width: 12),
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(song.title,
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                      style: SunohType.sans(
-                          fontSize: 14,
-                          fontWeight: FontWeight.w500,
-                          color: c.fg)),
-                  if (artistsLabel.isNotEmpty) ...[
-                    const SizedBox(height: 1),
-                    Text(artistsLabel,
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                        style:
-                            SunohType.sans(fontSize: 11.5, color: c.fgMute)),
-                  ],
-                ],
-              ),
-            ),
-            IconBtn(
-                icon: liked
-                    ? SolarIconsBold.heart
-                    : SolarIconsOutline.heart,
-                color: liked ? accent : c.fgMute,
-                size: 16,
-                width: 32,
-                height: 32,
-                onTap: () => s.toggleLikedSong(song)),
-            IconBtn(
-                icon: SolarIconsBold.menuDots,
-                color: c.fgMute,
-                size: 16,
-                width: 32,
-                height: 32,
-                onTap: () => showTrackMenuSheet(context,
-                    song: song, sourceLabel: 'RECENTLY PLAYED')),
           ],
         ),
       ),
