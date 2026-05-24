@@ -734,21 +734,38 @@ class _AlbumLikeBodyState extends ConsumerState<_AlbumLikeBody> {
                     accent: accent,
                     scrollOffset: _offset,
                   ),
-                  _HeroActions(
-                    colors: c,
-                    accent: accent,
-                    liked: false,
-                    isPlaying: false,
-                    onPlay: () {
-                      if (songs.isNotEmpty) {
-                        s.playApiQueue(songs, 0,
-                            sourceLabel:
-                                '${showAlbumArtInRow ? 'PLAYLIST' : 'ALBUM'} · $title');
-                      }
-                    },
-                    onShuffle: () => s.flashToast('Shuffle coming soon'),
-                    onLike: () => s.flashToast('Saved'),
-                  ),
+                  // Synthesize a FeedItem so the saved-state heart in
+                  // _HeroActions can lookup + toggle. AlbumScreen receives
+                  // kind + id + (optional) source separately — we build the
+                  // FeedItem with the same shape `toggleSaved` would have
+                  // received from any other entry point.
+                  Builder(builder: (ctx) {
+                    final kind = showAlbumArtInRow ? 'playlist' : 'album';
+                    final heroItem = FeedItem(
+                      id: id,
+                      title: title,
+                      type: kind,
+                      image: (imageUrl ?? '').isEmpty
+                          ? const []
+                          : [ApiImage(quality: 'hero', link: imageUrl!)],
+                    );
+                    final saved = s.isSaved(heroItem);
+                    return _HeroActions(
+                      colors: c,
+                      accent: accent,
+                      liked: saved,
+                      isPlaying: false,
+                      onPlay: () {
+                        if (songs.isNotEmpty) {
+                          s.playApiQueue(songs, 0,
+                              sourceLabel:
+                                  '${kind.toUpperCase()} · $title');
+                        }
+                      },
+                      onShuffle: () => s.flashToast('Shuffle coming soon'),
+                      onLike: () => s.toggleSaved(heroItem),
+                    );
+                  }),
                   for (var i = 0; i < songs.length; i++)
                     _ApiTrackRow(
                       n: i + 1,

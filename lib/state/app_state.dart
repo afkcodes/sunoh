@@ -27,22 +27,39 @@ class AppState extends ChangeNotifier with WidgetsBindingObserver {
     _restoreLibrary();
   }
 
-  /// Load liked songs + history from Hive at startup so the Library tab
-  /// renders the user's real state on first frame instead of an empty
-  /// shell that pops in once async finishes.
+  /// Load liked songs + saved collections + history from Hive at startup
+  /// so the Library tab renders the user's real state on first frame
+  /// instead of an empty shell that pops in once async finishes.
   Future<void> _restoreLibrary() async {
     final repo = audioRepo;
     if (repo == null) return;
     try {
-      final ids = await repo.library.loadLikedIds();
-      final songs = await repo.library.loadLikedSongs();
-      final history = await repo.library.loadHistory();
-      _likedIds = ids;
-      _likedSongs = songs;
-      _playedHistory = history;
+      final results = await Future.wait([
+        repo.library.loadLikedIds(),
+        repo.library.loadLikedSongs(),
+        repo.library.loadHistory(),
+        repo.library.loadSaved('album'),
+        repo.library.loadSavedIds('album'),
+        repo.library.loadSaved('playlist'),
+        repo.library.loadSavedIds('playlist'),
+        repo.library.loadSaved('artist'),
+        repo.library.loadSavedIds('artist'),
+      ]);
+      _likedIds = results[0] as Set<String>;
+      _likedSongs = results[1] as List<FeedItem>;
+      _playedHistory = results[2] as List<FeedItem>;
+      _savedAlbums = results[3] as List<FeedItem>;
+      _savedAlbumIds = results[4] as Set<String>;
+      _savedPlaylists = results[5] as List<FeedItem>;
+      _savedPlaylistIds = results[6] as Set<String>;
+      _savedArtists = results[7] as List<FeedItem>;
+      _savedArtistIds = results[8] as Set<String>;
       notifyListeners();
-      debugPrint('[library] restored liked=${songs.length} '
-          'history=${history.length}');
+      debugPrint('[library] restored liked=${_likedSongs.length} '
+          'history=${_playedHistory.length} '
+          'albums=${_savedAlbums.length} '
+          'playlists=${_savedPlaylists.length} '
+          'artists=${_savedArtists.length}');
     } catch (e) {
       debugPrint('[library] restore failed: $e');
     }
@@ -207,6 +224,112 @@ class AppState extends ChangeNotifier with WidgetsBindingObserver {
   Set<String> _likedIds = const <String>{};
   List<FeedItem> _likedSongs = const <FeedItem>[];
   List<FeedItem> _playedHistory = const <FeedItem>[];
+
+  // Saved collections — same newest-first ordering as liked_songs,
+  // independent buckets so the Library tab can show them side-by-side.
+  Set<String> _savedAlbumIds = const <String>{};
+  List<FeedItem> _savedAlbums = const <FeedItem>[];
+  Set<String> _savedPlaylistIds = const <String>{};
+  List<FeedItem> _savedPlaylists = const <FeedItem>[];
+  Set<String> _savedArtistIds = const <String>{};
+  List<FeedItem> _savedArtists = const <FeedItem>[];
+
+  List<FeedItem> get savedAlbums => _savedAlbums;
+  List<FeedItem> get savedPlaylists => _savedPlaylists;
+  List<FeedItem> get savedArtists => _savedArtists;
+
+  bool isSavedAlbumId(String id) => _savedAlbumIds.contains(id);
+  bool isSavedPlaylistId(String id) => _savedPlaylistIds.contains(id);
+  bool isSavedArtistId(String id) => _savedArtistIds.contains(id);
+
+  /// Is this item type+id saved in the matching bucket? Convenience for
+  /// the detail-hero heart that doesn't care which kind it is.
+  bool isSaved(FeedItem item) {
+    switch (item.type) {
+      case 'album':
+        return _savedAlbumIds.contains(item.id);
+      case 'playlist':
+        return _savedPlaylistIds.contains(item.id);
+      case 'artist':
+        return _savedArtistIds.contains(item.id);
+      default:
+        return false;
+    }
+  }
+
+  /// Toggle a saved album / playlist / artist. Persists + optimistic.
+  Future<void> toggleSaved(FeedItem item) async {
+    final repo = audioRepo;
+    if (repo == null) return;
+    final kind = item.type;
+    if (kind != 'album' && kind != 'playlist' && kind != 'artist') return;
+    final wasSaved = isSaved(item);
+    final shouldSave = !wasSaved;
+    // Optimistic — UI heart fills instantly.
+    if (kind == 'album') {
+      _savedAlbumIds = {..._savedAlbumIds};
+      if (shouldSave) {
+        _savedAlbumIds.add(item.id);
+        _savedAlbums = [item, ..._savedAlbums.where((s) => s.id != item.id)];
+      } else {
+        _savedAlbumIds.remove(item.id);
+        _savedAlbums = _savedAlbums.where((s) => s.id != item.id).toList();
+      }
+    } else if (kind == 'playlist') {
+      _savedPlaylistIds = {..._savedPlaylistIds};
+      if (shouldSave) {
+        _savedPlaylistIds.add(item.id);
+        _savedPlaylists = [item, ..._savedPlaylists.where((s) => s.id != item.id)];
+      } else {
+        _savedPlaylistIds.remove(item.id);
+        _savedPlaylists = _savedPlaylists.where((s) => s.id != item.id).toList();
+      }
+    } else {
+      _savedArtistIds = {..._savedArtistIds};
+      if (shouldSave) {
+        _savedArtistIds.add(item.id);
+        _savedArtists = [item, ..._savedArtists.where((s) => s.id != item.id)];
+      } else {
+        _savedArtistIds.remove(item.id);
+        _savedArtists = _savedArtists.where((s) => s.id != item.id).toList();
+      }
+    }
+    flashToast(shouldSave
+        ? 'Added ${_kindLabel(kind)} to Library'
+        : 'Removed ${_kindLabel(kind)} from Library');
+    notifyListeners();
+    try {
+      final next =
+          await repo.library.setSaved(item: item, saved: shouldSave);
+      switch (kind) {
+        case 'album':
+          _savedAlbums = next;
+          _savedAlbumIds = next.map((s) => s.id).toSet();
+        case 'playlist':
+          _savedPlaylists = next;
+          _savedPlaylistIds = next.map((s) => s.id).toSet();
+        case 'artist':
+          _savedArtists = next;
+          _savedArtistIds = next.map((s) => s.id).toSet();
+      }
+      notifyListeners();
+    } catch (e) {
+      debugPrint('[library] toggleSaved failed for ${item.type}:${item.id}: $e');
+    }
+  }
+
+  static String _kindLabel(String kind) {
+    switch (kind) {
+      case 'album':
+        return 'album';
+      case 'playlist':
+        return 'playlist';
+      case 'artist':
+        return 'artist';
+      default:
+        return 'item';
+    }
+  }
 
   /// Full liked list — newest-first.
   List<FeedItem> get likedSongs => _likedSongs;

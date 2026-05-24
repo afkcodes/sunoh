@@ -21,6 +21,9 @@ class LibraryStore {
   static const _boxName = 'library';
   static const _kLikedSongs = 'liked_songs';
   static const _kHistory = 'history';
+  static const _kSavedAlbums = 'saved_albums';
+  static const _kSavedPlaylists = 'saved_playlists';
+  static const _kSavedArtists = 'saved_artists';
 
   /// Max items kept in the played-history list. Older entries get evicted
   /// LRU-style. 50 is enough for "Recently Played" sections without growing
@@ -119,5 +122,67 @@ class LibraryStore {
   Future<void> clearHistory() async {
     final box = await _box();
     await box.put(_kHistory, const []);
+  }
+
+  // ── Saved collections (albums / playlists / artists) ──────────────────
+  // Same shape as liked_songs but separate keys so the UI can show
+  // them in their own buckets (and the user can have a Maroon 5 album
+  // saved without that artist being followed, etc.).
+
+  String _keyForKind(String kind) {
+    switch (kind) {
+      case 'album':
+        return _kSavedAlbums;
+      case 'playlist':
+        return _kSavedPlaylists;
+      case 'artist':
+        return _kSavedArtists;
+      default:
+        throw ArgumentError('Unsupported saved kind: $kind');
+    }
+  }
+
+  /// All saved ids for [kind] (`album` / `playlist` / `artist`). Cheap
+  /// — only deserializes the ids.
+  Future<Set<String>> loadSavedIds(String kind) async {
+    try {
+      final box = await _box();
+      final raw = box.get(_keyForKind(kind));
+      if (raw is! List) return <String>{};
+      return raw
+          .whereType<Map>()
+          .map((m) => (m['id'] ?? '').toString())
+          .where((id) => id.isNotEmpty)
+          .toSet();
+    } catch (e) {
+      debugPrint('[library-store] loadSavedIds($kind) failed: $e');
+      return <String>{};
+    }
+  }
+
+  Future<List<FeedItem>> loadSaved(String kind) async {
+    try {
+      final box = await _box();
+      return _decodeList(box.get(_keyForKind(kind)));
+    } catch (e) {
+      debugPrint('[library-store] loadSaved($kind) failed: $e');
+      return const [];
+    }
+  }
+
+  /// Toggle saved state for [item]. Returns the updated list (newest-first).
+  Future<List<FeedItem>> setSaved({
+    required FeedItem item,
+    required bool saved,
+  }) async {
+    final key = _keyForKind(item.type);
+    final box = await _box();
+    final current = _decodeList(box.get(key));
+    current.removeWhere((s) => s.id == item.id);
+    if (saved) current.insert(0, item);
+    await box.put(key, _encodeList(current));
+    debugPrint('[library-store] saved=${saved ? 'on' : 'off'} '
+        '${item.type}:${item.id} (total=${current.length})');
+    return current;
   }
 }

@@ -237,13 +237,15 @@ class SunohAudioHandler {
   bool _userPlaying = false;
 
   /// How long before the ramp window opens we pre-warm the idle player.
-  /// Without a buffer, the idle player is still loading / demuxing / filling
-  /// its audio buffer when the ramp starts — so for the first ~500 ms the
-  /// idle outputs silence (volume already ramped up but no audio yet), and
-  /// the user perceives "next track starts late". Pre-warming at vol 0
-  /// before the ramp gives mpv time to fill the pipeline so audio actually
-  /// starts the moment the ramp does.
-  static const _kPrewarmBuffer = Duration(milliseconds: 700);
+  /// Idle has to: fire on_load → resolver hits `/music/song/:id` (~300-
+  /// 800 ms HTTP) → mpv demuxes + fills its audio buffer (~200-400 ms).
+  /// So total can easily exceed 1 s for tracks without inline mediaUrls
+  /// (saavn search results, restored queues). 2 s lead gives mpv enough
+  /// time to actually be EMITTING audio by the time the ramp begins —
+  /// otherwise the ramp's `setVolume(idle, X)` calls fall on a silent
+  /// player and the user perceives "current goes silent before next
+  /// starts" instead of a real overlap.
+  static const _kPrewarmBuffer = Duration(milliseconds: 2000);
 
   /// True while a crossfade ramp is in progress. Suppresses re-triggering
   /// the kick on the same track and prevents natural-EOF auto-advance from
@@ -256,6 +258,12 @@ class SunohAudioHandler {
   /// Cleared on every track change.
   bool _crossfadeKickedForCurrent = false;
   bool _idlePrewarmed = false;
+  // Set when idle's playbackState transitions to playing after pre-warm
+  // started. Ramp won't fire until this is true (or we've exhausted the
+  // wait); guarantees both players are actually emitting during the
+  // overlap window.
+  bool _idleConfirmedPlaying = false;
+  StreamSubscription? _prewarmPlayingSub;
   Timer? _rampStartTimer;
 
   void setCrossfade(int seconds) {
@@ -484,6 +492,8 @@ class SunohAudioHandler {
 
   /// Open the next track on the idle player at volume 0 — gives mpv time
   /// to load, demux, and start emitting audio before the ramp begins.
+  /// Also subscribes to idle's playbackState so the ramp can wait until
+  /// idle is genuinely playing (not just "open() returned").
   Future<void> _prewarmIdle() async {
     final nextIndex = _currentIndex + 1;
     if (nextIndex >= _queue.length) return;
@@ -491,23 +501,52 @@ class SunohAudioHandler {
     debugPrint(
         '[crossfade] pre-warming idle (+${_kPrewarmBuffer.inMilliseconds}ms) → '
         '${nextSong.title}');
+    _idleConfirmedPlaying = false;
+    _prewarmPlayingSub?.cancel();
+    _prewarmPlayingSub = _idle.stream.playbackState.listen((state) {
+      if (state == MpvPlaybackState.playing && !_idleConfirmedPlaying) {
+        _idleConfirmedPlaying = true;
+        debugPrint('[crossfade] idle confirmed playing');
+      }
+    });
     try {
       await _idle.setVolume(0);
       await _idle.open(Media(_placeholderFor(nextSong)), play: true);
     } catch (e) {
       debugPrint('[crossfade] pre-warm failed: $e');
       _idlePrewarmed = false;
+      _prewarmPlayingSub?.cancel();
+      _prewarmPlayingSub = null;
     }
   }
 
   /// Start the volume ramp. Equal-power curves keep the perceived loudness
   /// constant across the crossover.
+  ///
+  /// Waits up to 1.5 s for idle to confirm it's actually playing before
+  /// starting the ramp — `Player.open` returns when the load is dispatched,
+  /// not when audio is emitting, so without this gate the ramp can run on
+  /// a silent idle and the user hears the old track fade to nothing with
+  /// no overlap at all.
   Future<void> _kickRamp() async {
     if (!_idlePrewarmed) {
       // Edge case: position jumped past the pre-warm trigger straight into
       // the ramp window (seek, time jitter). Pre-warm now and accept the
-      // first ~500 ms of silent overlap.
+      // shorter-than-ideal wait.
       await _prewarmIdle();
+    }
+    // Wait up to 1.5 s for idle to start producing audio. Most opens
+    // resolve in 200-800 ms; this cap keeps us from indefinitely
+    // postponing the ramp on a stuck load.
+    final waitStart = DateTime.now();
+    while (!_idleConfirmedPlaying &&
+        DateTime.now().difference(waitStart) <
+            const Duration(milliseconds: 1500)) {
+      await Future<void>.delayed(const Duration(milliseconds: 50));
+    }
+    if (!_idleConfirmedPlaying) {
+      debugPrint(
+          '[crossfade] idle still not playing after 1.5s — proceeding anyway');
     }
     debugPrint('[crossfade] ramp start (${_crossfadeSec}s, equal-power)');
     _crossfadeInProgress = true;
@@ -553,6 +592,9 @@ class SunohAudioHandler {
     _crossfadeInProgress = false;
     _crossfadeKickedForCurrent = false;
     _idlePrewarmed = false;
+    _idleConfirmedPlaying = false;
+    _prewarmPlayingSub?.cancel();
+    _prewarmPlayingSub = null;
     _crossfadeTimer = null;
     _crossfadeStartedAt = null;
     // 2. Re-bind public streams to the (now) active — playingStream stays
@@ -578,6 +620,9 @@ class SunohAudioHandler {
     _crossfadeInProgress = false;
     _crossfadeKickedForCurrent = false;
     _idlePrewarmed = false;
+    _idleConfirmedPlaying = false;
+    _prewarmPlayingSub?.cancel();
+    _prewarmPlayingSub = null;
     if (snapToActive) {
       _active.setVolume(100);
       _idle.stop();
@@ -872,6 +917,7 @@ class SunohAudioHandler {
   Future<void> dispose() async {
     _urlRefresh.dispose();
     _crossfadeTimer?.cancel();
+    _prewarmPlayingSub?.cancel();
     _activePosSub?.cancel();
     _activeDurSub?.cancel();
     _activePlayingSub?.cancel();
