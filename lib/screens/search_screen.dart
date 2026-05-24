@@ -185,10 +185,17 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
           },
         ),
         // ── Explore Categories grid — live occasions.
-        SectionHeader(title: 'Explore Categories', colors: c),
+        // Header gets a tighter bottom gap (8 vs the default 14) so the
+        // grid feels visually connected to its header instead of floating
+        // 22+ pixels below.
+        SectionHeader(
+          title: 'Explore Categories',
+          colors: c,
+          padding: const EdgeInsets.fromLTRB(20, 0, 20, 6),
+        ),
         occasions.when(
           loading: () => Padding(
-            padding: const EdgeInsets.fromLTRB(20, 8, 20, 8),
+            padding: const EdgeInsets.fromLTRB(20, 4, 20, 8),
             child: Text('Loading categories…',
                 style: SunohType.sans(fontSize: 12, color: c.fgMute)),
           ),
@@ -441,14 +448,15 @@ class _ResultRow extends StatelessWidget {
 /// Horizontal carousel of trending items for one section heading. Mirrors
 /// the home-feed `_ApiSection` pattern — uses the same `HCardRow` and
 /// per-item card chrome so trending feels at home with everything else.
-class _TrendingRow extends StatelessWidget {
+class _TrendingRow extends ConsumerWidget {
   const _TrendingRow({required this.section, required this.colors});
   final HomeSection section;
   final SunohColors colors;
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
     final c = colors;
+    final s = ref.read(appStateProvider);
     final isArtistRow = section.items.every((it) => it.type == 'artist');
     final width = isArtistRow ? 96.0 : 140.0;
     final gap = isArtistRow ? 18.0 : 12.0;
@@ -464,6 +472,10 @@ class _TrendingRow extends StatelessWidget {
           onTap: (item) {
             switch (item.type) {
               case 'song':
+                // Songs play immediately — tapping a song in a "trending"
+                // carousel should never open a song-detail screen.
+                s.playApiSong(item,
+                    sourceLabel: 'TRENDING · ${section.heading}');
               case 'album':
               case 'playlist':
               case 'artist':
@@ -535,22 +547,9 @@ class _OccasionTile extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final c = colors;
     final url = item.artwork ?? '';
     return GestureDetector(
-      onTap: () {
-        // Occasion detail isn't wired yet. Surface a hint instead of a
-        // dead tap so the user knows it's intentional.
-        ScaffoldMessenger.maybeOf(context)?.showSnackBar(
-          SnackBar(
-            content: Text('“${item.title}” — coming soon',
-                style: SunohType.sans(fontSize: 13, color: c.fg)),
-            backgroundColor: c.surface2,
-            behavior: SnackBarBehavior.floating,
-            duration: const Duration(seconds: 2),
-          ),
-        );
-      },
+      onTap: () => context.openOccasion(item),
       child: squircleClip(
         radius: 14,
         child: Stack(

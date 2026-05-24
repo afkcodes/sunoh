@@ -96,6 +96,34 @@ class SunohApi {
     return env.data ?? const [];
   }
 
+  /// `GET /music/occasions/:slug?provider=gaana` — full contents of an
+  /// occasion category. Returns `List<HomeSection>` (sections of playlists
+  /// / songs / albums) using the same shape as `/music/home`.
+  Future<List<HomeSection>> fetchOccasionDetail(
+    String slug, {
+    String provider = 'gaana',
+  }) async {
+    final res = await _dio.get<Map<String, dynamic>>(
+      '/music/occasions/$slug',
+      queryParameters: {
+        if (provider.isNotEmpty) 'provider': provider,
+      },
+    );
+    final env = ApiEnvelope.from<List<HomeSection>>(
+      res.data ?? const {},
+      (raw) => (raw is List)
+          ? raw
+              .whereType<Map>()
+              .map((m) => HomeSection.fromJson(m.cast<String, dynamic>()))
+              .toList()
+          : const <HomeSection>[],
+    );
+    if (!env.isSuccess) {
+      throw SunohApiException(env.message, env.error);
+    }
+    return env.data ?? const [];
+  }
+
   /// `GET /music/occasions?provider=gaana` — browse categories ("Workout",
   /// "Romance", etc.). Each item carries an artwork URL + slug for the
   /// occasion detail view. Re-uses [FeedItem.fromJson] — the occasion

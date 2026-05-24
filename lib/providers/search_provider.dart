@@ -40,3 +40,14 @@ final occasionsProvider = FutureProvider.autoDispose
   final api = ref.watch(sunohApiProvider);
   return api.fetchOccasions(provider: provider);
 });
+
+/// Detail payload for a single occasion (slug + provider).
+typedef OccasionRef = ({String slug, String provider});
+
+final occasionDetailProvider = FutureProvider.autoDispose
+    .family<List<HomeSection>, OccasionRef>((ref, key) async {
+  final link = ref.keepAlive();
+  Future<void>.delayed(const Duration(minutes: 30)).then((_) => link.close());
+  final api = ref.watch(sunohApiProvider);
+  return api.fetchOccasionDetail(key.slug, provider: key.provider);
+});

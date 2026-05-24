@@ -15,6 +15,7 @@ import '../data/models.dart';
 import '../providers/app_state_provider.dart';
 import '../providers/detail_providers.dart';
 import '../providers/palette_provider.dart';
+import '../providers/search_provider.dart';
 import '../router/router.dart';
 import '../theme/tokens.dart';
 import '../widgets/album_art.dart';
@@ -1418,6 +1419,140 @@ class _EpisodeRow extends StatelessWidget {
                   ],
                 ),
               ],
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+// ── Occasion detail (browse-category collections from /music/occasions/:slug) ──
+// Same hero + sticky-header pattern as album/playlist, but with no track list
+// or play action of its own — occasions are CONTAINERS of sections (other
+// playlists / songs / albums). The body is just stacked `_RelatedSection`s.
+class OccasionScreen extends ConsumerStatefulWidget {
+  const OccasionScreen({
+    super.key,
+    required this.slug,
+    required this.title,
+    required this.imageUrl,
+    this.source = 'gaana',
+  });
+  final String slug;
+  final String title;
+  final String? imageUrl;
+  final String source;
+
+  @override
+  ConsumerState<OccasionScreen> createState() => _OccasionScreenState();
+}
+
+class _OccasionScreenState extends ConsumerState<OccasionScreen> {
+  final _scroll = ScrollController();
+  final ValueNotifier<double> _offset = ValueNotifier<double>(0);
+
+  @override
+  void initState() {
+    super.initState();
+    _scroll.addListener(() => _offset.value = _scroll.offset);
+  }
+
+  @override
+  void dispose() {
+    _scroll.dispose();
+    _offset.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final s = ref.watch(appStateProvider);
+    final c = s.colors;
+    final accent = s.resolvedAccent;
+    final async = ref.watch(occasionDetailProvider(
+        (slug: widget.slug, provider: widget.source)));
+
+    return ColoredBox(
+      color: c.bg,
+      child: SizedBox.expand(
+        child: Stack(
+          children: [
+            Positioned.fill(
+              child: ListView(
+                controller: _scroll,
+                padding: const EdgeInsets.only(bottom: 140),
+                children: [
+                  _DetailHero(
+                    id: widget.slug,
+                    imageUrl: widget.imageUrl,
+                    title: widget.title,
+                    eyebrowText: 'CATEGORY · ${widget.source.toUpperCase()}',
+                    colors: c,
+                    accent: accent,
+                    scrollOffset: _offset,
+                  ),
+                  // Sections (Hero playlists, Songs, Albums, etc.) — async.
+                  async.when(
+                    loading: () => Padding(
+                      padding: const EdgeInsets.fromLTRB(20, 32, 20, 32),
+                      child: Text(
+                        'Loading…',
+                        style:
+                            SunohType.sans(fontSize: 13, color: c.fgMute),
+                      ),
+                    ),
+                    error: (e, _) => Padding(
+                      padding: const EdgeInsets.fromLTRB(20, 32, 20, 32),
+                      child: Text(
+                        'Couldn’t load “${widget.title}”.\n$e',
+                        style:
+                            SunohType.sans(fontSize: 13, color: c.fgMute),
+                      ),
+                    ),
+                    data: (sections) {
+                      final nonEmpty = sections
+                          .where((sec) => sec.items.isNotEmpty)
+                          .toList();
+                      if (nonEmpty.isEmpty) {
+                        return Padding(
+                          padding:
+                              const EdgeInsets.fromLTRB(20, 32, 20, 32),
+                          child: Text(
+                            'Nothing in this category right now.',
+                            style: SunohType.sans(
+                                fontSize: 13, color: c.fgMute),
+                          ),
+                        );
+                      }
+                      return Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          for (var i = 0; i < nonEmpty.length; i++) ...[
+                            const SizedBox(height: 28),
+                            _RelatedSection(
+                              section: nonEmpty[i],
+                              colors: c,
+                            ),
+                          ],
+                          const SizedBox(height: 24),
+                        ],
+                      );
+                    },
+                  ),
+                ],
+              ),
+            ),
+            Positioned(
+              top: 0,
+              left: 0,
+              right: 0,
+              child: _StickyHeader(
+                title: widget.title,
+                colors: c,
+                scrollOffset: _offset,
+                onBack: () => context.pop(),
+              ),
             ),
           ],
         ),

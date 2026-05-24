@@ -135,6 +135,24 @@ List<RouteBase> _detailRoutes() => [
         pageBuilder: (c, s) => _slideRight(PodcastScreen(id: s.pathParameters['id']!), s),
       ),
       GoRoute(
+        path: 'occasion/:slug',
+        pageBuilder: (c, s) {
+          // The originating FeedItem is passed via extras so the hero has
+          // its title + artwork available before the detail fetch resolves
+          // (avoids a flash of "?" in the hero).
+          final item = s.extra is FeedItem ? s.extra as FeedItem : null;
+          return _slideRight(
+            OccasionScreen(
+              slug: s.pathParameters['slug']!,
+              title: item?.title ?? s.pathParameters['slug']!,
+              imageUrl: item?.artwork,
+              source: s.uri.queryParameters['source'] ?? 'gaana',
+            ),
+            s,
+          );
+        },
+      ),
+      GoRoute(
         path: 'section',
         pageBuilder: (c, s) {
           final section = s.extra as HomeSection;
@@ -261,6 +279,17 @@ extension SunohNav on BuildContext {
   /// Push the "See all" screen for a home-feed section.
   void openSection(HomeSection section) {
     push('$_branchPrefix/section', extra: section);
+  }
+
+  /// Push an occasion detail (browse-category contents). Pass the FeedItem
+  /// so the hero has title + artwork available before the fetch resolves.
+  void openOccasion(FeedItem occasion) {
+    final slug = (occasion.url?.isNotEmpty ?? false) ? occasion.url! : occasion.id;
+    final src = occasion.source ?? 'gaana';
+    push(
+      '$_branchPrefix/occasion/$slug?source=${Uri.encodeQueryComponent(src)}',
+      extra: occasion,
+    );
   }
 
   /// Push the settings screen inside the active tab branch.
