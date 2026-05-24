@@ -11,6 +11,7 @@ import 'package:phosphor_flutter/phosphor_flutter.dart';
 import 'package:solar_icons/solar_icons.dart';
 
 import '../api/dto.dart';
+import '../overlays/track_menu_sheet.dart';
 import '../providers/app_state_provider.dart';
 import '../theme/tokens.dart';
 import '../widgets/ui.dart';
@@ -364,6 +365,14 @@ class _LikedTrackRow extends ConsumerWidget {
                 width: 32,
                 height: 32,
                 onTap: () => s.toggleLikedSong(song)),
+            IconBtn(
+                icon: SolarIconsBold.menuDots,
+                color: colors.fgMute,
+                size: 16,
+                width: 32,
+                height: 32,
+                onTap: () => showTrackMenuSheet(context,
+                    song: song, sourceLabel: 'LIKED · Songs')),
           ],
         ),
       ),
@@ -484,7 +493,12 @@ class _StickyLikedHeader extends StatelessWidget {
                             size: 18,
                             background:
                                 Colors.black.withValues(alpha: 0.35),
-                            onTap: () {}),
+                            // Liked-songs-level menu (share, clear all,
+                            // download all, etc.) — defer.
+                            onTap: () => ProviderScope.containerOf(context)
+                                .read(appStateProvider)
+                                .flashToast(
+                                    'More options coming soon')),
                       ],
                     ),
                   ),

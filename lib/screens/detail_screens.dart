@@ -12,6 +12,7 @@ import 'package:solar_icons/solar_icons.dart';
 import '../api/dto.dart';
 import '../data/catalog.dart';
 import '../data/models.dart';
+import '../overlays/track_menu_sheet.dart';
 import '../providers/app_state_provider.dart';
 import '../providers/detail_providers.dart';
 import '../providers/palette_provider.dart';
@@ -48,7 +49,13 @@ class _HeroBack extends StatelessWidget {
             color: color,
             size: 18,
             background: Colors.black.withValues(alpha: 0.35),
-            onTap: () {}),
+            // Album / playlist / artist-level menu (save, share, play
+            // all next, etc.) hasn't been designed yet — wire later via a
+            // dedicated bottom sheet. For now, ack the tap so it doesn't
+            // read as broken.
+            onTap: () => ProviderScope.containerOf(context)
+                .read(appStateProvider)
+                .flashToast('More options coming soon')),
       ],
     );
   }
@@ -416,7 +423,7 @@ class _ApiTrackRow extends ConsumerWidget {
                 size: 16,
                 width: 32,
                 height: 32,
-                onTap: () {}),
+                onTap: () => showTrackMenuSheet(context, song: song)),
           ],
         ),
       ),
@@ -1133,8 +1140,8 @@ class _ArtistBody extends ConsumerWidget {
                 ),
                 Row(
                   children: [
-                    IconBtn(icon: SolarIconsOutline.share, color: c.fgDim, size: 18, width: 36, height: 36, onTap: () {}),
-                    IconBtn(icon: SolarIconsBold.menuDots, color: c.fgDim, size: 18, width: 36, height: 36, onTap: () {}),
+                    IconBtn(icon: SolarIconsOutline.share, color: c.fgDim, size: 18, width: 36, height: 36, onTap: () => s.flashToast('Share coming soon')),
+                    IconBtn(icon: SolarIconsBold.menuDots, color: c.fgDim, size: 18, width: 36, height: 36, onTap: () => s.flashToast('More options coming soon')),
                     const SizedBox(width: 6),
                     GestureDetector(
                       onTap: () {

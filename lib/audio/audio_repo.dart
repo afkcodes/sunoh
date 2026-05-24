@@ -200,6 +200,34 @@ class AudioRepo {
     unawaited(persistAll());
   }
 
+  /// Insert `song` right after the currently-playing track. Used by the
+  /// track-row context menu's "Play next" action. If nothing's playing,
+  /// starts a fresh single-song queue.
+  Future<void> playNext(FeedItem song, {String? sourceLabel}) async {
+    if (_queue.isEmpty) {
+      _sourceLabel = sourceLabel;
+    }
+    await handler.playNext(song);
+    _queue = handler.queue;
+    _currentIndex = handler.currentIndex;
+    _bridge?.announceQueue(_queue.map(_mediaItemFor).toList(),
+        startIndex: _currentIndex);
+    unawaited(persistAll());
+  }
+
+  /// Append `song` to the end of the queue.
+  Future<void> addToQueue(FeedItem song, {String? sourceLabel}) async {
+    if (_queue.isEmpty) {
+      _sourceLabel = sourceLabel;
+    }
+    await handler.addToQueue(song);
+    _queue = handler.queue;
+    _currentIndex = handler.currentIndex;
+    _bridge?.announceQueue(_queue.map(_mediaItemFor).toList(),
+        startIndex: _currentIndex);
+    unawaited(persistAll());
+  }
+
   Future<void> moveInQueue(int from, int to) async {
     await handler.moveItem(from, to);
     _queue = handler.queue;

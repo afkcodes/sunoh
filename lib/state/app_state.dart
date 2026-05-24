@@ -496,6 +496,32 @@ class AppState extends ChangeNotifier with WidgetsBindingObserver {
   Future<void> playApiSong(FeedItem song, {String? sourceLabel}) =>
       playApiQueue([song], 0, sourceLabel: sourceLabel);
 
+  /// Insert `song` right after the currently-playing track. Surfaces a
+  /// toast on success so the user gets confirmation (the queue mutation
+  /// itself is invisible — there's no inline indicator on the album/
+  /// playlist row for "this song is now queued next").
+  Future<void> playApiSongNext(FeedItem song) async {
+    final repo = audioRepo;
+    if (repo == null) {
+      flashToast('Audio engine unavailable');
+      return;
+    }
+    await repo.playNext(song);
+    flashToast('Up next: ${song.title}');
+  }
+
+  /// Append `song` to the end of the queue. Same UX shape as [playApiSongNext]
+  /// — just a different insertion point.
+  Future<void> addApiSongToQueue(FeedItem song) async {
+    final repo = audioRepo;
+    if (repo == null) {
+      flashToast('Audio engine unavailable');
+      return;
+    }
+    await repo.addToQueue(song);
+    flashToast('Added to queue: ${song.title}');
+  }
+
   /// Play a queue of songs starting at [startIndex]. Optimistically updates
   /// the UI to the starting song, then hands the rest to the engine.
   ///

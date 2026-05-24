@@ -10,6 +10,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:solar_icons/solar_icons.dart';
 
 import '../api/dto.dart';
+import '../overlays/track_menu_sheet.dart';
 import '../providers/app_state_provider.dart';
 import '../router/router.dart';
 import '../theme/tokens.dart';
@@ -248,6 +249,14 @@ class _LibRow extends ConsumerWidget {
                 width: 32,
                 height: 32,
                 onTap: () => s.toggleLikedSong(song)),
+            IconBtn(
+                icon: SolarIconsBold.menuDots,
+                color: c.fgMute,
+                size: 16,
+                width: 32,
+                height: 32,
+                onTap: () => showTrackMenuSheet(context,
+                    song: song, sourceLabel: 'RECENTLY PLAYED')),
           ],
         ),
       ),

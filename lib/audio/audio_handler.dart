@@ -670,6 +670,31 @@ class SunohAudioHandler {
     _userInitiatedSkip = false;
   }
 
+  /// Insert `song` at `currentIndex + 1`. The "play next" context-menu
+  /// action. If the queue is empty, falls back to starting a new one-
+  /// song queue. Crossfade pre-warm reads `_queue[_currentIndex+1]`
+  /// dynamically so the new "next" takes effect, EXCEPT if pre-warm
+  /// already committed to the old next (edge case, accept it).
+  Future<void> playNext(FeedItem song) async {
+    if (_queue.isEmpty || _currentIndex < 0) {
+      await setQueue([song], 0);
+      return;
+    }
+    final next = [..._queue]..insert(_currentIndex + 1, song);
+    _updateQueue(next);
+  }
+
+  /// Append `song` to the end of the queue. If the queue is empty,
+  /// starts a new one-song queue.
+  Future<void> addToQueue(FeedItem song) async {
+    if (_queue.isEmpty || _currentIndex < 0) {
+      await setQueue([song], 0);
+      return;
+    }
+    final next = [..._queue, song];
+    _updateQueue(next);
+  }
+
   Future<void> removeAt(int index) async {
     if (index < 0 || index >= _queue.length) return;
     final wasCurrent = index == _currentIndex;

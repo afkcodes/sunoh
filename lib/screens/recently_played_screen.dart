@@ -7,6 +7,7 @@ import 'package:go_router/go_router.dart';
 import 'package:solar_icons/solar_icons.dart';
 
 import '../api/dto.dart';
+import '../overlays/track_menu_sheet.dart';
 import '../providers/app_state_provider.dart';
 import '../theme/tokens.dart';
 import '../widgets/album_art.dart';
@@ -178,6 +179,14 @@ class _HistoryRow extends ConsumerWidget {
                 width: 32,
                 height: 32,
                 onTap: () => s.toggleLikedSong(song)),
+            IconBtn(
+                icon: SolarIconsBold.menuDots,
+                color: c.fgMute,
+                size: 16,
+                width: 32,
+                height: 32,
+                onTap: () => showTrackMenuSheet(context,
+                    song: song, sourceLabel: 'RECENTLY PLAYED')),
           ],
         ),
       ),

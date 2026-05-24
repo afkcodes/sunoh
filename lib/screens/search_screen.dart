@@ -9,6 +9,7 @@ import 'package:solar_icons/solar_icons.dart';
 
 import '../api/dto.dart';
 import '../data/models.dart';
+import '../overlays/track_menu_sheet.dart';
 import '../providers/app_state_provider.dart';
 import '../providers/search_provider.dart';
 import '../router/router.dart';
@@ -376,9 +377,6 @@ class _ResultRow extends StatelessWidget {
     final c = colors;
     final isArtist = item.type == 'artist';
     final isSong = item.type == 'song';
-    final trailingIcon = isSong
-        ? SolarIconsBold.menuDots
-        : SolarIconsOutline.altArrowRight;
     return GestureDetector(
       onTap: onTap,
       behavior: HitTestBehavior.opaque,
@@ -415,7 +413,21 @@ class _ResultRow extends StatelessWidget {
                 ],
               ),
             ),
-            Icon(trailingIcon, size: 18, color: c.fgMute),
+            if (isSong)
+              GestureDetector(
+                onTap: () => showTrackMenuSheet(context,
+                    song: item, sourceLabel: 'SEARCH'),
+                behavior: HitTestBehavior.opaque,
+                child: SizedBox(
+                  width: 32,
+                  height: 32,
+                  child: Icon(SolarIconsBold.menuDots,
+                      size: 18, color: c.fgMute),
+                ),
+              )
+            else
+              Icon(SolarIconsOutline.altArrowRight,
+                  size: 18, color: c.fgMute),
           ],
         ),
       ),
