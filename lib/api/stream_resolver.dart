@@ -44,18 +44,22 @@ class StreamResolver {
   }
 
   /// Returns a playable URL for [song], or throws [StreamResolveException]
-  /// if no usable variant could be obtained.
+  /// if no usable variant could be obtained. When the lookup goes through
+  /// `/music/song/:id` (tier 2), the parsed enriched FeedItem rides along
+  /// in [ResolvedStream.enriched] so the caller can backfill metadata
+  /// (artists, duration, subtitle) that search responses leave empty.
   ///
   /// Set [forceRefresh] when re-resolving for an *already-played* track
   /// whose signed URL may have expired (mid-track refresh path). With it
   /// set, step 1 (inline mediaUrls embedded in the FeedItem) is skipped
   /// — the embedded URLs are the original signed ones from when the feed
   /// was fetched, which is the exact set of URLs we need to bypass.
-  Future<String> resolve(FeedItem song, {bool forceRefresh = false}) async {
+  Future<ResolvedStream> resolve(FeedItem song,
+      {bool forceRefresh = false}) async {
     // 1) Inline mediaUrls (fresh API responses include these).
     if (!forceRefresh) {
       final embedded = _pick(song.mediaUrls);
-      if (embedded != null) return embedded;
+      if (embedded != null) return ResolvedStream(embedded);
     }
 
     final provider = song.source;
@@ -64,15 +68,16 @@ class StreamResolver {
     };
 
     // 2) Full song endpoint — works for both providers, response contains
-    //    `mediaUrls`. This is the right path for restore (we don't persist
-    //    mediaUrls so they need to be re-fetched from somewhere).
+    //    `mediaUrls`. Also the source of truth for artists / duration /
+    //    subtitle that search responses leave empty.
     try {
       final res = await _dio.get<Map<String, dynamic>>(
         '/music/song/${song.id}',
         queryParameters: query,
       );
-      final url = _pickFromSongResponse(res.data);
-      if (url != null) return url;
+      final parsed = _enrichFromSongResponse(res.data);
+      final url = _pick(parsed?.mediaUrls ?? const []);
+      if (url != null) return ResolvedStream(url, enriched: parsed);
     } on DioException catch (_) {
       // Fall through to /stream attempt.
     }
@@ -89,7 +94,7 @@ class StreamResolver {
       );
       if (env.isSuccess) {
         final picked = _pick(env.data ?? const []);
-        if (picked != null) return picked;
+        if (picked != null) return ResolvedStream(picked);
       }
     }
 
@@ -97,9 +102,9 @@ class StreamResolver {
         'No playable stream variants for "${song.title}" (${song.id}).');
   }
 
-  /// Unwrap `/music/song/:id` envelope shapes (flat saavn vs gaana-nested-`song`)
-  /// and pick the best mediaUrl from the inner object.
-  String? _pickFromSongResponse(Map<String, dynamic>? body) {
+  /// Parse the `/music/song/:id` envelope (flat saavn vs gaana-nested-`song`)
+  /// into a FeedItem. Returns null on shape mismatch.
+  FeedItem? _enrichFromSongResponse(Map<String, dynamic>? body) {
     if (body == null) return null;
     final dataRaw = body['data'];
     if (dataRaw is! Map) return null;
@@ -107,8 +112,8 @@ class StreamResolver {
     final inner = (data['song'] is Map)
         ? (data['song'] as Map).cast<String, dynamic>()
         : data;
-    final list = ApiImage.listFrom(inner['mediaUrls']);
-    return _pick(list);
+    if (inner.isEmpty) return null;
+    return FeedItem.fromJson(inner);
   }
 
   /// Pick a variant from the list per the current `quality` preference.
@@ -148,4 +153,13 @@ class StreamResolveException implements Exception {
   final Object? cause;
   @override
   String toString() => 'StreamResolveException: $message';
+}
+
+/// Output of [StreamResolver.resolve]: the playable URL plus, when the
+/// lookup hit `/music/song/:id`, the enriched FeedItem with artist /
+/// duration / subtitle data that search responses leave empty.
+class ResolvedStream {
+  ResolvedStream(this.url, {this.enriched});
+  final String url;
+  final FeedItem? enriched;
 }

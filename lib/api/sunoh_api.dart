@@ -164,6 +164,38 @@ class SunohApi {
     return env.data ?? const [];
   }
 
+  /// `GET /music/song/:id?provider=…` — full song detail (artists,
+  /// duration, subtitle, album, mediaUrls). Used by AppState to enrich
+  /// FeedItems that arrived from search (which returns them with
+  /// `artists: []` and `duration: null` — see the curl spelunking in
+  /// 2026-05-23) so the player can show real artist names + the
+  /// scrubber gets the correct total length.
+  ///
+  /// Returns `null` when the lookup fails — enrichment is best-effort,
+  /// the caller should keep the original FeedItem on failure.
+  Future<FeedItem?> fetchSong(String id, {String? provider}) async {
+    try {
+      final res = await _dio.get<Map<String, dynamic>>(
+        '/music/song/$id',
+        queryParameters: {
+          if (provider != null && provider.isNotEmpty) 'provider': provider,
+        },
+      );
+      final body = res.data;
+      if (body == null) return null;
+      final raw = body['data'];
+      if (raw is! Map) return null;
+      // Backend ships both shapes: flat (`data` is the song) and gaana-
+      // nested (`data.song`).
+      final inner = (raw['song'] is Map)
+          ? (raw['song'] as Map).cast<String, dynamic>()
+          : raw.cast<String, dynamic>();
+      return FeedItem.fromJson(inner);
+    } on DioException catch (_) {
+      return null;
+    }
+  }
+
   /// `GET /music/search?q=…&type=all` — unified search. Returns a list of
   /// sections (`Top Results`, `Songs`, `Albums`, `Artists`, `Playlists`)
   /// using the same shape as `/music/home` so we re-use [HomeSection.fromJson].

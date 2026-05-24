@@ -343,7 +343,7 @@ class _ExpandedPlayerState extends ConsumerState<ExpandedPlayer>
     return ValueListenableBuilder<int>(
       valueListenable: s.positionTick,
       builder: (_, pos, _) {
-        final dur = s.current.duration;
+        final dur = s.currentDurationSec;
         final remaining = (dur - pos).clamp(0, dur);
         final scrubber = Scrubber(
           value: pos,

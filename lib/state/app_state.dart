@@ -337,6 +337,16 @@ class AppState extends ChangeNotifier with WidgetsBindingObserver {
         audioRepo?.persistCurrentPosition();
       }
     }));
+    // mpv's reported duration → _engineDurationSec. Fires shortly after
+    // each track opens. Resets to 0 on track change via _applySong.
+    _audioSubs.add(handler.durationStream.listen((dur) {
+      if (currentApiSong == null) return;
+      final secs = dur.inSeconds;
+      if (secs > 0 && secs != _engineDurationSec) {
+        _engineDurationSec = secs;
+        notifyListeners();
+      }
+    }));
     // Playing flag → isPlaying.
     _audioSubs.add(handler.playingStream.listen((playing) {
       if (currentApiSong == null) return;
@@ -347,6 +357,16 @@ class AppState extends ChangeNotifier with WidgetsBindingObserver {
     }));
     // Track change → currentApiSong + Track stub. Fires when mpv advances
     // (next button, queue auto-advance, headset/notification skip).
+    // Mid-song metadata enrichment — fires after the on_load hook has
+    // hit /music/song/:id and merged the richer payload (artists,
+    // duration, subtitle) into the queue entry. Saavn search responses
+    // arrive sparse; this stream is how the player UI gets the real
+    // artist names + scrubber max after the user taps a search result.
+    _audioSubs.add(handler.enrichedCurrentSongStream.listen((enriched) {
+      if (currentApiSong?.id != enriched.id) return;
+      _applySong(enriched);
+      notifyListeners();
+    }));
     _audioSubs.add(handler.currentSongStream.listen((song) {
       if (song == null) return;
       if (currentApiSong?.id == song.id) return; // already in sync
@@ -430,23 +450,54 @@ class AppState extends ChangeNotifier with WidgetsBindingObserver {
   /// Mirror a FeedItem into the legacy Track stub the player UI reads from.
   void _applySong(FeedItem song) {
     currentApiSong = song;
-    final artistLabel = (song.artists ?? const <ApiArtistRef>[])
-        .map((a) => a.name)
+    // Artist fallback chain: artists[].name → subtitle → empty (let UI
+    // hide). The old "Unknown artist" literal was the wrong default for
+    // search responses where saavn returns subtitle:null + artists:[] —
+    // the player would scream "Unknown artist" for every search-tapped
+    // song even when there's no real data unknown about it.
+    final fromArtists = (song.artists ?? const <ApiArtistRef>[])
+        .map((a) => a.name.trim())
         .where((n) => n.isNotEmpty)
         .take(2)
         .join(', ');
+    final fromSubtitle = (song.subtitle ?? '').trim();
+    final artistLabel = fromArtists.isNotEmpty
+        ? fromArtists
+        : (fromSubtitle.isNotEmpty ? fromSubtitle : '');
+    // Duration: search responses don't include it, so the int.tryParse
+    // falls through to 180 here. The real duration is bound from mpv's
+    // duration stream in _bindAudio and surfaced via [currentDurationSec]
+    // — the player UI prefers that over `current.duration`.
     final durSec = int.tryParse(song.duration ?? '') ?? 180;
     current = Track(
       id: song.id,
       title: song.title,
-      artist: artistLabel.isEmpty ? 'Unknown artist' : artistLabel,
+      artist: artistLabel,
       album: '',
       duration: durSec,
       plays: song.playCount ?? '',
     );
+    // mpv will report fresh duration as the next file loads; clear the
+    // stale value so the player doesn't briefly show the previous track's
+    // duration for the new one.
+    _engineDurationSec = 0;
     position = 0;
     _refreshExtractedAccent(song.artwork);
   }
+
+  // Live duration reported by mpv after it opens the current file. 0 when
+  // not yet known (e.g. immediately after a track change, or for dummy
+  // playback paths that don't go through mpv). Use [currentDurationSec]
+  // for the merged "best known" value.
+  int _engineDurationSec = 0;
+
+  /// Authoritative duration in seconds for the currently-playing track.
+  /// Prefers mpv's reported value (accurate, available after the file
+  /// opens) and falls back to the FeedItem's parsed duration (or the 180
+  /// default) for the brief window before mpv has loaded the file or for
+  /// dummy-path playback.
+  int get currentDurationSec =>
+      _engineDurationSec > 0 ? _engineDurationSec : current.duration;
 
   /// Kick off palette extraction for the given URL. When it lands, the
   /// cached `_extractedAccent` updates and we notify so any palette-aware

@@ -93,7 +93,7 @@ class MiniPlayer extends ConsumerWidget {
             valueListenable: s.positionTick,
             builder: (_, pos, _) => Scrubber(
               value: pos,
-              max: track.duration,
+              max: s.currentDurationSec,
               accent: accent,
               fg: c.fg,
               compact: true,

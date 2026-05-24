@@ -93,11 +93,72 @@ class SunohAudioHandler {
     _queueListenable.value = List.unmodifiable(next);
   }
 
+  /// Emits when the on_load resolver enriches the currently-playing song
+  /// with metadata that wasn't in the original FeedItem. Distinct from
+  /// [currentSongStream] (which only fires on a NEW song id) — same id +
+  /// fuller data goes here. AppState listens and re-runs `_applySong`
+  /// with the merged payload.
+  final StreamController<FeedItem> _enrichedCurrentSongCtl =
+      StreamController<FeedItem>.broadcast();
+
+  Stream<FeedItem> get enrichedCurrentSongStream =>
+      _enrichedCurrentSongCtl.stream;
+
+  /// Merge enriched fields onto the queue entry for [songId] in place. If
+  /// it's the currently-playing index, also broadcast the merged item via
+  /// [enrichedCurrentSongStream].
+  void _mergeSongMetadata(String songId, FeedItem enriched) {
+    final idx = _queue.indexWhere((s) => s.id == songId);
+    if (idx < 0) return;
+    final old = _queue[idx];
+    final merged = FeedItem(
+      id: old.id,
+      // Keep title/type/source/url from the original — search responses
+      // sometimes have a more user-recognisable title than the canonical
+      // backend record. Everything else takes the enriched value when
+      // present (search has nulls / empties for these).
+      title: old.title,
+      type: old.type,
+      source: old.source,
+      url: enriched.url ?? old.url,
+      // Prefer enriched image set when it has multiple sizes (search
+      // sometimes ships only one).
+      image: enriched.image.length > old.image.length
+          ? enriched.image
+          : old.image,
+      subtitle: (enriched.subtitle?.trim().isNotEmpty ?? false)
+          ? enriched.subtitle
+          : old.subtitle,
+      language: (enriched.language?.trim().isNotEmpty ?? false)
+          ? enriched.language
+          : old.language,
+      duration: (enriched.duration?.trim().isNotEmpty ?? false)
+          ? enriched.duration
+          : old.duration,
+      songCount: enriched.songCount ?? old.songCount,
+      playCount: enriched.playCount ?? old.playCount,
+      releaseDate: enriched.releaseDate ?? old.releaseDate,
+      artists: (enriched.artists ?? const []).isNotEmpty
+          ? enriched.artists
+          : old.artists,
+      token: (enriched.token?.isNotEmpty ?? false) ? enriched.token : old.token,
+      mediaUrls:
+          enriched.mediaUrls.isNotEmpty ? enriched.mediaUrls : old.mediaUrls,
+    );
+    final next = [..._queue]..[idx] = merged;
+    _updateQueue(next);
+    if (idx == _currentIndex) {
+      _enrichedCurrentSongCtl.add(merged);
+    }
+  }
+
   // ── Switched public streams ────────────────────────────────────────────
   // Consumers (AppState, audio_service bridge) subscribe to these once. The
   // handler re-binds the underlying source streams to whichever player is
   // currently active.
   final StreamController<Duration> _positionCtl =
+      StreamController<Duration>.broadcast();
+  final StreamController<Duration> _durationCtl =
       StreamController<Duration>.broadcast();
   final StreamController<bool> _playingCtl =
       StreamController<bool>.broadcast();
@@ -105,17 +166,24 @@ class SunohAudioHandler {
       StreamController<FeedItem?>.broadcast();
 
   Stream<Duration> get positionStream => _positionCtl.stream;
+  /// Active player's `duration` — emits when mpv finishes loading the
+  /// current file and any time the duration changes (e.g., HLS variant
+  /// switch). 0 / Duration.zero before mpv has a value.
+  Stream<Duration> get durationStream => _durationCtl.stream;
   Stream<bool> get playingStream => _playingCtl.stream;
   Stream<FeedItem?> get currentSongStream =>
       _currentSongCtl.stream.distinct((a, b) => a?.id == b?.id);
 
   StreamSubscription? _activePosSub;
+  StreamSubscription? _activeDurSub;
   StreamSubscription? _activePlayingSub;
 
   void _bindActivePlayerStreams() {
     _activePosSub?.cancel();
+    _activeDurSub?.cancel();
     _activePlayingSub?.cancel();
     _activePosSub = _active.stream.position.listen(_positionCtl.add);
+    _activeDurSub = _active.stream.duration.listen(_durationCtl.add);
     _activePlayingSub = _active.stream.playbackState.listen((s) {
       _playingCtl.add(s == MpvPlaybackState.playing);
     });
@@ -274,9 +342,16 @@ class SunohAudioHandler {
       _forceRefreshNextResolve = false;
       debugPrint(
           '[audio/$label] hook resolving ${song.id}${fresh ? ' (forceRefresh)' : ''}');
-      final url = await resolver.resolve(song, forceRefresh: fresh);
-      debugPrint('[audio/$label] hook resolved → $url');
-      await p.setRawProperty('stream-open-filename', url);
+      final resolved = await resolver.resolve(song, forceRefresh: fresh);
+      debugPrint('[audio/$label] hook resolved → ${resolved.url}');
+      await p.setRawProperty('stream-open-filename', resolved.url);
+      // Backfill the queue item with the richer metadata that came along
+      // with the resolve (search responses leave artists / duration /
+      // subtitle empty; /music/song/:id has them all). Cheap merge —
+      // only fields the enriched payload actually carries override.
+      if (resolved.enriched != null) {
+        _mergeSongMetadata(song.id, resolved.enriched!);
+      }
 
       // One-shot start-position applies only when this hook fires on the
       // active player (idle's loads always start at 0).
@@ -295,7 +370,7 @@ class SunohAudioHandler {
       // Pre-emptive URL refresh — only schedule for the active player,
       // since idle's role is purely the next-track holder during a ramp.
       if (identical(p, _active)) {
-        _urlRefresh.schedule(songId: song.id, resolvedUrl: url);
+        _urlRefresh.schedule(songId: song.id, resolvedUrl: resolved.url);
       }
     } catch (e) {
       debugPrint('[audio/$label] hook failed: $e');
@@ -798,13 +873,16 @@ class SunohAudioHandler {
     _urlRefresh.dispose();
     _crossfadeTimer?.cancel();
     _activePosSub?.cancel();
+    _activeDurSub?.cancel();
     _activePlayingSub?.cancel();
     for (final s in _subs) {
       await s.cancel();
     }
     await Future.wait([_a.dispose(), _b.dispose()]);
     await _positionCtl.close();
+    await _durationCtl.close();
     await _playingCtl.close();
     await _currentSongCtl.close();
+    await _enrichedCurrentSongCtl.close();
   }
 }
