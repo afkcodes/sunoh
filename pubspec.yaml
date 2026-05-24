@@ -67,6 +67,11 @@ dependencies:
   # better proportions for media buttons. Used ONLY for transport icons;
   # everything else stays on Solar.
   phosphor_flutter: ^2.1.0
+  # Used by the Settings → Support sunoh. card for the UPI deep link
+  # (upi://pay?pa=…) + the Buy Me A Coffee URL fallback. canLaunchUrl
+  # gracefully reports when no UPI app is installed so we can fall back
+  # to copying the VPA to the clipboard.
+  url_launcher: ^6.3.2
 
 dev_dependencies:
   flutter_test:

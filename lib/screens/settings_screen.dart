@@ -7,14 +7,22 @@
 // rows). Vertical whitespace + density.scale carry the rhythm.
 
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:solar_icons/solar_icons.dart';
+import 'package:url_launcher/url_launcher.dart';
 
 import '../providers/app_state_provider.dart';
 import '../state/app_state.dart';
 import '../theme/tokens.dart';
 import '../widgets/ui.dart';
+
+/// Where "Support sunoh." money goes. Hardcoded — there's only one user
+/// (the developer), so the values don't need to be configurable.
+const _kUpiVpa = 'afkcodes@ybl';
+const _kUpiName = 'Sunoh';
+const _kBuyMeCoffeeUrl = 'https://buymeacoffee.com/afkcodes';
 
 class SettingsScreen extends ConsumerWidget {
   const SettingsScreen({super.key});
@@ -32,7 +40,9 @@ class SettingsScreen extends ConsumerWidget {
         padding: EdgeInsets.fromLTRB(0, topInset + 12, 0, 140),
         children: [
           _Header(colors: c),
-          SizedBox(height: 32 * scale),
+          SizedBox(height: 24 * scale),
+          _DonationCard(colors: c, accent: s.resolvedAccent),
+          SizedBox(height: 28 * scale),
 
           _Section(
             label: 'PLAYBACK',
@@ -461,5 +471,127 @@ class _ToggleRow extends StatelessWidget {
         ),
       ],
     );
+  }
+}
+
+/// "Support sunoh." pinned card at the top of Settings. Primary tap fires
+/// a UPI deep link; the smaller right-side affordance opens Buy Me A
+/// Coffee in the system browser. Both fall back gracefully — UPI taps
+/// copy the VPA to the clipboard if no UPI app is installed.
+class _DonationCard extends ConsumerWidget {
+  const _DonationCard({required this.colors, required this.accent});
+  final SunohColors colors;
+  final Color accent;
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 20),
+      child: GestureDetector(
+        onTap: () => _payUpi(context, ref),
+        behavior: HitTestBehavior.opaque,
+        child: Container(
+          padding: const EdgeInsets.fromLTRB(16, 14, 12, 14),
+          decoration: squircleDecoration(
+            radius: 16,
+            gradient: LinearGradient(
+              colors: [
+                accent.withValues(alpha: 0.85),
+                accent.withValues(alpha: 0.32),
+              ],
+              begin: Alignment.topLeft,
+              end: Alignment.bottomRight,
+            ),
+          ),
+          child: Row(
+            children: [
+              // Heart medallion — circle on a slightly darker accent so
+              // the icon contrast holds against the gradient backdrop.
+              Container(
+                width: 38,
+                height: 38,
+                alignment: Alignment.center,
+                decoration: BoxDecoration(
+                  color: Colors.white.withValues(alpha: 0.18),
+                  shape: BoxShape.circle,
+                ),
+                child: const Icon(SolarIconsBold.heart,
+                    size: 18, color: Colors.white),
+              ),
+              const SizedBox(width: 14),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Text('Support sunoh.',
+                        style: SunohType.sans(
+                            fontSize: 14.5,
+                            fontWeight: FontWeight.w600,
+                            color: Colors.white,
+                            letterSpacing: -0.1)),
+                    const SizedBox(height: 3),
+                    Text('A heart goes a long way',
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: SunohType.sans(
+                            fontSize: 11.5,
+                            color: Colors.white.withValues(alpha: 0.75))),
+                  ],
+                ),
+              ),
+              // Secondary action — explicit BMC button for users who don't
+              // have UPI (international, iOS without a UPI app, etc.).
+              // Hit-area expanded via Material InkWell so it doesn't fight
+              // the parent GestureDetector for the same pixels.
+              IconButton(
+                onPressed: () => _openBmc(context, ref),
+                icon: const Icon(SolarIconsOutline.cupHot,
+                    size: 18, color: Colors.white),
+                tooltip: 'Open Buy Me A Coffee',
+                visualDensity: VisualDensity.compact,
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  Future<void> _payUpi(BuildContext context, WidgetRef ref) async {
+    final s = ref.read(appStateProvider);
+    final uri = Uri(
+      scheme: 'upi',
+      host: 'pay',
+      queryParameters: {
+        'pa': _kUpiVpa,
+        'pn': _kUpiName,
+        'cu': 'INR',
+      },
+    );
+    try {
+      final ok =
+          await canLaunchUrl(uri) && await launchUrl(uri);
+      if (!ok) {
+        // No UPI app — copy the VPA so the user can paste it manually
+        // into their bank's app.
+        await Clipboard.setData(const ClipboardData(text: _kUpiVpa));
+        s.flashToast('Copied $_kUpiVpa to clipboard');
+      }
+    } catch (_) {
+      await Clipboard.setData(const ClipboardData(text: _kUpiVpa));
+      s.flashToast('Copied $_kUpiVpa to clipboard');
+    }
+  }
+
+  Future<void> _openBmc(BuildContext context, WidgetRef ref) async {
+    final s = ref.read(appStateProvider);
+    final uri = Uri.parse(_kBuyMeCoffeeUrl);
+    try {
+      final ok = await launchUrl(uri, mode: LaunchMode.externalApplication);
+      if (!ok) s.flashToast('Couldn’t open browser');
+    } catch (_) {
+      s.flashToast('Couldn’t open browser');
+    }
   }
 }
