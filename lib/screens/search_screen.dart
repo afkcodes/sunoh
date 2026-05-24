@@ -185,17 +185,12 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
           },
         ),
         // ── Explore Categories grid — live occasions.
-        // Header gets a tighter bottom gap (8 vs the default 14) so the
-        // grid feels visually connected to its header instead of floating
-        // 22+ pixels below.
-        SectionHeader(
-          title: 'Explore Categories',
-          colors: c,
-          padding: const EdgeInsets.fromLTRB(20, 0, 20, 6),
-        ),
+        // Uses the default SectionHeader padding so the header→content gap
+        // matches the home-feed sections (Recently Played etc.).
+        SectionHeader(title: 'Explore Categories', colors: c),
         occasions.when(
           loading: () => Padding(
-            padding: const EdgeInsets.fromLTRB(20, 4, 20, 8),
+            padding: const EdgeInsets.fromLTRB(20, 0, 20, 8),
             child: Text('Loading categories…',
                 style: SunohType.sans(fontSize: 12, color: c.fgMute)),
           ),
