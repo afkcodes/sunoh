@@ -157,6 +157,17 @@ class SunohAudioHandler {
   int _crossfadeSec = 0;
   bool _userInitiatedSkip = false;
 
+  /// User-intent flag: did the user *want* to be playing right now? This is
+  /// NOT the same as `_active.state.playing` — at the moment of a load
+  /// error mpv reports `playing: false` even if the user just tapped play
+  /// (the file never loaded so mpv technically isn't playing). The URL
+  /// refresh path needs to know "should I resume after the swap?" and the
+  /// answer is the user's intent, not mpv's transient state.
+  ///
+  /// Set true by: setQueue / play / skipToNext / skipToPrevious / jumpTo /
+  /// _advanceTo(play:true). Set false by: pause / stop / prepareQueue.
+  bool _userPlaying = false;
+
   /// How long before the ramp window opens we pre-warm the idle player.
   /// Without a buffer, the idle player is still loading / demuxing / filling
   /// its audio buffer when the ramp starts — so for the first ~500 ms the
@@ -307,12 +318,14 @@ class SunohAudioHandler {
       debugPrint(
           '[audio] giving up on ${song.id} after $tries retries');
       _loadFailRetries.remove(song.id);
-      // Auto-skip ONLY when we were actually trying to play. Don't skip
-      // while paused — on app launch we pre-load the queue via
+      // Auto-skip ONLY when the user intended to play. Don't skip while
+      // paused — on app launch we pre-load the queue via
       // prepareQueue(play:false) for restore; if everything's stale we'd
       // otherwise burn through the whole queue silently before the user
-      // even hits play.
-      if (p.state.playing && _currentIndex + 1 < _queue.length) {
+      // even hits play. `_userPlaying` is the intent, NOT
+      // `_active.state.playing` (which reports false during load-error
+      // transitions even after the user just tapped play).
+      if (_userPlaying && _currentIndex + 1 < _queue.length) {
         _userInitiatedSkip = true; // suppress crossfade for forced skip
         unawaited(_advanceTo(_currentIndex + 1, play: true));
       }
@@ -512,13 +525,17 @@ class SunohAudioHandler {
     if (_currentIndex < 0 || _currentIndex >= _queue.length) return;
     final song = _queue[_currentIndex];
     final pos = _active.state.position;
-    final wasPlaying = _active.state.playing;
+    // Use the user-intent flag, NOT _active.state.playing — when a load
+    // error fires after the user just tapped play, mpv reports
+    // playing:false (file never loaded) and we'd reopen paused, forcing
+    // the user to tap play a second time on the freshly-resolved URL.
+    final shouldPlay = _userPlaying;
     debugPrint('[url-refresh] swap ${song.id} @ ${pos.inSeconds}s '
-        'playing=$wasPlaying');
+        'userPlaying=$shouldPlay');
     _pendingStartPosition = pos;
     _forceRefreshNextResolve = true;
     try {
-      await _active.open(Media(_placeholderFor(song)), play: wasPlaying);
+      await _active.open(Media(_placeholderFor(song)), play: shouldPlay);
     } catch (e) {
       debugPrint('[url-refresh] swap failed: $e');
       _pendingStartPosition = null;
@@ -538,6 +555,7 @@ class SunohAudioHandler {
     _currentIndex = startIndex.clamp(0, songs.length - 1);
     _loadFailRetries.clear();
     _cancelCrossfade(snapToActive: true);
+    _userPlaying = true;
     await _active.setVolume(100);
     await _idle.stop();
     await _active.open(Media(_placeholderFor(songs[_currentIndex])), play: true);
@@ -556,6 +574,7 @@ class SunohAudioHandler {
     _currentIndex = startIndex.clamp(0, songs.length - 1);
     _loadFailRetries.clear();
     _cancelCrossfade(snapToActive: true);
+    _userPlaying = false; // restore lands paused; user taps play to start
     _pendingStartPosition = seekTo;
     await _active.setVolume(100);
     await _idle.stop();
@@ -572,6 +591,7 @@ class SunohAudioHandler {
     _crossfadeKickedForCurrent = false;
     _idlePrewarmed = false;
     _currentIndex = newIndex;
+    if (play) _userPlaying = true;
     await _idle.stop();
     await _active.setVolume(100);
     await _active.open(Media(_placeholderFor(_queue[newIndex])), play: play);
@@ -579,12 +599,18 @@ class SunohAudioHandler {
   }
 
   Future<void> play() async {
+    _userPlaying = true;
     // Resume both — if we paused during a ramp, idle is also paused.
     if (_crossfadeInProgress) await _idle.play();
     await _active.play();
+    // Reset the retry counter so a previously-exhausted track gets fresh
+    // attempts on a deliberate user-initiated play. Otherwise the first
+    // load-error would skip immediately after the user just resumed.
+    _loadFailRetries.clear();
   }
 
   Future<void> pause() async {
+    _userPlaying = false;
     await _active.pause();
     if (_crossfadeInProgress) await _idle.pause();
   }
@@ -592,6 +618,7 @@ class SunohAudioHandler {
   Future<void> seek(Duration position) => _active.seek(position);
 
   Future<void> stop() async {
+    _userPlaying = false;
     _cancelCrossfade(snapToActive: true);
     await _active.stop();
     await _idle.stop();
