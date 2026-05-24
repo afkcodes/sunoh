@@ -21,6 +21,8 @@ import '../api/dto.dart';
 import '../screens/detail_screens.dart';
 import '../screens/home_screen.dart';
 import '../screens/library_screen.dart';
+import '../screens/liked_songs_screen.dart';
+import '../screens/recently_played_screen.dart';
 import '../screens/search_screen.dart';
 import '../screens/section_screen.dart';
 import '../screens/settings_screen.dart';
@@ -163,6 +165,14 @@ List<RouteBase> _detailRoutes() => [
         path: 'settings',
         pageBuilder: (c, s) => _slideRight(const SettingsScreen(), s),
       ),
+      GoRoute(
+        path: 'liked',
+        pageBuilder: (c, s) => _slideRight(const LikedSongsScreen(), s),
+      ),
+      GoRoute(
+        path: 'history',
+        pageBuilder: (c, s) => _slideRight(const RecentlyPlayedScreen(), s),
+      ),
     ];
 
 /// Scroll + safe-area padding for the non-scrolling tab screens (Column roots).
@@ -296,4 +306,7 @@ extension SunohNav on BuildContext {
   void openSettings() {
     push('$_branchPrefix/settings');
   }
+
+  void openLikedSongs() => push('$_branchPrefix/liked');
+  void openRecentlyPlayed() => push('$_branchPrefix/history');
 }

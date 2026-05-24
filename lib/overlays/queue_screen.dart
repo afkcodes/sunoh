@@ -168,7 +168,7 @@ class _ApiQueueBody extends StatelessWidget {
                   );
                 },
               ),
-            if (s.apiHistory.isNotEmpty)
+            if (s.playedHistory.isNotEmpty)
               SliverToBoxAdapter(
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
@@ -178,7 +178,7 @@ class _ApiQueueBody extends StatelessWidget {
                       child:
                           eyebrow('RECENTLY PLAYED', c.fgMute),
                     ),
-                    for (final h in s.apiHistory)
+                    for (final h in s.playedHistory.take(10))
                       Opacity(
                         opacity: 0.7,
                         child: _ApiHistoryRow(song: h, colors: c),

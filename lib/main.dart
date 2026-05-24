@@ -19,6 +19,7 @@ import 'api/stream_resolver.dart';
 import 'audio/audio_handler.dart';
 import 'audio/audio_repo.dart';
 import 'audio/audio_service_bridge.dart';
+import 'audio/library_store.dart';
 import 'audio/playback_state_store.dart';
 import 'audio/settings_store.dart';
 import 'router/router.dart';
@@ -131,6 +132,7 @@ Future<void> main() async {
     resolver: resolver,
     store: PlaybackStateStore(),
     settings: SettingsStore(),
+    library: LibraryStore(),
   );
   // ignore: avoid_print
   print('[audio] AudioRepo ready ✓ (Phase 1 — mpv only)');

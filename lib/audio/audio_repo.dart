@@ -14,6 +14,7 @@ import '../api/dto.dart';
 import '../api/stream_resolver.dart';
 import 'audio_handler.dart';
 import 'audio_service_bridge.dart';
+import 'library_store.dart';
 import 'playback_state_store.dart';
 import 'settings_store.dart';
 
@@ -23,6 +24,7 @@ class AudioRepo {
     required this.resolver,
     required this.store,
     required this.settings,
+    required this.library,
   }) {
     // Always-on track-change listener. Wired in the constructor (NOT in
     // attachBridge) so persistence works even when audio_service init fails
@@ -47,6 +49,7 @@ class AudioRepo {
   final StreamResolver resolver;
   final PlaybackStateStore store;
   final SettingsStore settings;
+  final LibraryStore library;
 
   /// The active queue, mirroring what the handler holds. Cached here so we
   /// can persist it without round-tripping through mpv's internal playlist.

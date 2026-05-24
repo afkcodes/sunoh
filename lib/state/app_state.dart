@@ -24,6 +24,28 @@ class AppState extends ChangeNotifier with WidgetsBindingObserver {
     _restoreSavedPlayback();
     _restoreSavedEq();
     _restoreSavedSettings();
+    _restoreLibrary();
+  }
+
+  /// Load liked songs + history from Hive at startup so the Library tab
+  /// renders the user's real state on first frame instead of an empty
+  /// shell that pops in once async finishes.
+  Future<void> _restoreLibrary() async {
+    final repo = audioRepo;
+    if (repo == null) return;
+    try {
+      final ids = await repo.library.loadLikedIds();
+      final songs = await repo.library.loadLikedSongs();
+      final history = await repo.library.loadHistory();
+      _likedIds = ids;
+      _likedSongs = songs;
+      _playedHistory = history;
+      notifyListeners();
+      debugPrint('[library] restored liked=${songs.length} '
+          'history=${history.length}');
+    } catch (e) {
+      debugPrint('[library] restore failed: $e');
+    }
   }
 
   /// Pulls the live palette accent for an artwork URL. Wired through the
@@ -127,9 +149,9 @@ class AppState extends ChangeNotifier with WidgetsBindingObserver {
   /// rich metadata. Otherwise null and `current` (dummy Track) is the source.
   FeedItem? currentApiSong;
 
-  /// History of recently-played API songs. Pushed on every track change.
-  /// Capped at 24 entries to keep memory bounded.
-  List<FeedItem> apiHistory = const [];
+  // Note: persisted played-history lives in `_playedHistory` (loaded from
+  // LibraryStore at startup, pushed on every track change). Use
+  // [playedHistory] for read access.
 
   /// Where the active API queue came from — e.g. 'PLAYLIST · Top Charts',
   /// 'ALBUM · Dhurandhar', 'TOP SONGS · Tanishk Bagchi'. Shown in the
@@ -172,9 +194,79 @@ class AppState extends ChangeNotifier with WidgetsBindingObserver {
   set position(int v) => positionTick.value = v;
 
   bool isPlaying = false;
+  // Legacy dummy-path liked map (kept so the dummy `playTrack` path keeps
+  // working). For real API songs, `_likedIds` / `_likedSongs` below is the
+  // source of truth.
   late Map<String, bool> liked;
   bool shuffle = false;
   LoopMode repeat = LoopMode.off;
+
+  // ── Library (persisted) ───────────────────────────────────────────────
+  // Loaded on construction from Hive; written through whenever the user
+  // toggles a heart or a new track auto-plays.
+  Set<String> _likedIds = const <String>{};
+  List<FeedItem> _likedSongs = const <FeedItem>[];
+  List<FeedItem> _playedHistory = const <FeedItem>[];
+
+  /// Full liked list — newest-first.
+  List<FeedItem> get likedSongs => _likedSongs;
+
+  /// Last-played API songs — newest-first, capped at LibraryStore's max.
+  List<FeedItem> get playedHistory => _playedHistory;
+
+  /// O(1) liked check by song id. Use for heart icons in lists.
+  bool isLikedId(String id) => _likedIds.contains(id);
+
+  /// True when the currently-playing API song is liked. Drives the heart
+  /// in the expanded + mini players.
+  bool get isLikedCurrentApi {
+    final id = currentApiSong?.id;
+    if (id == null) return likedCurrent; // dummy-path fallback
+    return _likedIds.contains(id);
+  }
+
+  /// Like / unlike an API song. Updates the in-memory cache, persists,
+  /// and notifies listeners. Idempotent (calling twice with the same
+  /// state is a no-op write).
+  Future<void> toggleLikedSong(FeedItem song) async {
+    final repo = audioRepo;
+    if (repo == null) return;
+    final wasLiked = _likedIds.contains(song.id);
+    final shouldLike = !wasLiked;
+    // Optimistic UI: update cache first so the heart fills instantly.
+    _likedIds = {..._likedIds};
+    if (shouldLike) {
+      _likedIds.add(song.id);
+      _likedSongs = [song, ..._likedSongs.where((s) => s.id != song.id)];
+    } else {
+      _likedIds.remove(song.id);
+      _likedSongs = _likedSongs.where((s) => s.id != song.id).toList();
+    }
+    flashToast(shouldLike ? 'Added to Liked' : 'Removed from Liked');
+    notifyListeners();
+    // Persist + reconcile with disk truth (in case of concurrent writes).
+    try {
+      final next = await repo.library.setLiked(song: song, liked: shouldLike);
+      _likedSongs = next;
+      _likedIds = next.map((s) => s.id).toSet();
+      notifyListeners();
+    } catch (e) {
+      debugPrint('[library] toggleLiked failed for ${song.id}: $e');
+    }
+  }
+
+  /// Clear the played-history list. Used by the Library tab's clear action.
+  Future<void> clearPlayedHistory() async {
+    final repo = audioRepo;
+    if (repo == null) return;
+    _playedHistory = const [];
+    notifyListeners();
+    try {
+      await repo.library.clearHistory();
+    } catch (e) {
+      debugPrint('[library] clearHistory failed: $e');
+    }
+  }
 
   // ── 10-band graphic EQ ────────────────────────────────────────────────
   // ISO frequencies matching RN's audio_x: 31, 63, 125, 250, 500, 1k, 2k,
@@ -258,16 +350,38 @@ class AppState extends ChangeNotifier with WidgetsBindingObserver {
     _audioSubs.add(handler.currentSongStream.listen((song) {
       if (song == null) return;
       if (currentApiSong?.id == song.id) return; // already in sync
-      // Push the previous song onto history before swapping.
+      // Push the previous song onto the persisted history before swapping
+      // (NOT the new one — history is "songs you finished listening to").
+      // The push fires fire-and-forget; on success it'll notifyListeners
+      // again with the updated list. We don't await — UI doesn't wait on
+      // Hive for the track-change animation.
       final prev = currentApiSong;
       if (prev != null) {
-        apiHistory = [prev, ...apiHistory.where((h) => h.id != prev.id)]
-            .take(24)
-            .toList();
+        unawaited(_pushPlayedHistory(prev));
       }
       _applySong(song);
       notifyListeners();
     }));
+  }
+
+  Future<void> _pushPlayedHistory(FeedItem song) async {
+    final repo = audioRepo;
+    if (repo == null) return;
+    // Optimistic update so the Library tab sees the entry immediately.
+    _playedHistory = [
+      song,
+      ..._playedHistory.where((s) => s.id != song.id),
+    ];
+    if (_playedHistory.length > 50) {
+      _playedHistory = _playedHistory.sublist(0, 50);
+    }
+    try {
+      final next = await repo.library.pushHistory(song);
+      _playedHistory = next;
+      notifyListeners();
+    } catch (e) {
+      debugPrint('[library] pushHistory failed: $e');
+    }
   }
 
   // ── Background position restore ───────────────────────────────────────

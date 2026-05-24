@@ -264,12 +264,20 @@ class _ExpandedPlayerState extends ConsumerState<ExpandedPlayer>
                 Padding(
                   padding: const EdgeInsets.only(top: 4),
                   child: IconBtn(
-                      icon: s.likedCurrent
+                      icon: s.isLikedCurrentApi
                           ? SolarIconsBold.heart
                           : SolarIconsOutline.heart,
-                      color: s.likedCurrent ? accent : c.fgDim,
+                      color: s.isLikedCurrentApi ? accent : c.fgDim,
                       size: 26,
-                      onTap: s.toggleLike),
+                      onTap: () {
+                        final song = s.currentApiSong;
+                        if (song != null) {
+                          s.toggleLikedSong(song);
+                        } else {
+                          // Dummy-path fallback (radio stations etc.)
+                          s.toggleLike();
+                        }
+                      }),
                 ),
               ],
             ),

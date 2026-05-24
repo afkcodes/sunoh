@@ -334,10 +334,12 @@ class _ApiTrackRow extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final c = colors;
-    final scale = ref.watch(appStateProvider).density.scale;
+    final s = ref.watch(appStateProvider);
+    final scale = s.density.scale;
+    final liked = s.isLikedId(song.id);
     final artistsLabel = (song.artists ?? const <ApiArtistRef>[])
         .map((a) => a.name.trim())
-        .where((s) => s.isNotEmpty)
+        .where((sa) => sa.isNotEmpty)
         .take(2)
         .join(', ');
     final durationLabel = _formatDuration(song.duration);
@@ -385,6 +387,13 @@ class _ApiTrackRow extends ConsumerWidget {
               Text(durationLabel,
                   style: SunohType.mono(fontSize: 11, color: c.fgMute)),
             ],
+            IconBtn(
+                icon: liked ? SolarIconsBold.heart : SolarIconsOutline.heart,
+                color: liked ? accent : c.fgMute,
+                size: 16,
+                width: 32,
+                height: 32,
+                onTap: () => s.toggleLikedSong(song)),
             IconBtn(
                 icon: SolarIconsBold.menuDots,
                 color: c.fgMute,
