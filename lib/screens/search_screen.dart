@@ -126,16 +126,16 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
           ),
         ),
         Padding(
-          padding: const EdgeInsets.fromLTRB(20, 14, 20, 8),
+          padding: const EdgeInsets.fromLTRB(20, 16, 20, 10),
           child: Container(
-            height: 42,
-            padding: const EdgeInsets.symmetric(horizontal: 14),
+            height: 52,
+            padding: const EdgeInsets.symmetric(horizontal: 16),
             decoration: squircleDecoration(
-                radius: 12, color: c.surface, borderColor: c.line),
+                radius: 18, color: c.surface, borderColor: c.line),
             child: Row(
               children: [
-                Icon(SolarIconsOutline.magnifier, size: 17, color: c.fgMute),
-                const SizedBox(width: 10),
+                Icon(SolarIconsOutline.magnifier, size: 19, color: c.fgMute),
+                const SizedBox(width: 12),
                 Expanded(
                   child: TextField(
                     controller: controller,
@@ -146,13 +146,13 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
                     },
                     cursorColor: c.accent,
                     textInputAction: TextInputAction.search,
-                    style: SunohType.sans(fontSize: 14, color: c.fg),
+                    style: SunohType.sans(fontSize: 15.5, color: c.fg),
                     decoration: InputDecoration(
                       isCollapsed: true,
                       border: InputBorder.none,
                       hintText: 'Artists, songs, podcasts, stations…',
                       hintStyle:
-                          SunohType.sans(fontSize: 14, color: c.fgMute),
+                          SunohType.sans(fontSize: 15, color: c.fgMute),
                     ),
                   ),
                 ),
@@ -160,14 +160,14 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
                   GestureDetector(
                     onTap: _clear,
                     child: Container(
-                      width: 22,
-                      height: 22,
+                      width: 26,
+                      height: 26,
                       decoration: BoxDecoration(
                         color: Colors.white.withValues(alpha: 0.08),
                         shape: BoxShape.circle,
                       ),
                       child: Icon(SolarIconsOutline.closeCircle,
-                          size: 12, color: c.fg),
+                          size: 14, color: c.fg),
                     ),
                   ),
               ],
