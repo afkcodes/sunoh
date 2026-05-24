@@ -1,0 +1,760 @@
+// Central app state — tweaks, navigation, and the player state machine.
+// Ported from the prototype's App() in app.jsx.
+
+import 'dart:async';
+import 'package:flutter/material.dart';
+
+import '../api/dto.dart';
+import '../audio/audio_repo.dart';
+import '../audio/eq_presets.dart';
+import '../data/catalog.dart';
+import '../data/models.dart';
+import '../theme/tokens.dart';
+import '../widgets/album_art.dart';
+
+enum LoopMode { off, all, one }
+
+class AppState extends ChangeNotifier with WidgetsBindingObserver {
+  AppState({this.audioRepo, this.palettize}) {
+    current = kTracks[0];
+    queue = kTracks.sublist(1, 6);
+    liked = {kTracks[0].id: true};
+    WidgetsBinding.instance.addObserver(this);
+    _bindAudio();
+    _restoreSavedPlayback();
+    _restoreSavedEq();
+    _restoreSavedSettings();
+  }
+
+  /// Pulls the live palette accent for an artwork URL. Wired through the
+  /// Riverpod provider in app_state_provider.dart so AppState stays Riverpod-
+  /// agnostic. Null when no provider is wired (tests).
+  final Future<Color?> Function(String url)? palettize;
+
+  /// Cached accent extracted from the current artwork. Updated whenever the
+  /// playing track changes; null while a palette is in flight or extraction
+  /// failed. Used by `colors` when `tintFromArt` is on.
+  Color? _extractedAccent;
+  String? _extractedForUrl;
+
+  /// Pull last-saved appearance + playback settings from Hive. Runs at
+  /// startup so the user's accent, density, tint-from-art, and stream
+  /// quality survive kill/reopen.
+  Future<void> _restoreSavedSettings() async {
+    final repo = audioRepo;
+    if (repo == null) return;
+    try {
+      final app = await repo.settings.loadAppearance();
+      if (app != null) {
+        if (app.accentValue != null) {
+          accent = Color(app.accentValue!);
+        }
+        if (app.density != null) {
+          density = Density.values.firstWhere(
+            (d) => d.name == app.density,
+            orElse: () => Density.regular,
+          );
+        }
+        if (app.tintFromArt != null) tintFromArt = app.tintFromArt!;
+        if (app.tintIntensity != null) {
+          tintIntensity = app.tintIntensity!.clamp(0.0, 1.0);
+        }
+      }
+      final play = await repo.settings.loadPlayback();
+      if (play != null) {
+        if (play.streamQuality != null) {
+          streamQuality = play.streamQuality!;
+          repo.resolver.setQualityFromString(streamQuality);
+        }
+        if (play.crossfadeSec != null) {
+          crossfadeSec = play.crossfadeSec!;
+          repo.handler.setCrossfade(crossfadeSec);
+        }
+      }
+      notifyListeners();
+    } catch (e) {
+      debugPrint('[settings] restore failed: $e');
+    }
+  }
+
+  /// Pull the last-saved EQ state from Hive and apply it to mpv. Runs on
+  /// AppState construction so playback starts with the user's preset
+  /// without them having to re-apply on each launch.
+  Future<void> _restoreSavedEq() async {
+    final repo = audioRepo;
+    if (repo == null) return;
+    try {
+      final saved = await repo.settings.loadEq();
+      if (saved == null) return;
+      eqBands = List<double>.from(saved.bands);
+      currentEqPresetId = saved.presetId;
+      await repo.handler.setEqBands(eqBands);
+      notifyListeners();
+    } catch (e) {
+      debugPrint('[audio] eq restore failed: $e');
+    }
+  }
+
+  /// Pull the last-played queue/track/position from disk and surface it in
+  /// the UI (mini player, expanded player). mpv is also pre-loaded so when
+  /// the user hits play, it resumes from where they left off.
+  Future<void> _restoreSavedPlayback() async {
+    final repo = audioRepo;
+    if (repo == null) return;
+    try {
+      final saved = await repo.restore();
+      if (saved == null) return;
+      final song = saved.queue[saved.currentIndex];
+      apiSourceLabel = saved.sourceLabel;
+      _applySong(song);
+      position = saved.positionSec;
+      // Engine is loaded but paused — UI shows "ready to play".
+      isPlaying = false;
+      notifyListeners();
+      debugPrint('[audio] restored "${song.title}" @ ${saved.positionSec}s');
+    } catch (e) {
+      debugPrint('[audio] restore failed: $e');
+    }
+  }
+
+  /// Real audio engine. Null only when audio is intentionally disabled
+  /// (tests, headless contexts).
+  final AudioRepo? audioRepo;
+  final List<StreamSubscription<dynamic>> _audioSubs = [];
+
+  /// When playback is driven by the real audio engine (i.e. a tapped
+  /// FeedItem song), this holds the FeedItem so the player UI can display
+  /// rich metadata. Otherwise null and `current` (dummy Track) is the source.
+  FeedItem? currentApiSong;
+
+  /// History of recently-played API songs. Pushed on every track change.
+  /// Capped at 24 entries to keep memory bounded.
+  List<FeedItem> apiHistory = const [];
+
+  /// Where the active API queue came from — e.g. 'PLAYLIST · Top Charts',
+  /// 'ALBUM · Dhurandhar', 'TOP SONGS · Tanishk Bagchi'. Shown in the
+  /// expanded player header. Null when we're on the dummy path or after
+  /// a restore where we never knew (legacy save).
+  String? apiSourceLabel;
+
+  // ── Settings (persisted via SettingsStore) ────────────────────────────
+  Color accent = kAccentOptions[0];
+  Density density = Density.regular;
+  bool tintFromArt = false;
+
+  /// How strongly the extracted artwork color overrides the user's accent
+  /// when `tintFromArt` is on. 0.0 = always user accent, 1.0 = pure
+  /// artwork. Default 0.7 — keeps user identity readable while letting the
+  /// art tint the UI.
+  double tintIntensity = 0.7;
+
+  /// Stream quality preference. 'auto' picks the highest playable; 'high'
+  /// forces 320/high; 'data' caps at 96kbps / low for cell-data savings.
+  String streamQuality = 'auto';
+
+  /// Crossfade between tracks in seconds (0 disables). mpv wiring TBD.
+  int crossfadeSec = 0;
+
+  // ── Navigation ────────────────────────────────────────────────────────
+  // Route navigation is owned by go_router now; AppState only keeps the
+  // home top-tab selection (Music | Radio | Podcasts).
+  String topTab = 'Music';
+
+  // ── Player ────────────────────────────────────────────────────────────
+  late Track current;
+  late List<Track> queue;
+  List<Track> history = [];
+
+  // The playback clock lives in its own notifier so the 1 Hz tick rebuilds
+  // only the scrubber / time / lyrics widgets — not the whole screen tree.
+  final ValueNotifier<int> positionTick = ValueNotifier<int>(48);
+  int get position => positionTick.value;
+  set position(int v) => positionTick.value = v;
+
+  bool isPlaying = false;
+  late Map<String, bool> liked;
+  bool shuffle = false;
+  LoopMode repeat = LoopMode.off;
+
+  // ── 10-band graphic EQ ────────────────────────────────────────────────
+  // ISO frequencies matching RN's audio_x: 31, 63, 125, 250, 500, 1k, 2k,
+  // 4k, 8k, 16k Hz. Gains in dB, clamped to -12..+12. Preset id (when one
+  // is active) is tracked separately so the UI can highlight it and clear
+  // on manual edit.
+  static const eqFrequencies = ['31', '63', '125', '250', '500', '1k', '2k', '4k', '8k', '16k'];
+  List<double> eqBands = List<double>.filled(10, 0);
+  String? currentEqPresetId = 'flat';
+
+  // ── Toast ─────────────────────────────────────────────────────────────
+  String toast = '';
+  Timer? _toastTimer;
+
+  Timer? _tick;
+
+  // ── Derived ───────────────────────────────────────────────────────────
+
+  /// Resolved accent — when tint-from-art is on, lerps the user accent
+  /// toward the artwork's extracted color by `tintIntensity`. Falls back
+  /// to the deterministic hash placeholder while palette is in flight.
+  Color get resolvedAccent {
+    if (!tintFromArt) return accent;
+    final extracted = _extractedAccent ?? artAccent(current.id);
+    return Color.lerp(accent, extracted, tintIntensity.clamp(0.0, 1.0))!;
+  }
+
+  bool get likedCurrent => liked[current.id] ?? false;
+
+  SunohColors get colors {
+    final tint = tintFromArt ? resolvedAccent : null;
+    return SunohColors.resolve(accent: resolvedAccent, tintAccent: tint);
+  }
+
+  // ── Playback timer ────────────────────────────────────────────────────
+  // The simulated clock only runs for dummy tracks (radio stations, podcasts
+  // — the catalog-backed paths). Real audio (FeedItem songs played through
+  // audioRepo) drives positionTick from the engine's position stream below.
+  void _ensureTimer() {
+    _tick?.cancel();
+    if (!isPlaying || currentApiSong != null) return;
+    _tick = Timer.periodic(const Duration(seconds: 1), (_) {
+      if (position + 1 >= current.duration) {
+        next();
+      } else {
+        // Only bumps positionTick — does NOT notify the whole tree.
+        position += 1;
+      }
+    });
+  }
+
+  // ── Real audio plumbing ───────────────────────────────────────────────
+  void _bindAudio() {
+    final repo = audioRepo;
+    if (repo == null) return;
+    final handler = repo.handler;
+
+    // Position → positionTick (the scrubber + lyrics already watch this).
+    // Also persists position to disk roughly every 5 seconds so a crash
+    // doesn't lose more than that.
+    int lastPersistedSec = 0;
+    _audioSubs.add(handler.positionStream.listen((pos) {
+      if (currentApiSong == null) return; // dummy clock still owns the tick
+      final secs = pos.inSeconds;
+      if (secs != position) position = secs;
+      if ((secs - lastPersistedSec).abs() >= 5) {
+        lastPersistedSec = secs;
+        audioRepo?.persistCurrentPosition();
+      }
+    }));
+    // Playing flag → isPlaying.
+    _audioSubs.add(handler.playingStream.listen((playing) {
+      if (currentApiSong == null) return;
+      if (playing != isPlaying) {
+        isPlaying = playing;
+        notifyListeners();
+      }
+    }));
+    // Track change → currentApiSong + Track stub. Fires when mpv advances
+    // (next button, queue auto-advance, headset/notification skip).
+    _audioSubs.add(handler.currentSongStream.listen((song) {
+      if (song == null) return;
+      if (currentApiSong?.id == song.id) return; // already in sync
+      // Push the previous song onto history before swapping.
+      final prev = currentApiSong;
+      if (prev != null) {
+        apiHistory = [prev, ...apiHistory.where((h) => h.id != prev.id)]
+            .take(24)
+            .toList();
+      }
+      _applySong(song);
+      notifyListeners();
+    }));
+  }
+
+  // ── Background position restore ───────────────────────────────────────
+  // On Android, when the app goes background for a long time the OS can
+  // restart the audio_service / mpv process. Mpv state comes back at
+  // position 0 even though the same track is loaded. Save where we were
+  // on pause and seek back if the engine has reset.
+  String? _savedTrackId;
+  int _savedPositionSec = 0;
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    super.didChangeAppLifecycleState(state);
+    if (audioRepo == null || currentApiSong == null) return;
+    if (state == AppLifecycleState.paused ||
+        state == AppLifecycleState.inactive) {
+      // In-memory snapshot for same-session OS resets.
+      _savedTrackId = currentApiSong!.id;
+      _savedPositionSec = position;
+      // Persist to disk so a kill+relaunch comes back to the same spot.
+      audioRepo!.persistAll();
+      debugPrint(
+          '[audio] lifecycle paused — saved $_savedTrackId@${_savedPositionSec}s');
+    } else if (state == AppLifecycleState.resumed) {
+      _maybeRestorePosition();
+    }
+  }
+
+  void _maybeRestorePosition() {
+    final saved = _savedTrackId;
+    if (saved == null || _savedPositionSec <= 1) return;
+    // Wait a beat — mpv may still be settling after the OS handed control back.
+    Future<void>.delayed(const Duration(milliseconds: 600), () {
+      if (currentApiSong?.id != saved) return; // user switched tracks
+      final enginePos = audioRepo?.handler.position.inSeconds ?? 0;
+      if (enginePos < 2 && _savedPositionSec > 2) {
+        debugPrint(
+            '[audio] lifecycle resumed — engine at ${enginePos}s, restoring to ${_savedPositionSec}s');
+        audioRepo?.seek(Duration(seconds: _savedPositionSec));
+      }
+      _savedTrackId = null;
+      _savedPositionSec = 0;
+    });
+  }
+
+  /// Mirror a FeedItem into the legacy Track stub the player UI reads from.
+  void _applySong(FeedItem song) {
+    currentApiSong = song;
+    final artistLabel = (song.artists ?? const <ApiArtistRef>[])
+        .map((a) => a.name)
+        .where((n) => n.isNotEmpty)
+        .take(2)
+        .join(', ');
+    final durSec = int.tryParse(song.duration ?? '') ?? 180;
+    current = Track(
+      id: song.id,
+      title: song.title,
+      artist: artistLabel.isEmpty ? 'Unknown artist' : artistLabel,
+      album: '',
+      duration: durSec,
+      plays: song.playCount ?? '',
+    );
+    position = 0;
+    _refreshExtractedAccent(song.artwork);
+  }
+
+  /// Kick off palette extraction for the given URL. When it lands, the
+  /// cached `_extractedAccent` updates and we notify so any palette-aware
+  /// UI rebuilds. Cheap to call repeatedly — palette_provider caches per
+  /// URL for 30 minutes.
+  ///
+  /// On track change we **clear `_extractedAccent` immediately** so the UI
+  /// doesn't keep painting with the previous track's palette during the
+  /// short async window before the new palette lands. Two-phase update:
+  ///   1. Clear → notify (UI snaps to the user's accent fallback).
+  ///   2. Palette resolves → set + notify (UI transitions to the new tint).
+  Future<void> _refreshExtractedAccent(String? url) async {
+    final p = palettize;
+    final previousAccent = _extractedAccent;
+    final previousUrl = _extractedForUrl;
+    // No-op when the URL hasn't actually changed (e.g. repeat-one).
+    if (url == previousUrl && previousAccent != null) return;
+
+    // Phase 1: forget the old palette right now.
+    _extractedForUrl = url;
+    _extractedAccent = null;
+    if (previousAccent != null && tintFromArt) notifyListeners();
+
+    if (p == null || url == null || url.isEmpty) {
+      debugPrint('[palette] skip — '
+          'palettize=${p == null ? 'null' : 'set'} url="${url ?? ''}"');
+      return;
+    }
+
+    try {
+      final color = await p(url);
+      // Bail if a newer track took over while we were waiting.
+      if (_extractedForUrl != url) {
+        debugPrint('[palette] discard stale result for $url');
+        return;
+      }
+      _extractedAccent = color;
+      debugPrint('[palette] resolved ${color ?? 'null'} for $url '
+          '(tintFromArt=$tintFromArt)');
+      if (tintFromArt) notifyListeners();
+    } catch (e) {
+      debugPrint('[palette] extraction failed for $url: $e');
+    }
+  }
+
+  /// Play a single song. Equivalent to [playApiQueue] with a one-element list.
+  Future<void> playApiSong(FeedItem song, {String? sourceLabel}) =>
+      playApiQueue([song], 0, sourceLabel: sourceLabel);
+
+  /// Play a queue of songs starting at [startIndex]. Optimistically updates
+  /// the UI to the starting song, then hands the rest to the engine.
+  ///
+  /// [sourceLabel] is what the player header displays as "PLAYING FROM"
+  /// (e.g. 'PLAYLIST · Top Charts'). Null defaults to 'Library'.
+  Future<void> playApiQueue(
+    List<FeedItem> songs,
+    int startIndex, {
+    String? sourceLabel,
+  }) async {
+    if (songs.isEmpty) return;
+    final startSong = songs[startIndex.clamp(0, songs.length - 1)];
+    debugPrint('[audio] playApiQueue len=${songs.length} idx=$startIndex '
+        '→ "${startSong.title}"');
+    apiSourceLabel = sourceLabel;
+    _applySong(startSong);
+    isPlaying = true;
+    _tick?.cancel();
+    notifyListeners();
+
+    final repo = audioRepo;
+    if (repo == null) {
+      flashToast('Audio engine unavailable');
+      isPlaying = false;
+      notifyListeners();
+      return;
+    }
+    try {
+      await repo.playQueue(songs, startIndex, sourceLabel: sourceLabel);
+    } catch (e) {
+      flashToast('Could not play: $e');
+      isPlaying = false;
+      notifyListeners();
+    }
+  }
+
+  // ── Settings setters (each fires + persists via SettingsStore) ────────
+  void setAccent(Color v) {
+    accent = v;
+    _persistAppearance();
+    notifyListeners();
+  }
+
+  void setDensity(Density v) {
+    density = v;
+    _persistAppearance();
+    notifyListeners();
+  }
+
+  void setTintFromArt(bool v) {
+    tintFromArt = v;
+    _persistAppearance();
+    // Make sure the live artwork color is ready when the toggle flips on.
+    if (v && _extractedAccent == null) {
+      _refreshExtractedAccent(currentApiSong?.artwork);
+    }
+    notifyListeners();
+  }
+
+  void setTintIntensity(double v) {
+    tintIntensity = v.clamp(0.0, 1.0);
+    _persistAppearance();
+    notifyListeners();
+  }
+
+  void setStreamQuality(String v) {
+    streamQuality = v;
+    audioRepo?.resolver.setQualityFromString(v);
+    _persistPlayback();
+    notifyListeners();
+  }
+
+  void setCrossfadeSec(int v) {
+    crossfadeSec = v.clamp(0, 12);
+    audioRepo?.handler.setCrossfade(crossfadeSec);
+    _persistPlayback();
+    notifyListeners();
+  }
+
+  void _persistAppearance() {
+    audioRepo?.settings.saveAppearance(
+      accent: accent,
+      density: density,
+      tintFromArt: tintFromArt,
+      tintIntensity: tintIntensity,
+    );
+  }
+
+  void _persistPlayback() {
+    audioRepo?.settings.savePlayback(
+      streamQuality: streamQuality,
+      crossfadeSec: crossfadeSec,
+    );
+  }
+
+  // ── EQ setters ────────────────────────────────────────────────────────
+  void setEqBand(int index, double db) {
+    if (index < 0 || index >= eqBands.length) return;
+    eqBands = [...eqBands]..[index] = db.clamp(-12.0, 12.0);
+    currentEqPresetId = null; // manual tweak → presets deselect
+    audioRepo?.handler.setEqBands(eqBands);
+    _persistEq();
+    notifyListeners();
+  }
+
+  void applyEqPreset(EqPreset preset) {
+    eqBands = preset.gains.map((g) => g.toDouble()).toList();
+    currentEqPresetId = preset.id;
+    audioRepo?.handler.setEqBands(eqBands);
+    _persistEq();
+    notifyListeners();
+  }
+
+  void resetEq() {
+    eqBands = List<double>.filled(10, 0);
+    currentEqPresetId = 'flat';
+    audioRepo?.handler.setEqBands(eqBands);
+    _persistEq();
+    notifyListeners();
+  }
+
+  void _persistEq() {
+    final repo = audioRepo;
+    if (repo == null) return;
+    // Fire and forget — Hive writes are fast enough that we don't gate
+    // anything on completion. Errors are logged inside the store.
+    repo.settings.saveEq(bands: eqBands, presetId: currentEqPresetId);
+  }
+
+  bool get eqActive => eqBands.any((g) => g.abs() > 0.001);
+
+  // ── Toast ─────────────────────────────────────────────────────────────
+  void flashToast(String m) {
+    toast = m;
+    _toastTimer?.cancel();
+    _toastTimer = Timer(const Duration(milliseconds: 2700), () {
+      toast = '';
+      notifyListeners();
+    });
+    notifyListeners();
+  }
+
+  // ── Player actions ────────────────────────────────────────────────────
+  void playTrack(Track track, [List<Track>? contextTracks]) {
+    if (current.id != track.id) {
+      history = [current, ...history].take(24).toList();
+    }
+    current = track;
+    position = 0;
+    isPlaying = true;
+    if (contextTracks != null) {
+      final idx = contextTracks.indexWhere((x) => x.id == track.id);
+      if (idx >= 0) queue = contextTracks.sublist(idx + 1);
+    }
+    _ensureTimer();
+    notifyListeners();
+  }
+
+  void playAll(List<Track> tracks) {
+    if (tracks.isEmpty) return;
+    playTrack(tracks.first, tracks);
+  }
+
+  void playPause() {
+    isPlaying = !isPlaying;
+    if (currentApiSong != null && audioRepo != null) {
+      if (isPlaying) {
+        audioRepo!.play();
+      } else {
+        audioRepo!.pause();
+      }
+    } else {
+      _ensureTimer();
+    }
+    notifyListeners();
+  }
+
+  void next() {
+    // Real engine queue: forward to mpv. The currentSongStream listener
+    // updates UI when mpv advances.
+    if (currentApiSong != null && audioRepo != null) {
+      audioRepo!.next();
+      return;
+    }
+    if (queue.isEmpty) {
+      isPlaying = false;
+      position = 0;
+      _ensureTimer();
+      notifyListeners();
+      return;
+    }
+    final n = queue.first;
+    history = [current, ...history].take(24).toList();
+    current = n;
+    queue = queue.sublist(1);
+    position = 0;
+    _ensureTimer();
+    notifyListeners();
+  }
+
+  void prev() {
+    if (currentApiSong != null && audioRepo != null) {
+      // Match the legacy behavior: if we're a few seconds in, restart the
+      // current track instead of jumping back.
+      if (position > 4) {
+        audioRepo!.seek(Duration.zero);
+        position = 0;
+        notifyListeners();
+        return;
+      }
+      audioRepo!.previous();
+      return;
+    }
+    if (position > 4) {
+      position = 0;
+      notifyListeners();
+      return;
+    }
+    if (history.isEmpty) {
+      position = 0;
+      notifyListeners();
+      return;
+    }
+    final last = history.first;
+    queue = [current, ...queue];
+    current = last;
+    history = history.sublist(1);
+    position = 0;
+    notifyListeners();
+  }
+
+  void seek(int v) {
+    position = v.clamp(0, current.duration);
+    if (currentApiSong != null && audioRepo != null) {
+      audioRepo!.seek(Duration(seconds: position));
+    }
+    notifyListeners();
+  }
+
+  void toggleLike() {
+    final was = liked[current.id] ?? false;
+    liked = {...liked, current.id: !was};
+    flashToast(was ? 'Removed from Liked' : 'Added to Liked');
+  }
+
+  void addToQueue(Track track) {
+    queue = [...queue, track];
+    flashToast('Queued ‘${track.title}’');
+  }
+
+  void toggleShuffle() {
+    shuffle = !shuffle;
+    notifyListeners();
+  }
+
+  void cycleRepeat() {
+    repeat = switch (repeat) {
+      LoopMode.off => LoopMode.all,
+      LoopMode.all => LoopMode.one,
+      LoopMode.one => LoopMode.off,
+    };
+    notifyListeners();
+  }
+
+  void jumpQueue(int i) {
+    final newCur = queue[i];
+    final before = queue.sublist(0, i);
+    final after = queue.sublist(i + 1);
+    history = [current, ...before.reversed, ...history].take(24).toList();
+    queue = after;
+    current = newCur;
+    position = 0;
+    isPlaying = true;
+    _ensureTimer();
+    notifyListeners();
+  }
+
+  void removeFromQueue(int i) {
+    queue = [
+      for (var k = 0; k < queue.length; k++)
+        if (k != i) queue[k]
+    ];
+    notifyListeners();
+  }
+
+  void reorderQueue(int oldIndex, int newIndex) {
+    final list = [...queue];
+    if (newIndex > oldIndex) newIndex -= 1;
+    final item = list.removeAt(oldIndex);
+    list.insert(newIndex, item);
+    queue = list;
+    notifyListeners();
+  }
+
+  // ── API-queue ops (used by queue sheet when in API playback mode) ─────
+
+  /// Songs in the engine queue AFTER the currently-playing one — what the
+  /// queue sheet renders as "Next up". Each index here maps to engine index
+  /// `currentIndex + 1 + i`.
+  List<FeedItem> get apiUpNext {
+    final repo = audioRepo;
+    if (repo == null) return const [];
+    final q = repo.queue;
+    final idx = repo.currentIndex;
+    if (q.isEmpty || idx + 1 >= q.length) return const [];
+    return q.sublist(idx + 1);
+  }
+
+  Future<void> apiJumpToUpNext(int upNextIndex) async {
+    final repo = audioRepo;
+    if (repo == null) return;
+    final target = repo.currentIndex + 1 + upNextIndex;
+    await repo.jumpToIndex(target);
+  }
+
+  Future<void> apiRemoveFromUpNext(int upNextIndex) async {
+    final repo = audioRepo;
+    if (repo == null) return;
+    final target = repo.currentIndex + 1 + upNextIndex;
+    await repo.removeFromQueue(target);
+    notifyListeners();
+  }
+
+  Future<void> apiReorderUpNext(int oldIndex, int newIndex) async {
+    final repo = audioRepo;
+    if (repo == null) return;
+    // ReorderableList's convention: newIndex is the slot where the item is
+    // dropped, computed BEFORE removing oldIndex. Adjust for that quirk.
+    var adjusted = newIndex;
+    if (newIndex > oldIndex) adjusted -= 1;
+    final base = repo.currentIndex + 1;
+    await repo.moveInQueue(base + oldIndex, base + adjusted);
+    notifyListeners();
+  }
+
+  Future<void> apiClearUpNext() async {
+    final repo = audioRepo;
+    if (repo == null) return;
+    // We remove from the tail forward so the current track keeps playing.
+    final base = repo.currentIndex + 1;
+    while (repo.queue.length > base) {
+      await repo.removeFromQueue(repo.queue.length - 1);
+    }
+    notifyListeners();
+  }
+
+  // Tune a radio station — synthesizes a "live" track and starts playback.
+  void playStation(String id) {
+    final s = stationOf(id);
+    playTrack(Track(
+      id: id,
+      title: s?.live ?? 'Live',
+      artist: s?.name ?? 'Radio',
+      duration: 6000,
+      plays: 'live',
+      album: id,
+    ));
+  }
+
+  void setTopTab(String t) {
+    topTab = t;
+    notifyListeners();
+  }
+
+  @override
+  void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
+    _tick?.cancel();
+    _toastTimer?.cancel();
+    for (final s in _audioSubs) {
+      s.cancel();
+    }
+    positionTick.dispose();
+    super.dispose();
+  }
+}
