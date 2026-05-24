@@ -1,12 +1,16 @@
-// Search — input, recent queries, genre tiles, live filtered results.
+// Search — input + debounced live results from /music/search?type=all.
+// Browse view (recent + genre tiles) takes over when the query is empty.
+
+import 'dart:async';
 
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:solar_icons/solar_icons.dart';
 
-import '../data/catalog.dart';
+import '../api/dto.dart';
 import '../data/models.dart';
 import '../providers/app_state_provider.dart';
+import '../providers/search_provider.dart';
 import '../router/router.dart';
 import '../state/app_state.dart';
 import '../theme/tokens.dart';
@@ -37,6 +41,11 @@ const _recentSearches = [
   'Niamh Calder', 'After Hours', 'OKO', 'Tideline FM', 'Long Form, Slowly',
 ];
 
+/// Debounce window between the user typing and us actually firing the
+/// `/music/search` request. 280 ms feels responsive for mobile typing
+/// without spamming the API on every keystroke.
+const _kDebounce = Duration(milliseconds: 280);
+
 class SearchScreen extends ConsumerStatefulWidget {
   const SearchScreen({super.key});
   @override
@@ -46,33 +55,56 @@ class SearchScreen extends ConsumerStatefulWidget {
 class _SearchScreenState extends ConsumerState<SearchScreen> {
   final controller = TextEditingController();
   String q = '';
+  // The debounced query — what we actually feed `searchProvider`. Empty
+  // string means "don't search yet" (browse view stays up).
+  String _activeQuery = '';
+  Timer? _debounce;
 
   @override
   void dispose() {
+    _debounce?.cancel();
     controller.dispose();
     super.dispose();
   }
 
+  void _onChanged(String v) {
+    setState(() => q = v);
+    _debounce?.cancel();
+    final trimmed = v.trim();
+    if (trimmed.isEmpty) {
+      if (_activeQuery.isNotEmpty) setState(() => _activeQuery = '');
+      return;
+    }
+    _debounce = Timer(_kDebounce, () {
+      if (!mounted) return;
+      if (trimmed == _activeQuery) return;
+      setState(() => _activeQuery = trimmed);
+    });
+  }
+
+  void _clear() {
+    _debounce?.cancel();
+    controller.clear();
+    setState(() {
+      q = '';
+      _activeQuery = '';
+    });
+  }
+
+  void _pickRecent(String r) {
+    _debounce?.cancel();
+    controller.text = r;
+    setState(() {
+      q = r;
+      _activeQuery = r.trim();
+    });
+  }
+
   @override
   Widget build(BuildContext context) {
-    final s = ref.read(appStateProvider);
+    final s = ref.watch(appStateProvider);
     final c = s.colors;
-    final trimmed = q.trim().toLowerCase();
-    final hasQuery = trimmed.isNotEmpty;
-    bool match(String? str) => str != null && str.toLowerCase().contains(trimmed);
-
-    final tracks = hasQuery
-        ? kTracks.where((t) => match(t.title) || match(t.artist)).take(6).toList()
-        : <Track>[];
-    final artists = hasQuery
-        ? kArtists.where((a) => match(a.name)).take(4).toList()
-        : <Artist>[];
-    final albums = hasQuery
-        ? kAlbums.where((a) => match(a.title) || match(a.artist)).take(4).toList()
-        : <Album>[];
-    final podcasts = hasQuery
-        ? kPodcasts.where((p) => match(p.title) || match(p.host)).take(4).toList()
-        : <Podcast>[];
+    final hasQuery = q.trim().isNotEmpty;
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -83,8 +115,13 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
               Text('Search',
-                  style: SunohType.heading(fontSize: 28, color: c.fg, letterSpacing: -0.4)),
-              IconBtn(icon: SolarIconsOutline.microphone, color: c.fgDim, size: 20, onTap: () {}),
+                  style: SunohType.heading(
+                      fontSize: 28, color: c.fg, letterSpacing: -0.4)),
+              IconBtn(
+                  icon: SolarIconsOutline.microphone,
+                  color: c.fgDim,
+                  size: 20,
+                  onTap: () {}),
             ],
           ),
         ),
@@ -93,7 +130,8 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
           child: Container(
             height: 42,
             padding: const EdgeInsets.symmetric(horizontal: 14),
-            decoration: squircleDecoration(radius: 12, color: c.surface, borderColor: c.line),
+            decoration: squircleDecoration(
+                radius: 12, color: c.surface, borderColor: c.line),
             child: Row(
               children: [
                 Icon(SolarIconsOutline.magnifier, size: 17, color: c.fgMute),
@@ -101,23 +139,26 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
                 Expanded(
                   child: TextField(
                     controller: controller,
-                    onChanged: (v) => setState(() => q = v),
+                    onChanged: _onChanged,
+                    onSubmitted: (_) {
+                      _debounce?.cancel();
+                      setState(() => _activeQuery = q.trim());
+                    },
                     cursorColor: c.accent,
+                    textInputAction: TextInputAction.search,
                     style: SunohType.sans(fontSize: 14, color: c.fg),
                     decoration: InputDecoration(
                       isCollapsed: true,
                       border: InputBorder.none,
                       hintText: 'Artists, songs, podcasts, stations…',
-                      hintStyle: SunohType.sans(fontSize: 14, color: c.fgMute),
+                      hintStyle:
+                          SunohType.sans(fontSize: 14, color: c.fgMute),
                     ),
                   ),
                 ),
                 if (q.isNotEmpty)
                   GestureDetector(
-                    onTap: () {
-                      controller.clear();
-                      setState(() => q = '');
-                    },
+                    onTap: _clear,
                     child: Container(
                       width: 22,
                       height: 22,
@@ -125,14 +166,18 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
                         color: Colors.white.withValues(alpha: 0.08),
                         shape: BoxShape.circle,
                       ),
-                      child: Icon(SolarIconsOutline.closeCircle, size: 12, color: c.fg),
+                      child: Icon(SolarIconsOutline.closeCircle,
+                          size: 12, color: c.fg),
                     ),
                   ),
               ],
             ),
           ),
         ),
-        if (!hasQuery) _browse(c) else _results(c, s, tracks, artists, albums, podcasts),
+        if (!hasQuery)
+          _browse(c)
+        else
+          _liveResults(c, s),
         const SizedBox(height: 20),
       ],
     );
@@ -151,24 +196,28 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
             textBaseline: TextBaseline.alphabetic,
             children: [
               eyebrow('RECENT', c.fgMute),
-              Text('Clear', style: SunohType.sans(fontSize: 11, color: c.fgMute)),
+              Text('Clear',
+                  style: SunohType.sans(fontSize: 11, color: c.fgMute)),
             ],
           ),
         ),
         for (final r in _recentSearches)
           GestureDetector(
-            onTap: () {
-              controller.text = r;
-              setState(() => q = r);
-            },
+            onTap: () => _pickRecent(r),
             child: Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 11),
+              padding:
+                  const EdgeInsets.symmetric(horizontal: 20, vertical: 11),
               child: Row(
                 children: [
-                  Icon(SolarIconsOutline.magnifier, size: 15, color: c.fgMute),
+                  Icon(SolarIconsOutline.magnifier,
+                      size: 15, color: c.fgMute),
                   const SizedBox(width: 12),
-                  Expanded(child: Text(r, style: SunohType.sans(fontSize: 14, color: c.fg))),
-                  Icon(SolarIconsOutline.closeCircle, size: 13, color: c.fgMute),
+                  Expanded(
+                      child: Text(r,
+                          style:
+                              SunohType.sans(fontSize: 14, color: c.fg))),
+                  Icon(SolarIconsOutline.closeCircle,
+                      size: 13, color: c.fgMute),
                 ],
               ),
             ),
@@ -191,85 +240,129 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
     );
   }
 
-  Widget _results(SunohColors c, AppState s, List<Track> tracks,
-      List<Artist> artists, List<Album> albums, List<Podcast> podcasts) {
-    final empty =
-        tracks.isEmpty && artists.isEmpty && albums.isEmpty && podcasts.isEmpty;
-    if (empty) {
-      return Padding(
-        padding: const EdgeInsets.fromLTRB(20, 40, 20, 40),
-        child: Center(
-          child: Column(
-            children: [
-              Text('Nothing yet.',
-                  style: SunohType.heading(fontSize: 22, color: c.fgDim)),
+  /// Live `/music/search?type=all` results — sections of FeedItems mirroring
+  /// the home feed shape. When `_activeQuery` is empty (typing in-flight),
+  /// shows a lightweight "Searching…" hint while the user is still typing.
+  Widget _liveResults(SunohColors c, AppState s) {
+    // Typed but debounce hasn't fired yet → just show "Searching…".
+    if (_activeQuery.isEmpty) {
+      return _SearchHint(colors: c, label: 'Searching…');
+    }
+    final async = ref.watch(searchProvider(_activeQuery));
+    return async.when(
+      loading: () =>
+          _SearchHint(colors: c, label: 'Searching “$_activeQuery”…'),
+      error: (e, _) => _SearchHint(
+        colors: c,
+        label: 'Couldn’t reach search. Try again.',
+        detail: '$e',
+      ),
+      data: (sections) {
+        final nonEmpty =
+            sections.where((sec) => sec.items.isNotEmpty).toList();
+        if (nonEmpty.isEmpty) {
+          return _SearchHint(
+            colors: c,
+            label: 'Nothing yet.',
+            detail: 'No results for “$_activeQuery”',
+          );
+        }
+        return Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            const SizedBox(height: 12),
+            for (var i = 0; i < nonEmpty.length; i++) ...[
+              _ResultsSection(
+                section: nonEmpty[i],
+                colors: c,
+                onPlay: (song) => s.playApiSong(song,
+                    sourceLabel: 'SEARCH · $_activeQuery'),
+              ),
+              if (i < nonEmpty.length - 1) const SizedBox(height: 20),
+            ],
+          ],
+        );
+      },
+    );
+  }
+}
+
+class _SearchHint extends StatelessWidget {
+  const _SearchHint({
+    required this.colors,
+    required this.label,
+    this.detail,
+  });
+  final SunohColors colors;
+  final String label;
+  final String? detail;
+  @override
+  Widget build(BuildContext context) {
+    final c = colors;
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(20, 40, 20, 40),
+      child: Center(
+        child: Column(
+          children: [
+            Text(label,
+                style: SunohType.heading(fontSize: 22, color: c.fgDim)),
+            if (detail != null) ...[
               const SizedBox(height: 8),
-              Text('No results for “$q”',
+              Text(detail!,
+                  textAlign: TextAlign.center,
                   style: SunohType.sans(fontSize: 13, color: c.fgMute)),
             ],
-          ),
+          ],
         ),
-      );
-    }
-    Widget heading(String t) => Padding(
-          padding: const EdgeInsets.fromLTRB(20, 0, 20, 6),
-          child: eyebrow(t, c.fgMute),
-        );
+      ),
+    );
+  }
+}
+
+/// One section from `/music/search` (Songs / Albums / Artists / Playlists
+/// / Topquery). Renders an eyebrow heading + a vertical list of result
+/// rows. Tap behavior depends on item type — songs play, the rest open
+/// the matching detail screen.
+class _ResultsSection extends StatelessWidget {
+  const _ResultsSection({
+    required this.section,
+    required this.colors,
+    required this.onPlay,
+  });
+  final HomeSection section;
+  final SunohColors colors;
+  final void Function(FeedItem song) onPlay;
+
+  @override
+  Widget build(BuildContext context) {
+    final c = colors;
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        const SizedBox(height: 12),
-        if (tracks.isNotEmpty) ...[
-          heading('SONGS'),
-          for (final t in tracks)
-            _ResultRow(
-              colors: c,
-              title: t.title,
-              sub: '${t.artist} · ${fmt(t.duration)}',
-              art: SunohArt(id: t.id, size: 42, radius: 4),
-              trailing: Icon(SolarIconsBold.menuDots, size: 18, color: c.fgMute),
-              onTap: () => s.playTrack(t),
-            ),
-          const SizedBox(height: 20),
-        ],
-        if (artists.isNotEmpty) ...[
-          heading('ARTISTS'),
-          for (final a in artists)
-            _ResultRow(
-              colors: c,
-              title: a.name,
-              sub: '${a.monthly} monthly listeners',
-              art: SunohArt(id: a.id, size: 42, radius: 999),
-              trailing: Icon(SolarIconsOutline.altArrowRight, size: 18, color: c.fgMute),
-              onTap: () => context.openRef(DetailRef('artist', a.id)),
-            ),
-          const SizedBox(height: 20),
-        ],
-        if (albums.isNotEmpty) ...[
-          heading('ALBUMS'),
-          for (final a in albums)
-            _ResultRow(
-              colors: c,
-              title: a.title,
-              sub: '${a.kind} · ${a.artist} · ${a.year}',
-              art: SunohArt(id: a.id, size: 42, radius: 4),
-              trailing: Icon(SolarIconsOutline.altArrowRight, size: 18, color: c.fgMute),
-              onTap: () => context.openRef(DetailRef('album', a.id)),
-            ),
-          const SizedBox(height: 20),
-        ],
-        if (podcasts.isNotEmpty) ...[
-          heading('PODCASTS'),
-          for (final p in podcasts)
-            _ResultRow(
-              colors: c,
-              title: p.title,
-              sub: '${p.host} · ${p.episodes} episodes',
-              art: SunohArt(id: p.id, size: 42, radius: 4),
-              trailing: Icon(SolarIconsOutline.altArrowRight, size: 18, color: c.fgMute),
-              onTap: () => context.openRef(DetailRef('podcast', p.id)),
-            ),
-        ],
+        Padding(
+          padding: const EdgeInsets.fromLTRB(20, 0, 20, 6),
+          child: eyebrow(section.heading.toUpperCase(), c.fgMute),
+        ),
+        for (final item in section.items.take(8))
+          _ResultRow(
+            colors: c,
+            item: item,
+            onTap: () {
+              switch (item.type) {
+                case 'song':
+                  onPlay(item);
+                case 'album':
+                case 'playlist':
+                case 'artist':
+                  context.openRef(DetailRef(item.type, item.id,
+                      source: item.source ?? section.source));
+                default:
+                  // Unknown type — fall through to a no-op so we don't
+                  // route somewhere invalid.
+                  break;
+              }
+            },
+          ),
       ],
     );
   }
@@ -278,51 +371,74 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
 class _ResultRow extends StatelessWidget {
   const _ResultRow({
     required this.colors,
-    required this.title,
-    required this.sub,
-    required this.art,
+    required this.item,
     required this.onTap,
-    this.trailing,
   });
   final SunohColors colors;
-  final String title;
-  final String sub;
-  final Widget art;
+  final FeedItem item;
   final VoidCallback onTap;
-  final Widget? trailing;
 
   @override
   Widget build(BuildContext context) {
+    final c = colors;
+    final isArtist = item.type == 'artist';
+    final isSong = item.type == 'song';
+    final trailingIcon = isSong
+        ? SolarIconsBold.menuDots
+        : SolarIconsOutline.altArrowRight;
     return GestureDetector(
       onTap: onTap,
+      behavior: HitTestBehavior.opaque,
       child: Padding(
         padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 8),
         child: Row(
           children: [
-            art,
+            SunohArt(
+              id: item.id,
+              imageUrl: item.artwork,
+              size: 42,
+              radius: isArtist ? 999 : 4,
+            ),
             const SizedBox(width: 12),
             Expanded(
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Text(title,
+                  Text(item.title,
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,
                       style: SunohType.sans(
-                          fontSize: 14, fontWeight: FontWeight.w500, color: colors.fg)),
-                  const SizedBox(height: 1),
-                  Text(sub,
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                      style: SunohType.sans(fontSize: 12, color: colors.fgMute)),
+                          fontSize: 14,
+                          fontWeight: FontWeight.w500,
+                          color: c.fg)),
+                  if ((_subFor(item)).isNotEmpty) ...[
+                    const SizedBox(height: 1),
+                    Text(_subFor(item),
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style:
+                            SunohType.sans(fontSize: 12, color: c.fgMute)),
+                  ],
                 ],
               ),
             ),
-            ?trailing,
+            Icon(trailingIcon, size: 18, color: c.fgMute),
           ],
         ),
       ),
     );
+  }
+
+  /// Compact subtitle line — picks the most useful field per type.
+  String _subFor(FeedItem item) {
+    if ((item.displaySubtitle ?? '').isNotEmpty) return item.displaySubtitle!;
+    if (item.type == 'song' && (item.artists ?? const []).isNotEmpty) {
+      return item.artists!.map((a) => a.name).take(2).join(', ');
+    }
+    if (item.type == 'artist') return 'Artist';
+    if (item.type == 'album') return 'Album';
+    if (item.type == 'playlist') return 'Playlist';
+    return item.type;
   }
 }
 
@@ -367,7 +483,10 @@ class _GenreTile extends StatelessWidget {
             left: 14,
             top: 12,
             child: Text(g.label,
-                style: SunohType.heading(fontSize: 20, color: Colors.white, letterSpacing: -0.2)),
+                style: SunohType.heading(
+                    fontSize: 20,
+                    color: Colors.white,
+                    letterSpacing: -0.2)),
           ),
           Positioned(
             left: 14,

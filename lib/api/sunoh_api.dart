@@ -71,6 +71,42 @@ class SunohApi {
     return env.data!;
   }
 
+  /// `GET /music/search?q=…&type=all` — unified search. Returns a list of
+  /// sections (`Songs`, `Albums`, `Artists`, `Playlists`, `Topquery`) using
+  /// the same shape as `/music/home` so we re-use [HomeSection.fromJson].
+  ///
+  /// Backend expects the query under `q` (not `query`). `type=all` returns
+  /// the section list; `type=songs` returns `data.list` flat (we don't use
+  /// that path here — UI wants the grouped view).
+  Future<List<HomeSection>> fetchSearch(
+    String query, {
+    String? languages,
+    String provider = 'saavn',
+  }) async {
+    final res = await _dio.get<Map<String, dynamic>>(
+      '/music/search',
+      queryParameters: {
+        'q': query,
+        'type': 'all',
+        if (provider.isNotEmpty) 'provider': provider,
+        if (languages != null && languages.isNotEmpty) 'lang': languages,
+      },
+    );
+    final env = ApiEnvelope.from<List<HomeSection>>(
+      res.data ?? const {},
+      (raw) => (raw is List)
+          ? raw
+              .whereType<Map>()
+              .map((m) => HomeSection.fromJson(m.cast<String, dynamic>()))
+              .toList()
+          : const <HomeSection>[],
+    );
+    if (!env.isSuccess) {
+      throw SunohApiException(env.message, env.error);
+    }
+    return env.data ?? const [];
+  }
+
   /// `GET /music/artist/:id` — artist info + top songs + discography.
   Future<ArtistDetail> fetchArtist(String id, {String? provider}) async {
     final res = await _dio.get<Map<String, dynamic>>(
