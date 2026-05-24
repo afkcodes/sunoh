@@ -118,6 +118,7 @@ class FeedItem {
     this.releaseDate,
     this.artists,
     this.token,
+    this.stationType,
     this.mediaUrls = const [],
   });
 
@@ -137,6 +138,11 @@ class FeedItem {
   final String? releaseDate;
   final List<ApiArtistRef>? artists;
   final String? token;
+  /// For `type == 'radio_station'` / `'radio'`: the upstream station kind
+  /// (`featured` / `artist` / `radio_station`). Required as the `type`
+  /// param when initializing a radio session — the backend routes to a
+  /// different station creator per kind on the source side.
+  final String? stationType;
   /// Stream URLs shipped inline on song entities. Saavn labels: `12kbps` /
   /// `48kbps` / `96kbps` / `160kbps` / `320kbps`. Gaana labels: `low` /
   /// `medium` / `high` (and the URLs are signed HLS playlists that expire).
@@ -216,6 +222,7 @@ class FeedItem {
         releaseDate: j['releaseDate']?.toString(),
         artists: j['artists'] == null ? null : ApiArtistRef.listFrom(j['artists']),
         token: j['token']?.toString(),
+        stationType: j['stationType']?.toString(),
         mediaUrls: ApiImage.listFrom(j['mediaUrls']),
       );
 
@@ -244,6 +251,7 @@ class FeedItem {
                       .toList(),
               }).toList(),
         if (token != null) 'token': token,
+        if (stationType != null) 'stationType': stationType,
         // Note: we deliberately DON'T persist `mediaUrls` — for gaana those
         // are signed and expire, and saavn ones may be stale too. The
         // StreamResolver will re-resolve on play.

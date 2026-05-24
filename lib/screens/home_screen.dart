@@ -7,6 +7,7 @@ import 'package:solar_icons/solar_icons.dart';
 
 import '../api/dto.dart';
 import '../data/models.dart';
+import '../providers/api_providers.dart';
 import '../providers/app_state_provider.dart';
 import '../providers/home_provider.dart';
 import '../router/router.dart';
@@ -209,13 +210,20 @@ class _ApiSection extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final c = colors;
-    final isArtistRow = section.items.every((it) => it.type == 'artist');
+    // Items that should render as round chips: artists + radio stations.
+    // (Channels stay square — they're typically program-art tiles.) When a
+    // row is uniformly one of these, swap the card to the circle variant.
+    final isCircleRow = section.items.isNotEmpty &&
+        section.items.every((it) =>
+            it.type == 'artist' ||
+            it.type == 'radio_station' ||
+            it.type == 'radio');
     // featured (first section) → big 220px tiles like the prototype's
-    // Editorial picks. Artists stay round but a touch larger when featured.
-    final width = isArtistRow
+    // Editorial picks. Circle rows stay round but a touch larger when featured.
+    final width = isCircleRow
         ? (featured ? 120.0 : 96.0)
         : (featured ? 220.0 : 148.0);
-    final gap = isArtistRow ? 18.0 : (featured ? 14.0 : 12.0);
+    final gap = isCircleRow ? 18.0 : (featured ? 14.0 : 12.0);
 
     // Cap each row at 10 items; if there are more, show "See all →" linking
     // to the full section.
@@ -235,7 +243,7 @@ class _ApiSection extends ConsumerWidget {
           width: width,
           gap: gap,
           onTap: (item) => _routeTap(context, ref, item, section.source),
-          builder: (item, w) => isArtistRow
+          builder: (item, w) => isCircleRow
               ? _ArtistCard(item: item, size: w, colors: c)
               : _CoverCard(item: item, width: w, colors: c, featured: featured),
         ),
@@ -262,15 +270,58 @@ class _ApiSection extends ConsumerWidget {
         context.openRef(DetailRef('artist', item.id, source: src));
         break;
       case 'song':
-        s.flashToast('Playback coming soon');
+        // Songs play immediately — home rows full of songs (Trending,
+        // Popular, New Releases) should kick playback on tap, not navigate
+        // to a non-existent "song detail" screen.
+        s.playApiSong(item,
+            sourceLabel: 'HOME · ${section.heading}');
         break;
       case 'channel':
       case 'radio_station':
       case 'radio':
-        s.flashToast('Radio coming soon');
+        // Radio stations need a two-step session bootstrap: create the
+        // session (returns an opaque stationId), then fetch the first
+        // batch of songs to populate the queue. Auto-extend on near-end-
+        // of-queue (RN's useAutoQueue) is a separate follow-up.
+        _startRadioStation(context, ref, item, src);
         break;
       default:
         s.flashToast(item.type);
+    }
+  }
+
+  Future<void> _startRadioStation(
+    BuildContext context,
+    WidgetRef ref,
+    FeedItem item,
+    String? src,
+  ) async {
+    final s = ref.read(appStateProvider);
+    final api = ref.read(sunohApiProvider);
+    final provider = src ?? 'saavn';
+    final stationKind = item.stationType ?? 'featured';
+    s.flashToast('Starting ${item.title}…');
+    try {
+      final sessionId = await api.fetchRadioSession(
+        id: item.id,
+        type: stationKind,
+        provider: provider,
+        name: item.title,
+        lang: item.language,
+      );
+      if (sessionId == null) {
+        s.flashToast('Couldn’t start ${item.title}');
+        return;
+      }
+      final songs = await api.fetchRadioSongs(sessionId, count: 20);
+      if (songs.isEmpty) {
+        s.flashToast('No songs available on this station');
+        return;
+      }
+      await s.playApiQueue(songs, 0,
+          sourceLabel: 'RADIO · ${item.title}');
+    } catch (e) {
+      s.flashToast('Radio failed: $e');
     }
   }
 }

@@ -142,6 +142,7 @@ class SunohAudioHandler {
           ? enriched.artists
           : old.artists,
       token: (enriched.token?.isNotEmpty ?? false) ? enriched.token : old.token,
+      stationType: old.stationType, // never enriched — radio-specific
       mediaUrls:
           enriched.mediaUrls.isNotEmpty ? enriched.mediaUrls : old.mediaUrls,
     );
