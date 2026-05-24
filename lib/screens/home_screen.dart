@@ -276,7 +276,6 @@ class _ApiSection extends ConsumerWidget {
         s.playApiSong(item,
             sourceLabel: 'HOME · ${section.heading}');
         break;
-      case 'channel':
       case 'radio_station':
       case 'radio':
         // Radio stations need a two-step session bootstrap: create the
@@ -284,6 +283,17 @@ class _ApiSection extends ConsumerWidget {
         // batch of songs to populate the queue. Auto-extend on near-end-
         // of-queue (RN's useAutoQueue) is a separate follow-up.
         _startRadioStation(context, ref, item, src);
+        break;
+      case 'channel':
+        // Channels (the Saavn "Browse" row) aren't radio stations and
+        // can't be opened via /music/radio/session — but the backend
+        // routes them through the occasion detail endpoint just fine
+        // (/music/occasions/<channelId>?provider=saavn returns the
+        // expected sections). Re-use OccasionScreen for the layout.
+        context.openOccasion(item);
+        break;
+      case 'occasion':
+        context.openOccasion(item);
         break;
       default:
         s.flashToast(item.type);
