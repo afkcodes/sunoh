@@ -48,9 +48,12 @@ Widget eyebrow(
   Color color, {
   double size = 10,
   double letterSpacing = 1.4,
+  int? maxLines,
 }) {
   return Text(
     text.toUpperCase(),
+    maxLines: maxLines,
+    overflow: maxLines == null ? TextOverflow.clip : TextOverflow.ellipsis,
     style: SunohType.mono(
       fontSize: size,
       color: color,

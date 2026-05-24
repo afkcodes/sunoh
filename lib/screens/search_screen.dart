@@ -98,7 +98,7 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
             height: 52,
             padding: const EdgeInsets.symmetric(horizontal: 16),
             decoration: squircleDecoration(
-                radius: 12, color: c.surface, borderColor: c.line),
+                radius: 14, color: c.surface, borderColor: c.line),
             child: Row(
               children: [
                 Icon(SolarIconsOutline.magnifier, size: 19, color: c.fgMute),
@@ -513,7 +513,7 @@ class _TrendingRow extends StatelessWidget {
                     if ((item.displaySubtitle ?? '').isNotEmpty) ...[
                       const SizedBox(height: 3),
                       eyebrow(item.displaySubtitle!, c.fgMute,
-                          size: 10, letterSpacing: 0.8),
+                          size: 10, letterSpacing: 0.8, maxLines: 2),
                     ],
                   ],
                 ),
