@@ -19,6 +19,7 @@ import '../providers/search_provider.dart';
 import '../router/router.dart';
 import '../theme/tokens.dart';
 import '../widgets/album_art.dart';
+import '../widgets/playing_bars.dart';
 import '../widgets/ui.dart';
 
 // ── Shared bits ──────────────────────────────────────────────────────────────
@@ -337,6 +338,13 @@ class _ApiTrackRow extends ConsumerWidget {
     final s = ref.watch(appStateProvider);
     final scale = s.density.scale;
     final liked = s.isLikedId(song.id);
+    // "This row is the currently-playing song". When true we swap the
+    // track number for an animated playing-bars indicator and tint the
+    // title in accent so the user can scan the list and immediately spot
+    // what's playing.
+    final isCurrent = s.currentApiSong?.id == song.id;
+    final isPlayingHere = isCurrent && s.isPlaying;
+    final titleColor = isCurrent ? accent : c.fg;
     final artistsLabel = (song.artists ?? const <ApiArtistRef>[])
         .map((a) => a.name.trim())
         .where((sa) => sa.isNotEmpty)
@@ -354,8 +362,14 @@ class _ApiTrackRow extends ConsumerWidget {
             SizedBox(
               width: 22,
               child: Center(
-                child: Text(n.toString().padLeft(2, '0'),
-                    style: SunohType.mono(fontSize: 11, color: c.fgMute)),
+                child: isCurrent
+                    ? PlayingBars(
+                        color: accent,
+                        size: 14,
+                        animate: isPlayingHere,
+                      )
+                    : Text(n.toString().padLeft(2, '0'),
+                        style: SunohType.mono(fontSize: 11, color: c.fgMute)),
               ),
             ),
             if (showArt) ...[
@@ -371,7 +385,9 @@ class _ApiTrackRow extends ConsumerWidget {
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,
                       style: SunohType.sans(
-                          fontSize: 14, fontWeight: FontWeight.w500, color: c.fg)),
+                          fontSize: 14,
+                          fontWeight: FontWeight.w500,
+                          color: titleColor)),
                   if (artistsLabel.isNotEmpty) ...[
                     const SizedBox(height: 1),
                     Text(artistsLabel,

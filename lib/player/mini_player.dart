@@ -71,11 +71,19 @@ class MiniPlayer extends ConsumerWidget {
                     ],
                   ),
                 ),
+                // Play/pause gets a subtle accent-tinted circular wash so it
+                // reads as the primary action. Alpha 0.20 over the frosted
+                // bottom bar lands near the surface color but with palette
+                // identity — bright enough to spot, soft enough to not
+                // dominate.
                 _miniBtn(
                     s.isPlaying
                         ? PhosphorIconsFill.pause
                         : PhosphorIconsFill.play,
-                    c.fg, 24, s.playPause),
+                    c.fg,
+                    22,
+                    s.playPause,
+                    background: accent.withValues(alpha: 0.20)),
                 _miniBtn(PhosphorIconsFill.skipForward, c.fg, 22, s.next),
               ],
             ),
@@ -96,10 +104,24 @@ class MiniPlayer extends ConsumerWidget {
     );
   }
 
-  Widget _miniBtn(IconData icon, Color color, double size, VoidCallback onTap) {
+  Widget _miniBtn(
+    IconData icon,
+    Color color,
+    double size,
+    VoidCallback onTap, {
+    Color? background,
+  }) {
     return GestureDetector(
       onTap: onTap,
-      child: SizedBox(width: 36, height: 36, child: Icon(icon, size: size, color: color)),
+      child: Container(
+        width: 36,
+        height: 36,
+        alignment: Alignment.center,
+        decoration: background == null
+            ? null
+            : BoxDecoration(color: background, shape: BoxShape.circle),
+        child: Icon(icon, size: size, color: color),
+      ),
     );
   }
 }
