@@ -211,24 +211,45 @@ class _ApiSection extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final c = colors;
     // Items that should render as round chips: artists + radio stations.
-    // (Channels stay square — they're typically program-art tiles.) When a
-    // row is uniformly one of these, swap the card to the circle variant.
     final isCircleRow = section.items.isNotEmpty &&
         section.items.every((it) =>
             it.type == 'artist' ||
             it.type == 'radio_station' ||
             it.type == 'radio');
+    // Channels (the Saavn "Browse" row) are a distinct shape — wide
+    // rectangular tiles in a 3-row horizontal-scroll grid. Different
+    // enough from regular cards/circles that they get their own renderer
+    // entirely.
+    final isChannelRow = section.items.isNotEmpty &&
+        section.items.every((it) => it.type == 'channel');
+    // Cap each row at 10 items; if there are more, show "See all →" linking
+    // to the full section.
+    final visible = section.items.take(10).toList();
+    final hasMore = section.items.length > 10;
+
+    if (isChannelRow) {
+      return Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          SectionHeader(
+            title: section.heading,
+            colors: c,
+            onSeeAll: hasMore ? () => context.openSection(section) : null,
+          ),
+          _ChannelGrid(
+            items: section.items.take(15).toList(),
+            colors: c,
+            sectionSource: section.source,
+          ),
+        ],
+      );
+    }
     // featured (first section) → big 220px tiles like the prototype's
     // Editorial picks. Circle rows stay round but a touch larger when featured.
     final width = isCircleRow
         ? (featured ? 120.0 : 96.0)
         : (featured ? 220.0 : 148.0);
     final gap = isCircleRow ? 18.0 : (featured ? 14.0 : 12.0);
-
-    // Cap each row at 10 items; if there are more, show "See all →" linking
-    // to the full section.
-    final visible = section.items.take(10).toList();
-    final hasMore = section.items.length > 10;
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -627,6 +648,137 @@ class _ErrorFeed extends StatelessWidget {
             ),
           ),
         ],
+      ),
+    );
+  }
+}
+
+/// Saavn-style "Browse" channels — 3-row horizontal-scroll grid of wide
+/// rectangular tiles. Used when an entire section is channel-typed.
+class _ChannelGrid extends StatelessWidget {
+  const _ChannelGrid({
+    required this.items,
+    required this.colors,
+    required this.sectionSource,
+  });
+  final List<FeedItem> items;
+  final SunohColors colors;
+  final String? sectionSource;
+
+  // Layout sizing — kept as constants so the SizedBox height matches the
+  // grid's actual row arithmetic exactly.
+  static const double _tileH = 64;
+  static const double _gap = 10;
+  static const int _rows = 3;
+  static const double _tileW = 240;
+
+  @override
+  Widget build(BuildContext context) {
+    // GridView in horizontal mode: `crossAxisCount` is the ROW count.
+    final totalHeight = _rows * _tileH + (_rows - 1) * _gap;
+    return SizedBox(
+      height: totalHeight,
+      child: GridView.builder(
+        scrollDirection: Axis.horizontal,
+        padding: const EdgeInsets.symmetric(horizontal: 20),
+        physics: const BouncingScrollPhysics(),
+        gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
+          crossAxisCount: _rows,
+          childAspectRatio: _tileW / _tileH,
+          mainAxisSpacing: _gap,
+          crossAxisSpacing: _gap,
+        ),
+        itemCount: items.length,
+        itemBuilder: (_, i) =>
+            _ChannelTile(item: items[i], colors: colors, sectionSource: sectionSource),
+      ),
+    );
+  }
+}
+
+/// One wide rectangular channel tile — accent-tinted gradient + title on
+/// the left, artwork tucked off the right edge at a slight angle for a
+/// bit of dimensionality. Tap opens via openOccasion (Saavn channels
+/// route through `music/occasions/[id]` per the API).
+class _ChannelTile extends StatelessWidget {
+  const _ChannelTile({
+    required this.item,
+    required this.colors,
+    required this.sectionSource,
+  });
+  final FeedItem item;
+  final SunohColors colors;
+  final String? sectionSource;
+
+  @override
+  Widget build(BuildContext context) {
+    final c = colors;
+    // Deterministic accent so each channel has a stable color identity
+    // ready before any image loads.
+    final tint = artAccent(item.id);
+    final url = item.artwork ?? '';
+    return GestureDetector(
+      onTap: () => context.openOccasion(item),
+      behavior: HitTestBehavior.opaque,
+      child: squircleClip(
+        radius: 10,
+        child: Container(
+          decoration: BoxDecoration(
+            gradient: LinearGradient(
+              begin: Alignment.centerLeft,
+              end: Alignment.centerRight,
+              colors: [
+                Color.lerp(c.bg, tint, 0.55)!,
+                Color.lerp(c.bg, tint, 0.18)!,
+              ],
+            ),
+          ),
+          child: Row(
+            children: [
+              Expanded(
+                child: Padding(
+                  padding: const EdgeInsets.fromLTRB(14, 8, 8, 8),
+                  child: Align(
+                    alignment: Alignment.centerLeft,
+                    child: Text(
+                      item.title,
+                      maxLines: 2,
+                      overflow: TextOverflow.ellipsis,
+                      style: SunohType.heading(
+                        fontSize: 13.5,
+                        color: Colors.white,
+                        letterSpacing: -0.1,
+                        height: 1.15,
+                      ),
+                    ),
+                  ),
+                ),
+              ),
+              Transform.rotate(
+                angle: 0.20,
+                child: Transform.translate(
+                  offset: const Offset(6, 4),
+                  child: squircleClip(
+                    radius: 4,
+                    child: SizedBox(
+                      width: 56,
+                      height: 56,
+                      child: url.isEmpty
+                          ? ColoredBox(
+                              color: Colors.white.withValues(alpha: 0.18))
+                          : SunohArt(
+                              id: item.id,
+                              imageUrl: url,
+                              size: 56,
+                              radius: 0,
+                              shadow: false),
+                    ),
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ),
       ),
     );
   }

@@ -293,11 +293,18 @@ extension SunohNav on BuildContext {
 
   /// Push an occasion detail (browse-category contents). Pass the FeedItem
   /// so the hero has title + artwork available before the fetch resolves.
+  ///
+  /// Routes by `id`, NOT by `url` — Saavn channels ship `url` as a full
+  /// `https://jiosaavn.com/s/channel/...` link which contains slashes
+  /// that go_router can't match into the `:slug` param. The id field is
+  /// the canonical slug for both gaana occasions and saavn channels;
+  /// both work against `/music/occasions/<id>?provider=…`.
   void openOccasion(FeedItem occasion) {
-    final slug = (occasion.url?.isNotEmpty ?? false) ? occasion.url! : occasion.id;
+    final slug = occasion.id;
     final src = occasion.source ?? 'gaana';
     push(
-      '$_branchPrefix/occasion/$slug?source=${Uri.encodeQueryComponent(src)}',
+      '$_branchPrefix/occasion/${Uri.encodeComponent(slug)}'
+      '?source=${Uri.encodeQueryComponent(src)}',
       extra: occasion,
     );
   }
