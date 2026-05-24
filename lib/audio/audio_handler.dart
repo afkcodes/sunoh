@@ -299,20 +299,20 @@ class SunohAudioHandler {
 
     // Only act on errors from the active player. Idle errors are best-effort.
     if (!identical(p, _active)) return;
-
-    if (!p.state.playing) {
-      debugPrint('[audio] load error while paused — not retrying/skipping');
-      return;
-    }
     if (_currentIndex < 0 || _currentIndex >= _queue.length) return;
+
     final song = _queue[_currentIndex];
     final tries = _loadFailRetries[song.id] ?? 0;
     if (tries >= _maxRetries) {
       debugPrint(
-          '[audio] giving up on ${song.id} after $tries retries — skipping');
+          '[audio] giving up on ${song.id} after $tries retries');
       _loadFailRetries.remove(song.id);
-      // Skip to next track on active.
-      if (_currentIndex + 1 < _queue.length) {
+      // Auto-skip ONLY when we were actually trying to play. Don't skip
+      // while paused — on app launch we pre-load the queue via
+      // prepareQueue(play:false) for restore; if everything's stale we'd
+      // otherwise burn through the whole queue silently before the user
+      // even hits play.
+      if (p.state.playing && _currentIndex + 1 < _queue.length) {
         _userInitiatedSkip = true; // suppress crossfade for forced skip
         unawaited(_advanceTo(_currentIndex + 1, play: true));
       }
@@ -320,8 +320,13 @@ class SunohAudioHandler {
     }
     _loadFailRetries[song.id] = tries + 1;
     debugPrint(
-        '[audio] load error for ${song.id} (try ${tries + 1}/$_maxRetries) — re-opening');
-    unawaited(p.open(Media(_placeholderFor(song)), play: true));
+        '[audio] load error for ${song.id} (try ${tries + 1}/$_maxRetries) — force-refreshing URL');
+    // Force the URL refresh path — the previous retry just re-opened with
+    // the same stale placeholder + resolver picked the same embedded
+    // (already-403'd) mediaUrls. _refreshCurrentTrack sets
+    // _forceRefreshNextResolve so the resolver hits the API for a freshly
+    // signed URL instead.
+    unawaited(_refreshCurrentTrack());
   }
 
   void _onEndFile(Player p, String label, MpvFileEndedEvent event) {
@@ -494,21 +499,26 @@ class SunohAudioHandler {
   // ── Refresh action (URL refresh scheduler callback) ───────────────────
   // Reload the active player's current track via a fresh open so the on_load
   // hook fires with forceRefresh=true. Position survives via the one-shot
-  // _pendingStartPosition. Defers if paused — same rationale as before
-  // (avoid resuming playback as a side-effect).
+  // `_pendingStartPosition`; play state survives via `wasPlaying`.
+  //
+  // Important: this runs whether playing OR paused. Previously deferred on
+  // paused because we used `Player.replace()` which resumed playback as a
+  // side effect — `Player.open(..., play: wasPlaying)` honors the prior
+  // state instead. We need this to fire on the paused path too: a
+  // restored queue or post-pause-resume scenario sees stale URLs and the
+  // reactive error handler calls us to refresh them BEFORE the user hits
+  // play (so the next play starts cleanly).
   Future<void> _refreshCurrentTrack() async {
     if (_currentIndex < 0 || _currentIndex >= _queue.length) return;
-    if (!_active.state.playing) {
-      debugPrint('[url-refresh] paused — deferring');
-      return;
-    }
     final song = _queue[_currentIndex];
     final pos = _active.state.position;
-    debugPrint('[url-refresh] swap ${song.id} @ ${pos.inSeconds}s');
+    final wasPlaying = _active.state.playing;
+    debugPrint('[url-refresh] swap ${song.id} @ ${pos.inSeconds}s '
+        'playing=$wasPlaying');
     _pendingStartPosition = pos;
     _forceRefreshNextResolve = true;
     try {
-      await _active.open(Media(_placeholderFor(song)), play: true);
+      await _active.open(Media(_placeholderFor(song)), play: wasPlaying);
     } catch (e) {
       debugPrint('[url-refresh] swap failed: $e');
       _pendingStartPosition = null;
