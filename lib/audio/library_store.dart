@@ -32,7 +32,20 @@ class LibraryStore {
 
   Future<Box> _box() async {
     if (Hive.isBoxOpen(_boxName)) return Hive.box(_boxName);
-    return Hive.openBox(_boxName);
+    final box = await Hive.openBox(_boxName);
+    // Diagnostic — surfaces the box path + lengths in logcat each cold
+    // start. If a user reports "library wiped after install", check that
+    // these numbers stay non-zero across runs. If they reset to 0 after
+    // an install, the install path wiped the data directory (signing-
+    // cert change, `adb uninstall`, or a manual Settings → Clear data).
+    debugPrint(
+        '[library-store] opened "$_boxName" at ${box.path} — '
+        'liked=${(box.get(_kLikedSongs) as List?)?.length ?? 0} '
+        'history=${(box.get(_kHistory) as List?)?.length ?? 0} '
+        'albums=${(box.get(_kSavedAlbums) as List?)?.length ?? 0} '
+        'playlists=${(box.get(_kSavedPlaylists) as List?)?.length ?? 0} '
+        'artists=${(box.get(_kSavedArtists) as List?)?.length ?? 0}');
+    return box;
   }
 
   List<FeedItem> _decodeList(Object? raw) {
@@ -88,6 +101,9 @@ class LibraryStore {
     current.removeWhere((s) => s.id == song.id);
     if (liked) current.insert(0, song);
     await box.put(_kLikedSongs, _encodeList(current));
+    // Force fsync — Hive buffers writes by default; without flush, a
+    // crash or fast subsequent `adb install` can drop the write.
+    await box.flush();
     debugPrint('[library-store] liked=${liked ? 'on' : 'off'} ${song.id} '
         '(total=${current.length})');
     return current;
@@ -116,12 +132,14 @@ class LibraryStore {
       current.removeRange(_maxHistory, current.length);
     }
     await box.put(_kHistory, _encodeList(current));
+    await box.flush();
     return current;
   }
 
   Future<void> clearHistory() async {
     final box = await _box();
     await box.put(_kHistory, const []);
+    await box.flush();
   }
 
   // ── Saved collections (albums / playlists / artists) ──────────────────
@@ -181,6 +199,7 @@ class LibraryStore {
     current.removeWhere((s) => s.id == item.id);
     if (saved) current.insert(0, item);
     await box.put(key, _encodeList(current));
+    await box.flush();
     debugPrint('[library-store] saved=${saved ? 'on' : 'off'} '
         '${item.type}:${item.id} (total=${current.length})');
     return current;

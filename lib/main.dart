@@ -115,6 +115,9 @@ Future<void> main() async {
 
   // Local persistence (queue + future library/history/settings boxes).
   await Hive.initFlutter();
+  // ignore: avoid_print
+  print('[hive] init complete — boxes will land in '
+      'getApplicationDocumentsDirectory() (/data/data/<pkg>/app_flutter/).');
 
   // mpv FFI bindings init — synchronous, cheap.
   // Using `print` not `debugPrint` so these always surface in logcat.
