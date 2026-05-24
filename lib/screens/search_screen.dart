@@ -17,30 +17,6 @@ import '../theme/tokens.dart';
 import '../widgets/album_art.dart';
 import '../widgets/ui.dart';
 
-class _Genre {
-  const _Genre(this.label, this.bg, this.accent);
-  final String label;
-  final Color bg;
-  final Color accent;
-}
-
-const _genres = [
-  _Genre('Jazz', Color(0xFF1C1410), Color(0xFF8C5A3E)),
-  _Genre('Folk', Color(0xFF15201B), Color(0xFF82B07B)),
-  _Genre('Electronic', Color(0xFF0F1820), Color(0xFF7FB3D5)),
-  _Genre('Ambient', Color(0xFF221A2B), Color(0xFFA78BD1)),
-  _Genre('Soul', Color(0xFF2C1B16), Color(0xFFD97757)),
-  _Genre('Indie', Color(0xFF1F2418), Color(0xFFCAA66B)),
-  _Genre('Hip-Hop', Color(0xFF0E1216), Color(0xFF3C5B78)),
-  _Genre('Classical', Color(0xFF222018), Color(0xFFC8B88A)),
-  _Genre('Pop', Color(0xFF2B1C1C), Color(0xFFA13F3F)),
-  _Genre('Documentary', Color(0xFF15171C), Color(0xFF5B9B95)),
-];
-
-const _recentSearches = [
-  'Niamh Calder', 'After Hours', 'OKO', 'Tideline FM', 'Long Form, Slowly',
-];
-
 /// Debounce window between the user typing and us actually firing the
 /// `/music/search` request. 280 ms feels responsive for mobile typing
 /// without spamming the API on every keystroke.
@@ -91,15 +67,6 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
     });
   }
 
-  void _pickRecent(String r) {
-    _debounce?.cancel();
-    controller.text = r;
-    setState(() {
-      q = r;
-      _activeQuery = r.trim();
-    });
-  }
-
   @override
   Widget build(BuildContext context) {
     final s = ref.watch(appStateProvider);
@@ -131,7 +98,7 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
             height: 52,
             padding: const EdgeInsets.symmetric(horizontal: 16),
             decoration: squircleDecoration(
-                radius: 18, color: c.surface, borderColor: c.line),
+                radius: 12, color: c.surface, borderColor: c.line),
             child: Row(
               children: [
                 Icon(SolarIconsOutline.magnifier, size: 19, color: c.fgMute),
@@ -183,58 +150,67 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
     );
   }
 
+  /// Browse view: trending sections (horizontal carousels) followed by the
+  /// live Explore Categories grid (occasions). Both are fetched on first
+  /// open and cached for 1 hour (matches the RN reference's staleTime).
+  /// Tapping a trending item routes via [_routeFeedItem]; tapping a
+  /// category opens the occasion section detail (currently stubbed —
+  /// `/music/occasions/:slug` wiring is a separate follow-up).
   Widget _browse(SunohColors c) {
+    final trending = ref.watch(trendingSearchProvider);
+    final occasions = ref.watch(occasionsProvider('gaana'));
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        const SizedBox(height: 10),
-        Padding(
-          padding: const EdgeInsets.fromLTRB(20, 0, 20, 8),
-          child: Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-            crossAxisAlignment: CrossAxisAlignment.baseline,
-            textBaseline: TextBaseline.alphabetic,
-            children: [
-              eyebrow('RECENT', c.fgMute),
-              Text('Clear',
-                  style: SunohType.sans(fontSize: 11, color: c.fgMute)),
-            ],
-          ),
+        const SizedBox(height: 12),
+        // ── Trending — same shape as home, horizontal carousels per section.
+        trending.when(
+          loading: () =>
+              _SearchHint(colors: c, label: 'Loading trending…'),
+          error: (e, _) => const SizedBox.shrink(),
+          data: (sections) {
+            final nonEmpty =
+                sections.where((s) => s.items.isNotEmpty).toList();
+            if (nonEmpty.isEmpty) return const SizedBox.shrink();
+            return Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                for (var i = 0; i < nonEmpty.length; i++) ...[
+                  if (i > 0) const SizedBox(height: 24),
+                  _TrendingRow(section: nonEmpty[i], colors: c),
+                ],
+                const SizedBox(height: 28),
+              ],
+            );
+          },
         ),
-        for (final r in _recentSearches)
-          GestureDetector(
-            onTap: () => _pickRecent(r),
-            child: Padding(
-              padding:
-                  const EdgeInsets.symmetric(horizontal: 20, vertical: 11),
-              child: Row(
+        // ── Explore Categories grid — live occasions.
+        SectionHeader(title: 'Explore Categories', colors: c),
+        occasions.when(
+          loading: () => Padding(
+            padding: const EdgeInsets.fromLTRB(20, 8, 20, 8),
+            child: Text('Loading categories…',
+                style: SunohType.sans(fontSize: 12, color: c.fgMute)),
+          ),
+          error: (e, _) => const SizedBox.shrink(),
+          data: (items) {
+            if (items.isEmpty) return const SizedBox.shrink();
+            return Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 20),
+              child: GridView.count(
+                crossAxisCount: 2,
+                shrinkWrap: true,
+                physics: const NeverScrollableScrollPhysics(),
+                crossAxisSpacing: 10,
+                mainAxisSpacing: 10,
+                childAspectRatio: 171 / 110,
                 children: [
-                  Icon(SolarIconsOutline.magnifier,
-                      size: 15, color: c.fgMute),
-                  const SizedBox(width: 12),
-                  Expanded(
-                      child: Text(r,
-                          style:
-                              SunohType.sans(fontSize: 14, color: c.fg))),
-                  Icon(SolarIconsOutline.closeCircle,
-                      size: 13, color: c.fgMute),
+                  for (final item in items)
+                    _OccasionTile(item: item, colors: c),
                 ],
               ),
-            ),
-          ),
-        const SizedBox(height: 26),
-        SectionHeader(title: 'Browse', colors: c),
-        Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 20),
-          child: GridView.count(
-            crossAxisCount: 2,
-            shrinkWrap: true,
-            physics: const NeverScrollableScrollPhysics(),
-            crossAxisSpacing: 8,
-            mainAxisSpacing: 8,
-            childAspectRatio: 171 / 96,
-            children: [for (final g in _genres) _GenreTile(g)],
-          ),
+            );
+          },
         ),
       ],
     );
@@ -258,8 +234,7 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
         detail: '$e',
       ),
       data: (sections) {
-        final nonEmpty =
-            sections.where((sec) => sec.items.isNotEmpty).toList();
+        final nonEmpty = sections.where((sec) => sec.items.isNotEmpty).toList();
         if (nonEmpty.isEmpty) {
           return _SearchHint(
             colors: c,
@@ -267,23 +242,39 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
             detail: 'No results for “$_activeQuery”',
           );
         }
+        // Pin "Top Results" / "Topquery" (whichever the active provider
+        // returns) to the top — those carry the richest cross-provider
+        // matches and are usually what the user actually wants.
+        final ordered = [...nonEmpty]
+          ..sort((a, b) => _topPriority(b.heading) -
+              _topPriority(a.heading));
         return Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             const SizedBox(height: 12),
-            for (var i = 0; i < nonEmpty.length; i++) ...[
+            for (var i = 0; i < ordered.length; i++) ...[
               _ResultsSection(
-                section: nonEmpty[i],
+                section: ordered[i],
                 colors: c,
                 onPlay: (song) => s.playApiSong(song,
                     sourceLabel: 'SEARCH · $_activeQuery'),
               ),
-              if (i < nonEmpty.length - 1) const SizedBox(height: 20),
+              if (i < ordered.length - 1) const SizedBox(height: 20),
             ],
           ],
         );
       },
     );
+  }
+
+  /// Higher = render earlier. Top results / topquery first; everything
+  /// else preserves the order the API returned in.
+  static int _topPriority(String heading) {
+    final h = heading.toLowerCase();
+    if (h.contains('top result') || h == 'topquery' || h == 'top results') {
+      return 100;
+    }
+    return 0;
   }
 }
 
@@ -429,72 +420,180 @@ class _ResultRow extends StatelessWidget {
     );
   }
 
-  /// Compact subtitle line — picks the most useful field per type.
+  /// Compact subtitle line — only returns *meaningful* text so the UI can
+  /// skip the row entirely when nothing useful is available. Generic type
+  /// labels ("Song" / "Album") are deliberately suppressed because saavn
+  /// search returns subtitle:null + artists:[] for many songs and showing
+  /// the bare word "Song" under every row reads as broken.
   String _subFor(FeedItem item) {
-    if ((item.displaySubtitle ?? '').isNotEmpty) return item.displaySubtitle!;
-    if (item.type == 'song' && (item.artists ?? const []).isNotEmpty) {
-      return item.artists!.map((a) => a.name).take(2).join(', ');
-    }
-    if (item.type == 'artist') return 'Artist';
-    if (item.type == 'album') return 'Album';
-    if (item.type == 'playlist') return 'Playlist';
-    return item.type;
+    final fromApi = (item.subtitle ?? '').trim();
+    if (fromApi.isNotEmpty) return fromApi;
+    final names = (item.artists ?? const [])
+        .map((a) => a.name.trim())
+        .where((n) => n.isNotEmpty)
+        .take(2)
+        .toList();
+    if (names.isNotEmpty) return names.join(', ');
+    return '';
   }
 }
 
-class _GenreTile extends StatelessWidget {
-  const _GenreTile(this.g);
-  final _Genre g;
+/// Horizontal carousel of trending items for one section heading. Mirrors
+/// the home-feed `_ApiSection` pattern — uses the same `HCardRow` and
+/// per-item card chrome so trending feels at home with everything else.
+class _TrendingRow extends StatelessWidget {
+  const _TrendingRow({required this.section, required this.colors});
+  final HomeSection section;
+  final SunohColors colors;
+
   @override
   Widget build(BuildContext context) {
-    return squircleClip(
-      radius: 12,
-      child: Stack(
-        children: [
-          Positioned.fill(child: ColoredBox(color: g.bg)),
-          Positioned.fill(
-            child: DecoratedBox(
-              decoration: BoxDecoration(
-                gradient: RadialGradient(
-                  center: const Alignment(1, 1),
-                  radius: 1.1,
-                  colors: [g.accent, g.accent.withValues(alpha: 0)],
-                  stops: const [0, 0.6],
+    final c = colors;
+    final isArtistRow = section.items.every((it) => it.type == 'artist');
+    final width = isArtistRow ? 96.0 : 140.0;
+    final gap = isArtistRow ? 18.0 : 12.0;
+    final items = section.items.take(10).toList();
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        SectionHeader(title: section.heading, colors: c),
+        HCardRow<FeedItem>(
+          items: items,
+          width: width,
+          gap: gap,
+          onTap: (item) {
+            switch (item.type) {
+              case 'song':
+              case 'album':
+              case 'playlist':
+              case 'artist':
+                context.openRef(DetailRef(item.type, item.id,
+                    source: item.source ?? section.source));
+              default:
+                break;
+            }
+          },
+          builder: (item, w) => isArtistRow
+              ? Column(
+                  children: [
+                    SunohArt(
+                        id: item.id,
+                        imageUrl: item.artwork,
+                        size: w - 10,
+                        radius: 999),
+                    const SizedBox(height: 10),
+                    Text(item.title,
+                        textAlign: TextAlign.center,
+                        maxLines: 2,
+                        overflow: TextOverflow.ellipsis,
+                        style: SunohType.sans(
+                            fontSize: 12.5,
+                            fontWeight: FontWeight.w500,
+                            color: c.fg,
+                            height: 1.2)),
+                  ],
+                )
+              : Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    SunohArt(
+                        id: item.id,
+                        imageUrl: item.artwork,
+                        size: w,
+                        radius: 10),
+                    const SizedBox(height: 8),
+                    Text(item.title,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: SunohType.sans(
+                            fontSize: 13,
+                            fontWeight: FontWeight.w500,
+                            color: c.fg,
+                            height: 1.2)),
+                    if ((item.displaySubtitle ?? '').isNotEmpty) ...[
+                      const SizedBox(height: 3),
+                      eyebrow(item.displaySubtitle!, c.fgMute,
+                          size: 10, letterSpacing: 0.8),
+                    ],
+                  ],
                 ),
-              ),
-            ),
+        ),
+      ],
+    );
+  }
+}
+
+/// Live "Explore Categories" tile backed by an occasion FeedItem — image
+/// background, dark-bottom-up gradient for text readability, title on top.
+/// Tapping is currently a toast — the occasion-detail route + endpoint
+/// isn't wired yet (separate follow-up). The visual stays useful as a
+/// browse affordance even without the detail screen.
+class _OccasionTile extends StatelessWidget {
+  const _OccasionTile({required this.item, required this.colors});
+  final FeedItem item;
+  final SunohColors colors;
+
+  @override
+  Widget build(BuildContext context) {
+    final c = colors;
+    final url = item.artwork ?? '';
+    return GestureDetector(
+      onTap: () {
+        // Occasion detail isn't wired yet. Surface a hint instead of a
+        // dead tap so the user knows it's intentional.
+        ScaffoldMessenger.maybeOf(context)?.showSnackBar(
+          SnackBar(
+            content: Text('“${item.title}” — coming soon',
+                style: SunohType.sans(fontSize: 13, color: c.fg)),
+            backgroundColor: c.surface2,
+            behavior: SnackBarBehavior.floating,
+            duration: const Duration(seconds: 2),
           ),
-          Positioned(
-            right: -16,
-            bottom: -16,
-            child: Transform.rotate(
-              angle: 0.314,
-              child: Container(
-                width: 72,
-                height: 72,
+        );
+      },
+      child: squircleClip(
+        radius: 14,
+        child: Stack(
+          fit: StackFit.expand,
+          children: [
+            // Image background — falls back to the painted album-art if no URL.
+            SunohArt(id: item.id, imageUrl: url, size: 220, radius: 0),
+            // Dark gradient (bottom-up) keeps the title legible regardless
+            // of the cover's brightness.
+            const Positioned.fill(
+              child: DecoratedBox(
                 decoration: BoxDecoration(
-                  color: g.accent.withValues(alpha: 0.6),
-                  borderRadius: BorderRadius.circular(12),
+                  gradient: LinearGradient(
+                    begin: Alignment.topCenter,
+                    end: Alignment.bottomCenter,
+                    colors: [
+                      Color(0x00000000),
+                      Color(0x66000000),
+                      Color(0xCC000000),
+                    ],
+                    stops: [0.35, 0.75, 1],
+                  ),
                 ),
               ),
             ),
-          ),
-          Positioned(
-            left: 14,
-            top: 12,
-            child: Text(g.label,
+            Positioned(
+              left: 12,
+              right: 12,
+              bottom: 10,
+              child: Text(
+                item.title,
+                maxLines: 2,
+                overflow: TextOverflow.ellipsis,
                 style: SunohType.heading(
-                    fontSize: 20,
-                    color: Colors.white,
-                    letterSpacing: -0.2)),
-          ),
-          Positioned(
-            left: 14,
-            bottom: 12,
-            child: eyebrow('GENRE', Colors.white.withValues(alpha: 0.6),
-                size: 9, letterSpacing: 1.2),
-          ),
-        ],
+                  fontSize: 15,
+                  color: Colors.white,
+                  letterSpacing: -0.1,
+                  height: 1.1,
+                ),
+              ),
+            ),
+          ],
+        ),
       ),
     );
   }
