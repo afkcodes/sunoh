@@ -185,9 +185,9 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
             );
           },
         ),
-        // ── Explore Categories grid — live occasions.
-        // Uses the default SectionHeader padding so the header→content gap
-        // matches the home-feed sections (Recently Played etc.).
+        // ── Explore Categories — Saavn/Apple-Music-style horizontal scroll
+        // grid: 3 rows of wide rectangular tiles, scrolling sideways. Denser
+        // than a square grid + lets us cram more categories above the fold.
         SectionHeader(title: 'Explore Categories', colors: c),
         occasions.when(
           loading: () => Padding(
@@ -198,21 +198,7 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
           error: (e, _) => const SizedBox.shrink(),
           data: (items) {
             if (items.isEmpty) return const SizedBox.shrink();
-            return Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 20),
-              child: GridView.count(
-                crossAxisCount: 2,
-                shrinkWrap: true,
-                physics: const NeverScrollableScrollPhysics(),
-                crossAxisSpacing: 10,
-                mainAxisSpacing: 10,
-                childAspectRatio: 171 / 110,
-                children: [
-                  for (final item in items)
-                    _OccasionTile(item: item, colors: c),
-                ],
-              ),
-            );
+            return _OccasionGrid(items: items, colors: c);
           },
         ),
       ],
@@ -542,11 +528,53 @@ class _TrendingRow extends ConsumerWidget {
   }
 }
 
-/// Live "Explore Categories" tile backed by an occasion FeedItem — image
-/// background, dark-bottom-up gradient for text readability, title on top.
-/// Tapping is currently a toast — the occasion-detail route + endpoint
-/// isn't wired yet (separate follow-up). The visual stays useful as a
-/// browse affordance even without the detail screen.
+/// 3-row horizontal-scroll grid of occasion tiles. Each tile is a wide
+/// rectangle (title left, artwork right with a left-side fade to the
+/// surface color so the title stays legible). Mirrors the Saavn / Apple
+/// Music "Browse by Category" pattern — denser than a square grid and
+/// shows more options without dominating the screen.
+class _OccasionGrid extends StatelessWidget {
+  const _OccasionGrid({required this.items, required this.colors});
+  final List<FeedItem> items;
+  final SunohColors colors;
+
+  // Layout sizing — kept as static constants so the SizedBox below can
+  // compute its total height the same way the grid does.
+  static const double _tileH = 64;
+  static const double _gap = 10;
+  static const int _rows = 3;
+  static const double _tileW = 240;
+
+  @override
+  Widget build(BuildContext context) {
+    // GridView in horizontal mode: `crossAxisCount: 3` becomes 3 ROWS.
+    // The childAspectRatio's "main" axis is horizontal, so width / height
+    // here = the visible width-to-height of each tile.
+    final totalHeight = _rows * _tileH + (_rows - 1) * _gap;
+    return SizedBox(
+      height: totalHeight,
+      child: GridView.builder(
+        scrollDirection: Axis.horizontal,
+        padding: const EdgeInsets.symmetric(horizontal: 20),
+        physics: const BouncingScrollPhysics(),
+        gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
+          crossAxisCount: _rows,
+          childAspectRatio: _tileW / _tileH,
+          mainAxisSpacing: _gap,
+          crossAxisSpacing: _gap,
+        ),
+        itemCount: items.length,
+        itemBuilder: (_, i) => _OccasionTile(item: items[i], colors: colors),
+      ),
+    );
+  }
+}
+
+/// One wide rectangular tile — artwork on the right edge, title on the
+/// left over a deterministic accent backdrop (so each category has its
+/// own color identity even before the network image loads). A left→right
+/// gradient fades the artwork into the backdrop so the title sits on a
+/// clean dark area regardless of the cover's contents.
 class _OccasionTile extends StatelessWidget {
   const _OccasionTile({required this.item, required this.colors});
   final FeedItem item;
@@ -554,51 +582,76 @@ class _OccasionTile extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final c = colors;
+    // Deterministic accent so each category card has a stable color
+    // across launches without needing palette extraction. artAccent uses
+    // a hash of the id → one of the painted-art palette colors.
+    final tint = artAccent(item.id);
     final url = item.artwork ?? '';
     return GestureDetector(
       onTap: () => context.openOccasion(item),
+      behavior: HitTestBehavior.opaque,
       child: squircleClip(
-        radius: 14,
-        child: Stack(
-          fit: StackFit.expand,
-          children: [
-            // Image background — falls back to the painted album-art if no URL.
-            SunohArt(id: item.id, imageUrl: url, size: 220, radius: 0),
-            // Dark gradient (bottom-up) keeps the title legible regardless
-            // of the cover's brightness.
-            const Positioned.fill(
-              child: DecoratedBox(
-                decoration: BoxDecoration(
-                  gradient: LinearGradient(
-                    begin: Alignment.topCenter,
-                    end: Alignment.bottomCenter,
-                    colors: [
-                      Color(0x00000000),
-                      Color(0x66000000),
-                      Color(0xCC000000),
-                    ],
-                    stops: [0.35, 0.75, 1],
+        radius: 10,
+        child: Container(
+          decoration: BoxDecoration(
+            gradient: LinearGradient(
+              begin: Alignment.centerLeft,
+              end: Alignment.centerRight,
+              colors: [
+                Color.lerp(c.bg, tint, 0.55)!,
+                Color.lerp(c.bg, tint, 0.18)!,
+              ],
+            ),
+          ),
+          child: Row(
+            children: [
+              Expanded(
+                child: Padding(
+                  padding: const EdgeInsets.fromLTRB(14, 8, 8, 8),
+                  child: Align(
+                    alignment: Alignment.centerLeft,
+                    child: Text(
+                      item.title,
+                      maxLines: 2,
+                      overflow: TextOverflow.ellipsis,
+                      style: SunohType.heading(
+                        fontSize: 13.5,
+                        color: Colors.white,
+                        letterSpacing: -0.1,
+                        height: 1.15,
+                      ),
+                    ),
                   ),
                 ),
               ),
-            ),
-            Positioned(
-              left: 12,
-              right: 12,
-              bottom: 10,
-              child: Text(
-                item.title,
-                maxLines: 2,
-                overflow: TextOverflow.ellipsis,
-                style: SunohType.heading(
-                  fontSize: 15,
-                  color: Colors.white,
-                  letterSpacing: -0.1,
-                  height: 1.1,
+              // Square art tucked to the right edge, slightly bigger than
+              // tall so it appears to "pop out" of the tile — adds a bit
+              // of dimensionality to an otherwise flat row.
+              Transform.rotate(
+                angle: 0.20,
+                child: Transform.translate(
+                  offset: const Offset(6, 4),
+                  child: squircleClip(
+                    radius: 4,
+                    child: SizedBox(
+                      width: 56,
+                      height: 56,
+                      child: url.isEmpty
+                          ? ColoredBox(
+                              color: Colors.white.withValues(alpha: 0.18))
+                          : SunohArt(
+                              id: item.id,
+                              imageUrl: url,
+                              size: 56,
+                              radius: 0,
+                              shadow: false),
+                    ),
+                  ),
                 ),
               ),
-            ),
-          ],
+            ],
+          ),
         ),
       ),
     );
