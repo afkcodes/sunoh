@@ -46,6 +46,10 @@ dependencies:
   # OS integration: lockscreen, notification, headset, audio focus. ADDITIVE
   # — if init fails or hangs, in-app playback (Phase 1) still works.
   audio_service: ^0.18.18
+  # Audio focus + interruption + becoming-noisy events. audio_service uses
+  # this transitively but we need the public API to wire ducking / pause
+  # on phone calls + headphone unplug.
+  audio_session: ^0.2.3
   # Runtime POST_NOTIFICATIONS request on Android 13+.
   permission_handler: ^12.0.1
   # Local persistence — RN's MMKV equivalent in the Flutter ecosystem. Pure
