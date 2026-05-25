@@ -46,6 +46,30 @@ class AudioRepo {
       if (_restoreInProgress) return;
       unawaited(persistAll());
     });
+    // Mirror handler.queueListenable reactively so repo.queue is always
+    // fresh. Without this, repo's `_queue` field was being copied from
+    // `handler.queue` synchronously after each mutation — but mpv's
+    // playlist stream is async, so the copy could land BEFORE the new
+    // order was reflected, leaving repo's view stale.
+    handler.queueListenable.addListener(_onHandlerQueueChanged);
+  }
+
+  void _onHandlerQueueChanged() {
+    _queue = handler.queueListenable.value;
+    _currentIndex = handler.currentIndex;
+    final bridge = _bridge;
+    if (bridge != null) {
+      bridge.announceQueue(
+        _queue.map(_mediaItemFor).toList(),
+        startIndex: _currentIndex,
+      );
+    }
+    // Persist on every queue mutation (reorder, add, remove) so a kill
+    // mid-session doesn't lose the new order. Skipped during restore
+    // for the same reason currentSongStream is — `prepareQueue` emits
+    // events before mpv has loaded the file.
+    if (_restoreInProgress) return;
+    unawaited(persistAll());
   }
   final SunohAudioHandler handler;
   final StreamResolver resolver;
@@ -201,71 +225,33 @@ class AudioRepo {
     unawaited(persistAll());
   }
 
-  Future<void> removeFromQueue(int i) async {
-    await handler.removeAt(i);
-    _queue = handler.queue;
-    _currentIndex = handler.currentIndex;
-    // Update audio_service's queue stream so the lockscreen reflects the
-    // change too. queue (the BehaviorSubject from BaseAudioHandler) just
-    // takes a fresh List<MediaItem>.
-    _bridge?.announceQueue(_queue.map(_mediaItemFor).toList(),
-        startIndex: _currentIndex);
-    unawaited(persistAll());
-  }
+  // ── Queue mutations ────────────────────────────────────────────────────
+  // These all delegate to the handler (which drives mpv's internal
+  // playlist) and then return. The mirror update + bridge announce +
+  // persist all happen reactively in `_onHandlerQueueChanged` when
+  // mpv emits the new playlist — single code path, no duplication.
 
-  /// Insert `song` right after the currently-playing track. Used by the
-  /// track-row context menu's "Play next" action. If nothing's playing,
-  /// starts a fresh single-song queue.
+  Future<void> removeFromQueue(int i) => handler.removeAt(i);
+
+  /// Insert `song` right after the currently-playing track. If nothing's
+  /// playing, starts a fresh single-song queue.
   Future<void> playNext(FeedItem song, {String? sourceLabel}) async {
-    if (_queue.isEmpty) {
-      _sourceLabel = sourceLabel;
-    }
+    if (_queue.isEmpty) _sourceLabel = sourceLabel;
     await handler.playNext(song);
-    _queue = handler.queue;
-    _currentIndex = handler.currentIndex;
-    _bridge?.announceQueue(_queue.map(_mediaItemFor).toList(),
-        startIndex: _currentIndex);
-    unawaited(persistAll());
   }
 
   /// Append `song` to the end of the queue.
   Future<void> addToQueue(FeedItem song, {String? sourceLabel}) async {
-    if (_queue.isEmpty) {
-      _sourceLabel = sourceLabel;
-    }
+    if (_queue.isEmpty) _sourceLabel = sourceLabel;
     await handler.addToQueue(song);
-    _queue = handler.queue;
-    _currentIndex = handler.currentIndex;
-    _bridge?.announceQueue(_queue.map(_mediaItemFor).toList(),
-        startIndex: _currentIndex);
-    unawaited(persistAll());
   }
 
-  Future<void> moveInQueue(int from, int to) async {
-    await handler.moveItem(from, to);
-    _queue = handler.queue;
-    _currentIndex = handler.currentIndex;
-    _bridge?.announceQueue(_queue.map(_mediaItemFor).toList(),
-        startIndex: _currentIndex);
-    unawaited(persistAll());
-  }
+  Future<void> moveInQueue(int from, int to) => handler.moveItem(from, to);
 
-  /// Toggle shuffle on the handler. Shuffles the upcoming tail of the
-  /// queue (in place, preserving the now-playing track) when enabled;
-  /// restores the original ordering when disabled. After the handler
-  /// rearranges its queue we mirror it locally, push the bridge an
-  /// updated MediaItem list (so the OS notification's queue reflects
-  /// the new order), and persist so a kill/restart restores the
-  /// post-shuffle state — otherwise the saved queue would be the
-  /// original and the user would lose their shuffled play order.
-  void setShuffle(bool enabled) {
-    handler.setShuffle(enabled);
-    _queue = handler.queue;
-    _currentIndex = handler.currentIndex;
-    _bridge?.announceQueue(_queue.map(_mediaItemFor).toList(),
-        startIndex: _currentIndex);
-    unawaited(persistAll());
-  }
+  /// Toggle shuffle. mpv's native `playlist-shuffle` / `playlist-unshuffle`
+  /// preserves the currently-playing track's playback through the
+  /// reorder.
+  Future<void> setShuffle(bool enabled) => handler.setShuffle(enabled);
 
   /// Pass-through for the repeat mode. The handler consults this in its
   /// natural-EOF advance path. Manual skip taps ignore it.

@@ -1036,12 +1036,13 @@ class AppState extends ChangeNotifier with WidgetsBindingObserver {
   Future<void> apiReorderUpNext(int oldIndex, int newIndex) async {
     final repo = audioRepo;
     if (repo == null) return;
-    // ReorderableList's convention: newIndex is the slot where the item is
-    // dropped, computed BEFORE removing oldIndex. Adjust for that quirk.
-    var adjusted = newIndex;
-    if (newIndex > oldIndex) adjusted -= 1;
+    // ReorderableList and mpv's `playlist-move from to` use the SAME
+    // "take the place of entry at <to>" convention — `to` is a
+    // BEFORE-removal index. No offset is needed; pass through directly.
+    // (We previously subtracted 1 here for Dart's `list.insert`, but
+    // with mpv driving the playlist that semantic flipped.)
     final base = repo.currentIndex + 1;
-    await repo.moveInQueue(base + oldIndex, base + adjusted);
+    await repo.moveInQueue(base + oldIndex, base + newIndex);
     notifyListeners();
   }
 

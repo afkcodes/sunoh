@@ -7,6 +7,7 @@
 //     delegate through AppState → AudioRepo → mpv playlist mutations.
 //   - Dummy mode: keeps the legacy Track-based path (radio stations etc.).
 
+import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
@@ -270,7 +271,14 @@ class _ApiQueueRow extends StatelessWidget {
         .take(2)
         .join(', ');
     final dur = _fmtDuration(song.duration);
-    return Container(
+    // Wrap the whole row in a faster delayed-drag listener so a long
+    // press anywhere on the row (not just the hamburger handle) starts
+    // reordering. Flutter's built-in `ReorderableDelayedDragStartListener`
+    // hard-codes ~500 ms via `kLongPressTimeout` — see [_FastReorderListener]
+    // for the local subclass that drops that to 200 ms.
+    return _FastReorderListener(
+      index: index,
+      child: Container(
       color: c.bg,
       padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 8),
       child: Row(
@@ -322,6 +330,7 @@ class _ApiQueueRow extends StatelessWidget {
           ),
         ],
       ),
+    ),
     );
   }
 }
@@ -551,3 +560,24 @@ class _DummyQueueBody extends StatelessWidget {
   }
 }
 
+
+/// `ReorderableDragStartListener` subclass that uses a 200 ms long-press
+/// delay instead of Flutter's built-in ~500 ms. The Material library's
+/// `ReorderableDelayedDragStartListener` doesn't expose the delay, so
+/// we re-implement the one line that matters: which recognizer to
+/// construct. Everything else (drag handling, scroll-while-dragging,
+/// proxyDecorator hookup) is inherited.
+class _FastReorderListener extends ReorderableDragStartListener {
+  const _FastReorderListener({
+    required super.child,
+    required super.index,
+  });
+
+  @override
+  MultiDragGestureRecognizer createRecognizer() {
+    return DelayedMultiDragGestureRecognizer(
+      delay: const Duration(milliseconds: 200),
+      debugOwner: this,
+    );
+  }
+}

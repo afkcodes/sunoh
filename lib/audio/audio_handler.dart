@@ -41,6 +41,7 @@
 
 import 'dart:async';
 
+import 'package:audio_session/audio_session.dart';
 import 'package:flutter/foundation.dart';
 import 'package:mpv_audio_kit/mpv_audio_kit.dart';
 
@@ -67,7 +68,18 @@ class SunohAudioHandler {
     _urlRefresh = UrlRefreshScheduler(refresh: _refreshCurrentTrack);
     debugPrint('[audio] Player constructed ✓');
     _wirePlayerStreams();
-    unawaited(_applyAudioOutputTuning());
+    // mpv tuning + audio session must run AFTER mpv's Player has finished
+    // its own async init, so we sequence them. The mpv_audio_kit package
+    // doesn't wire audio_session itself (host-app responsibility — see
+    // its README §7.6 and the absence of any audio_session import in
+    // its `lib/`), so we own focus / interruption / becoming-noisy
+    // handling.
+    unawaited(_initAsync());
+  }
+
+  Future<void> _initAsync() async {
+    await _applyAudioOutputTuning();
+    await _wireAudioSession();
   }
 
   final StreamResolver resolver;
@@ -273,6 +285,18 @@ class SunohAudioHandler {
   /// reports `playing: false` even if the user just tapped play.
   bool _userPlaying = false;
 
+  // ── Audio focus / interruption state ──────────────────────────────────
+  AudioSession? _audioSession;
+  /// True while we're paused specifically because of an interruption
+  /// (phone call, alarm, another music app, headphone unplug). Lets the
+  /// interruption-end handler decide whether to auto-resume — we only
+  /// resume if the pause was OURS, not a user-initiated one.
+  bool _pausedForInterruption = false;
+  /// True while ducked (volume lowered for a transient ducking
+  /// interruption like a nav prompt). Original volume restored on end.
+  bool _ducked = false;
+  static const double _kDuckedVolume = 30;
+
   // ── Subscriptions ──────────────────────────────────────────────────────
   final List<StreamSubscription<dynamic>> _subs = [];
 
@@ -306,6 +330,110 @@ class SunohAudioHandler {
     if (_playMode != PlayMode.live) return;
     final title = meta['icy-title'] ?? meta['title'];
     _icyTitleCtl.add(title?.trim().isEmpty == true ? null : title);
+  }
+
+  /// Wire the platform audio session as a music app + subscribe to
+  /// interruption + becoming-noisy events. This is what gets us:
+  ///   - Another app starting audio pauses (or ducks) us via the
+  ///     `interruptionEventStream`.
+  ///   - Unplugging wired headphones / disconnecting Bluetooth pauses
+  ///     via the `becomingNoisyEventStream` (standard music-app UX —
+  ///     don't blast the phone speaker).
+  ///   - Phone calls pause us.
+  ///
+  /// Critical: events are only delivered RELIABLY on Android once the
+  /// session has been set active. We call `setActive(true)` on each
+  /// play / setQueue and `setActive(false)` on stop — see those
+  /// methods.
+  Future<void> _wireAudioSession() async {
+    try {
+      final session = await AudioSession.instance;
+      await session.configure(const AudioSessionConfiguration.music());
+      _audioSession = session;
+      // ignore: avoid_print
+      print('[audio-session] configured as music');
+
+      session.interruptionEventStream.listen(_onInterruption);
+      session.becomingNoisyEventStream.listen(_onBecomingNoisy);
+    } catch (e) {
+      // ignore: avoid_print
+      print('[audio-session] wiring failed: $e');
+    }
+  }
+
+  void _onInterruption(AudioInterruptionEvent event) {
+    // ignore: avoid_print
+    print('[audio-session] interruption '
+        '${event.begin ? 'BEGIN' : 'END'} type=${event.type}');
+    if (event.begin) {
+      switch (event.type) {
+        case AudioInterruptionType.duck:
+          if (!_ducked) {
+            _ducked = true;
+            _player.setVolume(_kDuckedVolume);
+          }
+        case AudioInterruptionType.pause:
+        case AudioInterruptionType.unknown:
+          if (_player.state.playing) {
+            _pausedForInterruption = true;
+            _player.pause();
+          }
+      }
+    } else {
+      switch (event.type) {
+        case AudioInterruptionType.duck:
+          if (_ducked) {
+            _ducked = false;
+            _player.setVolume(100);
+          }
+        case AudioInterruptionType.pause:
+        case AudioInterruptionType.unknown:
+          if (_pausedForInterruption && _userPlaying) {
+            _pausedForInterruption = false;
+            _player.play();
+          } else {
+            _pausedForInterruption = false;
+          }
+      }
+    }
+  }
+
+  void _onBecomingNoisy(void _) {
+    // ignore: avoid_print
+    print('[audio-session] becoming noisy — pausing');
+    if (_player.state.playing) {
+      _userPlaying = false;
+      _player.pause();
+    }
+  }
+
+  /// Tell the platform we're now an active audio source. On Android this
+  /// requests audio focus + makes interruption / becoming-noisy events
+  /// fire for us. Called on every setQueue with play=true and on play().
+  Future<void> _activateSession() async {
+    final s = _audioSession;
+    if (s == null) return;
+    try {
+      final ok = await s.setActive(true);
+      // ignore: avoid_print
+      print('[audio-session] setActive(true) → $ok');
+    } catch (e) {
+      // ignore: avoid_print
+      print('[audio-session] setActive(true) failed: $e');
+    }
+  }
+
+  Future<void> _deactivateSession() async {
+    final s = _audioSession;
+    if (s == null) return;
+    try {
+      await s.setActive(false);
+      // ignore: avoid_print
+      print('[audio-session] setActive(false)');
+    } catch (e) {
+      // ignore: avoid_print
+      print('[audio-session] setActive(false) failed: $e');
+    }
   }
 
   /// One-shot mpv configuration applied after construction. Per the
@@ -509,13 +637,14 @@ class SunohAudioHandler {
     debugPrint('[audio] setQueue len=${songs.length} startIndex=$startIndex '
         'mode=$mode');
     _playMode = mode;
-    // Cache the FeedItems before mpv asks us to resolve them.
     for (final s in songs) {
       _byId[s.id] = s;
     }
     _loadFailRetries.clear();
     _icyTitleCtl.add(null);
     _userPlaying = true;
+    _pausedForInterruption = false;
+    await _activateSession();
     final medias = songs.map(_toMedia).toList();
     if (mode == PlayMode.live) {
       // Single entry — no playlist auto-advance is meaningful for a live
@@ -557,12 +686,18 @@ class SunohAudioHandler {
 
   Future<void> play() async {
     _userPlaying = true;
+    // Manual play overrides any pending auto-resume from an interruption.
+    _pausedForInterruption = false;
     _loadFailRetries.clear();
+    await _activateSession();
     await _player.play();
   }
 
   Future<void> pause() async {
     _userPlaying = false;
+    // Manual pause — not an interruption. Clear the flag so the next
+    // interruption-end doesn't surprise-resume on top of us.
+    _pausedForInterruption = false;
     await _player.pause();
   }
 
@@ -570,8 +705,10 @@ class SunohAudioHandler {
 
   Future<void> stop() async {
     _userPlaying = false;
+    _pausedForInterruption = false;
     await _player.pause();
     await _player.seek(Duration.zero);
+    await _deactivateSession();
   }
 
   Future<void> skipToNext() => _player.next();
@@ -616,10 +753,12 @@ class SunohAudioHandler {
     if (oldIndex < 0 ||
         newIndex < 0 ||
         oldIndex >= queue.length ||
-        newIndex >= queue.length ||
         oldIndex == newIndex) {
       return;
     }
+    // mpv's `playlist-move <from> <to>` accepts `to` up to AND INCLUDING
+    // the playlist length (meaning "append to end"). Allow it.
+    if (newIndex > queue.length) return;
     await _player.move(oldIndex, newIndex);
   }
 
