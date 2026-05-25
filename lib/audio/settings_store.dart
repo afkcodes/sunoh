@@ -1,6 +1,8 @@
 // Persistent user-settings store. Holds EQ + appearance + playback prefs.
 // All keys live in the same Hive 'settings' box.
 
+import 'dart:io';
+
 import 'package:flutter/material.dart';
 import 'package:hive_ce_flutter/hive_flutter.dart';
 
@@ -48,9 +50,49 @@ class SettingsStore {
   static const _kStreamQuality = 'playback.stream_quality';
   static const _kCrossfadeSec = 'playback.crossfade_sec';
 
+  /// Cached in-flight open so concurrent loaders share one openBox call
+  /// — same race-avoidance idiom as library_store.
+  Future<Box>? _openFuture;
+
   Future<Box> _box() async {
     if (Hive.isBoxOpen(_boxName)) return Hive.box(_boxName);
-    return Hive.openBox(_boxName);
+    return _openFuture ??= _openOnce();
+  }
+
+  Future<Box> _openOnce() async {
+    Box box;
+    try {
+      box = await Hive.openBox(_boxName);
+    } catch (e, st) {
+      // ignore: avoid_print
+      print('[settings-store] ⚠ openBox("$_boxName") FAILED: $e\n$st\n'
+          '[settings-store] deleting corrupted box file and retrying…');
+      try {
+        await Hive.deleteBoxFromDisk(_boxName);
+      } catch (_) {}
+      box = await Hive.openBox(_boxName);
+    }
+    int boxBytes = -1;
+    try {
+      final p = box.path;
+      if (p != null) {
+        final f = File(p);
+        if (await f.exists()) boxBytes = await f.length();
+      }
+    } catch (_) {}
+    // `print` (not debugPrint) so this surfaces in release logcat too —
+    // mirrors library-store / playback-store cold-start lines for easy
+    // diffing when the user reports "settings not preserved".
+    // ignore: avoid_print
+    print('[settings-store] opened "$_boxName" at ${box.path} '
+        '(file=${boxBytes}b) — '
+        'accent=${box.get(_kAccent) ?? '-'} '
+        'density=${box.get(_kDensity) ?? '-'} '
+        'tintFromArt=${box.get(_kTintFromArt) ?? '-'} '
+        'streamQ=${box.get(_kStreamQuality) ?? '-'} '
+        'crossfade=${box.get(_kCrossfadeSec) ?? '-'} '
+        'eqPreset=${box.get(_kEqPresetId) ?? '-'}');
+    return box;
   }
 
   // ── EQ ──────────────────────────────────────────────────────────────────
@@ -64,6 +106,10 @@ class SettingsStore {
       _kEqBands: bands,
       _kEqPresetId: presetId,
     });
+    // Force fsync — without flush, Hive buffers writes and a fast process
+    // kill (adb install, app swipe, etc.) drops them silently. Settings
+    // were lost across upgrades for exactly this reason.
+    await box.flush();
     debugPrint('[settings-store] saved EQ preset=$presetId');
   }
 
@@ -106,6 +152,8 @@ class SettingsStore {
     if (tintIntensity != null) map[_kTintIntensity] = tintIntensity;
     if (map.isEmpty) return;
     await box.putAll(map);
+    await box.flush();
+    debugPrint('[settings-store] saved appearance ${map.keys.join(",")}');
   }
 
   Future<SavedAppearance?> loadAppearance() async {
@@ -135,6 +183,8 @@ class SettingsStore {
     if (crossfadeSec != null) map[_kCrossfadeSec] = crossfadeSec;
     if (map.isEmpty) return;
     await box.putAll(map);
+    await box.flush();
+    debugPrint('[settings-store] saved playback ${map.keys.join(",")}');
   }
 
   Future<SavedPlayback?> loadPlayback() async {

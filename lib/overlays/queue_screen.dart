@@ -16,6 +16,7 @@ import '../api/dto.dart';
 import '../data/catalog.dart';
 import '../providers/app_state_provider.dart';
 import '../theme/tokens.dart';
+import 'queue_menu_sheet.dart';
 import '../widgets/album_art.dart';
 import '../widgets/playing_bars.dart';
 import '../widgets/ui.dart';
@@ -50,7 +51,11 @@ class QueueScreen extends ConsumerWidget {
                       size: 22,
                       onTap: () => context.pop()),
                   eyebrow('QUEUE', c.fgMute),
-                  IconBtn(icon: SolarIconsBold.menuDots, color: c.fgDim, size: 20, onTap: () {}),
+                  IconBtn(
+                      icon: SolarIconsBold.menuDots,
+                      color: c.fgDim,
+                      size: 20,
+                      onTap: () => showQueueMenuSheet(context)),
                 ],
               ),
             ),
@@ -234,7 +239,7 @@ class _ApiNowPlayingRow extends StatelessWidget {
               ],
             ),
           ),
-          PlayingBars(color: accent, size: 20, count: 4),
+          PlayingBars(color: accent, size: 20),
         ],
       ),
     );
@@ -417,7 +422,7 @@ class _DummyQueueBody extends StatelessWidget {
                         ],
                       ),
                     ),
-                    PlayingBars(color: accent, size: 20, count: 4),
+                    PlayingBars(color: accent, size: 20),
                   ],
                 ),
               ),

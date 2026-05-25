@@ -205,10 +205,23 @@ class SunohApi {
     String stationId, {
     int count = 20,
   }) async {
+    // URL-encode the station id — saavn returns ids like
+    // `saavn_~^~artist_radio~^~459320` for artist stations. `^` is
+    // outside the RFC 3986 URI character set; `~` is unreserved but
+    // encoding it doesn't hurt.
+    //
+    // Also: don't throw on non-2xx so we can surface the error body in
+    // logs. Saavn upstream sometimes returns 400 with a useful message
+    // (e.g. "stationid is malformed") that we'd otherwise discard.
+    // `next=1` matches RN's call shape — the upstream endpoint expects
+    // it for pagination even on the first page.
     final res = await _dio.get<Map<String, dynamic>>(
-      '/music/radio/$stationId',
-      queryParameters: {'count': count},
+      '/music/radio/${Uri.encodeComponent(stationId)}',
+      queryParameters: {'count': count, 'next': 1},
+      options: Options(validateStatus: (_) => true),
     );
+    // ignore: avoid_print
+    print('[radio] songs HTTP ${res.statusCode} body=${res.data}');
     final env = ApiEnvelope.from<List<FeedItem>>(
       res.data ?? const {},
       (raw) {

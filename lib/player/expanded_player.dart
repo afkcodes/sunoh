@@ -21,6 +21,7 @@ import 'package:solar_icons/solar_icons.dart';
 import '../data/catalog.dart';
 import '../data/models.dart';
 import '../overlays/eq_sheet.dart';
+import '../overlays/track_menu_sheet.dart';
 import '../providers/app_state_provider.dart';
 import '../providers/palette_provider.dart';
 import '../router/router.dart';
@@ -128,7 +129,7 @@ class _ExpandedPlayerState extends ConsumerState<ExpandedPlayer>
               child: Column(
                 children: [
                   const SizedBox(height: 4),
-                  _header(context, c, track, s.apiSourceLabel),
+                  _header(context, s, c, track, s.apiSourceLabel),
                   Expanded(
                     child: _classic(
                       context: context,
@@ -149,8 +150,8 @@ class _ExpandedPlayerState extends ConsumerState<ExpandedPlayer>
     );
   }
 
-  Widget _header(
-      BuildContext context, SunohColors c, Track track, String? sourceLabel) {
+  Widget _header(BuildContext context, AppState s, SunohColors c, Track track,
+      String? sourceLabel) {
     // Resolve the eyebrow + main label. API-mode songs pass an explicit
     // `apiSourceLabel` in the form "PLAYLIST · Title" / "ALBUM · Title".
     // Split on ' · ' so the eyebrow gets the category and the main line
@@ -199,7 +200,23 @@ class _ExpandedPlayerState extends ConsumerState<ExpandedPlayer>
               icon: SolarIconsBold.menuDots,
               color: c.fg,
               size: 20,
-              onTap: () {}),
+              // Opens the reusable track-actions sheet for the currently-
+              // playing song (Like / Play next / Add to queue / View Artist
+              // / Share). No-op when the current track is a dummy entry
+              // (radio stations, podcasts — no FeedItem to act on).
+              onTap: () {
+                final song = s.currentApiSong;
+                if (song == null) return;
+                showTrackMenuSheet(context,
+                    song: song,
+                    sourceLabel: s.apiSourceLabel,
+                    sourceRef: s.apiSourceRef,
+                    // True so the sheet's navigation rows also pop the
+                    // player itself before pushing the destination —
+                    // otherwise the album/artist lands behind the still-
+                    // open player and looks like nothing happened.
+                    fromPlayer: true);
+              }),
         ],
       ),
     );

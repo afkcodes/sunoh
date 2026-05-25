@@ -16,6 +16,7 @@
 
 import 'package:dio/dio.dart';
 
+import '../audio/url_refresh.dart';
 import 'dto.dart';
 
 /// User stream-quality preference. `auto` and `high` both prefer the highest
@@ -32,6 +33,26 @@ class StreamResolver {
   /// user changes Settings → Stream quality (and at startup when the saved
   /// value is restored from Hive).
   StreamQuality quality = StreamQuality.auto;
+
+  /// In-memory resolve cache keyed by song id. Populated on every successful
+  /// resolve; consulted at the top of [resolve] for non-`forceRefresh` calls.
+  ///
+  /// Entries store the URL's parsed expiry (when present) so we can refuse
+  /// to return a URL that's about to die. The handler's next-track pre-
+  /// resolve fires 15 s before EOF and warms this cache; the cached URL
+  /// is then consumed by `_advanceTo`'s on_load hook — so the cached URL
+  /// is at most ~15 s old at consumption time, well inside its lifetime.
+  /// The TTL check guards against longer gaps (paused queue, dragged-out
+  /// scrubbing, etc.).
+  final Map<String, _CacheEntry> _cache = <String, _CacheEntry>{};
+
+  /// How close to expiry an entry must be before we treat it as stale and
+  /// re-resolve. 60 s buffer covers the typical resolve+open round-trip.
+  static const _kExpirySafetyBuffer = Duration(seconds: 60);
+
+  /// Drop a cached entry — called from [resolve] on `forceRefresh: true`
+  /// paths so the URL-refresh flow can't return a stale cached URL.
+  void invalidate(String songId) => _cache.remove(songId);
 
   /// Convenience setter for the Hive-persisted string form used in the UI.
   /// Unknown values fall back to `auto`.
@@ -56,10 +77,28 @@ class StreamResolver {
   /// was fetched, which is the exact set of URLs we need to bypass.
   Future<ResolvedStream> resolve(FeedItem song,
       {bool forceRefresh = false}) async {
-    // 1) Inline mediaUrls (fresh API responses include these).
-    if (!forceRefresh) {
+    if (forceRefresh) {
+      // Stale-URL recovery path — drop any cached entry so the in-flight
+      // pre-resolve from a prior tick can't return a known-bad URL.
+      _cache.remove(song.id);
+    } else {
+      // 0) Cache hit (if still fresh) — populated by an earlier resolve.
+      //    Returning here makes the on_load hook complete synchronously,
+      //    which is the whole point of pre-resolving the next track.
+      final cached = _cache[song.id];
+      if (cached != null && !_isStale(cached)) {
+        return cached.stream;
+      }
+      if (cached != null) {
+        // Cached URL is too close to expiry — drop it and re-resolve.
+        _cache.remove(song.id);
+      }
+
+      // 1) Inline mediaUrls (fresh API responses include these).
       final embedded = _pick(song.mediaUrls);
-      if (embedded != null) return ResolvedStream(embedded);
+      if (embedded != null) {
+        return _store(song.id, ResolvedStream(embedded));
+      }
     }
 
     final provider = song.source;
@@ -77,7 +116,9 @@ class StreamResolver {
       );
       final parsed = _enrichFromSongResponse(res.data);
       final url = _pick(parsed?.mediaUrls ?? const []);
-      if (url != null) return ResolvedStream(url, enriched: parsed);
+      if (url != null) {
+        return _store(song.id, ResolvedStream(url, enriched: parsed));
+      }
     } on DioException catch (_) {
       // Fall through to /stream attempt.
     }
@@ -94,12 +135,33 @@ class StreamResolver {
       );
       if (env.isSuccess) {
         final picked = _pick(env.data ?? const []);
-        if (picked != null) return ResolvedStream(picked);
+        if (picked != null) {
+          return _store(song.id, ResolvedStream(picked));
+        }
       }
     }
 
     throw StreamResolveException(
         'No playable stream variants for "${song.title}" (${song.id}).');
+  }
+
+  ResolvedStream _store(String songId, ResolvedStream stream) {
+    _cache[songId] = _CacheEntry(
+      stream: stream,
+      expiry: UrlRefreshScheduler.parseExpiry(stream.url),
+    );
+    return stream;
+  }
+
+  /// True if the cached entry is within [_kExpirySafetyBuffer] of expiry
+  /// (or already past). Forces a fresh resolve so the on_load hook never
+  /// hands mpv an about-to-die URL. Entries without a parseable expiry
+  /// are treated as fresh — those URLs typically have no published TTL
+  /// (saavn mediaUrls) and behave fine for long sessions.
+  bool _isStale(_CacheEntry e) {
+    final expiry = e.expiry;
+    if (expiry == null) return false;
+    return DateTime.now().isAfter(expiry.subtract(_kExpirySafetyBuffer));
   }
 
   /// Parse the `/music/song/:id` envelope (flat saavn vs gaana-nested-`song`)
@@ -162,4 +224,12 @@ class ResolvedStream {
   ResolvedStream(this.url, {this.enriched});
   final String url;
   final FeedItem? enriched;
+}
+
+/// Cache entry — the resolved stream + the parsed signed-URL expiry (if
+/// any). Stored only inside [StreamResolver]; callers see [ResolvedStream].
+class _CacheEntry {
+  _CacheEntry({required this.stream, required this.expiry});
+  final ResolvedStream stream;
+  final DateTime? expiry;
 }

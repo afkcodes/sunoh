@@ -22,7 +22,10 @@ if (keystorePropertiesFile.exists()) {
 }
 
 android {
-    namespace = "com.sunoh.sunoh"
+    // Same applicationId as the RN sunoh app — same keystore (see
+    // [[sunoh-android-signing]]) means installing this Flutter build over
+    // the RN one is treated as an upgrade by Android, not a fresh install.
+    namespace = "codes.afk.sunoh"
     compileSdk = flutter.compileSdkVersion
     ndkVersion = flutter.ndkVersion
 
@@ -36,8 +39,7 @@ android {
     }
 
     defaultConfig {
-        // TODO: Specify your own unique Application ID (https://developer.android.com/studio/build/application-id.html).
-        applicationId = "com.sunoh.sunoh"
+        applicationId = "codes.afk.sunoh"
         // You can update the following values to match your application needs.
         // For more information, see: https://flutter.dev/to/review-gradle-config.
         // Bumped from flutter default (21) to 24 — mpv_audio_kit (libmpv)

@@ -78,7 +78,7 @@ class _RadioTabState extends State<RadioTab> {
                               child: Row(
                                 mainAxisSize: MainAxisSize.min,
                                 children: [
-                                  const PlayingBars(color: Color(0xFFFF7575), size: 12, count: 4),
+                                  const PlayingBars(color: Color(0xFFFF7575), size: 12),
                                   const SizedBox(width: 8),
                                   eyebrow('ON AIR', const Color(0xFFFF7575),
                                       size: 10, letterSpacing: 1.2),
@@ -175,7 +175,7 @@ class _RadioTabState extends State<RadioTab> {
                     ),
                   ),
                   if ((st.freqValue - freq).abs() < 0.2)
-                    PlayingBars(color: c.accent, size: 14, count: 4),
+                    PlayingBars(color: c.accent, size: 14),
                 ],
               ),
             ),

@@ -12,6 +12,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../api/dto.dart';
 import '../api/stream_resolver.dart';
+import '../data/models.dart';
 import 'audio_handler.dart';
 import 'audio_service_bridge.dart';
 import 'library_store.dart';
@@ -56,9 +57,15 @@ class AudioRepo {
   List<FeedItem> _queue = const [];
   int _currentIndex = 0;
   String? _sourceLabel;
+  DetailRef? _sourceRef;
   List<FeedItem> get queue => _queue;
   int get currentIndex => _currentIndex;
   String? get sourceLabel => _sourceLabel;
+  /// DetailRef of the queue's origin (album/playlist). Persisted alongside
+  /// sourceLabel so the player's "Go to Album/Playlist" menu row survives
+  /// a kill/restart. Null when the queue was started outside a detail
+  /// screen (search, radio, library shortcuts).
+  DetailRef? get sourceRef => _sourceRef;
 
   /// Set for the duration of `restore()`. Suppresses the track-change
   /// listener's `persistAll` call so we don't write position=0 over the
@@ -98,6 +105,7 @@ class AudioRepo {
     List<FeedItem> songs,
     int startIndex, {
     String? sourceLabel,
+    DetailRef? sourceRef,
   }) async {
     if (songs.isEmpty) return;
     debugPrint(
@@ -105,6 +113,7 @@ class AudioRepo {
     _queue = songs;
     _currentIndex = startIndex;
     _sourceLabel = sourceLabel;
+    _sourceRef = sourceRef;
     await handler.setQueue(songs, startIndex);
 
     // Best-effort OS metadata push: full queue + the starting item.
@@ -136,6 +145,7 @@ class AudioRepo {
       _queue = saved.queue;
       _currentIndex = saved.currentIndex;
       _sourceLabel = saved.sourceLabel;
+      _sourceRef = saved.sourceRef;
       await handler.prepareQueue(
         saved.queue,
         saved.currentIndex,
@@ -163,6 +173,7 @@ class AudioRepo {
       currentIndex: _currentIndex,
       positionSec: handler.position.inSeconds,
       sourceLabel: _sourceLabel,
+      sourceRef: _sourceRef,
     );
   }
 
@@ -230,6 +241,23 @@ class AudioRepo {
 
   Future<void> moveInQueue(int from, int to) async {
     await handler.moveItem(from, to);
+    _queue = handler.queue;
+    _currentIndex = handler.currentIndex;
+    _bridge?.announceQueue(_queue.map(_mediaItemFor).toList(),
+        startIndex: _currentIndex);
+    unawaited(persistAll());
+  }
+
+  /// Toggle shuffle on the handler. Shuffles the upcoming tail of the
+  /// queue (in place, preserving the now-playing track) when enabled;
+  /// restores the original ordering when disabled. After the handler
+  /// rearranges its queue we mirror it locally, push the bridge an
+  /// updated MediaItem list (so the OS notification's queue reflects
+  /// the new order), and persist so a kill/restart restores the
+  /// post-shuffle state — otherwise the saved queue would be the
+  /// original and the user would lose their shuffled play order.
+  void setShuffle(bool enabled) {
+    handler.setShuffle(enabled);
     _queue = handler.queue;
     _currentIndex = handler.currentIndex;
     _bridge?.announceQueue(_queue.map(_mediaItemFor).toList(),

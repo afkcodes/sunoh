@@ -10,6 +10,8 @@
 // evolve without migrations — `FeedItem.toJson` / `fromJson` already round-
 // trip everything the UI needs.
 
+import 'dart:io';
+
 import 'package:flutter/foundation.dart';
 import 'package:hive_ce_flutter/hive_flutter.dart';
 
@@ -30,16 +32,61 @@ class LibraryStore {
   /// the box unbounded on long sessions.
   static const _maxHistory = 50;
 
+  /// Cached in-flight open. The first caller to `_box()` kicks the open,
+  /// every subsequent caller awaits the same future. Without this the
+  /// `Future.wait` over 9 loaders in AppState._restoreLibrary fires 9
+  /// concurrent Hive.openBox calls for the same box — even if Hive
+  /// internally serializes, the diagnostic noise alone made the log
+  /// unreadable, and on some platforms it's a real race risk.
+  Future<Box>? _openFuture;
+
   Future<Box> _box() async {
     if (Hive.isBoxOpen(_boxName)) return Hive.box(_boxName);
-    final box = await Hive.openBox(_boxName);
-    // Diagnostic — surfaces the box path + lengths in logcat each cold
-    // start. If a user reports "library wiped after install", check that
-    // these numbers stay non-zero across runs. If they reset to 0 after
-    // an install, the install path wiped the data directory (signing-
-    // cert change, `adb uninstall`, or a manual Settings → Clear data).
-    debugPrint(
-        '[library-store] opened "$_boxName" at ${box.path} — '
+    return _openFuture ??= _openOnce();
+  }
+
+  Future<Box> _openOnce() async {
+    Box box;
+    try {
+      box = await Hive.openBox(_boxName);
+    } catch (e, st) {
+      // Corruption recovery — if the .hive file is half-written (rare,
+      // but possible if the device was killed mid-flush) Hive throws on
+      // open. Without recovery the catch blocks in loadLikedIds /
+      // loadLikedSongs / etc. silently return empty, which presents to
+      // the user as "library got wiped" even though the playback box at
+      // the same path opened fine. Delete the corrupted file + start
+      // fresh so subsequent writes get a clean baseline.
+      // ignore: avoid_print
+      print('[library-store] ⚠ openBox("$_boxName") FAILED: $e\n$st\n'
+          '[library-store] deleting corrupted box file and retrying…');
+      try {
+        await Hive.deleteBoxFromDisk(_boxName);
+      } catch (_) {}
+      box = await Hive.openBox(_boxName);
+    }
+    // Best-effort file-size probe alongside the entry counts. Release
+    // builds aren't debuggable, so `adb shell run-as` is blocked — having
+    // the app log its own on-disk byte counts lets us distinguish
+    // "writes never reached disk" (size ≈ 0) from "writes succeeded but
+    // read returns empty" (size > 0 with entries=0). Path / lock files
+    // are sibling to `box.path`.
+    int boxBytes = -1;
+    int lockBytes = -1;
+    try {
+      final p = box.path;
+      if (p != null) {
+        final f = File(p);
+        if (await f.exists()) boxBytes = await f.length();
+        final l = File('$p.lock'.replaceAll('.hive.lock', '.lock'));
+        if (await l.exists()) lockBytes = await l.length();
+      }
+    } catch (_) {}
+
+    // `print` (not debugPrint) so this surfaces in release logcat too.
+    // ignore: avoid_print
+    print('[library-store] opened "$_boxName" at ${box.path} '
+        '(file=${boxBytes}b lock=${lockBytes}b) — '
         'liked=${(box.get(_kLikedSongs) as List?)?.length ?? 0} '
         'history=${(box.get(_kHistory) as List?)?.length ?? 0} '
         'albums=${(box.get(_kSavedAlbums) as List?)?.length ?? 0} '
@@ -49,11 +96,20 @@ class LibraryStore {
   }
 
   List<FeedItem> _decodeList(Object? raw) {
-    if (raw is! List) return const [];
+    // CRITICAL: must return a *growable, modifiable* list because every
+    // mutation path (setLiked / pushHistory / setSaved) does
+    // `current.removeWhere(...)` + `current.insert(0, …)` on the result.
+    // Returning `const []` here threw `Unsupported operation: Cannot
+    // remove from an unmodifiable list` on the very first like attempt
+    // (when the key didn't exist yet), which aborted the write before
+    // any data hit disk — the UI showed the optimistic update fine but
+    // nothing was persisted, so "library got wiped on update" was really
+    // "library was never on disk to begin with."
+    if (raw is! List) return <FeedItem>[];
     return raw
         .whereType<Map>()
         .map((m) => FeedItem.fromJson(m.cast<String, dynamic>()))
-        .toList();
+        .toList(); // toList() is growable + modifiable
   }
 
   List<Map<String, dynamic>> _encodeList(List<FeedItem> items) =>

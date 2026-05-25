@@ -73,6 +73,7 @@ class UrlRefreshScheduler {
     required String resolvedUrl,
     Duration safetyMargin = const Duration(minutes: 5),
     Duration fallbackTtl = const Duration(minutes: 45),
+    Duration minLeadBeforeExpiry = const Duration(seconds: 25),
   }) {
     _timer?.cancel();
     _timer = null;
@@ -84,14 +85,31 @@ class UrlRefreshScheduler {
         : now.add(fallbackTtl);
     final delay = refreshAt.difference(now);
 
+    // Past-safety branch: URL was issued such that we're already inside
+    // (or past) the normal 5-min safety window. The previous behaviour
+    // was a flat 30 s defer, which under load (gaana refresh takes 2-5 s
+    // to round-trip + mpv reopen) wasn't always enough — playback would
+    // stall when the refresh finished after the URL had already expired.
+    // New behaviour: schedule for `expiry - minLeadBeforeExpiry` (default
+    // 25 s) so we always leave that much runway for the actual fetch.
+    // Clamp to a minimum of 5 s from now so we never tight-loop.
     if (delay.inSeconds < 30) {
-      // URL was issued past the safety margin (or there's no expiry param
-      // and our fallback is somehow tiny). Defer 30s so we don't tight-loop;
-      // the reactive fallback on premature EOF will still catch a stall.
+      Duration deferral;
+      if (expiry != null) {
+        final leadAt = expiry.subtract(minLeadBeforeExpiry);
+        final leadDelay = leadAt.difference(now);
+        deferral = leadDelay > const Duration(seconds: 5)
+            ? leadDelay
+            : const Duration(seconds: 5);
+      } else {
+        deferral = const Duration(seconds: 30);
+      }
       _scheduledForSongId = songId;
-      _scheduledFor = now.add(const Duration(seconds: 30));
-      _timer = Timer(const Duration(seconds: 30), _fire);
-      debugPrint('[url-refresh] $songId past safety; deferred 30s');
+      _scheduledFor = now.add(deferral);
+      _timer = Timer(deferral, _fire);
+      debugPrint('[url-refresh] $songId past safety; '
+          'deferred ${deferral.inSeconds}s '
+          '(expiry=${expiry?.toIso8601String() ?? 'unparsed'})');
       return;
     }
 
@@ -142,8 +160,9 @@ class UrlRefreshScheduler {
 
   /// Best-effort parser for signed-URL expiry. Tries the common query-string
   /// conventions used by Gaana/Saavn/S3/CDNs. Returns null if no expiry
-  /// parameter is present or parseable.
-  @visibleForTesting
+  /// parameter is present or parseable. Also consumed by `StreamResolver`
+  /// to TTL its in-memory cache (so the cache never serves an about-to-
+  /// expire URL into the on_load hook).
   static DateTime? parseExpiry(String url) {
     final uri = Uri.tryParse(url);
     if (uri == null) return null;

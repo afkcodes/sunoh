@@ -83,6 +83,41 @@ dev_dependencies:
   # package. See that file for information about deactivating specific lint
   # rules and activating additional ones.
   flutter_lints: ^6.0.0
+  # Generators (dev-time only; nothing ships in the APK). Re-run via:
+  #   dart run flutter_launcher_icons
+  #   dart run flutter_native_splash:create
+  # after touching the master assets/icon/icon.png.
+  flutter_launcher_icons: ^0.14.4
+  flutter_native_splash: ^2.4.6
+
+# ── App icon (flutter_launcher_icons) ────────────────────────────────────────
+# Master: assets/icon/icon.png (1:1, ported from the RN ic_launcher-playstore).
+# Adaptive icon background matches the design-system bg so the icon reads
+# clean on Android 8+ adaptive icon shapes.
+flutter_launcher_icons:
+  android: true
+  ios: true
+  image_path: "assets/icon/icon.png"
+  adaptive_icon_background: "#0B0B0D"
+  adaptive_icon_foreground: "assets/icon/icon.png"
+  min_sdk_android: 21
+
+# ── Splash (flutter_native_splash) ───────────────────────────────────────────
+# Logo centered on the design-system bg. flutter_native_splash sizes the
+# image at its native pixel dimensions; to make the icon visually smaller
+# we use a pre-padded asset (`splash.png` = 1536×1536 canvas with the
+# 512×512 icon centered, ~33% of canvas width). The launcher icon keeps
+# using the full-bleed `icon.png` so the home-screen launcher tile stays
+# correctly cropped.
+flutter_native_splash:
+  color: "#0B0B0D"
+  image: "assets/icon/splash.png"
+  android: true
+  ios: true
+  android_12:
+    color: "#0B0B0D"
+    image: "assets/icon/splash.png"
+    icon_background_color: "#0B0B0D"
 
 # For information on the generic Dart part of this file, see the
 # following page: https://dart.dev/tools/pub/pubspec

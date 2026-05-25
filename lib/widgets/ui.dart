@@ -204,3 +204,66 @@ class SectionHeader extends StatelessWidget {
     );
   }
 }
+
+// ── Skeleton placeholders ────────────────────────────────────────────────────
+// Used by home + search + (future) detail loaders. Pair `Pulse` (subtle
+// opacity breathe) with `SkeletonBar` (a squircle filled-rect placeholder).
+// Promoted out of home_screen 2026-05-24 so search can reuse the same look.
+
+/// Subtle opacity breathe for skeleton placeholders. 1.1 s reverse-loop with
+/// an easeInOut curve so the pulse reads as breathing, not strobing.
+class Pulse extends StatefulWidget {
+  const Pulse({super.key, required this.child});
+  final Widget child;
+  @override
+  State<Pulse> createState() => _PulseState();
+}
+
+class _PulseState extends State<Pulse> with SingleTickerProviderStateMixin {
+  late final AnimationController _c = AnimationController(
+    vsync: this,
+    duration: const Duration(milliseconds: 1100),
+  )..repeat(reverse: true);
+
+  @override
+  void dispose() {
+    _c.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return AnimatedBuilder(
+      animation: _c,
+      builder: (_, child) {
+        final t = Curves.easeInOut.transform(_c.value);
+        return Opacity(opacity: 0.55 + 0.35 * t, child: child);
+      },
+      child: widget.child,
+    );
+  }
+}
+
+/// A squircle placeholder rectangle. Use sparingly inside `Pulse`.
+class SkeletonBar extends StatelessWidget {
+  const SkeletonBar({
+    super.key,
+    required this.height,
+    required this.width,
+    this.radius = 6,
+  });
+  final double height;
+  final double width;
+  final double radius;
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      width: width,
+      height: height,
+      decoration: squircleDecoration(
+        radius: radius,
+        color: Colors.white.withValues(alpha: 0.06),
+      ),
+    );
+  }
+}

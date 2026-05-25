@@ -10,6 +10,7 @@ import '../data/models.dart';
 import '../providers/api_providers.dart';
 import '../providers/app_state_provider.dart';
 import '../providers/home_provider.dart';
+import '../providers/palette_provider.dart';
 import '../router/router.dart';
 import '../theme/tokens.dart';
 import '../widgets/album_art.dart';
@@ -172,7 +173,25 @@ class MusicTab extends ConsumerWidget {
         colors: c,
       ),
       data: (sections) {
-        final nonEmpty = sections.where((s) => s.items.isNotEmpty).toList();
+        // Temporary: hide artist-station rows. The saavn upstream's
+        // `webradio.getSong` endpoint rejects the synthetic stationid
+        // returned for artist stations (`~^~artist_radio~^~<id>`) with
+        // a 400 ("Failed to fetch Saavn radio songs"), so tapping these
+        // tiles always errors out. Re-enable once the API path for
+        // artist-radio playback is sorted out.
+        bool isArtistStationRow(HomeSection s) {
+          if (s.items.isEmpty) return false;
+          final all = s.items.every((it) =>
+              it.type == 'radio_station' && it.stationType == 'artist');
+          if (all) return true;
+          // Fallback: heading mention.
+          final h = s.heading.toLowerCase();
+          return h.contains('artist station') || h.contains('artists station');
+        }
+
+        final nonEmpty = sections
+            .where((s) => s.items.isNotEmpty && !isArtistStationRow(s))
+            .toList();
         if (nonEmpty.isEmpty) {
           return _ErrorFeed(
             message: 'Nothing in the feed right now.',
@@ -288,6 +307,11 @@ class _ApiSection extends ConsumerWidget {
         context.openRef(DetailRef('playlist', item.id, source: src));
         break;
       case 'artist':
+        // Pure artist tiles navigate to the artist screen. The
+        // "Recommended Artist Stations" tiles are a separate concept
+        // — they come back as `type='radio_station'` with
+        // `stationType='artist'` (via the API's mapSaavnChannel
+        // rebrand) and are caught by the radio_station case below.
         context.openRef(DetailRef('artist', item.id, source: src));
         break;
       case 'song':
@@ -325,12 +349,24 @@ class _ApiSection extends ConsumerWidget {
     BuildContext context,
     WidgetRef ref,
     FeedItem item,
-    String? src,
-  ) async {
+    String? src, {
+    String? kind,
+  }) async {
     final s = ref.read(appStateProvider);
     final api = ref.read(sunohApiProvider);
     final provider = src ?? 'saavn';
-    final stationKind = item.stationType ?? 'featured';
+    // Priority: explicit override (e.g. 'artist' for artist tiles on home)
+    // → stationType from the item → 'featured' fallback. Matches the
+    // backend's `/music/radio/session?type=…` value list (artist /
+    // featured / song / radio_station).
+    final stationKind = kind ?? item.stationType ?? 'featured';
+    // print() not debugPrint() so it survives release-mode logcat. Useful
+    // when the user reports "radio errors" — we want every input we sent
+    // to the API plus the response status visible without rebuilding a
+    // debug variant.
+    // ignore: avoid_print
+    print('[radio] starting station id="${item.id}" kind="$stationKind" '
+        'provider="$provider" name="${item.title}" lang="${item.language}"');
     s.flashToast('Starting ${item.title}…');
     try {
       final sessionId = await api.fetchRadioSession(
@@ -340,18 +376,25 @@ class _ApiSection extends ConsumerWidget {
         name: item.title,
         lang: item.language,
       );
+      // ignore: avoid_print
+      print('[radio] session response → '
+          '${sessionId ?? 'NULL (request failed or empty data)'}');
       if (sessionId == null) {
         s.flashToast('Couldn’t start ${item.title}');
         return;
       }
       final songs = await api.fetchRadioSongs(sessionId, count: 20);
+      // ignore: avoid_print
+      print('[radio] fetched ${songs.length} songs for session "$sessionId"');
       if (songs.isEmpty) {
         s.flashToast('No songs available on this station');
         return;
       }
       await s.playApiQueue(songs, 0,
           sourceLabel: 'RADIO · ${item.title}');
-    } catch (e) {
+    } catch (e, st) {
+      // ignore: avoid_print
+      print('[radio] FAILED: $e\n$st');
       s.flashToast('Radio failed: $e');
     }
   }
@@ -462,10 +505,10 @@ class _LoadingFeed extends StatelessWidget {
   const _LoadingFeed();
   @override
   Widget build(BuildContext context) {
-    return _Pulse(
+    return const Pulse(
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
-        children: const [
+        children: [
           _SkeletonSection(featured: true),
           SizedBox(height: 40),
           _SkeletonSection(),
@@ -490,12 +533,10 @@ class _SkeletonSection extends StatelessWidget {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        // Section-header skeleton.
         Padding(
           padding: const EdgeInsets.fromLTRB(20, 0, 20, 14),
-          child: _SkeletonBar(height: 22, width: 180, radius: 6),
+          child: SkeletonBar(height: 22, width: 180, radius: 6),
         ),
-        // Horizontal "row" of card skeletons.
         SingleChildScrollView(
           scrollDirection: Axis.horizontal,
           physics: const NeverScrollableScrollPhysics(),
@@ -510,19 +551,19 @@ class _SkeletonSection extends StatelessWidget {
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      _SkeletonBar(
+                      SkeletonBar(
                         height: tileSize,
                         width: tileSize,
                         radius: featured ? 12 : 10,
                       ),
                       SizedBox(height: featured ? 10 : 8),
-                      _SkeletonBar(
+                      SkeletonBar(
                         height: titleHeight,
                         width: tileSize * 0.85,
                         radius: 4,
                       ),
                       SizedBox(height: featured ? 4 : 2),
-                      _SkeletonBar(
+                      SkeletonBar(
                         height: subHeight,
                         width: tileSize * 0.55,
                         radius: 4,
@@ -535,62 +576,6 @@ class _SkeletonSection extends StatelessWidget {
           ),
         ),
       ],
-    );
-  }
-}
-
-class _SkeletonBar extends StatelessWidget {
-  const _SkeletonBar({
-    required this.height,
-    required this.width,
-    this.radius = 6,
-  });
-  final double height;
-  final double width;
-  final double radius;
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      width: width,
-      height: height,
-      decoration: squircleDecoration(
-        radius: radius,
-        color: Colors.white.withValues(alpha: 0.06),
-      ),
-    );
-  }
-}
-
-/// Subtle opacity pulse for skeleton placeholders.
-class _Pulse extends StatefulWidget {
-  const _Pulse({required this.child});
-  final Widget child;
-  @override
-  State<_Pulse> createState() => _PulseState();
-}
-
-class _PulseState extends State<_Pulse> with SingleTickerProviderStateMixin {
-  late final AnimationController _c = AnimationController(
-    vsync: this,
-    duration: const Duration(milliseconds: 1100),
-  )..repeat(reverse: true);
-
-  @override
-  void dispose() {
-    _c.dispose();
-    super.dispose();
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    return AnimatedBuilder(
-      animation: _c,
-      builder: (_, child) {
-        // Curved opacity for a softer pulse than a linear lerp.
-        final t = Curves.easeInOut.transform(_c.value);
-        return Opacity(opacity: 0.55 + 0.35 * t, child: child);
-      },
-      child: widget.child,
     );
   }
 }
@@ -670,7 +655,7 @@ class _ChannelGrid extends StatelessWidget {
   static const double _tileH = 64;
   static const double _gap = 10;
   static const int _rows = 3;
-  static const double _tileW = 240;
+  static const double _tileW = 180;
 
   @override
   Widget build(BuildContext context) {
@@ -678,13 +663,18 @@ class _ChannelGrid extends StatelessWidget {
     final totalHeight = _rows * _tileH + (_rows - 1) * _gap;
     return SizedBox(
       height: totalHeight,
+      // No `physics:` override — `SunohScrollBehavior` (app-wide) owns scroll
+      // feel. Earlier inline BouncingScrollPhysics ignored the global friction
+      // tuning and made this row feel different from the rest of the app.
       child: GridView.builder(
         scrollDirection: Axis.horizontal,
         padding: const EdgeInsets.symmetric(horizontal: 20),
-        physics: const BouncingScrollPhysics(),
         gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
           crossAxisCount: _rows,
-          childAspectRatio: _tileW / _tileH,
+          // In a horizontal GridView, `childAspectRatio` is cross/main —
+          // i.e. height/width here, not width/height. Passing _tileW/_tileH
+          // collapsed each tile to ~19 px wide (the colored-strip bug).
+          childAspectRatio: _tileH / _tileW,
           mainAxisSpacing: _gap,
           crossAxisSpacing: _gap,
         ),
@@ -700,7 +690,7 @@ class _ChannelGrid extends StatelessWidget {
 /// the left, artwork tucked off the right edge at a slight angle for a
 /// bit of dimensionality. Tap opens via openOccasion (Saavn channels
 /// route through `music/occasions/[id]` per the API).
-class _ChannelTile extends StatelessWidget {
+class _ChannelTile extends ConsumerWidget {
   const _ChannelTile({
     required this.item,
     required this.colors,
@@ -711,12 +701,18 @@ class _ChannelTile extends StatelessWidget {
   final String? sectionSource;
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
     final c = colors;
-    // Deterministic accent so each channel has a stable color identity
-    // ready before any image loads.
-    final tint = artAccent(item.id);
     final url = item.artwork ?? '';
+    // Tint priority: real artwork palette > deterministic id hash. The
+    // hash stands in until palette extraction completes so the tile has
+    // a stable color identity from the first frame instead of flashing
+    // a placeholder. `artPaletteProvider` is autoDispose + 30-min keep-
+    // alive, so a scrolled-away tile won't keep extracting forever.
+    final palette = url.isEmpty
+        ? null
+        : ref.watch(artPaletteProvider(url)).value;
+    final tint = palette?.accent ?? artAccent(item.id);
     return GestureDetector(
       onTap: () => context.openOccasion(item),
       behavior: HitTestBehavior.opaque,

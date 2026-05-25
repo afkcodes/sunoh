@@ -1,6 +1,8 @@
 // DTOs for sunoh-api responses. These mirror the backend's unified shape
 // (src/types/index.ts) — keep them in sync if the API evolves.
 
+import 'dart:convert';
+
 import 'package:html_unescape/html_unescape.dart';
 
 /// HTML-entity decoder applied to user-visible text fields at parse time.
@@ -18,6 +20,87 @@ String? _decodeNullable(Object? s) {
   if (s == null) return null;
   final str = s.toString();
   return _decode(str);
+}
+
+/// Decode the `\uXXXX` Unicode escapes that show up in some backend prose
+/// (notably artist bios — `â€˜` is a smart-quote triplet).
+/// Also normalises `\r\n` / `\n` literal escapes that landed in the string
+/// form when an upstream stringified JSON without re-decoding.
+String _decodeUnicodeEscapes(String s) {
+  if (s.isEmpty) return s;
+  var out = s;
+  if (out.contains(r'\u')) {
+    out = out.replaceAllMapped(
+        RegExp(r'\\u([0-9a-fA-F]{4})'),
+        (m) {
+          final code = int.tryParse(m.group(1)!, radix: 16);
+          return code == null ? m.group(0)! : String.fromCharCode(code);
+        });
+  }
+  if (out.contains(r'\n') || out.contains(r'\r') || out.contains(r'\t')) {
+    out = out
+        .replaceAll(r'\r\n', '\n')
+        .replaceAll(r'\n', '\n')
+        .replaceAll(r'\r', '\n')
+        .replaceAll(r'\t', '\t');
+  }
+  return out;
+}
+
+/// Normalise an artist bio field. Some providers (saavn) ship `bio` as a
+/// JSON array of segments — `[{text, sequence, title}]` — which lands in
+/// the Map as either a real List<Map> OR a string-encoded JSON list.
+/// Either way, the previous behaviour was to `toString()` it, dumping the
+/// raw structure into the About panel. This unwraps to plain prose:
+/// segments concatenated in sequence order, paragraph breaks between, and
+/// any `\uXXXX` Unicode escapes decoded.
+String? _normalizeArtistBio(Object? raw) {
+  if (raw == null) return null;
+
+  // Inline list form (parsed JSON came through as List<dynamic>).
+  if (raw is List) {
+    return _joinBioSegments(raw);
+  }
+
+  final str = raw.toString().trim();
+  if (str.isEmpty) return null;
+
+  // String form: detect if it starts with `[` and parses as a JSON list
+  // of segment maps. If parse fails, fall through to plain-string path.
+  if (str.startsWith('[')) {
+    try {
+      final parsed = jsonDecode(str);
+      if (parsed is List) {
+        final joined = _joinBioSegments(parsed);
+        if (joined != null && joined.isNotEmpty) return joined;
+      }
+    } catch (_) {
+      // Not actually JSON — treat as prose below.
+    }
+  }
+
+  return _decodeUnicodeEscapes(_decode(str));
+}
+
+/// Concatenate `[{text, sequence, title}]` segments into prose. Sorts by
+/// `sequence` when present so paragraphs come out in author-intended
+/// order. Drops empty segments and skips the segment title — it's usually
+/// just "Introduction" / "Career" labels that don't read well inline.
+String? _joinBioSegments(List<dynamic> segments) {
+  final entries = segments
+      .whereType<Map>()
+      .map((m) => m.cast<String, dynamic>())
+      .where((m) => (m['text'] ?? '').toString().trim().isNotEmpty)
+      .toList()
+    ..sort((a, b) {
+      final sa = (a['sequence'] as num?)?.toInt() ?? 0;
+      final sb = (b['sequence'] as num?)?.toInt() ?? 0;
+      return sa.compareTo(sb);
+    });
+  if (entries.isEmpty) return null;
+  return entries
+      .map((m) => _decodeUnicodeEscapes(_decode(m['text'].toString().trim())))
+      .join('\n\n');
 }
 
 /// Envelope: `{ status, message, data, error, source }`.
@@ -576,7 +659,7 @@ class ArtistDetail {
       subtitle: _decodeNullable(inner['subtitle']),
       role: _decodeNullable(inner['role']),
       followers: inner['followers']?.toString(),
-      bio: _decodeNullable(inner['bio']),
+      bio: _normalizeArtistBio(inner['bio']),
       songCount: inner['songCount']?.toString(),
       albumCount: inner['albumCount']?.toString(),
       source: inner['source']?.toString(),

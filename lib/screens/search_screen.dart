@@ -31,6 +31,11 @@ class SearchScreen extends ConsumerStatefulWidget {
 
 class _SearchScreenState extends ConsumerState<SearchScreen> {
   final controller = TextEditingController();
+  // Focus node owned by the screen so the back-button handler can unfocus
+  // the search field. Without this, system back on a focused field punts
+  // straight to "exit app" (the Search tab is at the root of its branch
+  // navigator) instead of just dismissing the keyboard.
+  final _searchFocus = FocusNode();
   String q = '';
   // The debounced query — what we actually feed `searchProvider`. Empty
   // string means "don't search yet" (browse view stays up).
@@ -38,9 +43,20 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
   Timer? _debounce;
 
   @override
+  void initState() {
+    super.initState();
+    // Rebuild on focus change so `PopScope.canPop` reflects the current
+    // keyboard state. Cheap — just toggles canPop true/false.
+    _searchFocus.addListener(() {
+      if (mounted) setState(() {});
+    });
+  }
+
+  @override
   void dispose() {
     _debounce?.cancel();
     controller.dispose();
+    _searchFocus.dispose();
     super.dispose();
   }
 
@@ -73,8 +89,27 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
     final s = ref.watch(appStateProvider);
     final c = s.colors;
     final hasQuery = q.trim().isNotEmpty;
+    final hasFocus = _searchFocus.hasFocus;
+    // Back-button policy on this tab:
+    //   1. Keyboard up → unfocus (dismiss keyboard).
+    //   2. Query typed → clear back to the browse view.
+    //   3. Otherwise → let the system handle it (which exits the app
+    //      since Search is at the root of its branch navigator).
+    // Without this, back from a focused search field punted straight to
+    // "exit app" — really annoying.
+    final intercept = hasFocus || hasQuery;
 
-    return Column(
+    return PopScope(
+      canPop: !intercept,
+      onPopInvokedWithResult: (didPop, _) {
+        if (didPop) return;
+        if (hasFocus) {
+          _searchFocus.unfocus();
+          return;
+        }
+        if (hasQuery) _clear();
+      },
+      child: Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         Padding(
@@ -107,6 +142,7 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
                 Expanded(
                   child: TextField(
                     controller: controller,
+                    focusNode: _searchFocus,
                     onChanged: _onChanged,
                     onSubmitted: (_) {
                       _debounce?.cancel();
@@ -148,6 +184,7 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
           _liveResults(c, s),
         const SizedBox(height: 20),
       ],
+    ),
     );
   }
 
@@ -166,8 +203,7 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
         const SizedBox(height: 12),
         // ── Trending — same shape as home, horizontal carousels per section.
         trending.when(
-          loading: () =>
-              _SearchHint(colors: c, label: 'Loading trending…'),
+          loading: () => const _TrendingSkeleton(),
           error: (e, _) => const SizedBox.shrink(),
           data: (sections) {
             final nonEmpty =
@@ -190,11 +226,7 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
         // matches the home-feed sections (Recently Played etc.).
         SectionHeader(title: 'Explore Categories', colors: c),
         occasions.when(
-          loading: () => Padding(
-            padding: const EdgeInsets.fromLTRB(20, 0, 20, 8),
-            child: Text('Loading categories…',
-                style: SunohType.sans(fontSize: 12, color: c.fgMute)),
-          ),
+          loading: () => const _OccasionsSkeleton(),
           error: (e, _) => const SizedBox.shrink(),
           data: (items) {
             if (items.isEmpty) return const SizedBox.shrink();
@@ -223,14 +255,14 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
   /// the home feed shape. When `_activeQuery` is empty (typing in-flight),
   /// shows a lightweight "Searching…" hint while the user is still typing.
   Widget _liveResults(SunohColors c, AppState s) {
-    // Typed but debounce hasn't fired yet → just show "Searching…".
+    // Typed but debounce hasn't fired yet → show the same skeleton as the
+    // request would. Smooth handoff into the real loading state.
     if (_activeQuery.isEmpty) {
-      return _SearchHint(colors: c, label: 'Searching…');
+      return const _ResultsSkeleton();
     }
     final async = ref.watch(searchProvider(_activeQuery));
     return async.when(
-      loading: () =>
-          _SearchHint(colors: c, label: 'Searching “$_activeQuery”…'),
+      loading: () => const _ResultsSkeleton(),
       error: (e, _) => _SearchHint(
         colors: c,
         label: 'Couldn’t reach search. Try again.',
@@ -538,6 +570,130 @@ class _TrendingRow extends ConsumerWidget {
                 ),
         ),
       ],
+    );
+  }
+}
+
+// ── Skeleton loaders ────────────────────────────────────────────────────────
+// Same `Pulse` + `SkeletonBar` building blocks as the home feed (promoted to
+// widgets/ui.dart 2026-05-24). Shape matches each section's real layout so
+// the visual handoff to loaded data is smooth.
+
+/// One horizontal carousel of card placeholders — matches the live
+/// `_TrendingRow` shape (140 px squircle cover + 2 text lines).
+class _TrendingSkeleton extends StatelessWidget {
+  const _TrendingSkeleton();
+  @override
+  Widget build(BuildContext context) {
+    const tile = 140.0;
+    return Pulse(
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Padding(
+            padding: const EdgeInsets.fromLTRB(20, 0, 20, 14),
+            child: SkeletonBar(height: 22, width: 160, radius: 6),
+          ),
+          SingleChildScrollView(
+            scrollDirection: Axis.horizontal,
+            physics: const NeverScrollableScrollPhysics(),
+            padding: const EdgeInsets.symmetric(horizontal: 20),
+            child: Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                for (var i = 0; i < 4; i++) ...[
+                  if (i > 0) const SizedBox(width: 12),
+                  SizedBox(
+                    width: tile,
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        SkeletonBar(height: tile, width: tile, radius: 10),
+                        const SizedBox(height: 8),
+                        SkeletonBar(height: 13, width: tile * 0.85, radius: 4),
+                        const SizedBox(height: 3),
+                        SkeletonBar(height: 11, width: tile * 0.55, radius: 4),
+                      ],
+                    ),
+                  ),
+                ],
+              ],
+            ),
+          ),
+          const SizedBox(height: 28),
+        ],
+      ),
+    );
+  }
+}
+
+/// 2-column grid of occasion-tile placeholders — same aspect ratio as the
+/// real `_OccasionTile` (171:110).
+class _OccasionsSkeleton extends StatelessWidget {
+  const _OccasionsSkeleton();
+  @override
+  Widget build(BuildContext context) {
+    return Pulse(
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 20),
+        child: GridView.count(
+          crossAxisCount: 2,
+          shrinkWrap: true,
+          physics: const NeverScrollableScrollPhysics(),
+          crossAxisSpacing: 10,
+          mainAxisSpacing: 10,
+          childAspectRatio: 171 / 110,
+          children: [
+            for (var i = 0; i < 6; i++)
+              const SkeletonBar(
+                  height: double.infinity, width: double.infinity, radius: 14),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+/// List-row placeholders for live search results — matches `_ResultRow`
+/// layout (small art + two text lines).
+class _ResultsSkeleton extends StatelessWidget {
+  const _ResultsSkeleton();
+  @override
+  Widget build(BuildContext context) {
+    return Pulse(
+      child: Padding(
+        padding: const EdgeInsets.only(top: 12),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Padding(
+              padding: const EdgeInsets.fromLTRB(20, 0, 20, 8),
+              child: SkeletonBar(height: 11, width: 90, radius: 4),
+            ),
+            for (var i = 0; i < 6; i++)
+              Padding(
+                padding:
+                    const EdgeInsets.symmetric(horizontal: 20, vertical: 8),
+                child: Row(
+                  children: [
+                    const SkeletonBar(height: 42, width: 42, radius: 4),
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          SkeletonBar(height: 13, width: 180, radius: 4),
+                          const SizedBox(height: 6),
+                          SkeletonBar(height: 11, width: 120, radius: 4),
+                        ],
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+          ],
+        ),
+      ),
     );
   }
 }

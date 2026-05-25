@@ -105,10 +105,6 @@ class AppState extends ChangeNotifier with WidgetsBindingObserver {
           streamQuality = play.streamQuality!;
           repo.resolver.setQualityFromString(streamQuality);
         }
-        if (play.crossfadeSec != null) {
-          crossfadeSec = play.crossfadeSec!;
-          repo.handler.setCrossfade(crossfadeSec);
-        }
       }
       notifyListeners();
     } catch (e) {
@@ -145,6 +141,7 @@ class AppState extends ChangeNotifier with WidgetsBindingObserver {
       if (saved == null) return;
       final song = saved.queue[saved.currentIndex];
       apiSourceLabel = saved.sourceLabel;
+      apiSourceRef = saved.sourceRef;
       _applySong(song);
       position = saved.positionSec;
       // Engine is loaded but paused — UI shows "ready to play".
@@ -176,6 +173,12 @@ class AppState extends ChangeNotifier with WidgetsBindingObserver {
   /// a restore where we never knew (legacy save).
   String? apiSourceLabel;
 
+  /// DetailRef of the playlist/album/artist the current queue was started
+  /// from. Lets the expanded player's track-menu sheet surface a "Go to
+  /// album/playlist" navigation row. Not persisted — re-derived next time
+  /// the user starts a queue. Null on dummy-path / restore.
+  DetailRef? apiSourceRef;
+
   // ── Settings (persisted via SettingsStore) ────────────────────────────
   Color accent = kAccentOptions[0];
   Density density = Density.regular;
@@ -190,9 +193,6 @@ class AppState extends ChangeNotifier with WidgetsBindingObserver {
   /// Stream quality preference. 'auto' picks the highest playable; 'high'
   /// forces 320/high; 'data' caps at 96kbps / low for cell-data savings.
   String streamQuality = 'auto';
-
-  /// Crossfade between tracks in seconds (0 disables). mpv wiring TBD.
-  int crossfadeSec = 0;
 
   // ── Navigation ────────────────────────────────────────────────────────
   // Route navigation is owned by go_router now; AppState only keeps the
@@ -705,12 +705,14 @@ class AppState extends ChangeNotifier with WidgetsBindingObserver {
     List<FeedItem> songs,
     int startIndex, {
     String? sourceLabel,
+    DetailRef? sourceRef,
   }) async {
     if (songs.isEmpty) return;
     final startSong = songs[startIndex.clamp(0, songs.length - 1)];
     debugPrint('[audio] playApiQueue len=${songs.length} idx=$startIndex '
         '→ "${startSong.title}"');
     apiSourceLabel = sourceLabel;
+    apiSourceRef = sourceRef;
     _applySong(startSong);
     isPlaying = true;
     _tick?.cancel();
@@ -724,7 +726,8 @@ class AppState extends ChangeNotifier with WidgetsBindingObserver {
       return;
     }
     try {
-      await repo.playQueue(songs, startIndex, sourceLabel: sourceLabel);
+      await repo.playQueue(songs, startIndex,
+          sourceLabel: sourceLabel, sourceRef: sourceRef);
     } catch (e) {
       flashToast('Could not play: $e');
       isPlaying = false;
@@ -768,13 +771,6 @@ class AppState extends ChangeNotifier with WidgetsBindingObserver {
     notifyListeners();
   }
 
-  void setCrossfadeSec(int v) {
-    crossfadeSec = v.clamp(0, 12);
-    audioRepo?.handler.setCrossfade(crossfadeSec);
-    _persistPlayback();
-    notifyListeners();
-  }
-
   void _persistAppearance() {
     audioRepo?.settings.saveAppearance(
       accent: accent,
@@ -787,7 +783,6 @@ class AppState extends ChangeNotifier with WidgetsBindingObserver {
   void _persistPlayback() {
     audioRepo?.settings.savePlayback(
       streamQuality: streamQuality,
-      crossfadeSec: crossfadeSec,
     );
   }
 
@@ -948,6 +943,10 @@ class AppState extends ChangeNotifier with WidgetsBindingObserver {
 
   void toggleShuffle() {
     shuffle = !shuffle;
+    // Push to the handler so the queue actually gets rearranged. Without
+    // this the icon flipped but track-N+1 was still the same boring track
+    // it always was — the user reasonably called it broken.
+    audioRepo?.setShuffle(shuffle);
     notifyListeners();
   }
 

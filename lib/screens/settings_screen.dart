@@ -60,17 +60,6 @@ class SettingsScreen extends ConsumerWidget {
                 onChange: s.setStreamQuality,
                 colors: c,
               ),
-              _SliderRow(
-                label: 'Crossfade',
-                value: s.crossfadeSec.toDouble(),
-                min: 0,
-                max: 12,
-                divisions: 12,
-                suffix:
-                    s.crossfadeSec == 0 ? 'Off' : '${s.crossfadeSec}s',
-                onChange: (v) => s.setCrossfadeSec(v.round()),
-                colors: c,
-              ),
             ],
           ),
 
@@ -487,72 +476,86 @@ class _DonationCard extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 20),
-      child: GestureDetector(
-        onTap: () => _payUpi(context, ref),
-        behavior: HitTestBehavior.opaque,
-        child: Container(
-          padding: const EdgeInsets.fromLTRB(16, 14, 12, 14),
-          decoration: squircleDecoration(
-            radius: 16,
-            gradient: LinearGradient(
-              colors: [
-                accent.withValues(alpha: 0.85),
-                accent.withValues(alpha: 0.32),
-              ],
-              begin: Alignment.topLeft,
-              end: Alignment.bottomRight,
-            ),
-          ),
-          child: Row(
-            children: [
-              // Heart medallion — circle on a slightly darker accent so
-              // the icon contrast holds against the gradient backdrop.
-              Container(
-                width: 38,
-                height: 38,
-                alignment: Alignment.center,
-                decoration: BoxDecoration(
-                  color: Colors.white.withValues(alpha: 0.18),
-                  shape: BoxShape.circle,
-                ),
-                child: const Icon(SolarIconsBold.heart,
-                    size: 18, color: Colors.white),
-              ),
-              const SizedBox(width: 14),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    Text('Support sunoh.',
-                        style: SunohType.sans(
-                            fontSize: 14.5,
-                            fontWeight: FontWeight.w600,
-                            color: Colors.white,
-                            letterSpacing: -0.1)),
-                    const SizedBox(height: 3),
-                    Text('A heart goes a long way',
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                        style: SunohType.sans(
-                            fontSize: 11.5,
-                            color: Colors.white.withValues(alpha: 0.75))),
-                  ],
-                ),
-              ),
-              // Secondary action — explicit BMC button for users who don't
-              // have UPI (international, iOS without a UPI app, etc.).
-              // Hit-area expanded via Material InkWell so it doesn't fight
-              // the parent GestureDetector for the same pixels.
-              IconButton(
-                onPressed: () => _openBmc(context, ref),
-                icon: const Icon(SolarIconsOutline.cupHot,
-                    size: 18, color: Colors.white),
-                tooltip: 'Open Buy Me A Coffee',
-                visualDensity: VisualDensity.compact,
-              ),
+      child: Container(
+        padding: const EdgeInsets.fromLTRB(16, 14, 16, 14),
+        decoration: squircleDecoration(
+          radius: 16,
+          gradient: LinearGradient(
+            colors: [
+              accent.withValues(alpha: 0.85),
+              accent.withValues(alpha: 0.32),
             ],
+            begin: Alignment.topLeft,
+            end: Alignment.bottomRight,
           ),
+        ),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              children: [
+                // Heart medallion — circle on a slightly darker accent so
+                // the icon contrast holds against the gradient backdrop.
+                Container(
+                  width: 38,
+                  height: 38,
+                  alignment: Alignment.center,
+                  decoration: BoxDecoration(
+                    color: Colors.white.withValues(alpha: 0.18),
+                    shape: BoxShape.circle,
+                  ),
+                  child: const Icon(SolarIconsBold.heart,
+                      size: 18, color: Colors.white),
+                ),
+                const SizedBox(width: 14),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Text('Support sunoh.',
+                          style: SunohType.sans(
+                              fontSize: 14.5,
+                              fontWeight: FontWeight.w600,
+                              color: Colors.white,
+                              letterSpacing: -0.1)),
+                      const SizedBox(height: 3),
+                      Text('Keep this little app alive',
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: SunohType.sans(
+                              fontSize: 11.5,
+                              color: Colors.white.withValues(alpha: 0.75))),
+                    ],
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 12),
+            // Two explicit, labeled CTAs so the user can see both options.
+            // Previously BMC was a bare IconButton that looked like card
+            // decoration; users reasonably didn't notice it.
+            Row(
+              children: [
+                Expanded(
+                  child: _DonationAction(
+                    icon: SolarIconsBold.heartAngle,
+                    label: 'Send a tip',
+                    onTap: () => _payUpi(context, ref),
+                  ),
+                ),
+                const SizedBox(width: 10),
+                Expanded(
+                  child: _DonationAction(
+                    icon: SolarIconsOutline.cupHot,
+                    label: 'Buy me a coffee',
+                    onTap: () => _openBmc(context, ref),
+                  ),
+                ),
+              ],
+            ),
+          ],
         ),
       ),
     );
@@ -560,27 +563,29 @@ class _DonationCard extends ConsumerWidget {
 
   Future<void> _payUpi(BuildContext context, WidgetRef ref) async {
     final s = ref.read(appStateProvider);
-    final uri = Uri(
-      scheme: 'upi',
-      host: 'pay',
-      queryParameters: {
-        'pa': _kUpiVpa,
-        'pn': _kUpiName,
-        'cu': 'INR',
-      },
-    );
+    // Build the URI manually — `Uri(scheme:, host:, queryParameters:)`
+    // percent-encodes `@` in the VPA to `%40`, which several Indian UPI
+    // apps refuse to parse. The raw `upi://pay?…` form is the canonical
+    // deep link spec.
+    final uri = Uri.parse(
+        'upi://pay?pa=$_kUpiVpa&pn=${Uri.encodeComponent(_kUpiName)}&cu=INR');
     try {
-      final ok =
-          await canLaunchUrl(uri) && await launchUrl(uri);
+      // Skip canLaunchUrl — it's unreliable for non-HTTP schemes on
+      // Android even with the manifest <queries> entry, and returning
+      // false from it was forcing us into the copy fallback even when a
+      // UPI app WAS installed. externalNonBrowserApplication is the
+      // documented mode for non-browser deep links.
+      final ok = await launchUrl(
+        uri,
+        mode: LaunchMode.externalNonBrowserApplication,
+      );
       if (!ok) {
-        // No UPI app — copy the VPA so the user can paste it manually
-        // into their bank's app.
         await Clipboard.setData(const ClipboardData(text: _kUpiVpa));
-        s.flashToast('Copied $_kUpiVpa to clipboard');
+        s.flashToast('No UPI app — copied $_kUpiVpa');
       }
     } catch (_) {
       await Clipboard.setData(const ClipboardData(text: _kUpiVpa));
-      s.flashToast('Copied $_kUpiVpa to clipboard');
+      s.flashToast('No UPI app — copied $_kUpiVpa');
     }
   }
 
@@ -593,5 +598,52 @@ class _DonationCard extends ConsumerWidget {
     } catch (_) {
       s.flashToast('Couldn’t open browser');
     }
+  }
+}
+
+/// Pill button used as the two CTAs inside [_DonationCard]. White-on-glass
+/// look so both actions read as buttons against the accent-gradient card.
+class _DonationAction extends StatelessWidget {
+  const _DonationAction({
+    required this.icon,
+    required this.label,
+    required this.onTap,
+  });
+  final IconData icon;
+  final String label;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    return GestureDetector(
+      onTap: onTap,
+      behavior: HitTestBehavior.opaque,
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+        // Squircle per design system — never raw BorderRadius on cards.
+        decoration: squircleDecoration(
+          radius: 12,
+          color: Colors.white.withValues(alpha: 0.18),
+          borderColor: Colors.white.withValues(alpha: 0.22),
+        ),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Icon(icon, size: 14, color: Colors.white),
+            const SizedBox(width: 8),
+            Flexible(
+              child: Text(label,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: SunohType.sans(
+                      fontSize: 12.5,
+                      fontWeight: FontWeight.w600,
+                      color: Colors.white)),
+            ),
+          ],
+        ),
+      ),
+    );
   }
 }

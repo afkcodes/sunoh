@@ -1,4 +1,4 @@
-package com.sunoh.sunoh
+package codes.afk.sunoh
 
 import com.ryanheise.audioservice.AudioServiceActivity
 

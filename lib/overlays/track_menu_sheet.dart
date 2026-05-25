@@ -12,36 +12,59 @@
 
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:go_router/go_router.dart';
 import 'package:solar_icons/solar_icons.dart';
 
 import '../api/dto.dart';
 import '../data/models.dart';
 import '../providers/app_state_provider.dart';
-import '../router/router.dart';
 import '../theme/tokens.dart';
 import '../widgets/album_art.dart';
 import '../widgets/ui.dart';
 
 /// Open the bottom sheet for [song]. [sourceLabel] is the "PLAYING FROM"
 /// label that gets passed to play-next / add-to-queue so the engine knows
-/// where the user kicked the queue from.
+/// where the user kicked the queue from. [sourceRef] is the optional
+/// album/playlist/artist the song came from — surfaces a "View Album"/
+/// "View Playlist"/"View Artist" navigation row when provided.
 Future<void> showTrackMenuSheet(
   BuildContext context, {
   required FeedItem song,
   String? sourceLabel,
+  DetailRef? sourceRef,
+  bool fromPlayer = false,
 }) {
   return showModalBottomSheet<void>(
     context: context,
     backgroundColor: Colors.transparent,
     isScrollControlled: true,
-    builder: (_) => _TrackMenuSheet(song: song, sourceLabel: sourceLabel),
+    // Root navigator — without this the sheet is anchored to the active
+    // tab's branch navigator (inside StatefulShellRoute), which is BELOW
+    // the bottom nav + mini player in the widget tree, so the sheet renders
+    // behind them. Using the root navigator promotes it above everything.
+    useRootNavigator: true,
+    builder: (_) => _TrackMenuSheet(
+        song: song,
+        sourceLabel: sourceLabel,
+        sourceRef: sourceRef,
+        fromPlayer: fromPlayer),
   );
 }
 
 class _TrackMenuSheet extends ConsumerWidget {
-  const _TrackMenuSheet({required this.song, this.sourceLabel});
+  const _TrackMenuSheet({
+    required this.song,
+    this.sourceLabel,
+    this.sourceRef,
+    this.fromPlayer = false,
+  });
   final FeedItem song;
   final String? sourceLabel;
+  final DetailRef? sourceRef;
+  /// True when the sheet was opened from the expanded player. Navigation
+  /// rows then also pop the player itself off the root navigator so the
+  /// destination screen isn't hidden behind it.
+  final bool fromPlayer;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -149,19 +172,31 @@ class _TrackMenuSheet extends ConsumerWidget {
               },
               colors: c,
             ),
+            if (sourceRef != null && sourceRef!.kind != 'artist')
+              _MenuRow(
+                icon: sourceRef!.kind == 'album'
+                    ? SolarIconsOutline.musicLibrary2
+                    : SolarIconsOutline.playlistMinimalistic,
+                label:
+                    'Go to ${sourceRef!.kind[0].toUpperCase()}${sourceRef!.kind.substring(1)}',
+                onTap: () => _navigateAfterClose(context, sourceRef!),
+                colors: c,
+              ),
             if (hasArtist)
               _MenuRow(
                 icon: SolarIconsOutline.user,
                 label: 'View ${song.artists!.first.name}',
                 onTap: () {
-                  Navigator.of(context).pop();
                   final artist = song.artists!.first;
                   if (artist.id.isEmpty) {
+                    Navigator.of(context).pop();
                     s.flashToast('Artist details unavailable');
                     return;
                   }
-                  context.openRef(DetailRef('artist', artist.id,
-                      source: song.source));
+                  _navigateAfterClose(
+                    context,
+                    DetailRef('artist', artist.id, source: song.source),
+                  );
                 },
                 colors: c,
               ),
@@ -178,6 +213,33 @@ class _TrackMenuSheet extends ConsumerWidget {
         ),
       ),
     );
+  }
+
+  /// Close the sheet, optionally pop the expanded player off the root
+  /// navigator (so the destination detail screen isn't hidden behind it),
+  /// then navigate. Capture references up front because each pop may
+  /// invalidate the sheet's context.
+  void _navigateAfterClose(BuildContext context, DetailRef ref) {
+    final root = Navigator.of(context, rootNavigator: true);
+    // Captured BEFORE we pop the sheet (and possibly the player) so we
+    // don't lose the route context.
+    final goRouter = GoRouter.of(context);
+    root.pop(); // sheet
+    if (fromPlayer && root.canPop()) {
+      root.pop(); // player
+    }
+    // Recompute branch prefix from current location now that modals are gone.
+    final loc = goRouter.state.matchedLocation;
+    final prefix = loc.startsWith('/search')
+        ? '/search'
+        : loc.startsWith('/library')
+            ? '/library'
+            : '/home';
+    final src = ref.source;
+    final query = (src == null || src.isEmpty)
+        ? ''
+        : '?source=${Uri.encodeQueryComponent(src)}';
+    goRouter.push('$prefix/${ref.kind}/${ref.id}$query');
   }
 }
 

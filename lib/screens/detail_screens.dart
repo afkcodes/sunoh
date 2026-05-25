@@ -12,6 +12,7 @@ import 'package:solar_icons/solar_icons.dart';
 import '../api/dto.dart';
 import '../data/catalog.dart';
 import '../data/models.dart';
+import '../overlays/hero_menu_sheet.dart';
 import '../overlays/track_menu_sheet.dart';
 import '../providers/app_state_provider.dart';
 import '../providers/detail_providers.dart';
@@ -30,9 +31,13 @@ import '../widgets/ui.dart';
 /// scrolled past the hero — keeps the hero composition clean on first view.
 /// System back / edge-swipe still works the whole time.
 class _HeroBack extends StatelessWidget {
-  const _HeroBack({required this.onBack, required this.color});
+  const _HeroBack({required this.onBack, required this.color, this.onMenu});
   final VoidCallback onBack;
   final Color color;
+  /// When non-null, the menu-dots taps this; otherwise falls through to
+  /// a "coming soon" toast (the only path that still hits the toast is
+  /// the `_DetailError` screen which has no entity context to act on).
+  final VoidCallback? onMenu;
   @override
   Widget build(BuildContext context) {
     return Row(
@@ -49,13 +54,10 @@ class _HeroBack extends StatelessWidget {
             color: color,
             size: 18,
             background: Colors.black.withValues(alpha: 0.35),
-            // Album / playlist / artist-level menu (save, share, play
-            // all next, etc.) hasn't been designed yet — wire later via a
-            // dedicated bottom sheet. For now, ack the tap so it doesn't
-            // read as broken.
-            onTap: () => ProviderScope.containerOf(context)
-                .read(appStateProvider)
-                .flashToast('More options coming soon')),
+            onTap: onMenu ??
+                () => ProviderScope.containerOf(context)
+                    .read(appStateProvider)
+                    .flashToast('More options coming soon')),
       ],
     );
   }
@@ -331,6 +333,7 @@ class _ApiTrackRow extends ConsumerWidget {
     required this.accent,
     this.showArt = false,
     this.onTap,
+    this.sourceRef,
   });
   final int n;
   final FeedItem song;
@@ -338,6 +341,10 @@ class _ApiTrackRow extends ConsumerWidget {
   final Color accent;
   final bool showArt;
   final VoidCallback? onTap;
+  /// The album/playlist/artist this row belongs to. Forwarded to the
+  /// menu-dots sheet so it can surface a "Go to album/playlist" navigation
+  /// row. Null when the row isn't logically inside a detail screen.
+  final DetailRef? sourceRef;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -362,70 +369,88 @@ class _ApiTrackRow extends ConsumerWidget {
     return GestureDetector(
       onTap: onTap,
       behavior: HitTestBehavior.opaque,
-      child: Padding(
-        padding: EdgeInsets.symmetric(horizontal: 20, vertical: 10 * scale),
-        child: Row(
-          children: [
-            SizedBox(
-              width: 22,
-              child: Center(
-                child: isCurrent
-                    ? PlayingBars(
-                        color: accent,
-                        size: 14,
-                        animate: isPlayingHere,
-                      )
-                    : Text(n.toString().padLeft(2, '0'),
-                        style: SunohType.mono(fontSize: 11, color: c.fgMute)),
-              ),
+      child: Stack(
+        children: [
+          // RN parity (`ActiveSongProgress`) — a subtle white-overlay
+          // gradient that fills the row left → right tracking the active
+          // track's position / duration. Sits BEHIND the row content;
+          // only painted for the now-playing entry so other rows don't
+          // pick up the tint.
+          if (isCurrent)
+            _ActiveSongProgress(
+              tick: s.positionTick,
+              durationSec: s.currentDurationSec,
             ),
-            if (showArt) ...[
-              const SizedBox(width: 12),
-              SunohArt(id: song.id, imageUrl: song.artwork, size: 42, radius: 6),
-            ],
-            const SizedBox(width: 12),
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(song.title,
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                      style: SunohType.sans(
-                          fontSize: 14,
-                          fontWeight: FontWeight.w500,
-                          color: titleColor)),
-                  if (artistsLabel.isNotEmpty) ...[
-                    const SizedBox(height: 1),
-                    Text(artistsLabel,
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                        style: SunohType.sans(fontSize: 11.5, color: c.fgMute)),
-                  ],
+          Padding(
+            padding: EdgeInsets.symmetric(horizontal: 20, vertical: 12 * scale),
+            child: Row(
+              children: [
+                SizedBox(
+                  width: 22,
+                  child: Center(
+                    child: isCurrent
+                        ? PlayingBars(
+                            color: accent,
+                            size: 14,
+                            animate: isPlayingHere,
+                          )
+                        : Text(n.toString().padLeft(2, '0'),
+                            style:
+                                SunohType.mono(fontSize: 11.5, color: c.fgMute)),
+                  ),
+                ),
+                if (showArt) ...[
+                  const SizedBox(width: 12),
+                  SunohArt(
+                      id: song.id, imageUrl: song.artwork, size: 42, radius: 6),
                 ],
-              ),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(song.title,
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: SunohType.sans(
+                              fontSize: 15,
+                              fontWeight: FontWeight.w500,
+                              color: titleColor)),
+                      if (artistsLabel.isNotEmpty) ...[
+                        const SizedBox(height: 2),
+                        Text(artistsLabel,
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: SunohType.sans(
+                                fontSize: 12.5, color: c.fgMute)),
+                      ],
+                    ],
+                  ),
+                ),
+                if (durationLabel != null) ...[
+                  const SizedBox(width: 8),
+                  Text(durationLabel,
+                      style: SunohType.mono(fontSize: 11.5, color: c.fgMute)),
+                ],
+                IconBtn(
+                    icon: liked ? SolarIconsBold.heart : SolarIconsOutline.heart,
+                    color: liked ? accent : c.fgMute,
+                    size: 16,
+                    width: 32,
+                    height: 32,
+                    onTap: () => s.toggleLikedSong(song)),
+                IconBtn(
+                    icon: SolarIconsBold.menuDots,
+                    color: c.fgMute,
+                    size: 16,
+                    width: 32,
+                    height: 32,
+                    onTap: () => showTrackMenuSheet(context,
+                        song: song, sourceRef: sourceRef)),
+              ],
             ),
-            if (durationLabel != null) ...[
-              const SizedBox(width: 8),
-              Text(durationLabel,
-                  style: SunohType.mono(fontSize: 11, color: c.fgMute)),
-            ],
-            IconBtn(
-                icon: liked ? SolarIconsBold.heart : SolarIconsOutline.heart,
-                color: liked ? accent : c.fgMute,
-                size: 16,
-                width: 32,
-                height: 32,
-                onTap: () => s.toggleLikedSong(song)),
-            IconBtn(
-                icon: SolarIconsBold.menuDots,
-                color: c.fgMute,
-                size: 16,
-                width: 32,
-                height: 32,
-                onTap: () => showTrackMenuSheet(context, song: song)),
-          ],
-        ),
+          ),
+        ],
       ),
     );
   }
@@ -437,6 +462,90 @@ class _ApiTrackRow extends ConsumerWidget {
     final m = n ~/ 60;
     final s = n % 60;
     return '$m:${s.toString().padLeft(2, '0')}';
+  }
+}
+
+/// Decode the limited subset of HTML that backend descriptions ship with —
+/// Gaana / Saavn responses include raw `<p>`, `<span style="…">` wrappers
+/// and entity-encoded apostrophes/quotes. Strip tags + collapse whitespace
+/// + decode the few entities that actually show up. Not a full HTML parser
+/// — just enough to render readable text in a single-line `Text` widget.
+String _stripHtml(String raw) {
+  if (raw.isEmpty) return raw;
+  var s = raw;
+  // Drop tags first so an attribute value containing `&` doesn't get
+  // touched by the entity step.
+  s = s.replaceAll(RegExp(r'<[^>]*>'), '');
+  s = s
+      .replaceAll('&nbsp;', ' ')
+      .replaceAll('&amp;', '&')
+      .replaceAll('&lt;', '<')
+      .replaceAll('&gt;', '>')
+      .replaceAll('&quot;', '"')
+      .replaceAll('&#39;', "'")
+      .replaceAll('&apos;', "'");
+  // Numeric entities (&#1234; / &#x1F4A9;).
+  s = s.replaceAllMapped(RegExp(r'&#(\d+);'), (m) {
+    final code = int.tryParse(m.group(1)!);
+    return code == null ? m.group(0)! : String.fromCharCode(code);
+  });
+  s = s.replaceAllMapped(RegExp(r'&#x([0-9a-fA-F]+);'), (m) {
+    final code = int.tryParse(m.group(1)!, radix: 16);
+    return code == null ? m.group(0)! : String.fromCharCode(code);
+  });
+  // Collapse runs of whitespace (newlines, tabs) into single spaces.
+  s = s.replaceAll(RegExp(r'\s+'), ' ').trim();
+  return s;
+}
+
+/// Subtle white-overlay gradient that grows left → right inside the active
+/// track row, tracking `position / duration`. Direct port of the RN
+/// `ActiveSongProgress` (album/ActiveSongProgress.tsx) — same six-stop
+/// low-alpha gradient. Listens to AppState's 1 Hz `positionTick` so only
+/// this widget rebuilds on each second, not the whole row.
+class _ActiveSongProgress extends StatelessWidget {
+  const _ActiveSongProgress({required this.tick, required this.durationSec});
+  final ValueNotifier<int> tick;
+  final int durationSec;
+
+  @override
+  Widget build(BuildContext context) {
+    return Positioned.fill(
+      child: IgnorePointer(
+        child: ValueListenableBuilder<int>(
+          valueListenable: tick,
+          builder: (context, pos, _) {
+            final progress = durationSec > 0
+                ? (pos / durationSec).clamp(0.0, 1.0)
+                : 0.0;
+            if (progress <= 0) return const SizedBox.shrink();
+            return Align(
+              alignment: Alignment.centerLeft,
+              child: FractionallySizedBox(
+                heightFactor: 1,
+                widthFactor: progress,
+                child: const DecoratedBox(
+                  decoration: BoxDecoration(
+                    gradient: LinearGradient(
+                      begin: Alignment.centerLeft,
+                      end: Alignment.centerRight,
+                      colors: [
+                        Color(0x08FFFFFF), // ~3%
+                        Color(0x05FFFFFF), // ~2%
+                        Color(0x0DFFFFFF), // ~5%
+                        Color(0x0DFFFFFF), // ~5%
+                        Color(0x14FFFFFF), // ~8%
+                        Color(0x1AFFFFFF), // ~10%
+                      ],
+                    ),
+                  ),
+                ),
+              ),
+            );
+          },
+        ),
+      ),
+    );
   }
 }
 
@@ -585,6 +694,7 @@ class AlbumScreen extends ConsumerWidget {
         songs: pl.songs,
         sections: pl.sections,
         showAlbumArtInRow: true, // playlists often mix artists
+        sourceRef: DetailRef('playlist', pl.id, source: source),
       );
     }
 
@@ -616,6 +726,7 @@ class AlbumScreen extends ConsumerWidget {
       songs: al.songs,
       sections: al.sections,
       showAlbumArtInRow: false,
+      sourceRef: DetailRef('album', al.id, source: source),
     );
   }
 }
@@ -637,6 +748,7 @@ class _AlbumLikeBody extends ConsumerStatefulWidget {
     required this.songs,
     required this.sections,
     required this.showAlbumArtInRow,
+    required this.sourceRef,
     this.imageUrl,
     this.eyebrowText,
     this.sub,
@@ -647,6 +759,11 @@ class _AlbumLikeBody extends ConsumerStatefulWidget {
   final SunohColors colors;
   final String id;
   final String title;
+  /// The detail-ref of *this* screen — forwarded into each track row's menu
+  /// sheet so the "Go to album / Go to playlist" navigation row can re-open
+  /// the source. Built once at the parent's construction so all rows share
+  /// the same instance.
+  final DetailRef sourceRef;
   final String? imageUrl;
   final String? eyebrowText;
   final String? sub;
@@ -759,10 +876,25 @@ class _AlbumLikeBodyState extends ConsumerState<_AlbumLikeBody> {
                         if (songs.isNotEmpty) {
                           s.playApiQueue(songs, 0,
                               sourceLabel:
-                                  '${kind.toUpperCase()} · $title');
+                                  '${kind.toUpperCase()} · $title',
+                              sourceRef: widget.sourceRef);
                         }
                       },
-                      onShuffle: () => s.flashToast('Shuffle coming soon'),
+                      onShuffle: () {
+                        // Pick a random start index and turn shuffle on in
+                        // one shot — that way the first track is unpredictable
+                        // and everything after it has been shuffled by the
+                        // handler. Without the random start, shuffle would
+                        // always begin at track #1 which feels broken.
+                        if (songs.isEmpty) return;
+                        final start =
+                            DateTime.now().microsecondsSinceEpoch % songs.length;
+                        s.playApiQueue(songs, start,
+                            sourceLabel:
+                                '${kind.toUpperCase()} · $title',
+                            sourceRef: widget.sourceRef);
+                        if (!s.shuffle) s.toggleShuffle();
+                      },
                       onLike: () => s.toggleSaved(heroItem),
                     );
                   }),
@@ -773,15 +905,17 @@ class _AlbumLikeBodyState extends ConsumerState<_AlbumLikeBody> {
                       colors: c,
                       accent: accent,
                       showArt: showAlbumArtInRow,
+                      sourceRef: widget.sourceRef,
                       onTap: () => s.playApiQueue(songs, i,
                           sourceLabel:
-                              '${showAlbumArtInRow ? 'PLAYLIST' : 'ALBUM'} · $title'),
+                              '${showAlbumArtInRow ? 'PLAYLIST' : 'ALBUM'} · $title',
+                          sourceRef: widget.sourceRef),
                     ),
-                  if ((description ?? '').isNotEmpty) ...[
+                  if (_stripHtml(description ?? '').isNotEmpty) ...[
                     const SizedBox(height: 20),
                     Padding(
                       padding: const EdgeInsets.fromLTRB(24, 8, 24, 24),
-                      child: Text(description!,
+                      child: Text(_stripHtml(description!),
                           style: SunohType.sans(
                               fontSize: 13, color: c.fgDim, height: 1.5)),
                     ),
@@ -805,6 +939,26 @@ class _AlbumLikeBodyState extends ConsumerState<_AlbumLikeBody> {
                 colors: c,
                 scrollOffset: _offset,
                 onBack: () => context.pop(),
+                onMenu: () {
+                  // Synthesize a FeedItem matching the kind/id/title so the
+                  // sheet's save-toggle aligns with the hero like button.
+                  // (Same shape we already pass to `s.toggleSaved` for the
+                  // hero heart.)
+                  final kind = widget.showAlbumArtInRow ? 'playlist' : 'album';
+                  showHeroMenuSheet(context,
+                      entity: FeedItem(
+                        id: widget.id,
+                        title: title,
+                        type: kind,
+                        image: (widget.imageUrl ?? '').isEmpty
+                            ? const []
+                            : [
+                                ApiImage(
+                                    quality: 'hero', link: widget.imageUrl!)
+                              ],
+                        source: widget.sourceRef.source,
+                      ));
+                },
               ),
             ),
           ],
@@ -826,11 +980,13 @@ class _StickyHeader extends StatelessWidget {
     required this.colors,
     required this.scrollOffset,
     required this.onBack,
+    this.onMenu,
   });
   final String title;
   final SunohColors colors;
   final ValueListenable<double> scrollOffset;
   final VoidCallback onBack;
+  final VoidCallback? onMenu;
 
   @override
   Widget build(BuildContext context) {
@@ -910,7 +1066,8 @@ class _StickyHeader extends StatelessWidget {
                   ignoring: titleT < 0.2,
                   child: Opacity(
                     opacity: titleT,
-                    child: _HeroBack(onBack: onBack, color: c.fg),
+                    child:
+                        _HeroBack(onBack: onBack, color: c.fg, onMenu: onMenu),
                   ),
                 ),
               ),
@@ -925,14 +1082,15 @@ class _StickyHeader extends StatelessWidget {
 // Renders one related/recommendation row (used at the bottom of album +
 // playlist detail). Keeps the home design language: SectionHeader + horizontal
 // squircle card row.
-class _RelatedSection extends StatelessWidget {
+class _RelatedSection extends ConsumerWidget {
   const _RelatedSection({required this.section, required this.colors});
   final HomeSection section;
   final SunohColors colors;
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
     final c = colors;
+    final s = ref.read(appStateProvider);
     final isArtistRow = section.items.every((it) => it.type == 'artist');
     final width = isArtistRow ? 96.0 : 140.0;
     final gap = isArtistRow ? 18.0 : 12.0;
@@ -951,9 +1109,24 @@ class _RelatedSection extends StatelessWidget {
           width: width,
           gap: gap,
           onTap: (item) {
-            if (item.type == 'album' || item.type == 'playlist' || item.type == 'artist') {
-              context.openRef(DetailRef(item.type, item.id,
-                  source: item.source ?? section.source));
+            switch (item.type) {
+              case 'song':
+                // Songs play immediately. Source label uses the parent
+                // section's heading so the player header reads naturally
+                // (e.g. "SINGLES · Arijit Singh"). Previously this case
+                // fell through and tap did nothing.
+                s.playApiSong(item, sourceLabel: section.heading.toUpperCase());
+                break;
+              case 'album':
+              case 'playlist':
+              case 'artist':
+                context.openRef(DetailRef(item.type, item.id,
+                    source: item.source ?? section.source));
+                break;
+              case 'channel':
+              case 'occasion':
+                context.openOccasion(item);
+                break;
             }
           },
           builder: (item, w) => isArtistRow
@@ -1100,7 +1273,18 @@ class _ArtistBody extends ConsumerWidget {
                 top: topInset + 8,
                 left: 16,
                 right: 16,
-                child: _HeroBack(onBack: () => context.pop(), color: Colors.white),
+                child: _HeroBack(
+                  onBack: () => context.pop(),
+                  color: Colors.white,
+                  onMenu: () => showHeroMenuSheet(context,
+                      entity: FeedItem(
+                        id: artist.id,
+                        title: artist.name,
+                        type: 'artist',
+                        image: artist.image,
+                        source: artist.source,
+                      )),
+                ),
               ),
               Positioned(
                 left: 20,

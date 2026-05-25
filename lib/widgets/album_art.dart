@@ -174,7 +174,12 @@ class SunohArt extends StatelessWidget {
                     policy: ResizeImagePolicy.fit,
                   ),
                   fit: BoxFit.cover,
-                  filterQuality: FilterQuality.low,
+                  // medium = trilinear with mipmaps; low = plain bilinear.
+                  // The CDN tops out at 500×500 so the hero (and on hi-DPR
+                  // phones, even mid-size tiles) ends up upscaling slightly
+                  // — bilinear made that read as soft/blocky. Mipmaps are
+                  // worth the small perf cost for product imagery.
+                  filterQuality: FilterQuality.medium,
                   gaplessPlayback: true,
                   frameBuilder: (context, child, frame, wasSyncLoaded) {
                     if (wasSyncLoaded || frame != null) return child;
