@@ -5,6 +5,7 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 
 import '../api/dto.dart';
+import '../audio/audio_handler.dart' show PlayMode;
 import '../audio/audio_repo.dart';
 import '../audio/eq_presets.dart';
 import '../data/catalog.dart';
@@ -104,6 +105,13 @@ class AppState extends ChangeNotifier with WidgetsBindingObserver {
         if (play.streamQuality != null) {
           streamQuality = play.streamQuality!;
           repo.resolver.setQualityFromString(streamQuality);
+        }
+        if (play.repeatMode != null) {
+          repeat = LoopMode.values.firstWhere(
+            (m) => m.name == play.repeatMode,
+            orElse: () => LoopMode.off,
+          );
+          repo.setRepeat(repeat);
         }
       }
       notifyListeners();
@@ -706,6 +714,7 @@ class AppState extends ChangeNotifier with WidgetsBindingObserver {
     int startIndex, {
     String? sourceLabel,
     DetailRef? sourceRef,
+    PlayMode mode = PlayMode.track,
   }) async {
     if (songs.isEmpty) return;
     final startSong = songs[startIndex.clamp(0, songs.length - 1)];
@@ -727,7 +736,7 @@ class AppState extends ChangeNotifier with WidgetsBindingObserver {
     }
     try {
       await repo.playQueue(songs, startIndex,
-          sourceLabel: sourceLabel, sourceRef: sourceRef);
+          sourceLabel: sourceLabel, sourceRef: sourceRef, mode: mode);
     } catch (e) {
       flashToast('Could not play: $e');
       isPlaying = false;
@@ -783,6 +792,7 @@ class AppState extends ChangeNotifier with WidgetsBindingObserver {
   void _persistPlayback() {
     audioRepo?.settings.savePlayback(
       streamQuality: streamQuality,
+      repeatMode: repeat.name,
     );
   }
 
@@ -956,6 +966,11 @@ class AppState extends ChangeNotifier with WidgetsBindingObserver {
       LoopMode.all => LoopMode.one,
       LoopMode.one => LoopMode.off,
     };
+    // Push to the handler so natural-EOF advance honours the new mode.
+    // Manual skip taps ignore repeat — they always go to the literal
+    // next queue entry.
+    audioRepo?.setRepeat(repeat);
+    _persistPlayback();
     notifyListeners();
   }
 

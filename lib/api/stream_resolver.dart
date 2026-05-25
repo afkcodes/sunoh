@@ -1,8 +1,11 @@
 // Resolves a playable stream URL for an [ApiSong] (FeedItem with type='song').
 //
 // Strategy (in order — first one that returns a usable URL wins):
-//   1. If the song already carries `mediaUrls`, pick a variant from that list
-//      per the current `quality` preference. Zero network round-trips.
+//   0. If a [LocalSourceProvider] is attached and reports the song is
+//      available offline, use that local URL. The downloads layer plugs
+//      in here without the handler needing to know about offline storage.
+//   1. If the song already carries `mediaUrls`, pick a variant from that
+//      list per the current `quality` preference. Zero network round-trips.
 //   2. Hit `/music/song/:id?provider=…` — this is the full song endpoint,
 //      works for BOTH saavn and gaana, and the response contains `mediaUrls`.
 //      Used when restoring from persisted state where we don't keep URLs
@@ -25,6 +28,17 @@ import 'dto.dart';
 /// available so cellular sessions don't burn through bandwidth.
 enum StreamQuality { auto, high, data }
 
+/// Extension point for offline / downloaded sources. Implementations live
+/// in the downloads layer (not built yet); when wired, the resolver asks
+/// here BEFORE going to the network. Returns `null` when the song isn't
+/// available locally.
+///
+/// The returned URL should be something mpv can `open()` — typically
+/// `file:///path/to/song.m4a` or a raw absolute path.
+abstract interface class LocalSourceProvider {
+  Future<String?> localUrlFor(String songId);
+}
+
 class StreamResolver {
   StreamResolver(this._dio);
   final Dio _dio;
@@ -33,6 +47,11 @@ class StreamResolver {
   /// user changes Settings → Stream quality (and at startup when the saved
   /// value is restored from Hive).
   StreamQuality quality = StreamQuality.auto;
+
+  /// Optional offline-source plugin. When set, [resolve] consults it
+  /// before any network tier. Defaults to null (network-only). The
+  /// downloads feature will set this once it lands.
+  LocalSourceProvider? localSource;
 
   /// In-memory resolve cache keyed by song id. Populated on every successful
   /// resolve; consulted at the top of [resolve] for non-`forceRefresh` calls.
@@ -77,14 +96,29 @@ class StreamResolver {
   /// was fetched, which is the exact set of URLs we need to bypass.
   Future<ResolvedStream> resolve(FeedItem song,
       {bool forceRefresh = false}) async {
+    // 0) Offline tier — short-circuits everything. forceRefresh DOESN'T
+    //    bypass this because local files don't have expiry; the only
+    //    reason to "force refresh" is a stale signed URL, which is a
+    //    network concern.
+    final local = localSource;
+    if (local != null) {
+      try {
+        final url = await local.localUrlFor(song.id);
+        if (url != null && url.isNotEmpty) {
+          return ResolvedStream(url);
+        }
+      } catch (_) {
+        // Local lookup failed — fall through to the network tiers.
+      }
+    }
+
     if (forceRefresh) {
       // Stale-URL recovery path — drop any cached entry so the in-flight
       // pre-resolve from a prior tick can't return a known-bad URL.
       _cache.remove(song.id);
     } else {
-      // 0) Cache hit (if still fresh) — populated by an earlier resolve.
-      //    Returning here makes the on_load hook complete synchronously,
-      //    which is the whole point of pre-resolving the next track.
+      // 1a) Resolver cache hit (if still fresh) — populated by an earlier
+      //     resolve. Returns synchronously so the on_load hook is fast.
       final cached = _cache[song.id];
       if (cached != null && !_isStale(cached)) {
         return cached.stream;
@@ -94,7 +128,7 @@ class StreamResolver {
         _cache.remove(song.id);
       }
 
-      // 1) Inline mediaUrls (fresh API responses include these).
+      // 1b) Inline mediaUrls (fresh API responses include these).
       final embedded = _pick(song.mediaUrls);
       if (embedded != null) {
         return _store(song.id, ResolvedStream(embedded));

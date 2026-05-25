@@ -13,6 +13,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../api/dto.dart';
 import '../api/stream_resolver.dart';
 import '../data/models.dart';
+import '../state/app_state.dart' show LoopMode;
 import 'audio_handler.dart';
 import 'audio_service_bridge.dart';
 import 'library_store.dart';
@@ -106,15 +107,16 @@ class AudioRepo {
     int startIndex, {
     String? sourceLabel,
     DetailRef? sourceRef,
+    PlayMode mode = PlayMode.track,
   }) async {
     if (songs.isEmpty) return;
     debugPrint(
-        '[audio] playQueue len=${songs.length} startIndex=$startIndex');
+        '[audio] playQueue len=${songs.length} startIndex=$startIndex mode=$mode');
     _queue = songs;
     _currentIndex = startIndex;
     _sourceLabel = sourceLabel;
     _sourceRef = sourceRef;
-    await handler.setQueue(songs, startIndex);
+    await handler.setQueue(songs, startIndex, mode: mode);
 
     // Best-effort OS metadata push: full queue + the starting item.
     final bridge = _bridge;
@@ -264,6 +266,10 @@ class AudioRepo {
         startIndex: _currentIndex);
     unawaited(persistAll());
   }
+
+  /// Pass-through for the repeat mode. The handler consults this in its
+  /// natural-EOF advance path. Manual skip taps ignore it.
+  void setRepeat(LoopMode mode) => handler.setRepeat(mode);
 
   Future<void> clearQueue() async {
     await handler.clearQueue();

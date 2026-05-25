@@ -26,9 +26,11 @@ class SavedAppearance {
 }
 
 class SavedPlayback {
-  const SavedPlayback({this.streamQuality, this.crossfadeSec});
+  const SavedPlayback({this.streamQuality, this.repeatMode});
   final String? streamQuality; // 'auto' / 'high' / 'data'
-  final int? crossfadeSec;
+  /// Persisted as the `LoopMode.name` ('off' / 'all' / 'one'). Null on
+  /// fresh installs / older saves that predate this field.
+  final String? repeatMode;
 }
 
 class SettingsStore {
@@ -48,7 +50,9 @@ class SettingsStore {
 
   // Playback
   static const _kStreamQuality = 'playback.stream_quality';
-  static const _kCrossfadeSec = 'playback.crossfade_sec';
+  // `_kCrossfadeSec` retired with the crossfade feature 2026-05-26 — old
+  // installs may still have the key on disk but nothing reads it now.
+  static const _kRepeatMode = 'playback.repeat_mode';
 
   /// Cached in-flight open so concurrent loaders share one openBox call
   /// — same race-avoidance idiom as library_store.
@@ -90,7 +94,7 @@ class SettingsStore {
         'density=${box.get(_kDensity) ?? '-'} '
         'tintFromArt=${box.get(_kTintFromArt) ?? '-'} '
         'streamQ=${box.get(_kStreamQuality) ?? '-'} '
-        'crossfade=${box.get(_kCrossfadeSec) ?? '-'} '
+        'repeat=${box.get(_kRepeatMode) ?? '-'} '
         'eqPreset=${box.get(_kEqPresetId) ?? '-'}');
     return box;
   }
@@ -175,12 +179,12 @@ class SettingsStore {
 
   Future<void> savePlayback({
     String? streamQuality,
-    int? crossfadeSec,
+    String? repeatMode,
   }) async {
     final box = await _box();
     final map = <String, dynamic>{};
     if (streamQuality != null) map[_kStreamQuality] = streamQuality;
-    if (crossfadeSec != null) map[_kCrossfadeSec] = crossfadeSec;
+    if (repeatMode != null) map[_kRepeatMode] = repeatMode;
     if (map.isEmpty) return;
     await box.putAll(map);
     await box.flush();
@@ -192,7 +196,7 @@ class SettingsStore {
       final box = await _box();
       return SavedPlayback(
         streamQuality: box.get(_kStreamQuality) as String?,
-        crossfadeSec: (box.get(_kCrossfadeSec) as num?)?.toInt(),
+        repeatMode: box.get(_kRepeatMode) as String?,
       );
     } catch (e) {
       debugPrint('[settings-store] loadPlayback failed: $e');
