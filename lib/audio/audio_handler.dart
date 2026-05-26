@@ -448,9 +448,25 @@ class SunohAudioHandler {
       // still playing → seamless auto-advance, no opening-thread stall
       // at the boundary.
       await _player.setPrefetchPlaylist(true);
+      // ── Network-resilience: large in-memory stream cache. ────────────
+      // mpv's demuxer cache holds N seconds of decoded-ahead audio per
+      // open stream. Bumping it from the default ~10 s to 240 s means the
+      // currently-playing track has a ~4-minute runway before short
+      // signal drops (tunnels, lifts, basement walks) cause an underrun.
+      // Combined with `prefetch-playlist=yes`, the *next* track's stream
+      // also gets the same headroom once its demuxer opens.
+      //
+      // `cache=yes` is mpv's default for network sources but we set it
+      // explicitly so a future config tweak can't accidentally disable
+      // it. The byte caps default to mpv's "no upper limit" which is
+      // fine — saavn streams are ~10 MB / 3 min so 240 s sits well
+      // under any conceivable RAM budget.
+      await _player.setRawProperty('cache', 'yes');
+      await _player.setRawProperty('cache-secs', '240');
+      await _player.setRawProperty('demuxer-readahead-secs', '240');
       // ignore: avoid_print
       print('[audio] tuning applied: gapless=yes prefetch-playlist=yes '
-          'audio-buffer=500ms');
+          'audio-buffer=500ms cache-secs=240 readahead-secs=240');
     } catch (e) {
       // ignore: avoid_print
       print('[audio] tuning failed: $e');
@@ -690,6 +706,23 @@ class SunohAudioHandler {
     _pausedForInterruption = false;
     _loadFailRetries.clear();
     await _activateSession();
+
+    // Resume safety net for long pauses. Background timers can be
+    // throttled by the OS even with our FG service alive, and even when
+    // they fire perfectly, a 1-hour-TTL URL inevitably goes stale during
+    // a long pause. Hitting `play()` with a stale URL trips mpv's
+    // load-error retry → exhaustion → auto-advance, which surfaces as
+    // "wrong song plays". Refresh inline before letting mpv resume.
+    final song = currentSong;
+    if (song != null &&
+        _playMode == PlayMode.track &&
+        _urlRefresh.isPastSafetyFor(song.id)) {
+      // ignore: avoid_print
+      print('[audio] play() with stale URL for "${song.title}" — '
+          'refreshing inline');
+      await _refreshCurrentTrack();
+    }
+
     await _player.play();
   }
 

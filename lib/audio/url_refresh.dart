@@ -62,6 +62,25 @@ class UrlRefreshScheduler {
   String? get scheduledForSongId => _scheduledForSongId;
   DateTime? get scheduledFor => _scheduledFor;
 
+  /// True when the scheduled refresh time has passed (or is within
+  /// `withinWindow`) for [songId]. The handler calls this on `play()`
+  /// (resume after pause) to decide whether to refresh inline before
+  /// asking mpv to resume — otherwise mpv tries the stale URL, fails its
+  /// 2× retry, and falls through to its own auto-advance which surfaces
+  /// as the wrong song playing.
+  ///
+  /// Returns false when nothing is scheduled for the song (e.g. fresh
+  /// load, no expiry parsed) — the caller treats that as "trust mpv".
+  bool isPastSafetyFor(
+    String songId, {
+    Duration withinWindow = const Duration(seconds: 15),
+  }) {
+    if (_scheduledForSongId != songId) return false;
+    final at = _scheduledFor;
+    if (at == null) return false;
+    return DateTime.now().isAfter(at.subtract(withinWindow));
+  }
+
   /// Schedule a pre-emptive refresh for the given track. Call from the
   /// `on_load` hook after resolving a real URL.
   ///
