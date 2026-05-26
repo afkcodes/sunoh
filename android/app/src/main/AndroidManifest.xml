@@ -33,6 +33,27 @@
                 <action android:name="android.intent.action.MAIN"/>
                 <category android:name="android.intent.category.LAUNCHER"/>
             </intent-filter>
+            <!-- Deep links: custom scheme (always app-internal, no domain
+                 verification needed) — sunoh://album/<id>, sunoh://song/<id>,
+                 sunoh://search?q=…, sunoh://share/<id> etc. Handled by
+                 lib/router/deep_links.dart. -->
+            <intent-filter>
+                <action android:name="android.intent.action.VIEW"/>
+                <category android:name="android.intent.category.DEFAULT"/>
+                <category android:name="android.intent.category.BROWSABLE"/>
+                <data android:scheme="sunoh"/>
+            </intent-filter>
+            <!-- App Links: https://sunoh.online/* — autoVerify=true so
+                 Android skips the chooser when the assetlinks.json at
+                 https://sunoh.online/.well-known/assetlinks.json is reachable
+                 and lists this package + signing fingerprint. Until then the
+                 user sees a "open with…" sheet but the wiring still works. -->
+            <intent-filter android:autoVerify="true">
+                <action android:name="android.intent.action.VIEW"/>
+                <category android:name="android.intent.category.DEFAULT"/>
+                <category android:name="android.intent.category.BROWSABLE"/>
+                <data android:scheme="https" android:host="sunoh.online"/>
+            </intent-filter>
         </activity>
         <!-- Don't delete the meta-data below.
              This is used by the Flutter tool to generate GeneratedPluginRegistrant.java -->

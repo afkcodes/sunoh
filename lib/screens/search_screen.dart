@@ -12,6 +12,7 @@ import '../data/models.dart';
 import '../overlays/track_menu_sheet.dart';
 import '../providers/app_state_provider.dart';
 import '../providers/search_provider.dart';
+import '../router/deep_links.dart';
 import '../router/router.dart';
 import '../state/app_state.dart';
 import '../theme/tokens.dart';
@@ -88,6 +89,21 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
   Widget build(BuildContext context) {
     final s = ref.watch(appStateProvider);
     final c = s.colors;
+    // Listen for a deep-link query handed off by DeepLinkRouter. We can't
+    // touch the provider in initState (the screen may not be the active
+    // tab yet at cold-start), so consume it on every build — once consumed
+    // it stays null until the next deep link arrives.
+    ref.listen<String?>(pendingSearchProvider, (_, next) {
+      if (next == null || next.isEmpty) return;
+      final pending = ref.read(pendingSearchProvider.notifier).consume();
+      if (pending == null) return;
+      controller.text = pending;
+      _debounce?.cancel();
+      setState(() {
+        q = pending;
+        _activeQuery = pending;
+      });
+    });
     final hasQuery = q.trim().isNotEmpty;
     final hasFocus = _searchFocus.hasFocus;
     // Back-button policy on this tab:

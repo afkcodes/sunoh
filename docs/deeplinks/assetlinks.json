@@ -1,0 +1,12 @@
+[
+  {
+    "relation": ["delegate_permission/common.handle_all_urls"],
+    "target": {
+      "namespace": "android_app",
+      "package_name": "codes.afk.sunoh",
+      "sha256_cert_fingerprints": [
+        "2C:FA:78:B2:81:94:15:52:9F:21:B4:EF:07:19:37:69:EE:85:27:AF:20:00:1B:5F:77:29:D1:F4:3C:8D:F6:E8"
+      ]
+    }
+  }
+]

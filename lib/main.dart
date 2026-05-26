@@ -4,6 +4,7 @@
 import 'dart:async';
 import 'dart:math' as math;
 
+import 'package:app_links/app_links.dart';
 import 'package:audio_service/audio_service.dart';
 import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
@@ -22,6 +23,7 @@ import 'audio/audio_service_bridge.dart';
 import 'audio/library_store.dart';
 import 'audio/playback_state_store.dart';
 import 'audio/settings_store.dart';
+import 'router/deep_links.dart';
 import 'router/router.dart';
 
 /// One app-wide scroll feel: Android-style **stretch** overscroll on every
@@ -203,14 +205,57 @@ Future<SunohAudioServiceBridge?> _tryWireAudioService(
   }
 }
 
-class _Root extends StatefulWidget {
+class _Root extends ConsumerStatefulWidget {
   const _Root();
   @override
-  State<_Root> createState() => _RootState();
+  ConsumerState<_Root> createState() => _RootState();
 }
 
-class _RootState extends State<_Root> {
+class _RootState extends ConsumerState<_Root> {
   final GoRouter _router = buildRouter();
+  final AppLinks _appLinks = AppLinks();
+  StreamSubscription<Uri>? _linkSub;
+
+  @override
+  void initState() {
+    super.initState();
+    // Defer until after first frame so GoRouter has built its initial
+    // route + the rootNavigatorKey context is live. Without this, a cold
+    // start from a link races the router and the dispatch is a no-op.
+    WidgetsBinding.instance.addPostFrameCallback((_) => _wireDeepLinks());
+  }
+
+  Future<void> _wireDeepLinks() async {
+    final dispatcher = ref.read(deepLinkRouterProvider);
+    try {
+      final initial = await _appLinks.getInitialLink();
+      if (initial != null) {
+        // ignore: avoid_print
+        print('[deeplink] cold-start uri: $initial');
+        await dispatcher.handle(initial);
+      }
+    } catch (e) {
+      // ignore: avoid_print
+      print('[deeplink] getInitialLink failed: $e');
+    }
+    _linkSub = _appLinks.uriLinkStream.listen(
+      (uri) {
+        // ignore: avoid_print
+        print('[deeplink] warm uri: $uri');
+        dispatcher.handle(uri);
+      },
+      onError: (Object e) {
+        // ignore: avoid_print
+        print('[deeplink] stream error: $e');
+      },
+    );
+  }
+
+  @override
+  void dispose() {
+    _linkSub?.cancel();
+    super.dispose();
+  }
 
   @override
   Widget build(BuildContext context) {

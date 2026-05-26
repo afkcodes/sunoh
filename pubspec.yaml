@@ -76,6 +76,11 @@ dependencies:
   # gracefully reports when no UPI app is installed so we can fall back
   # to copying the VPA to the clipboard.
   url_launcher: ^6.3.2
+  # Inbound deep links. Surfaces both `sunoh://` (custom scheme) and
+  # `https://sunoh.online/*` (App Links) through one stream + the
+  # initial cold-start URI. See `lib/router/deep_links.dart` for the
+  # dispatch + `android/app/src/main/AndroidManifest.xml` intent filters.
+  app_links: ^6.4.1
 
 dev_dependencies:
   flutter_test:
