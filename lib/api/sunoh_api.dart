@@ -341,6 +341,29 @@ class SunohApi {
     }
     return env.data!;
   }
+
+  /// `GET /music/languages` — the user-selectable music languages list.
+  /// Returns rows like `{name: 'Hindi', value: 'hindi'}`. Used to populate
+  /// the Settings → Music Languages picker; the `value` is what the
+  /// backend expects in the `lang=` query for `/music/home`,
+  /// `/music/radio/*`, etc.
+  Future<List<ApiLanguage>> fetchLanguages() async {
+    final res = await _dio.get<Map<String, dynamic>>('/music/languages');
+    final env = ApiEnvelope.from<List<ApiLanguage>>(
+      res.data ?? const {},
+      (raw) {
+        if (raw is! List) return const <ApiLanguage>[];
+        return raw
+            .whereType<Map>()
+            .map((m) => ApiLanguage.fromJson(m.cast<String, dynamic>()))
+            .toList();
+      },
+    );
+    if (!env.isSuccess) {
+      throw SunohApiException(env.message, env.error);
+    }
+    return env.data ?? const [];
+  }
 }
 
 class SunohApiException implements Exception {

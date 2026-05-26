@@ -161,15 +161,16 @@ class MusicTab extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final c = colors;
-    final feedAsync = ref.watch(homeFeedProvider(null));
-    final gap = 40 * ref.watch(appStateProvider).density.scale;
+    final s = ref.watch(appStateProvider);
+    final feedAsync = ref.watch(homeFeedProvider(s.selectedLanguagesCsv));
+    final gap = 40 * s.density.scale;
 
     return feedAsync.when(
       loading: () => const _LoadingFeed(),
       error: (e, _) => _ErrorFeed(
         message: 'Couldn’t load the home feed.',
         detail: '$e',
-        onRetry: () => ref.invalidate(homeFeedProvider(null)),
+        onRetry: () => ref.invalidate(homeFeedProvider(s.selectedLanguagesCsv)),
         colors: c,
       ),
       data: (sections) {
@@ -196,7 +197,7 @@ class MusicTab extends ConsumerWidget {
           return _ErrorFeed(
             message: 'Nothing in the feed right now.',
             colors: c,
-            onRetry: () => ref.invalidate(homeFeedProvider(null)),
+            onRetry: () => ref.invalidate(homeFeedProvider(s.selectedLanguagesCsv)),
           );
         }
         return Column(

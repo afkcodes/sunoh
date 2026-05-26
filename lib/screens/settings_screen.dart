@@ -13,7 +13,9 @@ import 'package:go_router/go_router.dart';
 import 'package:solar_icons/solar_icons.dart';
 import 'package:url_launcher/url_launcher.dart';
 
+import '../overlays/language_sheet.dart';
 import '../providers/app_state_provider.dart';
+import '../providers/languages_provider.dart';
 import '../state/app_state.dart';
 import '../theme/tokens.dart';
 import '../widgets/ui.dart';
@@ -58,6 +60,12 @@ class SettingsScreen extends ConsumerWidget {
                   'data': 'Data saver',
                 },
                 onChange: s.setStreamQuality,
+                colors: c,
+              ),
+              _NavRow(
+                label: 'Music languages',
+                summary: _languagesSummary(ref, s),
+                onTap: () => showLanguageSheet(context),
                 colors: c,
               ),
             ],
@@ -434,6 +442,50 @@ class _RadioRow<T> extends StatelessWidget {
   }
 }
 
+/// Tap-row with a trailing summary string and a chevron — used for
+/// settings that open a sub-sheet instead of toggling inline. Mirrors
+/// the visual rhythm of `_RadioRow` and `_ToggleRow` for consistency.
+class _NavRow extends StatelessWidget {
+  const _NavRow({
+    required this.label,
+    required this.summary,
+    required this.onTap,
+    required this.colors,
+  });
+  final String label;
+  final String summary;
+  final VoidCallback onTap;
+  final SunohColors colors;
+  @override
+  Widget build(BuildContext context) {
+    final c = colors;
+    return GestureDetector(
+      onTap: onTap,
+      behavior: HitTestBehavior.opaque,
+      child: Row(
+        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+        children: [
+          Text(label, style: SunohType.sans(fontSize: 14, color: c.fgDim)),
+          Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Flexible(
+                child: Text(summary,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: SunohType.sans(fontSize: 13, color: c.fgMute)),
+              ),
+              const SizedBox(width: 6),
+              Icon(SolarIconsOutline.altArrowRight,
+                  size: 16, color: c.fgMute),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+}
+
 class _ToggleRow extends StatelessWidget {
   const _ToggleRow({
     required this.label,
@@ -646,4 +698,29 @@ class _DonationAction extends StatelessWidget {
       ),
     );
   }
+}
+
+/// Compose the "Music languages" trailing summary. Shows up to two
+/// selected language names; if more are selected, uses a "+N" suffix.
+/// "All defaults" when the user hasn't picked any (= backend default
+/// kicks in). Reads from the languages provider to map slugs → names —
+/// the provider is autoDispose with 24-h keepAlive, so this read is
+/// cheap and won't bounce a refetch.
+String _languagesSummary(WidgetRef ref, AppState s) {
+  final selected = s.selectedLanguages;
+  if (selected.isEmpty) return 'All defaults';
+  final all = ref.watch(languagesProvider).value;
+  if (all == null || all.isEmpty) {
+    // Names not loaded yet — fall back to the raw slug count.
+    return selected.length == 1
+        ? selected.first
+        : '${selected.length} selected';
+  }
+  final names = all
+      .where((l) => selected.contains(l.value))
+      .map((l) => l.name)
+      .toList();
+  if (names.isEmpty) return '${selected.length} selected';
+  if (names.length <= 2) return names.join(', ');
+  return '${names.take(2).join(', ')} +${names.length - 2}';
 }

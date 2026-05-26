@@ -26,11 +26,15 @@ class SavedAppearance {
 }
 
 class SavedPlayback {
-  const SavedPlayback({this.streamQuality, this.repeatMode});
+  const SavedPlayback({this.streamQuality, this.repeatMode, this.languages});
   final String? streamQuality; // 'auto' / 'high' / 'data'
   /// Persisted as the `LoopMode.name` ('off' / 'all' / 'one'). Null on
   /// fresh installs / older saves that predate this field.
   final String? repeatMode;
+  /// Selected music languages (lowercase slugs like 'hindi', 'english').
+  /// Null on fresh installs / older saves; consumers treat null +
+  /// empty list as "use backend default".
+  final List<String>? languages;
 }
 
 class SettingsStore {
@@ -53,6 +57,7 @@ class SettingsStore {
   // `_kCrossfadeSec` retired with the crossfade feature 2026-05-26 — old
   // installs may still have the key on disk but nothing reads it now.
   static const _kRepeatMode = 'playback.repeat_mode';
+  static const _kLanguages = 'playback.languages';
 
   /// Cached in-flight open so concurrent loaders share one openBox call
   /// — same race-avoidance idiom as library_store.
@@ -180,11 +185,16 @@ class SettingsStore {
   Future<void> savePlayback({
     String? streamQuality,
     String? repeatMode,
+    List<String>? languages,
   }) async {
     final box = await _box();
     final map = <String, dynamic>{};
     if (streamQuality != null) map[_kStreamQuality] = streamQuality;
     if (repeatMode != null) map[_kRepeatMode] = repeatMode;
+    // Always write languages when present (including empty list) — the
+    // user explicitly clearing all selections should persist as "use
+    // backend default" not "leave previous value alone."
+    if (languages != null) map[_kLanguages] = languages;
     if (map.isEmpty) return;
     await box.putAll(map);
     await box.flush();
@@ -194,9 +204,14 @@ class SettingsStore {
   Future<SavedPlayback?> loadPlayback() async {
     try {
       final box = await _box();
+      final langsRaw = box.get(_kLanguages);
+      final langs = (langsRaw is List)
+          ? langsRaw.whereType<String>().toList()
+          : null;
       return SavedPlayback(
         streamQuality: box.get(_kStreamQuality) as String?,
         repeatMode: box.get(_kRepeatMode) as String?,
+        languages: langs,
       );
     } catch (e) {
       debugPrint('[settings-store] loadPlayback failed: $e');

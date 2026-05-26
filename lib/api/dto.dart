@@ -182,6 +182,20 @@ class ApiArtistRef {
   }
 }
 
+/// `{name, value}` row from `/music/languages`. `value` is the lowercase
+/// slug expected by the backend's `lang=` query parameter; `name` is the
+/// display label.
+class ApiLanguage {
+  const ApiLanguage({required this.name, required this.value});
+  final String name;
+  final String value;
+
+  factory ApiLanguage.fromJson(Map<String, dynamic> j) => ApiLanguage(
+        name: _decode((j['name'] ?? '').toString()),
+        value: (j['value'] ?? '').toString(),
+      );
+}
+
 /// A single item inside a `HomeSection.data` (or search-result section).
 /// Loosely typed: the backend can emit song / album / playlist / artist /
 /// channel / radio_station / occasion in the same array. UI routes on [type].

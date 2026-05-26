@@ -113,6 +113,9 @@ class AppState extends ChangeNotifier with WidgetsBindingObserver {
           );
           repo.setRepeat(repeat);
         }
+        if (play.languages != null) {
+          selectedLanguages = play.languages!.toSet();
+        }
       }
       notifyListeners();
     } catch (e) {
@@ -201,6 +204,35 @@ class AppState extends ChangeNotifier with WidgetsBindingObserver {
   /// Stream quality preference. 'auto' picks the highest playable; 'high'
   /// forces 320/high; 'data' caps at 96kbps / low for cell-data savings.
   String streamQuality = 'auto';
+
+  /// Selected music languages (the lowercase `value` slugs returned by
+  /// `/music/languages`). Threaded into `/music/home?languages=…` so the
+  /// feed is region-appropriate, and passed as `lang=` to radio session
+  /// + premature-EOF refresh paths. Empty set means "let the backend
+  /// pick its default" (server-side default is hindi+english).
+  ///
+  /// Read via [selectedLanguagesCsv] when you need the joined query
+  /// string. Mutated via [toggleLanguage].
+  Set<String> selectedLanguages = <String>{};
+
+  /// Comma-joined slug list for query params, or `null` when nothing's
+  /// selected (so callers can let the backend pick its default).
+  String? get selectedLanguagesCsv =>
+      selectedLanguages.isEmpty ? null : selectedLanguages.join(',');
+
+  /// Toggle a language value in/out of the user's selection. Persists +
+  /// invalidates the home feed cache so the next render fetches with
+  /// the new language set.
+  void toggleLanguage(String value) {
+    final v = value.toLowerCase();
+    if (selectedLanguages.contains(v)) {
+      selectedLanguages = {...selectedLanguages}..remove(v);
+    } else {
+      selectedLanguages = {...selectedLanguages, v};
+    }
+    _persistPlayback();
+    notifyListeners();
+  }
 
   // ── Navigation ────────────────────────────────────────────────────────
   // Route navigation is owned by go_router now; AppState only keeps the
@@ -793,6 +825,7 @@ class AppState extends ChangeNotifier with WidgetsBindingObserver {
     audioRepo?.settings.savePlayback(
       streamQuality: streamQuality,
       repeatMode: repeat.name,
+      languages: selectedLanguages.toList(),
     );
   }
 
