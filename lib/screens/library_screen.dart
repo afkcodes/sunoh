@@ -13,6 +13,7 @@ import 'package:solar_icons/solar_icons.dart';
 import '../api/dto.dart';
 import '../data/models.dart';
 import '../providers/app_state_provider.dart';
+import '../providers/downloads_provider.dart';
 import '../router/router.dart';
 import '../state/app_state.dart';
 import '../theme/tokens.dart';
@@ -154,8 +155,8 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen> {
             ],
           ),
         ),
-        // Pinned shortcuts — Liked Songs + Recently Played. Both surface
-        // real counts and route into their dedicated screens.
+        // Pinned shortcuts — Liked Songs + Recently Played + Downloads.
+        // Each surfaces a real count and routes into its dedicated screen.
         Padding(
           padding: const EdgeInsets.fromLTRB(20, 0, 20, 22),
           child: Row(
@@ -185,6 +186,28 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen> {
                   gradient: const [Color(0xFF1D3A3A), Color(0xFF0E1818)],
                   onTap: () => context.openRecentlyPlayed(),
                 ),
+              ),
+              const SizedBox(width: 8),
+              Expanded(
+                child: Consumer(builder: (ctx, innerRef, _) {
+                  // Use the live download list count so the subtitle
+                  // updates the moment a new download lands without
+                  // bouncing the whole library page through `s`.
+                  final dl = innerRef
+                      .watch(downloadEntriesProvider)
+                      .asData
+                      ?.value;
+                  final n = dl?.length ?? 0;
+                  return _PinnedTile(
+                    title: 'Downloads',
+                    sub: n == 0
+                        ? 'Tap a song to save'
+                        : '$n ${n == 1 ? 'song' : 'songs'}',
+                    icon: SolarIconsOutline.downloadMinimalistic,
+                    gradient: const [Color(0xFF2A1F3A), Color(0xFF13101C)],
+                    onTap: () => context.openDownloads(),
+                  );
+                }),
               ),
             ],
           ),

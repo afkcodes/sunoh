@@ -16,8 +16,10 @@ import 'package:go_router/go_router.dart';
 import 'package:solar_icons/solar_icons.dart';
 
 import '../api/dto.dart';
+import '../audio/download_store.dart';
 import '../data/models.dart';
 import '../providers/app_state_provider.dart';
+import '../providers/downloads_provider.dart';
 import '../share/share_link.dart';
 import '../theme/tokens.dart';
 import '../widgets/album_art.dart';
@@ -173,6 +175,16 @@ class _TrackMenuSheet extends ConsumerWidget {
               },
               colors: c,
             ),
+            // Download / Downloaded / Remove download — only saavn songs
+            // are downloadable today (gaana ships HLS playlists which we
+            // can't single-file save). The row hides entirely for gaana.
+            //
+            // Some album/playlist detail responses don't restamp each
+            // song with its `source`, so fall back to the parent's
+            // sourceRef.source — otherwise a song fetched via gaana
+            // would show as downloadable because its own source is null.
+            if (_effectiveSource(song, sourceRef) != 'gaana')
+              _DownloadRow(song: song, colors: c),
             if (sourceRef != null && sourceRef!.kind != 'artist')
               _MenuRow(
                 icon: sourceRef!.kind == 'album'
@@ -298,6 +310,101 @@ class _MenuRow extends StatelessWidget {
           ],
         ),
       ),
+    );
+  }
+}
+
+String? _effectiveSource(FeedItem song, DetailRef? sourceRef) {
+  final s = (song.source ?? '').trim();
+  if (s.isNotEmpty) return s;
+  return sourceRef?.source;
+}
+
+/// The Download row in the track-action sheet. Renders four states based
+/// on the current [DownloadEntry] (or absence of one):
+///   * no entry     → "Download" with a download glyph; tap queues
+///   * queued       → "Queued…" disabled with a hint
+///   * downloading  → "Downloading…" with live percent
+///   * done         → "Downloaded" with a check + tap to remove
+///   * failed       → "Retry download" with a refresh glyph
+///
+/// Subscribes to [downloadProgressProvider] for the live percent so the
+/// row stays in sync while staying decoupled from the manager internals.
+class _DownloadRow extends ConsumerWidget {
+  const _DownloadRow({required this.song, required this.colors});
+  final FeedItem song;
+  final SunohColors colors;
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final c = colors;
+    final entry = watchDownloadEntry(ref, song.id);
+    final mgr = ref.read(downloadManagerProvider);
+
+    IconData icon;
+    String label;
+    VoidCallback? onTap;
+    Color? iconColor;
+
+    switch (entry?.state) {
+      case null:
+        icon = SolarIconsOutline.downloadMinimalistic;
+        label = 'Download';
+        onTap = () {
+          Navigator.of(context).pop();
+          mgr.enqueue(song);
+          ref.read(appStateProvider).flashToast('Downloading…');
+        };
+      case DownloadState.queued:
+        icon = SolarIconsOutline.clockCircle;
+        label = 'Queued…';
+        onTap = null;
+      case DownloadState.downloading:
+        final progress =
+            ref.watch(downloadProgressProvider(song.id)).asData?.value;
+        final pct = progress == null
+            ? null
+            : (progress.fraction * 100).clamp(0.0, 100.0);
+        icon = SolarIconsOutline.downloadMinimalistic;
+        label = pct == null
+            ? 'Downloading…'
+            : 'Downloading… ${pct.toStringAsFixed(0)}%';
+        onTap = () {
+          Navigator.of(context).pop();
+          mgr.pause(song.id);
+          ref.read(appStateProvider).flashToast('Paused');
+        };
+      case DownloadState.paused:
+        icon = SolarIconsOutline.playCircle;
+        label = 'Resume download';
+        onTap = () {
+          Navigator.of(context).pop();
+          mgr.resume(song.id);
+        };
+      case DownloadState.done:
+        icon = SolarIconsBold.checkCircle;
+        iconColor = c.accent;
+        label = 'Downloaded — tap to remove';
+        onTap = () {
+          Navigator.of(context).pop();
+          mgr.remove(song.id);
+          ref.read(appStateProvider).flashToast('Removed from downloads');
+        };
+      case DownloadState.failed:
+        icon = SolarIconsOutline.refreshCircle;
+        label = 'Retry download';
+        onTap = () {
+          Navigator.of(context).pop();
+          mgr.resume(song.id);
+        };
+    }
+
+    return _MenuRow(
+      icon: icon,
+      label: label,
+      iconColor: iconColor,
+      onTap: onTap ?? () {},
+      colors: c,
     );
   }
 }

@@ -16,6 +16,7 @@ import 'package:solar_icons/solar_icons.dart';
 import '../api/dto.dart';
 import '../data/models.dart';
 import '../providers/app_state_provider.dart';
+import '../providers/downloads_provider.dart';
 import '../router/router.dart';
 import '../share/share_link.dart';
 import '../theme/tokens.dart';
@@ -30,24 +31,40 @@ import '../widgets/ui.dart';
 /// [artist] is optional — when present (and the entity is an album/
 /// playlist with a single primary artist), a "View [name]" row is shown
 /// that pops the sheet + navigates.
+///
+/// [songs] is optional — when provided AND the entity isn't gaana, the
+/// sheet shows a "Download all" row that enqueues every track into the
+/// download manager. Pass an empty list (or omit) for hero kinds that
+/// don't carry a flat song list (e.g. artist screens, where the songs
+/// live behind a separate `topSongs` accessor).
 Future<void> showHeroMenuSheet(
   BuildContext context, {
   required FeedItem entity,
   ApiArtistRef? artist,
+  List<FeedItem> songs = const [],
 }) {
   return showModalBottomSheet<void>(
     context: context,
     backgroundColor: Colors.transparent,
     isScrollControlled: true,
     useRootNavigator: true,
-    builder: (_) => _HeroMenuSheet(entity: entity, artist: artist),
+    builder: (_) => _HeroMenuSheet(
+      entity: entity,
+      artist: artist,
+      songs: songs,
+    ),
   );
 }
 
 class _HeroMenuSheet extends ConsumerWidget {
-  const _HeroMenuSheet({required this.entity, this.artist});
+  const _HeroMenuSheet({
+    required this.entity,
+    this.artist,
+    this.songs = const [],
+  });
   final FeedItem entity;
   final ApiArtistRef? artist;
+  final List<FeedItem> songs;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -144,6 +161,22 @@ class _HeroMenuSheet extends ConsumerWidget {
                   Navigator.of(context).pop();
                   context.openRef(DetailRef('artist', artist!.id,
                       source: entity.source));
+                },
+                colors: c,
+              ),
+            // Bulk download for albums/playlists — fans every track out
+            // to the download manager, capped at 2 concurrent by the
+            // manager's own queue. Hidden for gaana (HLS, can't single-
+            // file save) and for entity kinds without a flat song list
+            // (artist, etc — caller passes [] or omits `songs`).
+            if (entity.source != 'gaana' && songs.isNotEmpty)
+              _HeroMenuRow(
+                icon: SolarIconsOutline.downloadMinimalistic,
+                label: 'Download all (${songs.length})',
+                onTap: () {
+                  Navigator.of(context).pop();
+                  ref.read(downloadManagerProvider).enqueueAll(songs);
+                  s.flashToast('Queued ${songs.length} tracks');
                 },
                 colors: c,
               ),

@@ -17,6 +17,8 @@ import '../overlays/track_menu_sheet.dart';
 import '../providers/app_state_provider.dart';
 import '../providers/detail_providers.dart';
 import '../providers/palette_provider.dart';
+import '../audio/download_store.dart';
+import '../providers/downloads_provider.dart';
 import '../providers/search_provider.dart';
 import '../router/router.dart';
 import '../share/share_link.dart';
@@ -73,6 +75,9 @@ class _HeroActions extends StatelessWidget {
     required this.onPlay,
     required this.onShuffle,
     this.onLike,
+    this.onDownload,
+    this.downloadActive = false,
+    this.onAddToQueue,
   });
   final SunohColors colors;
   final Color accent;
@@ -81,6 +86,20 @@ class _HeroActions extends StatelessWidget {
   final VoidCallback onPlay;
   final VoidCallback onShuffle;
   final VoidCallback? onLike;
+
+  /// Tap target for the bulk-download icon between heart and +. The icon
+  /// is hidden when this is null — that's how we keep gaana detail
+  /// screens free of a download affordance they can't honour.
+  final VoidCallback? onDownload;
+
+  /// True when every track in the source is already on disk. Flips the
+  /// glyph to a filled check so the user sees "this album is offline".
+  final bool downloadActive;
+
+  /// Tap target for the "+" icon — appends every track in the source to
+  /// the active playback queue. Hidden when null (e.g. when the detail
+  /// has no flat song list).
+  final VoidCallback? onAddToQueue;
 
   @override
   Widget build(BuildContext context) {
@@ -97,16 +116,20 @@ class _HeroActions extends StatelessWidget {
                   color: liked ? accent : c.fgDim,
                   size: 22,
                   onTap: onLike),
-              IconBtn(
-                  icon: SolarIconsOutline.downloadMinimalistic,
-                  color: c.fgDim,
-                  size: 20,
-                  onTap: () {}),
-              IconBtn(
-                  icon: SolarIconsOutline.addCircle,
-                  color: c.fgDim,
-                  size: 20,
-                  onTap: () {}),
+              if (onDownload != null)
+                IconBtn(
+                    icon: downloadActive
+                        ? SolarIconsBold.checkCircle
+                        : SolarIconsOutline.downloadMinimalistic,
+                    color: downloadActive ? accent : c.fgDim,
+                    size: 20,
+                    onTap: onDownload),
+              if (onAddToQueue != null)
+                IconBtn(
+                    icon: SolarIconsOutline.addCircle,
+                    color: c.fgDim,
+                    size: 20,
+                    onTap: onAddToQueue),
             ],
           ),
           Row(
@@ -428,6 +451,11 @@ class _ApiTrackRow extends ConsumerWidget {
                     ],
                   ),
                 ),
+                // Subtle downloaded / downloading indicator. Tracks the
+                // download entry by song id; renders nothing for songs
+                // without a download (the common case), so empty rows
+                // stay clean.
+                _RowDownloadGlyph(songId: song.id, colors: c),
                 if (durationLabel != null) ...[
                   const SizedBox(width: 8),
                   Text(durationLabel,
@@ -500,6 +528,41 @@ String _stripHtml(String raw) {
 }
 
 /// Subtle white-overlay gradient that grows left → right inside the active
+/// Small inline indicator on a song row: filled check when the song is
+/// downloaded, an outline download glyph while it's in flight, nothing
+/// otherwise. Watches [downloadEntriesProvider] via the helper so it
+/// rebuilds on state transitions without bothering with per-chunk
+/// progress.
+class _RowDownloadGlyph extends ConsumerWidget {
+  const _RowDownloadGlyph({required this.songId, required this.colors});
+  final String songId;
+  final SunohColors colors;
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final entry = watchDownloadEntry(ref, songId);
+    final state = entry?.state;
+    if (state == null) return const SizedBox.shrink();
+    return Padding(
+      padding: const EdgeInsets.only(left: 6),
+      child: switch (state) {
+        DownloadState.done => Icon(SolarIconsBold.checkCircle,
+            size: 13, color: colors.accent),
+        DownloadState.downloading => Icon(
+            SolarIconsOutline.downloadMinimalistic,
+            size: 13,
+            color: colors.fgMute),
+        DownloadState.queued => Icon(SolarIconsOutline.clockCircle,
+            size: 13, color: colors.fgMute),
+        DownloadState.paused => Icon(SolarIconsOutline.pauseCircle,
+            size: 13, color: colors.fgMute),
+        DownloadState.failed => Icon(SolarIconsOutline.dangerCircle,
+            size: 13, color: colors.fgMute),
+      },
+    );
+  }
+}
+
 /// track row, tracking `position / duration`. Direct port of the RN
 /// `ActiveSongProgress` (album/ActiveSongProgress.tsx) — same six-stop
 /// low-alpha gradient. Listens to AppState's 1 Hz `positionTick` so only
@@ -875,6 +938,25 @@ class _AlbumLikeBodyState extends ConsumerState<_AlbumLikeBody> {
                     final saved = live.isSaved(heroItem);
                     final isHere = live.apiSourceRef?.kind == kind &&
                         live.apiSourceRef?.id == id;
+                    // Bulk-download surfaces (the heart-row icon + the
+                    // hero-menu "Download all") only matter for saavn
+                    // sources. Gaana songs are HLS, which we can't
+                    // single-file save yet.
+                    final isGaana =
+                        widget.sourceRef.source == 'gaana';
+                    final dlEntries = ref
+                        .watch(downloadEntriesProvider)
+                        .asData
+                        ?.value;
+                    final dlIds = dlEntries == null
+                        ? const <String>{}
+                        : {
+                            for (final e in dlEntries)
+                              if (e.state == DownloadState.done) e.id
+                          };
+                    final allDownloaded = !isGaana &&
+                        songs.isNotEmpty &&
+                        songs.every((sg) => dlIds.contains(sg.id));
                     return _HeroActions(
                       colors: c,
                       accent: accent,
@@ -911,6 +993,19 @@ class _AlbumLikeBodyState extends ConsumerState<_AlbumLikeBody> {
                         if (!s.shuffle) s.toggleShuffle();
                       },
                       onLike: () => s.toggleSaved(heroItem),
+                      onDownload: isGaana || songs.isEmpty
+                          ? null
+                          : () {
+                              ref
+                                  .read(downloadManagerProvider)
+                                  .enqueueAll(songs);
+                              live.flashToast(
+                                  'Queued ${songs.length} tracks');
+                            },
+                      downloadActive: allDownloaded,
+                      onAddToQueue: songs.isEmpty
+                          ? null
+                          : () => live.addApiSongsToQueue(songs),
                     );
                   }),
                   for (var i = 0; i < songs.length; i++)
@@ -972,7 +1067,8 @@ class _AlbumLikeBodyState extends ConsumerState<_AlbumLikeBody> {
                                     quality: 'hero', link: widget.imageUrl!)
                               ],
                         source: widget.sourceRef.source,
-                      ));
+                      ),
+                      songs: songs);
                 },
               ),
             ),

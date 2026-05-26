@@ -771,6 +771,23 @@ class AppState extends ChangeNotifier with WidgetsBindingObserver {
     flashToast('Added to queue: ${song.title}');
   }
 
+  /// Bulk-append every [songs] entry to the end of the queue. Issues a
+  /// single summary toast at the end so the user doesn't get a flood of
+  /// per-track confirmations when adding a whole album.
+  Future<void> addApiSongsToQueue(List<FeedItem> songs) async {
+    if (songs.isEmpty) return;
+    final repo = audioRepo;
+    if (repo == null) {
+      flashToast('Audio engine unavailable');
+      return;
+    }
+    for (final s in songs) {
+      await repo.addToQueue(s);
+    }
+    flashToast(
+        'Added ${songs.length} ${songs.length == 1 ? 'track' : 'tracks'} to queue');
+  }
+
   /// Play a queue of songs starting at [startIndex]. Optimistically updates
   /// the UI to the starting song, then hands the rest to the engine.
   ///

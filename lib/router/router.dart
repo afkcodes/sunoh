@@ -19,6 +19,7 @@ import '../player/expanded_player.dart';
 import '../providers/app_state_provider.dart';
 import '../api/dto.dart';
 import '../screens/detail_screens.dart';
+import '../screens/downloads_screen.dart';
 import '../screens/home_screen.dart';
 import '../screens/library_screen.dart';
 import '../screens/liked_songs_screen.dart';
@@ -191,6 +192,10 @@ List<RouteBase> _detailRoutes() => [
         path: 'history',
         pageBuilder: (c, s) => _slideRight(const RecentlyPlayedScreen(), s),
       ),
+      GoRoute(
+        path: 'downloads',
+        pageBuilder: (c, s) => _slideRight(const DownloadsScreen(), s),
+      ),
     ];
 
 /// Scroll + safe-area padding for the non-scrolling tab screens (Column roots).
@@ -334,4 +339,5 @@ extension SunohNav on BuildContext {
 
   void openLikedSongs() => push('$_branchPrefix/liked');
   void openRecentlyPlayed() => push('$_branchPrefix/history');
+  void openDownloads() => push('$_branchPrefix/downloads');
 }
