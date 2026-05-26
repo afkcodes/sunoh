@@ -20,9 +20,12 @@ import 'api/stream_resolver.dart';
 import 'audio/audio_handler.dart';
 import 'audio/audio_repo.dart';
 import 'audio/audio_service_bridge.dart';
+import 'audio/download_manager.dart';
+import 'audio/download_store.dart';
 import 'audio/library_store.dart';
 import 'audio/playback_state_store.dart';
 import 'audio/settings_store.dart';
+import 'providers/downloads_provider.dart';
 import 'router/deep_links.dart';
 import 'router/router.dart';
 
@@ -131,6 +134,23 @@ Future<void> main() async {
 
   // Phase 1: synchronous mpv setup. Playback works after this line.
   final resolver = StreamResolver(buildSunohDio());
+  // Downloads — wire the offline tier before the handler is built so any
+  // restored playback queue benefits from the local file lookup on the
+  // very first resolve. Failures here MUST be swallowed: the manager
+  // is additive (no downloads → network only), so a broken Hive box
+  // shouldn't prevent in-app playback.
+  final downloadStore = DownloadStore();
+  final downloadManager =
+      DownloadManager(resolver: resolver, store: downloadStore);
+  try {
+    await downloadManager.init();
+    resolver.localSource = downloadManager;
+    // ignore: avoid_print
+    print('[downloads] manager ready, resolver.localSource attached');
+  } catch (e, st) {
+    // ignore: avoid_print
+    print('[downloads] init failed (continuing without offline tier): $e\n$st');
+  }
   final handler = SunohAudioHandler(resolver: resolver);
   final repo = AudioRepo(
     handler: handler,
@@ -153,7 +173,10 @@ Future<void> main() async {
   }));
 
   runApp(ProviderScope(
-    overrides: [audioRepoProvider.overrideWithValue(repo)],
+    overrides: [
+      audioRepoProvider.overrideWithValue(repo),
+      downloadManagerProvider.overrideWithValue(downloadManager),
+    ],
     child: const _Root(),
   ));
 }
