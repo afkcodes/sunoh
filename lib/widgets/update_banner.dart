@@ -19,7 +19,9 @@ import '../theme/tokens.dart';
 import 'ui.dart';
 
 /// Slim ribbon variant — used at the top of Home so it never steals
-/// vertical real-estate from the feed.
+/// vertical real-estate from the feed. Matches the home feed's
+/// 20 px horizontal gutter; adds a bit of top breathing room when
+/// visible. Zero height when there's no update.
 class UpdateBanner extends ConsumerWidget {
   const UpdateBanner({super.key});
 
@@ -32,14 +34,17 @@ class UpdateBanner extends ConsumerWidget {
     final info = async.asData?.value;
     if (info == null) return const SizedBox.shrink();
     return Padding(
-      padding: const EdgeInsets.fromLTRB(16, 8, 16, 0),
+      padding: const EdgeInsets.fromLTRB(20, 14, 20, 0),
       child: _UpdateRow(info: info, colors: c, accent: accent, slim: true),
     );
   }
 }
 
 /// Card variant — used inside Settings → About so the same info has a
-/// home if the user dismissed the Home ribbon. Lives next to "Version".
+/// home if the user dismissed the Home ribbon. Designed to live as the
+/// first row inside a `_Section`, so it inherits the section's
+/// horizontal padding — no extra padding here. Returns SizedBox.shrink
+/// when no update is published so the caller doesn't need to gate.
 class UpdateAboutCard extends ConsumerWidget {
   const UpdateAboutCard({super.key});
 
@@ -51,10 +56,7 @@ class UpdateAboutCard extends ConsumerWidget {
     final async = ref.watch(availableUpdateProvider);
     final info = async.asData?.value;
     if (info == null) return const SizedBox.shrink();
-    return Padding(
-      padding: const EdgeInsets.fromLTRB(20, 4, 20, 0),
-      child: _UpdateRow(info: info, colors: c, accent: accent, slim: false),
-    );
+    return _UpdateRow(info: info, colors: c, accent: accent, slim: false);
   }
 }
 

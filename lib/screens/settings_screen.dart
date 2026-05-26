@@ -17,6 +17,7 @@ import '../audio/storage_stats.dart';
 import '../overlays/language_sheet.dart';
 import '../providers/app_state_provider.dart';
 import '../providers/languages_provider.dart';
+import '../providers/update_provider.dart';
 import '../state/app_state.dart';
 import '../theme/tokens.dart';
 import '../widgets/ui.dart';
@@ -155,23 +156,25 @@ class SettingsScreen extends ConsumerWidget {
             );
           }),
 
-          // "Update available" card sits visually inside the ABOUT
-          // section but lives outside `_Section` so the row-gap pass
-          // doesn't leave an empty 22-px gap when no update is published.
-          // Adds its own bottom padding only when the banner is shown.
-          const UpdateAboutCard(),
-          _Section(
-            label: 'ABOUT',
-            colors: c,
-            scale: scale,
-            rows: [
-              _Link(
-                label: 'Version',
-                trailing: '0.1.0',
-                icon: SolarIconsOutline.infoCircle,
-                colors: c,
-                onTap: () {},
-              ),
+          // ABOUT — wrapped in a Consumer so we can conditionally
+          // include the "Update available" row INSIDE the section (so
+          // it lives under the ABOUT eyebrow, not as an orphan above).
+          Consumer(builder: (ctx, innerRef, _) {
+            final updateInfo =
+                innerRef.watch(availableUpdateProvider).asData?.value;
+            return _Section(
+              label: 'ABOUT',
+              colors: c,
+              scale: scale,
+              rows: [
+                if (updateInfo != null) const UpdateAboutCard(),
+                _Link(
+                  label: 'Version',
+                  trailing: '0.1.0',
+                  icon: SolarIconsOutline.infoCircle,
+                  colors: c,
+                  onTap: () {},
+                ),
               _Link(
                 label: 'Licenses',
                 icon: SolarIconsOutline.document,
@@ -189,7 +192,8 @@ class SettingsScreen extends ConsumerWidget {
                 onTap: () => s.flashToast('Not implemented'),
               ),
             ],
-          ),
+          );
+          }),
         ],
       ),
     );

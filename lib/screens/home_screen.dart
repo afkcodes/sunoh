@@ -53,11 +53,13 @@ class HomeScreen extends ConsumerWidget {
             ],
           ),
         ),
+        _TopTabs(tab: s.topTab, onChange: s.setTopTab, colors: c),
         // Slim "Update available" ribbon — renders only when the published
         // manifest carries a strictly-newer version than this build, and
-        // the user hasn't dismissed that exact version yet.
+        // the user hasn't dismissed that exact version yet. Sits between
+        // the tabs and the feed so it reads as a tab-level notice rather
+        // than chrome wedged between the title and the tabs.
         const UpdateBanner(),
-        _TopTabs(tab: s.topTab, onChange: s.setTopTab, colors: c),
         const SizedBox(height: 22),
         TweenAnimationBuilder<double>(
           key: ValueKey('tab-${s.topTab}'),
