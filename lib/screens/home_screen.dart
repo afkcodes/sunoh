@@ -7,10 +7,10 @@ import 'package:solar_icons/solar_icons.dart';
 
 import '../api/dto.dart';
 import '../data/models.dart';
-import '../providers/api_providers.dart';
 import '../providers/app_state_provider.dart';
 import '../providers/home_provider.dart';
 import '../providers/palette_provider.dart';
+import '../audio/radio_actions.dart';
 import '../router/router.dart';
 import '../widgets/update_banner.dart';
 import '../theme/tokens.dart';
@@ -179,25 +179,8 @@ class MusicTab extends ConsumerWidget {
         colors: c,
       ),
       data: (sections) {
-        // Temporary: hide artist-station rows. The saavn upstream's
-        // `webradio.getSong` endpoint rejects the synthetic stationid
-        // returned for artist stations (`~^~artist_radio~^~<id>`) with
-        // a 400 ("Failed to fetch Saavn radio songs"), so tapping these
-        // tiles always errors out. Re-enable once the API path for
-        // artist-radio playback is sorted out.
-        bool isArtistStationRow(HomeSection s) {
-          if (s.items.isEmpty) return false;
-          final all = s.items.every((it) =>
-              it.type == 'radio_station' && it.stationType == 'artist');
-          if (all) return true;
-          // Fallback: heading mention.
-          final h = s.heading.toLowerCase();
-          return h.contains('artist station') || h.contains('artists station');
-        }
-
-        final nonEmpty = sections
-            .where((s) => s.items.isNotEmpty && !isArtistStationRow(s))
-            .toList();
+        final nonEmpty =
+            sections.where((s) => s.items.isNotEmpty).toList();
         if (nonEmpty.isEmpty) {
           return _ErrorFeed(
             message: 'Nothing in the feed right now.',
@@ -329,11 +312,11 @@ class _ApiSection extends ConsumerWidget {
         break;
       case 'radio_station':
       case 'radio':
-        // Radio stations need a two-step session bootstrap: create the
-        // session (returns an opaque stationId), then fetch the first
-        // batch of songs to populate the queue. Auto-extend on near-end-
-        // of-queue (RN's useAutoQueue) is a separate follow-up.
-        _startRadioStation(context, ref, item, src);
+        // Radio stations need a two-step session bootstrap (create
+        // session → fetch first batch of songs). Shared with the channel
+        // detail screen via lib/audio/radio_actions.dart so both tap
+        // sources behave identically.
+        startRadioStation(ref, item, provider: src);
         break;
       case 'channel':
         // Channels (the Saavn "Browse" row) aren't radio stations and
@@ -351,59 +334,6 @@ class _ApiSection extends ConsumerWidget {
     }
   }
 
-  Future<void> _startRadioStation(
-    BuildContext context,
-    WidgetRef ref,
-    FeedItem item,
-    String? src, {
-    String? kind,
-  }) async {
-    final s = ref.read(appStateProvider);
-    final api = ref.read(sunohApiProvider);
-    final provider = src ?? 'saavn';
-    // Priority: explicit override (e.g. 'artist' for artist tiles on home)
-    // → stationType from the item → 'featured' fallback. Matches the
-    // backend's `/music/radio/session?type=…` value list (artist /
-    // featured / song / radio_station).
-    final stationKind = kind ?? item.stationType ?? 'featured';
-    // print() not debugPrint() so it survives release-mode logcat. Useful
-    // when the user reports "radio errors" — we want every input we sent
-    // to the API plus the response status visible without rebuilding a
-    // debug variant.
-    // ignore: avoid_print
-    print('[radio] starting station id="${item.id}" kind="$stationKind" '
-        'provider="$provider" name="${item.title}" lang="${item.language}"');
-    s.flashToast('Starting ${item.title}…');
-    try {
-      final sessionId = await api.fetchRadioSession(
-        id: item.id,
-        type: stationKind,
-        provider: provider,
-        name: item.title,
-        lang: item.language,
-      );
-      // ignore: avoid_print
-      print('[radio] session response → '
-          '${sessionId ?? 'NULL (request failed or empty data)'}');
-      if (sessionId == null) {
-        s.flashToast('Couldn’t start ${item.title}');
-        return;
-      }
-      final songs = await api.fetchRadioSongs(sessionId, count: 20);
-      // ignore: avoid_print
-      print('[radio] fetched ${songs.length} songs for session "$sessionId"');
-      if (songs.isEmpty) {
-        s.flashToast('No songs available on this station');
-        return;
-      }
-      await s.playApiQueue(songs, 0,
-          sourceLabel: 'RADIO · ${item.title}');
-    } catch (e, st) {
-      // ignore: avoid_print
-      print('[radio] FAILED: $e\n$st');
-      s.flashToast('Radio failed: $e');
-    }
-  }
 }
 
 class _CoverCard extends StatelessWidget {

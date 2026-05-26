@@ -18,6 +18,7 @@ import '../providers/app_state_provider.dart';
 import '../providers/detail_providers.dart';
 import '../providers/palette_provider.dart';
 import '../audio/download_store.dart';
+import '../audio/radio_actions.dart';
 import '../providers/downloads_provider.dart';
 import '../providers/search_provider.dart';
 import '../router/router.dart';
@@ -1237,6 +1238,14 @@ class _RelatedSection extends ConsumerWidget {
               case 'channel':
               case 'occasion':
                 context.openOccasion(item);
+                break;
+              case 'radio':
+              case 'radio_station':
+                // Saavn quick-stations in channel responses ship with
+                // an empty id — the featured-station creator falls back
+                // to `name`, so passing the FeedItem through is enough.
+                startRadioStation(ref, item,
+                    provider: item.source ?? section.source);
                 break;
             }
           },
