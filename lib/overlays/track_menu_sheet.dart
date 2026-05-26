@@ -18,6 +18,7 @@ import 'package:solar_icons/solar_icons.dart';
 import '../api/dto.dart';
 import '../data/models.dart';
 import '../providers/app_state_provider.dart';
+import '../share/share_link.dart';
 import '../theme/tokens.dart';
 import '../widgets/album_art.dart';
 import '../widgets/ui.dart';
@@ -205,7 +206,13 @@ class _TrackMenuSheet extends ConsumerWidget {
               label: 'Share',
               onTap: () {
                 Navigator.of(context).pop();
-                s.flashToast('Share coming soon');
+                shareSunohLink(
+                  kind: 'song',
+                  id: song.id,
+                  title: song.title,
+                  subtitle: song.displaySubtitle ?? song.subtitle,
+                  source: song.source,
+                );
               },
               colors: c,
             ),

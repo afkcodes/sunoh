@@ -17,6 +17,7 @@ import '../api/dto.dart';
 import '../data/models.dart';
 import '../providers/app_state_provider.dart';
 import '../router/router.dart';
+import '../share/share_link.dart';
 import '../theme/tokens.dart';
 import '../widgets/album_art.dart';
 import '../widgets/ui.dart';
@@ -151,7 +152,13 @@ class _HeroMenuSheet extends ConsumerWidget {
               label: 'Share',
               onTap: () {
                 Navigator.of(context).pop();
-                s.flashToast('Share coming soon');
+                shareSunohLink(
+                  kind: entity.type,
+                  id: entity.id,
+                  title: entity.title,
+                  subtitle: entity.displaySubtitle ?? entity.subtitle,
+                  source: entity.source,
+                );
               },
               colors: c,
             ),

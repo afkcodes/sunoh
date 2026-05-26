@@ -13,12 +13,19 @@ import 'package:go_router/go_router.dart';
 import 'package:solar_icons/solar_icons.dart';
 import 'package:url_launcher/url_launcher.dart';
 
+import '../audio/storage_stats.dart';
 import '../overlays/language_sheet.dart';
 import '../providers/app_state_provider.dart';
 import '../providers/languages_provider.dart';
 import '../state/app_state.dart';
 import '../theme/tokens.dart';
 import '../widgets/ui.dart';
+import '../widgets/update_banner.dart';
+
+/// Async cache + Hive box footprint, surfaced on the Library section.
+/// Invalidated on "Clear cache" so the row reflects the freed bytes.
+final _storageStatsProvider =
+    FutureProvider.autoDispose<StorageStats>((_) => computeStorageStats());
 
 /// Where "Support sunoh." money goes. Hardcoded — there's only one user
 /// (the developer), so the values don't need to be configurable.
@@ -108,28 +115,51 @@ class SettingsScreen extends ConsumerWidget {
             ],
           ),
 
-          _Section(
-            label: 'LIBRARY',
-            colors: c,
-            scale: scale,
-            rows: [
-              _Link(
-                label: 'Storage',
-                trailing: '— MB',
-                icon: SolarIconsOutline.folderWithFiles,
-                colors: c,
-                onTap: () =>
-                    s.flashToast('Downloads not implemented yet'),
-              ),
-              _Link(
-                label: 'Clear cache',
-                icon: SolarIconsOutline.trashBinTrash,
-                colors: c,
-                onTap: () => s.flashToast('Coming soon'),
-              ),
-            ],
-          ),
+          Consumer(builder: (ctx, innerRef, _) {
+            final async = innerRef.watch(_storageStatsProvider);
+            final stats = async.asData?.value ?? StorageStats.empty;
+            return _Section(
+              label: 'LIBRARY',
+              colors: c,
+              scale: scale,
+              rows: [
+                _Link(
+                  // Total = Hive (queue + library + settings) + cached
+                  // network images. Shown as a single number — the user
+                  // doesn't care about the split, just how much sunoh.
+                  // is sitting on.
+                  label: 'Storage',
+                  trailing:
+                      async.isLoading ? '…' : formatBytes(stats.totalBytes),
+                  icon: SolarIconsOutline.folderWithFiles,
+                  colors: c,
+                  onTap: () => innerRef.invalidate(_storageStatsProvider),
+                ),
+                _Link(
+                  // Wipes the network image cache (and the in-RAM decoded
+                  // image cache, so freshly-cleared art doesn't snap back
+                  // from the previous scroll). Hive data is untouched.
+                  label: 'Clear cache',
+                  trailing: stats.imageBytes > 0
+                      ? formatBytes(stats.imageBytes)
+                      : null,
+                  icon: SolarIconsOutline.trashBinTrash,
+                  colors: c,
+                  onTap: () async {
+                    await clearImageCache();
+                    s.flashToast('Cache cleared');
+                    innerRef.invalidate(_storageStatsProvider);
+                  },
+                ),
+              ],
+            );
+          }),
 
+          // "Update available" card sits visually inside the ABOUT
+          // section but lives outside `_Section` so the row-gap pass
+          // doesn't leave an empty 22-px gap when no update is published.
+          // Adds its own bottom padding only when the banner is shown.
+          const UpdateAboutCard(),
           _Section(
             label: 'ABOUT',
             colors: c,

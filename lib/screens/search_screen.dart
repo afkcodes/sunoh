@@ -99,6 +99,7 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
       if (pending == null) return;
       controller.text = pending;
       _debounce?.cancel();
+      ref.read(appStateProvider).pushSearchRecent(pending);
       setState(() {
         q = pending;
         _activeQuery = pending;
@@ -162,7 +163,13 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
                     onChanged: _onChanged,
                     onSubmitted: (_) {
                       _debounce?.cancel();
-                      setState(() => _activeQuery = q.trim());
+                      final trimmed = q.trim();
+                      if (trimmed.isNotEmpty) {
+                        ref
+                            .read(appStateProvider)
+                            .pushSearchRecent(trimmed);
+                      }
+                      setState(() => _activeQuery = trimmed);
                     },
                     cursorColor: c.accent,
                     textInputAction: TextInputAction.search,
@@ -213,10 +220,26 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
   Widget _browse(SunohColors c) {
     final trending = ref.watch(trendingSearchProvider);
     final occasions = ref.watch(occasionsProvider('gaana'));
+    final recents = ref.watch(appStateProvider).searchRecents;
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         const SizedBox(height: 12),
+        if (recents.isNotEmpty) _RecentSearches(
+          colors: c,
+          recents: recents,
+          onTap: (q) {
+            controller.text = q;
+            _debounce?.cancel();
+            ref.read(appStateProvider).pushSearchRecent(q);
+            setState(() {
+              this.q = q;
+              _activeQuery = q;
+            });
+          },
+          onClear: () => ref.read(appStateProvider).clearSearchRecents(),
+        ),
+        if (recents.isNotEmpty) const SizedBox(height: 28),
         // ── Trending — same shape as home, horizontal carousels per section.
         trending.when(
           loading: () => const _TrendingSkeleton(),
@@ -773,6 +796,83 @@ class _OccasionTile extends StatelessWidget {
           ],
         ),
       ),
+    );
+  }
+}
+
+/// "Recent" header + horizontal chip row of the user's most recently
+/// submitted queries. Persisted via SettingsStore, capped at
+/// SettingsStore.kSearchRecentsMax. Tap a chip to rerun the query;
+/// tap "Clear" in the header to wipe all.
+class _RecentSearches extends StatelessWidget {
+  const _RecentSearches({
+    required this.colors,
+    required this.recents,
+    required this.onTap,
+    required this.onClear,
+  });
+
+  final SunohColors colors;
+  final List<String> recents;
+  final ValueChanged<String> onTap;
+  final VoidCallback onClear;
+
+  @override
+  Widget build(BuildContext context) {
+    final c = colors;
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Padding(
+          padding: const EdgeInsets.fromLTRB(20, 0, 20, 12),
+          child: Row(
+            children: [
+              eyebrow('RECENT', c.fgMute),
+              const Spacer(),
+              GestureDetector(
+                behavior: HitTestBehavior.opaque,
+                onTap: onClear,
+                child: Text('Clear',
+                    style: SunohType.sans(
+                        fontSize: 11,
+                        fontWeight: FontWeight.w500,
+                        color: c.fgMute)),
+              ),
+            ],
+          ),
+        ),
+        SingleChildScrollView(
+          scrollDirection: Axis.horizontal,
+          padding: const EdgeInsets.symmetric(horizontal: 20),
+          child: Row(
+            children: [
+              for (var i = 0; i < recents.length; i++) ...[
+                if (i > 0) const SizedBox(width: 8),
+                GestureDetector(
+                  behavior: HitTestBehavior.opaque,
+                  onTap: () => onTap(recents[i]),
+                  child: Container(
+                    padding: const EdgeInsets.symmetric(
+                        horizontal: 14, vertical: 8),
+                    decoration: squircleDecoration(
+                        radius: 999, color: c.surface, borderColor: c.line),
+                    child: Row(
+                      children: [
+                        Icon(SolarIconsOutline.clockCircle,
+                            size: 13, color: c.fgMute),
+                        const SizedBox(width: 6),
+                        Text(recents[i],
+                            style: SunohType.sans(
+                                fontSize: 13, color: c.fg)),
+                      ],
+                    ),
+                  ),
+                ),
+              ],
+            ],
+          ),
+        ),
+      ],
     );
   }
 }

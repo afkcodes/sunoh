@@ -19,6 +19,7 @@ import '../providers/detail_providers.dart';
 import '../providers/palette_provider.dart';
 import '../providers/search_provider.dart';
 import '../router/router.dart';
+import '../share/share_link.dart';
 import '../theme/tokens.dart';
 import '../widgets/album_art.dart';
 import '../widgets/playing_bars.dart';
@@ -856,7 +857,12 @@ class _AlbumLikeBodyState extends ConsumerState<_AlbumLikeBody> {
                   // kind + id + (optional) source separately — we build the
                   // FeedItem with the same shape `toggleSaved` would have
                   // received from any other entry point.
-                  Builder(builder: (ctx) {
+                  Consumer(builder: (ctx, ref, _) {
+                    // Watch (not read) so the play button reactively reflects
+                    // playback state — turns into a pause icon when this
+                    // detail IS the now-playing source, and tapping then
+                    // toggles instead of restarting.
+                    final live = ref.watch(appStateProvider);
                     final kind = showAlbumArtInRow ? 'playlist' : 'album';
                     final heroItem = FeedItem(
                       id: id,
@@ -866,15 +872,24 @@ class _AlbumLikeBodyState extends ConsumerState<_AlbumLikeBody> {
                           ? const []
                           : [ApiImage(quality: 'hero', link: imageUrl!)],
                     );
-                    final saved = s.isSaved(heroItem);
+                    final saved = live.isSaved(heroItem);
+                    final isHere = live.apiSourceRef?.kind == kind &&
+                        live.apiSourceRef?.id == id;
                     return _HeroActions(
                       colors: c,
                       accent: accent,
                       liked: saved,
-                      isPlaying: false,
+                      isPlaying: isHere && live.isPlaying,
                       onPlay: () {
+                        if (isHere) {
+                          // Resume or pause — never restart from track 1
+                          // when the user is already inside this album/
+                          // playlist's queue.
+                          live.playPause();
+                          return;
+                        }
                         if (songs.isNotEmpty) {
-                          s.playApiQueue(songs, 0,
+                          live.playApiQueue(songs, 0,
                               sourceLabel:
                                   '${kind.toUpperCase()} · $title',
                               sourceRef: widget.sourceRef);
@@ -1330,40 +1345,99 @@ class _ArtistBody extends ConsumerWidget {
             child: Row(
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
-                Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 8),
-                  decoration: BoxDecoration(
-                    borderRadius: BorderRadius.circular(999),
-                    border: Border.all(color: c.fgDim),
-                  ),
-                  child: Text('Follow',
-                      style: SunohType.sans(fontSize: 12, fontWeight: FontWeight.w500, color: c.fg)),
-                ),
+                Consumer(builder: (ctx, ref, _) {
+                  final live = ref.watch(appStateProvider);
+                  final following = live.isSavedArtistId(artist.id);
+                  return GestureDetector(
+                    behavior: HitTestBehavior.opaque,
+                    onTap: () => live.toggleSaved(FeedItem(
+                      id: artist.id,
+                      title: artist.name,
+                      type: 'artist',
+                      image: artist.image,
+                      subtitle: artist.subtitle,
+                      source: artist.source,
+                    )),
+                    child: AnimatedContainer(
+                      duration: const Duration(milliseconds: 220),
+                      curve: Curves.easeOutCubic,
+                      padding: const EdgeInsets.symmetric(
+                          horizontal: 18, vertical: 8),
+                      decoration: BoxDecoration(
+                        borderRadius: BorderRadius.circular(999),
+                        color: following ? accent : Colors.transparent,
+                        border: Border.all(
+                            color: following ? accent : c.fgDim),
+                      ),
+                      child: Text(following ? 'Following' : 'Follow',
+                          style: SunohType.sans(
+                              fontSize: 12,
+                              fontWeight: FontWeight.w500,
+                              color: following ? _contrastOn(accent) : c.fg)),
+                    ),
+                  );
+                }),
                 Row(
                   children: [
-                    IconBtn(icon: SolarIconsOutline.share, color: c.fgDim, size: 18, width: 36, height: 36, onTap: () => s.flashToast('Share coming soon')),
+                    IconBtn(
+                        icon: SolarIconsOutline.share,
+                        color: c.fgDim,
+                        size: 18,
+                        width: 36,
+                        height: 36,
+                        onTap: () => shareSunohLink(
+                              kind: 'artist',
+                              id: artist.id,
+                              title: artist.name,
+                              subtitle: artist.subtitle,
+                              source: artist.source,
+                            )),
                     IconBtn(icon: SolarIconsBold.menuDots, color: c.fgDim, size: 18, width: 36, height: 36, onTap: () => s.flashToast('More options coming soon')),
                     const SizedBox(width: 6),
-                    GestureDetector(
-                      onTap: () {
-                        if (artist.topSongs.isNotEmpty) {
-                          s.playApiQueue(artist.topSongs, 0,
-                              sourceLabel: 'TOP SONGS · ${artist.name}');
-                        }
-                      },
-                      child: Container(
-                        width: 48,
-                        height: 48,
-                        decoration: BoxDecoration(
-                          color: accent,
-                          shape: BoxShape.circle,
-                          boxShadow: [
-                            BoxShadow(color: accent.withValues(alpha: 0.33), blurRadius: 18, offset: const Offset(0, 6)),
-                          ],
+                    Consumer(builder: (ctx, ref, _) {
+                      // Match the album/playlist hero behaviour — flip to
+                      // pause when this artist's top-songs queue IS the
+                      // active source, and tap toggles instead of restarting.
+                      final live = ref.watch(appStateProvider);
+                      final ref0 = live.apiSourceRef;
+                      final isHere = ref0?.kind == 'artist' &&
+                          ref0?.id == artist.id;
+                      final showPause = isHere && live.isPlaying;
+                      return GestureDetector(
+                        onTap: () {
+                          if (isHere) {
+                            live.playPause();
+                            return;
+                          }
+                          if (artist.topSongs.isNotEmpty) {
+                            live.playApiQueue(
+                              artist.topSongs,
+                              0,
+                              sourceLabel: 'TOP SONGS · ${artist.name}',
+                              sourceRef: DetailRef('artist', artist.id,
+                                  source: artist.source),
+                            );
+                          }
+                        },
+                        child: Container(
+                          width: 48,
+                          height: 48,
+                          decoration: BoxDecoration(
+                            color: accent,
+                            shape: BoxShape.circle,
+                            boxShadow: [
+                              BoxShadow(color: accent.withValues(alpha: 0.33), blurRadius: 18, offset: const Offset(0, 6)),
+                            ],
+                          ),
+                          child: Icon(
+                              showPause
+                                  ? PhosphorIconsFill.pause
+                                  : PhosphorIconsFill.play,
+                              size: 20,
+                              color: _contrastOn(accent)),
                         ),
-                        child: Icon(PhosphorIconsFill.play, size: 20, color: _contrastOn(accent)),
-                      ),
-                    ),
+                      );
+                    }),
                   ],
                 ),
               ],

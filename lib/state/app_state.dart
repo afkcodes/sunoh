@@ -8,6 +8,7 @@ import '../api/dto.dart';
 import '../audio/audio_handler.dart' show PlayMode;
 import '../audio/audio_repo.dart';
 import '../audio/eq_presets.dart';
+import '../audio/settings_store.dart';
 import '../data/catalog.dart';
 import '../data/models.dart';
 import '../theme/tokens.dart';
@@ -117,6 +118,8 @@ class AppState extends ChangeNotifier with WidgetsBindingObserver {
           selectedLanguages = play.languages!.toSet();
         }
       }
+      final recents = await repo.settings.loadSearchRecents();
+      if (recents.isNotEmpty) _searchRecents = recents;
       notifyListeners();
     } catch (e) {
       debugPrint('[settings] restore failed: $e');
@@ -231,6 +234,38 @@ class AppState extends ChangeNotifier with WidgetsBindingObserver {
       selectedLanguages = {...selectedLanguages, v};
     }
     _persistPlayback();
+    notifyListeners();
+  }
+
+  // ── Search recents ────────────────────────────────────────────────────
+  /// Recent search queries (newest first). Persisted in the `'settings'`
+  /// Hive box under `search.recents`; capped at [SettingsStore.kSearchRecentsMax].
+  /// Read via [searchRecents]; add via [pushSearchRecent]; wipe via
+  /// [clearSearchRecents].
+  List<String> _searchRecents = const <String>[];
+  List<String> get searchRecents => _searchRecents;
+
+  void pushSearchRecent(String query) {
+    final trimmed = query.trim();
+    if (trimmed.isEmpty) return;
+    // De-dupe case-insensitively while keeping the user's casing for the
+    // newest entry, then cap.
+    final lower = trimmed.toLowerCase();
+    final next = <String>[trimmed];
+    for (final q in _searchRecents) {
+      if (q.toLowerCase() == lower) continue;
+      next.add(q);
+      if (next.length >= SettingsStore.kSearchRecentsMax) break;
+    }
+    _searchRecents = next;
+    audioRepo?.settings.saveSearchRecents(_searchRecents);
+    notifyListeners();
+  }
+
+  void clearSearchRecents() {
+    if (_searchRecents.isEmpty) return;
+    _searchRecents = const <String>[];
+    audioRepo?.settings.saveSearchRecents(_searchRecents);
     notifyListeners();
   }
 

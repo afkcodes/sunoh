@@ -12,6 +12,7 @@ import '../providers/app_state_provider.dart';
 import '../providers/home_provider.dart';
 import '../providers/palette_provider.dart';
 import '../router/router.dart';
+import '../widgets/update_banner.dart';
 import '../theme/tokens.dart';
 import '../widgets/album_art.dart';
 import '../widgets/ui.dart';
@@ -52,6 +53,10 @@ class HomeScreen extends ConsumerWidget {
             ],
           ),
         ),
+        // Slim "Update available" ribbon — renders only when the published
+        // manifest carries a strictly-newer version than this build, and
+        // the user hasn't dismissed that exact version yet.
+        const UpdateBanner(),
         _TopTabs(tab: s.topTab, onChange: s.setTopTab, colors: c),
         const SizedBox(height: 22),
         TweenAnimationBuilder<double>(

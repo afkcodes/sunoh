@@ -59,6 +59,18 @@ class SettingsStore {
   static const _kRepeatMode = 'playback.repeat_mode';
   static const _kLanguages = 'playback.languages';
 
+  // Search
+  static const _kSearchRecents = 'search.recents';
+  /// Cap on persisted search recents — older queries fall off the list
+  /// once we cross this. 10 is plenty for the chips UI without forcing
+  /// the user to scroll.
+  static const int kSearchRecentsMax = 10;
+
+  // Update notifier — version-string of the most recent update banner the
+  // user dismissed. When the published version equals this, we stay quiet;
+  // when it surpasses it (next release), the banner returns.
+  static const _kDismissedUpdate = 'updates.dismissed_version';
+
   /// Cached in-flight open so concurrent loaders share one openBox call
   /// — same race-avoidance idiom as library_store.
   Future<Box>? _openFuture;
@@ -217,5 +229,43 @@ class SettingsStore {
       debugPrint('[settings-store] loadPlayback failed: $e');
       return null;
     }
+  }
+
+  // ── Search ──────────────────────────────────────────────────────────────
+
+  Future<List<String>> loadSearchRecents() async {
+    try {
+      final box = await _box();
+      final raw = box.get(_kSearchRecents);
+      if (raw is! List) return const [];
+      return raw.whereType<String>().toList(growable: false);
+    } catch (e) {
+      debugPrint('[settings-store] loadSearchRecents failed: $e');
+      return const [];
+    }
+  }
+
+  Future<void> saveSearchRecents(List<String> recents) async {
+    final box = await _box();
+    await box.put(_kSearchRecents, recents);
+    await box.flush();
+  }
+
+  // ── Update notifier ─────────────────────────────────────────────────────
+
+  Future<String?> loadDismissedUpdate() async {
+    try {
+      final box = await _box();
+      return box.get(_kDismissedUpdate) as String?;
+    } catch (e) {
+      debugPrint('[settings-store] loadDismissedUpdate failed: $e');
+      return null;
+    }
+  }
+
+  Future<void> saveDismissedUpdate(String version) async {
+    final box = await _box();
+    await box.put(_kDismissedUpdate, version);
+    await box.flush();
   }
 }
