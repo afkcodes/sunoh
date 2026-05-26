@@ -37,6 +37,24 @@ GoRouter buildRouter() {
   return GoRouter(
     navigatorKey: rootNavigatorKey,
     initialLocation: '/home',
+    // Safety net for inbound Android Intents. The platform forwards the
+    // URI's path component to go_router *before* DeepLinkRouter (which
+    // lives on top of app_links) gets a chance. Custom-scheme deep links
+    // like `sunoh://playlist/abc` get parsed by Flutter as path `/abc`
+    // (the `playlist` host is stripped) — that doesn't match any internal
+    // route, so without this we'd surface the GoRouter error page and the
+    // subsequent deep-link dispatch would push on top of a broken stack.
+    //
+    // Allow only the route prefixes we own; bounce everything else to
+    // /home so the dispatcher's later `push(...)` lands cleanly on top.
+    redirect: (context, state) {
+      final loc = state.uri.path;
+      const ownedPrefixes = ['/home', '/search', '/library', '/player'];
+      final known =
+          ownedPrefixes.any((p) => loc == p || loc.startsWith('$p/'));
+      if (known) return null;
+      return '/home';
+    },
     routes: [
       StatefulShellRoute.indexedStack(
         builder: (context, state, navigationShell) =>

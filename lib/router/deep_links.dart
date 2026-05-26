@@ -80,7 +80,19 @@ class DeepLinkRouter {
         final q = (source == null || source.isEmpty)
             ? ''
             : '?source=${Uri.encodeQueryComponent(source)}';
-        router.go('/home/$kind/$id$q');
+        final target = '/home/$kind/$id$q';
+        debugPrint('[deeplink] → pushing $target');
+        try {
+          // `push` so the detail stacks on top of /home — works whether
+          // the app was already running (warm) or just cold-started.
+          // Using `go` here would replace the stack and race the
+          // platform's own initial-route dispatch (which we redirect to
+          // /home via GoRouter.redirect anyway).
+          await router.push(target);
+          debugPrint('[deeplink] pushed $target OK');
+        } catch (e, st) {
+          debugPrint('[deeplink] push $target FAILED: $e\n$st');
+        }
       case 'song':
         if (id.isEmpty) {
           _toast('Bad song link');
