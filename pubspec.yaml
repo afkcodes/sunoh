@@ -16,7 +16,7 @@ publish_to: 'none' # Remove this line if you wish to publish to pub.dev
 # https://developer.apple.com/library/archive/documentation/General/Reference/InfoPlistKeyReference/Articles/CoreFoundationKeys.html
 # In Windows, build-name is used as the major, minor, and patch parts
 # of the product and file versions while build-number is used as the build suffix.
-version: 1.0.0+1
+version: 1.1.0+2
 
 environment:
   sdk: ^3.11.5
@@ -95,6 +95,19 @@ dependencies:
   # update notifier (`lib/api/updates.dart`) can compare against the
   # JSON published at https://sunoh.online/.well-known/sunoh-updates.json.
   package_info_plus: ^8.1.2
+  # Conceptually a dev-only generator (only its `dart run
+  # flutter_native_splash:create` matters to us, splash assets are
+  # already committed under android/app/src/main/res/). Listed here in
+  # `dependencies` rather than `dev_dependencies` because v2.4.7 declares
+  # itself as an Android plugin (`pluginClass: FlutterNativeSplashPlugin`)
+  # and Flutter 3.41 injects its registration into
+  # GeneratedPluginRegistrant.java even with `dev_dependency: true` — but
+  # Gradle drops the .aar from the release classpath, breaking the build
+  # with `package net.jonhanson.flutter_native_splash does not exist`.
+  # Adds ~10 KB of unused runtime code to the APK; the bigger cost was
+  # the broken release build. Re-evaluate when Flutter SDK fixes the
+  # dev_dependency exclusion path.
+  flutter_native_splash: ^2.4.6
 
 dev_dependencies:
   flutter_test:
@@ -106,12 +119,11 @@ dev_dependencies:
   # package. See that file for information about deactivating specific lint
   # rules and activating additional ones.
   flutter_lints: ^6.0.0
-  # Generators (dev-time only; nothing ships in the APK). Re-run via:
+  # Pure-Dart CLI generator (no plugin declaration), safe to keep as a
+  # dev-only dep. Re-run via:
   #   dart run flutter_launcher_icons
-  #   dart run flutter_native_splash:create
   # after touching the master assets/icon/icon.png.
   flutter_launcher_icons: ^0.14.4
-  flutter_native_splash: ^2.4.6
 
 # ── App icon (flutter_launcher_icons) ────────────────────────────────────────
 # Master: assets/icon/icon.png (1:1, ported from the RN ic_launcher-playstore).
