@@ -25,16 +25,22 @@
 #   scripts/release.sh major                 # 1.0.0+1 → 2.0.0+2
 #   scripts/release.sh 1.2.3                 # explicit
 #   scripts/release.sh patch --notes-file release-notes.md
-#   scripts/release.sh patch --split-apks    # arm64 / armv7 / x86_64 separately
+#   scripts/release.sh patch --fat-apk       # opt back into the single universal APK
 #   scripts/release.sh patch --dry-run       # print intended actions, change nothing
 #   scripts/release.sh patch --skip-manifest # don't touch sunoh_next
+#
+# Per-ABI APKs are produced by default since the universal APK is ~117 MB
+# (mostly libmpv per arch) and roughly a third the size when split. Use
+# --fat-apk when you want one APK that runs on any phone (sideloading
+# convenience over download size).
 
 set -euo pipefail
 
 # ── Defaults ───────────────────────────────────────────────────────────────
 BUMP_ARG=""
 NOTES_FILE=""
-SPLIT_APKS=0
+# Per-ABI split is now the default. --fat-apk flips this off.
+SPLIT_APKS=1
 DRY_RUN=0
 SKIP_MANIFEST=0
 
@@ -69,7 +75,10 @@ while (( $# > 0 )); do
     --notes-file)
       NOTES_FILE="$2"; shift 2 ;;
     --split-apks)
+      # Kept for back-compat — split is the default now, this flag is a no-op.
       SPLIT_APKS=1; shift ;;
+    --fat-apk)
+      SPLIT_APKS=0; shift ;;
     --dry-run)
       DRY_RUN=1; shift ;;
     --skip-manifest)
@@ -192,7 +201,7 @@ printf '\n%s%sAbout to release:%s\n' "$C_BOLD" "$C_GREEN" "$C_RESET"
 printf '  %-12s %s\n' 'version' "$NEW_VERSION"
 printf '  %-12s %s\n' 'tag'     "$TAG"
 printf '  %-12s %s\n' 'repo'    "$GH_SLUG"
-printf '  %-12s %s\n' 'apks'    "$([[ $SPLIT_APKS == 1 ]] && echo 'split-per-abi' || echo 'single fat')"
+printf '  %-12s %s\n' 'apks'    "$([[ $SPLIT_APKS == 1 ]] && echo 'split-per-abi (default)' || echo 'single fat (--fat-apk)')"
 printf '  %-12s %s\n' 'manifest' "$([[ $SKIP_MANIFEST == 1 ]] && echo 'skipped' || echo "$SUNOH_NEXT_DIR/$MANIFEST_PATH")"
 printf '  %-12s %s\n' 'dry-run' "$([[ $DRY_RUN == 1 ]] && echo 'yes' || echo 'no')"
 printf '\nNotes:\n%s\n\n' "$NOTES"
