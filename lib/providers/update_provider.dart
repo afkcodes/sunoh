@@ -18,15 +18,18 @@ import '../providers/app_state_provider.dart';
 
 final _updatesClientProvider = Provider((_) => UpdatesClient());
 
-class _CurrentAppVersion {
-  const _CurrentAppVersion({required this.version, required this.build});
+class CurrentAppVersion {
+  const CurrentAppVersion({required this.version, required this.build});
   final String version;
   final int? build;
 }
 
-final _currentVersionProvider = FutureProvider<_CurrentAppVersion>((_) async {
+/// Reads the running APK's versionName + versionCode from
+/// `package_info_plus`. Used by the update-notifier check AND by the
+/// Settings → ABOUT → Version row so they can't disagree.
+final currentVersionProvider = FutureProvider<CurrentAppVersion>((_) async {
   final info = await PackageInfo.fromPlatform();
-  return _CurrentAppVersion(
+  return CurrentAppVersion(
     version: info.version,
     build: int.tryParse(info.buildNumber),
   );
@@ -47,7 +50,7 @@ final availableUpdateProvider =
   final info = await client.fetch();
   if (info == null) return null;
 
-  final current = await ref.read(_currentVersionProvider.future);
+  final current = await ref.read(currentVersionProvider.future);
   if (!info.isNewerThan(current.version)) return null;
 
   // Honour the user's "Dismiss" — same exact version shouldn't nag.

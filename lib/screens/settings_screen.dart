@@ -216,7 +216,18 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
                 if (updateInfo != null) const UpdateAboutCard(),
                 _Link(
                   label: 'Version',
-                  trailing: '0.1.0',
+                  // Pull the live versionName+versionCode from the running
+                  // APK via package_info_plus (shared with the update
+                  // notifier so the two can't drift). Falls back to a dash
+                  // while loading / on error.
+                  trailing: innerRef
+                          .watch(currentVersionProvider)
+                          .whenOrNull(
+                            data: (v) => v.build == null
+                                ? v.version
+                                : '${v.version} (${v.build})',
+                          ) ??
+                      '—',
                   icon: SolarIconsOutline.infoCircle,
                   colors: c,
                   // Tap 7× to unlock the hidden Share-analytics toggle.
