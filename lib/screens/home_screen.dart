@@ -16,8 +16,9 @@ import '../widgets/update_banner.dart';
 import '../theme/tokens.dart';
 import '../widgets/album_art.dart';
 import '../widgets/ui.dart';
-import 'podcasts_tab.dart';
-import 'radio_tab.dart';
+// Radio + Podcasts tabs are hidden for now. The screens still live under
+// lib/screens/ (radio_tab.dart, podcasts_tab.dart); re-import + re-add to
+// `_TopTabs.opts` and the switch below to bring them back.
 
 class HomeScreen extends ConsumerWidget {
   const HomeScreen({super.key});
@@ -73,11 +74,7 @@ class HomeScreen extends ConsumerWidget {
               child: child,
             ),
           ),
-          child: switch (s.topTab) {
-            'Radio' => RadioTab(colors: c),
-            'Podcasts' => PodcastsTab(colors: c),
-            _ => MusicTab(colors: c),
-          },
+          child: MusicTab(colors: c),
         ),
       ],
     );
@@ -96,7 +93,8 @@ class _TopTabs extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    const opts = ['Music', 'Radio', 'Podcasts'];
+    // Radio + Podcasts hidden for now — see comment at top of the file.
+    const opts = ['Music'];
     return Container(
       padding: const EdgeInsets.fromLTRB(20, 8, 20, 14),
       decoration: BoxDecoration(
