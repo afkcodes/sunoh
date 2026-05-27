@@ -91,9 +91,24 @@ class _UserPlaylistScreenState extends ConsumerState<UserPlaylistScreen> {
                   if (songs.isEmpty)
                     _EmptyPlaylist(colors: c)
                   else
-                    for (var i = 0; i < songs.length; i++)
-                      _PlaylistTrackRow(
+                    // ReorderableListView embedded in the parent ListView:
+                    // shrinkWrap so it sizes to its children, never-
+                    // scrollable physics so the parent owns scrolling.
+                    // Drag is bound to a hamburger handle inside each row
+                    // (not a long-press on the whole row) so taps still
+                    // play the song cleanly. Reorder is persisted via
+                    // `moveSongInUserPlaylist`.
+                    ReorderableListView.builder(
+                      shrinkWrap: true,
+                      physics: const NeverScrollableScrollPhysics(),
+                      buildDefaultDragHandles: false,
+                      itemCount: songs.length,
+                      onReorder: (from, to) =>
+                          s.moveSongInUserPlaylist(playlist.id, from, to),
+                      itemBuilder: (context, i) => _PlaylistTrackRow(
+                        key: ValueKey('${songs[i].id}:$i'),
                         n: i + 1,
+                        index: i,
                         song: songs[i],
                         colors: c,
                         accent: accent,
@@ -105,6 +120,7 @@ class _UserPlaylistScreenState extends ConsumerState<UserPlaylistScreen> {
                           sourceLabel: sourceLabel,
                         ),
                       ),
+                    ),
                 ],
               ),
             ),
@@ -437,7 +453,8 @@ class _PlaylistActions extends ConsumerWidget {
               GestureDetector(
                 onTap: isEmpty
                     ? null
-                    : () => s.flashToast('Shuffle coming soon'),
+                    : () => s.playShuffled(playlist.songs,
+                        sourceLabel: 'PLAYLIST · ${playlist.name}'),
                 child: Container(
                   width: 44,
                   height: 44,
@@ -487,7 +504,9 @@ class _PlaylistActions extends ConsumerWidget {
 
 class _PlaylistTrackRow extends ConsumerWidget {
   const _PlaylistTrackRow({
+    super.key,
     required this.n,
+    required this.index,
     required this.song,
     required this.colors,
     required this.accent,
@@ -496,6 +515,10 @@ class _PlaylistTrackRow extends ConsumerWidget {
     required this.onTap,
   });
   final int n;
+  /// 0-based position in the playlist, used by the `ReorderableDragStart-
+  /// Listener` wrapping the hamburger handle so drag-to-reorder operates
+  /// on the correct slot.
+  final int index;
   final FeedItem song;
   final SunohColors colors;
   final Color accent;
@@ -515,19 +538,33 @@ class _PlaylistTrackRow extends ConsumerWidget {
     return GestureDetector(
       onTap: onTap,
       behavior: HitTestBehavior.opaque,
-      child: Padding(
+      child: Container(
+        // Solid bg so the dragging chip the framework lifts shows
+        // the row crisply (the default would be transparent and the
+        // hero gradient behind would bleed through during the drag).
+        color: c.bg,
         padding: EdgeInsets.symmetric(
             horizontal: 20, vertical: 10 * s.density.scale),
         child: Row(
           children: [
+            // Drag-only hamburger — long-press to grab. Keeps the rest
+            // of the row tappable for play.
+            ReorderableDragStartListener(
+              index: index,
+              child: Padding(
+                padding: const EdgeInsets.only(right: 8),
+                child: Icon(SolarIconsOutline.hamburgerMenu,
+                    size: 14, color: c.fgMute.withValues(alpha: 0.6)),
+              ),
+            ),
             SizedBox(
-              width: 22,
+              width: 18,
               child: Center(
                 child: Text(n.toString().padLeft(2, '0'),
                     style: SunohType.mono(fontSize: 11, color: c.fgMute)),
               ),
             ),
-            const SizedBox(width: 12),
+            const SizedBox(width: 10),
             squircleClip(
               radius: 6,
               child: SizedBox(

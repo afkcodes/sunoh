@@ -237,7 +237,8 @@ class _LikedActions extends StatelessWidget {
                 GestureDetector(
                   onTap: songs.isEmpty
                       ? null
-                      : () => app.flashToast('Shuffle coming soon'),
+                      : () => app.playShuffled(songs,
+                          sourceLabel: 'LIKED · Songs'),
                   child: Container(
                     width: 44,
                     height: 44,

@@ -2,6 +2,8 @@
 // Ported from the prototype's App() in app.jsx.
 
 import 'dart:async';
+import 'dart:math' show Random;
+
 import 'package:flutter/material.dart';
 
 import '../api/dto.dart';
@@ -622,6 +624,58 @@ class AppState extends ChangeNotifier with WidgetsBindingObserver {
     );
     await playApiQueue(p.songs, startIndex,
         sourceLabel: 'PLAYLIST · ${p.name}');
+  }
+
+  Future<void> moveSongInUserPlaylist(
+      String playlistId, int from, int to) async {
+    final repo = audioRepo;
+    final current = userPlaylistById(playlistId);
+    if (current == null) return;
+    if (from < 0 || from >= current.songs.length) return;
+    if (to < 0 || to > current.songs.length) return;
+    final reordered = [...current.songs];
+    final moved = reordered.removeAt(from);
+    // ReorderableListView reports `to` as the index AFTER removal — the
+    // semantics match List.insert directly only when moving up. When
+    // moving down, the framework passes a `to` that's one too high. The
+    // canonical idiom is to subtract 1 in that case.
+    final insertAt = from < to ? to - 1 : to;
+    reordered.insert(insertAt, moved);
+    final updated = current.copyWith(
+      songs: reordered,
+      updatedAt: DateTime.now(),
+    );
+    _userPlaylists = [
+      updated,
+      for (final p in _userPlaylists)
+        if (p.id != playlistId) p,
+    ];
+    notifyListeners();
+    if (repo != null) {
+      try {
+        await repo.library.upsertUserPlaylist(updated);
+      } catch (e) {
+        debugPrint('[library] moveSongInUserPlaylist failed: $e');
+      }
+    }
+  }
+
+  /// Shuffle-and-play a song list. Picks a random start index so the user
+  /// doesn't always hear the same song first when they hit shuffle on a
+  /// playlist, then flips the shuffle flag on so mpv reorders the queue.
+  Future<void> playShuffled(
+    List<FeedItem> songs, {
+    String? sourceLabel,
+  }) async {
+    if (songs.isEmpty) return;
+    final startIndex =
+        songs.length == 1 ? 0 : Random().nextInt(songs.length);
+    await playApiQueue(songs, startIndex, sourceLabel: sourceLabel);
+    if (!shuffle) {
+      // toggleShuffle pushes to mpv, which rearranges the queue while
+      // keeping the currently-playing track in place.
+      toggleShuffle();
+    }
   }
 
   /// Full liked list — newest-first.
