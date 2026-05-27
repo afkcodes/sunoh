@@ -22,6 +22,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../api/dto.dart';
 import '../providers/api_providers.dart';
 import '../providers/app_state_provider.dart';
+import '../services/analytics_service.dart';
 
 Future<void> startRadioStation(
   WidgetRef ref,
@@ -42,6 +43,12 @@ Future<void> startRadioStation(
   print('[radio] starting station id="${item.id}" kind="$stationKind" '
       'provider="$resolvedProvider" name="${item.title}" lang="${item.language}"');
   s.flashToast('Starting ${item.title}…');
+  AnalyticsService.instance.logRadioStart(
+    id: item.id,
+    name: item.title,
+    kind: stationKind,
+    provider: resolvedProvider,
+  );
   try {
     final sessionId = await api.fetchRadioSession(
       id: item.id,

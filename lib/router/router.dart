@@ -28,6 +28,7 @@ import '../screens/search_screen.dart';
 import '../screens/section_screen.dart';
 import '../screens/settings_screen.dart';
 import '../screens/user_playlist_screen.dart';
+import '../services/analytics_service.dart';
 import '../shell/app_scaffold.dart';
 
 final rootNavigatorKey = GlobalKey<NavigatorState>();
@@ -39,6 +40,13 @@ GoRouter buildRouter() {
   return GoRouter(
     navigatorKey: rootNavigatorKey,
     initialLocation: '/home',
+    // Fires `logScreenView` on every successful push / replace. Route
+    // name comes off `Route.settings.name`, which go_router populates
+    // with the path the user actually navigated to (e.g. `/home/album/abc`).
+    // We strip the id segment so /home/album/abc and /home/album/xyz
+    // both report as `album`, which is what's actually useful for funnel
+    // analysis. The full path is still logged as a parameter.
+    observers: [_AnalyticsObserver()],
     // Safety net for inbound Android Intents. The platform forwards the
     // URI's path component to go_router *before* DeepLinkRouter (which
     // lives on top of app_links) gets a chance. Custom-scheme deep links
@@ -348,4 +356,65 @@ extension SunohNav on BuildContext {
   void openDownloads() => push('$_branchPrefix/downloads');
   void openUserPlaylist(String id) =>
       push('$_branchPrefix/user-playlist/$id');
+}
+
+/// NavigatorObserver that fires Firebase `screen_view` whenever a route
+/// is pushed or surfaced via pop. Goes through [AnalyticsService] so a
+/// missing Firebase config quietly no-ops. Route name normalization:
+/// `/home/album/abc` → `screenName='album'` + `path` parameter holds
+/// the full path. That way Firebase's screen-view funnel groups by
+/// kind without exploding the cardinality with ids.
+class _AnalyticsObserver extends NavigatorObserver {
+  @override
+  void didPush(Route<dynamic> route, Route<dynamic>? previousRoute) {
+    _log(route);
+  }
+
+  @override
+  void didReplace({Route<dynamic>? newRoute, Route<dynamic>? oldRoute}) {
+    if (newRoute != null) _log(newRoute);
+  }
+
+  @override
+  void didPop(Route<dynamic> route, Route<dynamic>? previousRoute) {
+    // When the user pops, the screen they land on is `previousRoute`.
+    if (previousRoute != null) _log(previousRoute);
+  }
+
+  void _log(Route<dynamic> route) {
+    final raw = route.settings.name;
+    if (raw == null || raw.isEmpty) return;
+    // Strip query string; reduce variable segments (anything after the
+    // last static path segment in our known routes) to keep the screen
+    // name set small.
+    final path = raw.split('?').first;
+    final name = _normalizeRouteName(path);
+    AnalyticsService.instance.logScreenView(name, klass: 'route:$path');
+  }
+
+  static String _normalizeRouteName(String path) {
+    // The known detail prefixes — anything after them is a per-item id.
+    const kindPrefixes = {
+      'album': 'album',
+      'playlist': 'playlist',
+      'artist': 'artist',
+      'podcast': 'podcast',
+      'occasion': 'occasion',
+      'user-playlist': 'user_playlist',
+      'section': 'section',
+      'settings': 'settings',
+      'liked': 'liked',
+      'history': 'history',
+      'downloads': 'downloads',
+    };
+    for (final entry in kindPrefixes.entries) {
+      if (path.contains('/${entry.key}')) return entry.value;
+    }
+    // Tab roots: /home, /search, /library; modals: /player, /player/queue,
+    // /player/lyrics. Use the segment after the leading slash.
+    final segments = path.split('/').where((s) => s.isNotEmpty).toList();
+    if (segments.isEmpty) return 'home';
+    if (segments.length == 1) return segments.first;
+    return segments.join('_');
+  }
 }

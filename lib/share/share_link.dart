@@ -15,6 +15,8 @@
 import 'package:flutter/foundation.dart';
 import 'package:share_plus/share_plus.dart';
 
+import '../services/analytics_service.dart';
+
 const String _kBaseUrl = 'https://sunoh.online';
 
 /// Build the canonical share URL for a piece of content.
@@ -52,6 +54,7 @@ Future<void> shareSunohLink({
   // `Listen on sunoh.` framing keeps the share consistent across kinds and
   // gives the recipient a hint about what they're opening before they tap.
   final text = 'Listen on sunoh.: $label\n$url';
+  AnalyticsService.instance.logShare(kind: kind, id: id, title: title);
   try {
     await SharePlus.instance.share(
       ShareParams(text: text, subject: label),

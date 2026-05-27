@@ -116,6 +116,15 @@ dependencies:
   # owns playback. Requires Google Play Services on the phone — devices
   # without GApps can't cast.
   flutter_chrome_cast: ^1.4.6
+  # Firebase Analytics — mirrors the RN app's setup, scope-limited to
+  # event tracking (no Crashlytics / RC / Messaging). The Dart-side init
+  # in `main.dart` is wrapped in try/catch so a missing
+  # `android/app/google-services.json` degrades to "analytics disabled"
+  # instead of a crash; the Gradle plugin in
+  # android/app/build.gradle.kts is similarly conditional. See
+  # `lib/services/analytics_service.dart` for the surface.
+  firebase_core: ^4.2.0
+  firebase_analytics: ^12.1.0
 
 dev_dependencies:
   flutter_test:

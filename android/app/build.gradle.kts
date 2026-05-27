@@ -8,6 +8,19 @@ plugins {
     id("dev.flutter.flutter-gradle-plugin")
 }
 
+// Firebase Analytics — applied conditionally so the project still builds
+// without `google-services.json` (drop it into android/app/ from the
+// Firebase Console for `codes.afk.sunoh`). Until the file lands the
+// Dart-side init in main.dart hits its catch path and analytics is a
+// no-op; the moment the file is present, the next clean build wires it
+// in end-to-end.
+if (file("google-services.json").exists()) {
+    apply(plugin = "com.google.gms.google-services")
+    println("[firebase] google-services.json found → google-services plugin applied")
+} else {
+    println("[firebase] google-services.json missing → skipping plugin (analytics will be disabled)")
+}
+
 // Release signing credentials. Lives in android/key.properties (gitignored
 // via android/.gitignore). The keystore file itself is also gitignored
 // (**/*.keystore). Brought over from the user's RN Sunoh app so a release

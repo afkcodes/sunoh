@@ -34,11 +34,49 @@ const _kUpiVpa = 'afkcodes@ybl';
 const _kUpiName = 'Sunoh';
 const _kBuyMeCoffeeUrl = 'https://buymeacoffee.com/afkcodes';
 
-class SettingsScreen extends ConsumerWidget {
+class SettingsScreen extends ConsumerStatefulWidget {
   const SettingsScreen({super.key});
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
+  ConsumerState<SettingsScreen> createState() => _SettingsScreenState();
+}
+
+class _SettingsScreenState extends ConsumerState<SettingsScreen> {
+  // "Tap Version 7 times to unlock the analytics toggle" — Android-style
+  // hidden control. We don't put a privacy switch in plain view because
+  // analytics is on by default for a personal app and the user (me)
+  // doesn't need a visible reminder; the unlock pattern keeps it
+  // reachable without it being part of the everyday UI. Counter resets
+  // every time the user leaves the screen.
+  int _versionTaps = 0;
+  bool _analyticsRevealed = false;
+
+  static const int _kAnalyticsUnlockTaps = 7;
+
+  void _onVersionTap() {
+    if (_analyticsRevealed) return;
+    final next = _versionTaps + 1;
+    if (next >= _kAnalyticsUnlockTaps) {
+      setState(() {
+        _analyticsRevealed = true;
+        _versionTaps = next;
+      });
+      ref
+          .read(appStateProvider)
+          .flashToast('Analytics setting unlocked');
+    } else {
+      setState(() => _versionTaps = next);
+      // Quiet feedback after a few taps so the user knows something is
+      // happening but the path isn't broadcast on the first poke.
+      if (next >= 3 && next < _kAnalyticsUnlockTaps) {
+        ref.read(appStateProvider).flashToast(
+            '${_kAnalyticsUnlockTaps - next} more…');
+      }
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
     final s = ref.watch(appStateProvider);
     final c = s.colors;
     final scale = s.density.scale;
@@ -181,26 +219,20 @@ class SettingsScreen extends ConsumerWidget {
                   trailing: '0.1.0',
                   icon: SolarIconsOutline.infoCircle,
                   colors: c,
-                  onTap: () {},
+                  // Tap 7× to unlock the hidden Share-analytics toggle.
+                  onTap: _onVersionTap,
                 ),
-              _Link(
-                label: 'Licenses',
-                icon: SolarIconsOutline.document,
-                colors: c,
-                onTap: () => showLicensePage(
-                  context: context,
-                  applicationName: 'sunoh.',
-                  applicationVersion: '0.1.0',
-                ),
-              ),
-              _Link(
-                label: 'Debug logs',
-                icon: SolarIconsOutline.notebookMinimalistic,
-                colors: c,
-                onTap: () => s.flashToast('Not implemented'),
-              ),
-            ],
-          );
+                if (_analyticsRevealed)
+                  _ToggleRow(
+                    label: 'Share analytics',
+                    summary:
+                        'Anonymous usage events. Off also resets the install id.',
+                    value: s.analyticsEnabled,
+                    onChange: (v) => s.setAnalyticsEnabled(v),
+                    colors: c,
+                  ),
+              ],
+            );
           }),
         ],
       ),

@@ -17,6 +17,7 @@ import '../data/catalog.dart';
 import '../data/models.dart';
 import '../providers/app_state_provider.dart';
 import '../providers/lyrics_provider.dart';
+import '../services/analytics_service.dart';
 import '../share/share_link.dart';
 import '../theme/tokens.dart';
 import '../widgets/album_art.dart';
@@ -31,6 +32,18 @@ class LyricsScreen extends ConsumerStatefulWidget {
 class _LyricsScreenState extends ConsumerState<LyricsScreen> {
   final controller = ScrollController();
   int _lastIdx = -2;
+
+  @override
+  void initState() {
+    super.initState();
+    // Read once at mount (not in build) so the event fires exactly per
+    // sheet-open, not on every rebuild. Fall back to the dummy id when
+    // there's no API song so the analytics still group meaningfully.
+    final s = ref.read(appStateProvider);
+    final id = s.currentApiSong?.id ?? s.current.id;
+    AnalyticsService.instance.logLyricsOpen(songId: id);
+    AnalyticsService.instance.logScreenView('lyrics', klass: 'LyricsScreen');
+  }
 
   @override
   void dispose() {

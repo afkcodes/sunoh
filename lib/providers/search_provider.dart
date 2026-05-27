@@ -15,12 +15,19 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../api/dto.dart';
+import '../services/analytics_service.dart';
 import 'api_providers.dart';
 
 final searchProvider = FutureProvider.autoDispose
     .family<List<HomeSection>, String>((ref, query) async {
   final link = ref.keepAlive();
   Future<void>.delayed(const Duration(minutes: 5)).then((_) => link.close());
+  // One analytics call per distinct (debounced) query — the family key
+  // dedupes naturally because the same query gets the same cached
+  // FutureProvider instance.
+  if (query.trim().isNotEmpty) {
+    AnalyticsService.instance.logSearch(query);
+  }
   final api = ref.watch(sunohApiProvider);
   return api.fetchSearch(query);
 });
