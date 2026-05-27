@@ -76,6 +76,14 @@ class SettingsScreen extends ConsumerWidget {
                 onTap: () => showLanguageSheet(context),
                 colors: c,
               ),
+              _ToggleRow(
+                label: 'Endless autoplay',
+                summary:
+                    'Keep music going by seeding a radio when the queue ends.',
+                value: s.endlessAutoplay,
+                onChange: (v) => s.setEndlessAutoplay(v),
+                colors: c,
+              ),
             ],
           ),
 
@@ -526,8 +534,10 @@ class _ToggleRow extends StatelessWidget {
     required this.value,
     required this.onChange,
     required this.colors,
+    this.summary,
   });
   final String label;
+  final String? summary;
   final bool value;
   final ValueChanged<bool> onChange;
   final SunohColors colors;
@@ -535,9 +545,23 @@ class _ToggleRow extends StatelessWidget {
   Widget build(BuildContext context) {
     final c = colors;
     return Row(
-      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+      crossAxisAlignment: CrossAxisAlignment.center,
       children: [
-        Text(label, style: SunohType.sans(fontSize: 14, color: c.fgDim)),
+        Expanded(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Text(label,
+                  style: SunohType.sans(fontSize: 14, color: c.fgDim)),
+              if (summary != null) ...[
+                const SizedBox(height: 2),
+                Text(summary!,
+                    style: SunohType.sans(fontSize: 11.5, color: c.fgMute)),
+              ],
+            ],
+          ),
+        ),
         Switch(
           value: value,
           onChanged: onChange,

@@ -12,6 +12,7 @@ import 'package:solar_icons/solar_icons.dart';
 
 import '../api/dto.dart';
 import '../data/models.dart';
+import '../data/user_playlist.dart';
 import '../providers/app_state_provider.dart';
 import '../providers/downloads_provider.dart';
 import '../router/router.dart';
@@ -19,6 +20,7 @@ import '../state/app_state.dart';
 import '../theme/tokens.dart';
 import '../widgets/album_art.dart';
 import '../widgets/ui.dart';
+import 'user_playlist_screen.dart';
 
 enum _LibFilter { all, playlists, albums, artists, songs }
 
@@ -74,7 +76,16 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen> {
                     size: 18,
                     width: 32,
                     height: 32,
-                    onTap: () {}),
+                    onTap: () async {
+                      final name =
+                          await promptForPlaylistName(context);
+                      if (name == null || name.isEmpty) return;
+                      if (!context.mounted) return;
+                      final p = await s.createUserPlaylist(name);
+                      if (context.mounted) {
+                        context.openUserPlaylist(p.id);
+                      }
+                    }),
               ]),
             ],
           ),
@@ -212,6 +223,13 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen> {
             ],
           ),
         ),
+        if (s.userPlaylists.isNotEmpty) ...[
+          _UserPlaylistsStrip(
+              playlists: s.userPlaylists,
+              colors: c,
+              accent: s.resolvedAccent),
+          const SizedBox(height: 18),
+        ],
         if (items.isEmpty)
           _EmptyState(filter: filter, colors: c)
         else if (grid)
@@ -494,5 +512,111 @@ class _PinnedTile extends StatelessWidget {
         ),
       ),
     );
+  }
+}
+
+/// Horizontal scroller of the user's playlists. Hidden when the list is
+/// empty (the "+" in the header is then the only entry point — no need
+/// to clutter the library with an empty section).
+class _UserPlaylistsStrip extends StatelessWidget {
+  const _UserPlaylistsStrip({
+    required this.playlists,
+    required this.colors,
+    required this.accent,
+  });
+  final List<UserPlaylist> playlists;
+  final SunohColors colors;
+  final Color accent;
+  @override
+  Widget build(BuildContext context) {
+    final c = colors;
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Padding(
+          padding: const EdgeInsets.fromLTRB(20, 0, 20, 10),
+          child: eyebrow('MY PLAYLISTS', c.fgMute,
+              size: 10, letterSpacing: 1.4),
+        ),
+        SizedBox(
+          height: 158,
+          child: ListView.separated(
+            scrollDirection: Axis.horizontal,
+            padding: const EdgeInsets.symmetric(horizontal: 20),
+            itemCount: playlists.length,
+            separatorBuilder: (_, _) => const SizedBox(width: 12),
+            itemBuilder: (context, i) {
+              final p = playlists[i];
+              final cover = _firstArtwork(p);
+              return GestureDetector(
+                behavior: HitTestBehavior.opaque,
+                onTap: () => context.openUserPlaylist(p.id),
+                child: SizedBox(
+                  width: 116,
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      squircleClip(
+                        radius: 10,
+                        child: Container(
+                          width: 116,
+                          height: 116,
+                          decoration: BoxDecoration(
+                            gradient: cover == null
+                                ? LinearGradient(
+                                    colors: [
+                                      accent.withValues(alpha: 0.85),
+                                      accent.withValues(alpha: 0.35),
+                                    ],
+                                    begin: Alignment.topLeft,
+                                    end: Alignment.bottomRight,
+                                  )
+                                : null,
+                          ),
+                          child: cover == null
+                              ? Icon(SolarIconsBold.musicLibrary2,
+                                  size: 38,
+                                  color:
+                                      Colors.white.withValues(alpha: 0.9))
+                              : Image.network(cover,
+                                  fit: BoxFit.cover,
+                                  errorBuilder: (_, _, _) => Icon(
+                                      SolarIconsBold.musicLibrary2,
+                                      size: 38,
+                                      color: Colors.white
+                                          .withValues(alpha: 0.9))),
+                        ),
+                      ),
+                      const SizedBox(height: 8),
+                      Text(p.name,
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: SunohType.sans(
+                              fontSize: 13,
+                              fontWeight: FontWeight.w500,
+                              color: c.fg)),
+                      const SizedBox(height: 1),
+                      Text(
+                          '${p.songs.length} '
+                          '${p.songs.length == 1 ? 'song' : 'songs'}',
+                          style:
+                              SunohType.sans(fontSize: 11, color: c.fgMute)),
+                    ],
+                  ),
+                ),
+              );
+            },
+          ),
+        ),
+      ],
+    );
+  }
+
+  static String? _firstArtwork(UserPlaylist p) {
+    for (final s in p.songs) {
+      final a = s.artwork;
+      if (a != null && a.isNotEmpty) return a;
+    }
+    return null;
   }
 }

@@ -24,6 +24,7 @@ import '../share/share_link.dart';
 import '../theme/tokens.dart';
 import '../widgets/album_art.dart';
 import '../widgets/ui.dart';
+import 'add_to_playlist_sheet.dart';
 
 /// Open the bottom sheet for [song]. [sourceLabel] is the "PLAYING FROM"
 /// label that gets passed to play-next / add-to-queue so the engine knows
@@ -36,6 +37,7 @@ Future<void> showTrackMenuSheet(
   String? sourceLabel,
   DetailRef? sourceRef,
   bool fromPlayer = false,
+  String? removeFromUserPlaylistId,
 }) {
   return showModalBottomSheet<void>(
     context: context,
@@ -50,7 +52,8 @@ Future<void> showTrackMenuSheet(
         song: song,
         sourceLabel: sourceLabel,
         sourceRef: sourceRef,
-        fromPlayer: fromPlayer),
+        fromPlayer: fromPlayer,
+        removeFromUserPlaylistId: removeFromUserPlaylistId),
   );
 }
 
@@ -60,6 +63,7 @@ class _TrackMenuSheet extends ConsumerWidget {
     this.sourceLabel,
     this.sourceRef,
     this.fromPlayer = false,
+    this.removeFromUserPlaylistId,
   });
   final FeedItem song;
   final String? sourceLabel;
@@ -68,6 +72,10 @@ class _TrackMenuSheet extends ConsumerWidget {
   /// rows then also pop the player itself off the root navigator so the
   /// destination screen isn't hidden behind it.
   final bool fromPlayer;
+  /// When set, the sheet shows a "Remove from this playlist" row that
+  /// removes [song] from the user-created playlist with the given id.
+  /// Only used by UserPlaylistScreen.
+  final String? removeFromUserPlaylistId;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -175,6 +183,26 @@ class _TrackMenuSheet extends ConsumerWidget {
               },
               colors: c,
             ),
+            _MenuRow(
+              icon: SolarIconsOutline.playlist,
+              label: 'Add to playlist',
+              onTap: () async {
+                Navigator.of(context).pop();
+                await showAddToPlaylistSheet(context, song: song);
+              },
+              colors: c,
+            ),
+            if (removeFromUserPlaylistId != null)
+              _MenuRow(
+                icon: SolarIconsOutline.minusCircle,
+                label: 'Remove from this playlist',
+                onTap: () {
+                  Navigator.of(context).pop();
+                  s.removeSongFromUserPlaylist(
+                      removeFromUserPlaylistId!, song.id);
+                },
+                colors: c,
+              ),
             // Download / Downloaded / Remove download — only saavn songs
             // are downloadable today (gaana ships HLS playlists which we
             // can't single-file save). The row hides entirely for gaana.

@@ -22,6 +22,7 @@ import '../cast/cast_button.dart';
 import '../data/catalog.dart';
 import '../data/models.dart';
 import '../overlays/eq_sheet.dart';
+import '../overlays/sleep_sheet.dart';
 import '../overlays/track_menu_sheet.dart';
 import '../providers/app_state_provider.dart';
 import '../providers/palette_provider.dart';
@@ -492,6 +493,16 @@ class _ExpandedPlayerState extends ConsumerState<ExpandedPlayer>
                     : SolarIconsOutline.screencast,
                 () => openCastPicker(context),
                 color: s.isCasting ? accent : null,
+              ),
+              // Sleep timer — accent + filled when armed (a duration is
+              // counting down OR end-of-track is queued). Tapping opens
+              // the sheet which shows the live countdown.
+              iconBtn(
+                s.sleepArmed
+                    ? SolarIconsBold.moonSleep
+                    : SolarIconsOutline.moonSleep,
+                () => showSleepSheet(context),
+                color: s.sleepArmed ? accent : null,
               ),
               // Queue — `playlist` (the lined-card with a music-note
               // accent) reads as "music queue" more clearly than the

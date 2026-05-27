@@ -9,11 +9,14 @@ import 'package:palette_generator/palette_generator.dart';
 
 import '../audio/audio_repo.dart';
 import '../state/app_state.dart';
+import 'api_providers.dart';
 
 final appStateProvider = ChangeNotifierProvider<AppState>((ref) {
   final repo = ref.watch(audioRepoProvider);
+  final api = ref.watch(sunohApiProvider);
   return AppState(
     audioRepo: repo,
+    api: api,
     // Extract the artwork's vibrant accent for the tint-from-artwork
     // feature.
     //

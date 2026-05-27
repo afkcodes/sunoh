@@ -16,6 +16,7 @@ import 'package:flutter/foundation.dart';
 import 'package:hive_ce_flutter/hive_flutter.dart';
 
 import '../api/dto.dart';
+import '../data/user_playlist.dart';
 
 class LibraryStore {
   LibraryStore();
@@ -26,6 +27,9 @@ class LibraryStore {
   static const _kSavedAlbums = 'saved_albums';
   static const _kSavedPlaylists = 'saved_playlists';
   static const _kSavedArtists = 'saved_artists';
+  // User-created playlists (local only). Distinct from `saved_playlists`
+  // which holds API-sourced playlists the user has bookmarked.
+  static const _kUserPlaylists = 'user_playlists';
 
   /// Max items kept in the played-history list. Older entries get evicted
   /// LRU-style. 50 is enough for "Recently Played" sections without growing
@@ -258,6 +262,57 @@ class LibraryStore {
     await box.flush();
     debugPrint('[library-store] saved=${saved ? 'on' : 'off'} '
         '${item.type}:${item.id} (total=${current.length})');
+    return current;
+  }
+
+  // ── User-created playlists ────────────────────────────────────────────
+  // Persisted as a JSON list keyed on `_kUserPlaylists`, newest-first by
+  // `updatedAt` (so the most-recently-edited playlist surfaces first).
+
+  List<UserPlaylist> _decodePlaylists(Object? raw) {
+    if (raw is! List) return <UserPlaylist>[];
+    return raw
+        .whereType<Map>()
+        .map((m) => UserPlaylist.fromJson(m.cast<String, dynamic>()))
+        .toList();
+  }
+
+  List<Map<String, dynamic>> _encodePlaylists(List<UserPlaylist> items) =>
+      items.map((p) => p.toJson()).toList();
+
+  Future<List<UserPlaylist>> loadUserPlaylists() async {
+    try {
+      final box = await _box();
+      return _decodePlaylists(box.get(_kUserPlaylists));
+    } catch (e) {
+      debugPrint('[library-store] loadUserPlaylists failed: $e');
+      return const [];
+    }
+  }
+
+  /// Upsert a single playlist (matched on `id`). Bumps it to the front
+  /// of the list (most-recently-modified ordering). Returns the full
+  /// updated list.
+  Future<List<UserPlaylist>> upsertUserPlaylist(UserPlaylist p) async {
+    final box = await _box();
+    final current = _decodePlaylists(box.get(_kUserPlaylists));
+    current.removeWhere((x) => x.id == p.id);
+    current.insert(0, p);
+    await box.put(_kUserPlaylists, _encodePlaylists(current));
+    await box.flush();
+    debugPrint('[library-store] upsert user-playlist "${p.name}" '
+        '(songs=${p.songs.length}, total=${current.length})');
+    return current;
+  }
+
+  Future<List<UserPlaylist>> deleteUserPlaylist(String id) async {
+    final box = await _box();
+    final current = _decodePlaylists(box.get(_kUserPlaylists));
+    current.removeWhere((p) => p.id == id);
+    await box.put(_kUserPlaylists, _encodePlaylists(current));
+    await box.flush();
+    debugPrint('[library-store] deleted user-playlist $id '
+        '(total=${current.length})');
     return current;
   }
 }

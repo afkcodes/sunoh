@@ -197,6 +197,63 @@ class SunohApi {
     }
   }
 
+  /// `GET /music/recommend?q=…&songId=…&lang=…` — aggregated song
+  /// recommendations from Saavn (reco.getreco + sections + similar
+  /// songs + a derived radio station, all merged and deduped by the
+  /// backend). Either [songId] (a known Saavn id) or [query] (a search
+  /// string) is sufficient; both can be passed. The response already
+  /// filters the seed and dedupes against itself, so callers can append
+  /// the returned list straight to the queue.
+  ///
+  /// Used by the endless-autoplay primer in AppState; this single
+  /// endpoint replaces the older `radio/session` + `radio/<id>` two-
+  /// step which sometimes returned `data: []` for Gaana seeds and
+  /// required a client-side Saavn pivot.
+  Future<List<FeedItem>> fetchRecommendations({
+    String? songId,
+    String? query,
+    String? lang,
+  }) async {
+    final params = <String, dynamic>{
+      if (songId != null && songId.isNotEmpty) 'songId': songId,
+      if (query != null && query.isNotEmpty) 'q': query,
+      if (lang != null && lang.isNotEmpty) 'lang': lang,
+    };
+    final res = await _dio.get<Map<String, dynamic>>(
+      '/music/recommend',
+      queryParameters: params,
+      options: Options(validateStatus: (_) => true),
+    );
+    // ignore: avoid_print
+    print('[recommend] HTTP ${res.statusCode} '
+        'q="${query ?? ''}" songId="${songId ?? ''}"');
+    final env = ApiEnvelope.from<List<FeedItem>>(
+      res.data ?? const {},
+      (raw) {
+        if (raw is Map) {
+          final list = raw['list'];
+          if (list is List) {
+            return list
+                .whereType<Map>()
+                .map((m) => FeedItem.fromJson(m.cast<String, dynamic>()))
+                .toList();
+          }
+        }
+        if (raw is List) {
+          return raw
+              .whereType<Map>()
+              .map((m) => FeedItem.fromJson(m.cast<String, dynamic>()))
+              .toList();
+        }
+        return const <FeedItem>[];
+      },
+    );
+    if (!env.isSuccess) {
+      throw SunohApiException(env.message, env.error);
+    }
+    return env.data ?? const [];
+  }
+
   /// `GET /music/radio/:stationId?count=…` — pull the next batch of
   /// songs for a radio session. Returns a flat list of FeedItems with
   /// type='song' and full metadata (artists, duration, mediaUrls all

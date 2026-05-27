@@ -26,7 +26,12 @@ class SavedAppearance {
 }
 
 class SavedPlayback {
-  const SavedPlayback({this.streamQuality, this.repeatMode, this.languages});
+  const SavedPlayback({
+    this.streamQuality,
+    this.repeatMode,
+    this.languages,
+    this.endlessAutoplay,
+  });
   final String? streamQuality; // 'auto' / 'high' / 'data'
   /// Persisted as the `LoopMode.name` ('off' / 'all' / 'one'). Null on
   /// fresh installs / older saves that predate this field.
@@ -35,6 +40,9 @@ class SavedPlayback {
   /// Null on fresh installs / older saves; consumers treat null +
   /// empty list as "use backend default".
   final List<String>? languages;
+  /// When the queue's last track ends, AppState seeds a radio from that
+  /// track and appends the songs. Null on fresh installs (treated as off).
+  final bool? endlessAutoplay;
 }
 
 class SettingsStore {
@@ -58,6 +66,7 @@ class SettingsStore {
   // installs may still have the key on disk but nothing reads it now.
   static const _kRepeatMode = 'playback.repeat_mode';
   static const _kLanguages = 'playback.languages';
+  static const _kEndlessAutoplay = 'playback.endless_autoplay';
 
   // Search
   static const _kSearchRecents = 'search.recents';
@@ -198,6 +207,7 @@ class SettingsStore {
     String? streamQuality,
     String? repeatMode,
     List<String>? languages,
+    bool? endlessAutoplay,
   }) async {
     final box = await _box();
     final map = <String, dynamic>{};
@@ -207,6 +217,7 @@ class SettingsStore {
     // user explicitly clearing all selections should persist as "use
     // backend default" not "leave previous value alone."
     if (languages != null) map[_kLanguages] = languages;
+    if (endlessAutoplay != null) map[_kEndlessAutoplay] = endlessAutoplay;
     if (map.isEmpty) return;
     await box.putAll(map);
     await box.flush();
@@ -224,6 +235,7 @@ class SettingsStore {
         streamQuality: box.get(_kStreamQuality) as String?,
         repeatMode: box.get(_kRepeatMode) as String?,
         languages: langs,
+        endlessAutoplay: box.get(_kEndlessAutoplay) as bool?,
       );
     } catch (e) {
       debugPrint('[settings-store] loadPlayback failed: $e');

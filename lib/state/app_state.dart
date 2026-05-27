@@ -8,19 +8,21 @@ import '../api/dto.dart';
 import '../audio/audio_handler.dart' show PlayMode;
 import 'package:flutter_chrome_cast/enums.dart';
 
+import '../api/sunoh_api.dart';
 import '../audio/audio_repo.dart';
 import '../audio/eq_presets.dart';
 import '../audio/settings_store.dart';
 import '../cast/cast_service.dart';
 import '../data/catalog.dart';
 import '../data/models.dart';
+import '../data/user_playlist.dart';
 import '../theme/tokens.dart';
 import '../widgets/album_art.dart';
 
 enum LoopMode { off, all, one }
 
 class AppState extends ChangeNotifier with WidgetsBindingObserver {
-  AppState({this.audioRepo, this.palettize}) {
+  AppState({this.audioRepo, this.api, this.palettize}) {
     current = kTracks[0];
     queue = kTracks.sublist(1, 6);
     liked = {kTracks[0].id: true};
@@ -50,6 +52,7 @@ class AppState extends ChangeNotifier with WidgetsBindingObserver {
         repo.library.loadSavedIds('playlist'),
         repo.library.loadSaved('artist'),
         repo.library.loadSavedIds('artist'),
+        repo.library.loadUserPlaylists(),
       ]);
       _likedIds = results[0] as Set<String>;
       _likedSongs = results[1] as List<FeedItem>;
@@ -60,12 +63,14 @@ class AppState extends ChangeNotifier with WidgetsBindingObserver {
       _savedPlaylistIds = results[6] as Set<String>;
       _savedArtists = results[7] as List<FeedItem>;
       _savedArtistIds = results[8] as Set<String>;
+      _userPlaylists = results[9] as List<UserPlaylist>;
       notifyListeners();
       debugPrint('[library] restored liked=${_likedSongs.length} '
           'history=${_playedHistory.length} '
           'albums=${_savedAlbums.length} '
           'playlists=${_savedPlaylists.length} '
-          'artists=${_savedArtists.length}');
+          'artists=${_savedArtists.length} '
+          'userPlaylists=${_userPlaylists.length}');
     } catch (e) {
       debugPrint('[library] restore failed: $e');
     }
@@ -121,6 +126,9 @@ class AppState extends ChangeNotifier with WidgetsBindingObserver {
         if (play.languages != null) {
           selectedLanguages = play.languages!.toSet();
         }
+        if (play.endlessAutoplay != null) {
+          endlessAutoplay = play.endlessAutoplay!;
+        }
       }
       final recents = await repo.settings.loadSearchRecents();
       if (recents.isNotEmpty) _searchRecents = recents;
@@ -174,12 +182,31 @@ class AppState extends ChangeNotifier with WidgetsBindingObserver {
   /// Real audio engine. Null only when audio is intentionally disabled
   /// (tests, headless contexts).
   final AudioRepo? audioRepo;
+
+  /// Backend API for endless-autoplay's radio prime. Optional so tests
+  /// can construct an AppState without the network layer.
+  final SunohApi? api;
+
   final List<StreamSubscription<dynamic>> _audioSubs = [];
 
   /// When playback is driven by the real audio engine (i.e. a tapped
   /// FeedItem song), this holds the FeedItem so the player UI can display
   /// rich metadata. Otherwise null and `current` (dummy Track) is the source.
   FeedItem? currentApiSong;
+
+  // ── Sleep timer ────────────────────────────────────────────────────────
+  // Two modes: timed (a Duration ticks down) OR end-of-track (pauses when
+  // the next currentSongStream event fires). Both pause via `_fadeAndPause`
+  // — a short volume ramp then handler.pause(), with the volume restored
+  // afterwards so the next play isn't silent.
+  Duration? sleepRemaining;
+  bool sleepAtTrackEnd = false;
+  Timer? _sleepTickTimer;
+  // Captured at arm-time so a manual skip doesn't trigger the timer on the
+  // wrong track.
+  String? _sleepCapturedSongId;
+
+  bool get sleepArmed => sleepRemaining != null || sleepAtTrackEnd;
 
   // Note: persisted played-history lives in `_playedHistory` (loaded from
   // LibraryStore at startup, pushed on every track change). Use
@@ -211,6 +238,16 @@ class AppState extends ChangeNotifier with WidgetsBindingObserver {
   /// Stream quality preference. 'auto' picks the highest playable; 'high'
   /// forces 320/high; 'data' caps at 96kbps / low for cell-data savings.
   String streamQuality = 'auto';
+
+  /// When true, the moment the active track is the last in the queue the
+  /// player fires a radio_station prime seeded by it and appends the
+  /// returned songs. Off by default; persisted in settings.
+  bool endlessAutoplay = false;
+
+  /// Guard against a second prime firing while the first one's network
+  /// call is in flight (currentSongStream can emit several times back-to-
+  /// back during a queue swap, and we'd double-append otherwise).
+  bool _autoplayPriming = false;
 
   /// Selected music languages (the lowercase `value` slugs returned by
   /// `/music/languages`). Threaded into `/music/home?languages=…` so the
@@ -317,6 +354,18 @@ class AppState extends ChangeNotifier with WidgetsBindingObserver {
   List<FeedItem> get savedPlaylists => _savedPlaylists;
   List<FeedItem> get savedArtists => _savedArtists;
 
+  /// User-created playlists. Newest-first by `updatedAt`. Backed by the
+  /// same Hive `library` box; mutated through `createUserPlaylist` /
+  /// `addToUserPlaylist` / etc.
+  List<UserPlaylist> _userPlaylists = const <UserPlaylist>[];
+  List<UserPlaylist> get userPlaylists => _userPlaylists;
+  UserPlaylist? userPlaylistById(String id) {
+    for (final p in _userPlaylists) {
+      if (p.id == id) return p;
+    }
+    return null;
+  }
+
   bool isSavedAlbumId(String id) => _savedAlbumIds.contains(id);
   bool isSavedPlaylistId(String id) => _savedPlaylistIds.contains(id);
   bool isSavedArtistId(String id) => _savedArtistIds.contains(id);
@@ -408,6 +457,131 @@ class AppState extends ChangeNotifier with WidgetsBindingObserver {
       default:
         return 'item';
     }
+  }
+
+  // ── User playlists ─────────────────────────────────────────────────────
+
+  Future<UserPlaylist> createUserPlaylist(String name) async {
+    final repo = audioRepo;
+    final trimmed = name.trim();
+    final now = DateTime.now();
+    final id = '${now.microsecondsSinceEpoch.toRadixString(36)}-'
+        '${now.millisecond.toRadixString(36)}';
+    final p = UserPlaylist(
+      id: id,
+      name: trimmed.isEmpty ? 'New playlist' : trimmed,
+      songs: const [],
+      createdAt: now,
+      updatedAt: now,
+    );
+    _userPlaylists = [p, ..._userPlaylists];
+    notifyListeners();
+    if (repo != null) {
+      // Fire-and-forget persistence — UI already swapped in the new list.
+      try {
+        await repo.library.upsertUserPlaylist(p);
+      } catch (e) {
+        debugPrint('[library] createUserPlaylist persist failed: $e');
+      }
+    }
+    return p;
+  }
+
+  Future<void> renameUserPlaylist(String id, String name) async {
+    final repo = audioRepo;
+    final trimmed = name.trim();
+    if (trimmed.isEmpty) return;
+    final current = userPlaylistById(id);
+    if (current == null) return;
+    final updated = current.copyWith(name: trimmed, updatedAt: DateTime.now());
+    _userPlaylists = [
+      updated,
+      for (final p in _userPlaylists)
+        if (p.id != id) p,
+    ];
+    notifyListeners();
+    if (repo != null) {
+      try {
+        await repo.library.upsertUserPlaylist(updated);
+      } catch (e) {
+        debugPrint('[library] renameUserPlaylist failed: $e');
+      }
+    }
+  }
+
+  Future<void> deleteUserPlaylist(String id) async {
+    final repo = audioRepo;
+    _userPlaylists = _userPlaylists.where((p) => p.id != id).toList();
+    notifyListeners();
+    if (repo != null) {
+      try {
+        await repo.library.deleteUserPlaylist(id);
+      } catch (e) {
+        debugPrint('[library] deleteUserPlaylist failed: $e');
+      }
+    }
+  }
+
+  Future<void> addSongToUserPlaylist(String playlistId, FeedItem song) async {
+    final repo = audioRepo;
+    final current = userPlaylistById(playlistId);
+    if (current == null) return;
+    if (current.songs.any((s) => s.id == song.id)) {
+      flashToast('Already in “${current.name}”');
+      return;
+    }
+    final updated = current.copyWith(
+      songs: [...current.songs, song],
+      updatedAt: DateTime.now(),
+    );
+    _userPlaylists = [
+      updated,
+      for (final p in _userPlaylists)
+        if (p.id != playlistId) p,
+    ];
+    flashToast('Added to “${current.name}”');
+    notifyListeners();
+    if (repo != null) {
+      try {
+        await repo.library.upsertUserPlaylist(updated);
+      } catch (e) {
+        debugPrint('[library] addSongToUserPlaylist failed: $e');
+      }
+    }
+  }
+
+  Future<void> removeSongFromUserPlaylist(
+      String playlistId, String songId) async {
+    final repo = audioRepo;
+    final current = userPlaylistById(playlistId);
+    if (current == null) return;
+    final updated = current.copyWith(
+      songs: current.songs.where((s) => s.id != songId).toList(),
+      updatedAt: DateTime.now(),
+    );
+    _userPlaylists = [
+      updated,
+      for (final p in _userPlaylists)
+        if (p.id != playlistId) p,
+    ];
+    notifyListeners();
+    if (repo != null) {
+      try {
+        await repo.library.upsertUserPlaylist(updated);
+      } catch (e) {
+        debugPrint('[library] removeSongFromUserPlaylist failed: $e');
+      }
+    }
+  }
+
+  Future<void> playUserPlaylist(UserPlaylist p,
+      {int startIndex = 0}) async {
+    if (p.songs.isEmpty) {
+      flashToast('“${p.name}” is empty');
+      return;
+    }
+    await playApiQueue(p.songs, startIndex,
+        sourceLabel: 'PLAYLIST · ${p.name}');
   }
 
   /// Full liked list — newest-first.
@@ -594,6 +768,12 @@ class AppState extends ChangeNotifier with WidgetsBindingObserver {
       if (isCasting) {
         unawaited(_pushCurrentSongToCast(song));
       }
+      // Sleep-timer end-of-track check fires AFTER the swap so the new
+      // currentApiSong.id is what `_onTrackChangedForSleep` compares to.
+      _onTrackChangedForSleep(song.id);
+      // Extend the queue with a radio prime when this advance lands us on
+      // the last entry and autoplay is enabled. No-op when off.
+      _maybeAutoplayPrime();
       notifyListeners();
     }));
   }
@@ -870,6 +1050,11 @@ class AppState extends ChangeNotifier with WidgetsBindingObserver {
       // song to the receiver via _pushCurrentSongToCast.
       await repo.playQueue(songs, startIndex,
           sourceLabel: sourceLabel, sourceRef: sourceRef, mode: mode);
+      // `currentSongStream` only fires on *changes*, so a 1-track queue
+      // (search→play, single hero tap, etc.) never triggers the per-track
+      // autoplay check. Probe here so endless autoplay still extends those
+      // queues.
+      _maybeAutoplayPrime();
     } catch (e) {
       flashToast('Could not play: $e');
       isPlaying = false;
@@ -1453,11 +1638,249 @@ class AppState extends ChangeNotifier with WidgetsBindingObserver {
     notifyListeners();
   }
 
+  // ── Endless autoplay ───────────────────────────────────────────────────
+  Future<void> setEndlessAutoplay(bool enabled) async {
+    if (endlessAutoplay == enabled) return;
+    endlessAutoplay = enabled;
+    notifyListeners();
+    await audioRepo?.settings.savePlayback(endlessAutoplay: enabled);
+    // Turning it on while the user is already on the last track: prime
+    // immediately so the queue extends without waiting for the next
+    // track-change event (which only fires on advance).
+    if (enabled) _maybeAutoplayPrime();
+  }
+
+  /// Called from the `currentSongStream` listener (and once at the tail of
+  /// `playApiQueue` for single-song queues). Checks whether autoplay is on
+  /// AND we're now on the last queue entry AND no prime is already in
+  /// flight; if so, fires a fresh radio session seeded by [currentApiSong]
+  /// and appends the songs to the queue.
+  void _maybeAutoplayPrime() {
+    if (!endlessAutoplay) {
+      // ignore: avoid_print
+      print('[autoplay] skip: toggle off');
+      return;
+    }
+    if (_autoplayPriming) {
+      // ignore: avoid_print
+      print('[autoplay] skip: already priming');
+      return;
+    }
+    final repo = audioRepo;
+    final apiClient = api;
+    if (repo == null || apiClient == null) {
+      // ignore: avoid_print
+      print('[autoplay] skip: repo=${repo == null ? 'null' : 'ok'} '
+          'api=${apiClient == null ? 'null' : 'ok'}');
+      return;
+    }
+    final seed = currentApiSong;
+    if (seed == null) {
+      // ignore: avoid_print
+      print('[autoplay] skip: currentApiSong null');
+      return;
+    }
+    final q = repo.queue;
+    if (q.isEmpty) {
+      // ignore: avoid_print
+      print('[autoplay] skip: queue empty');
+      return;
+    }
+    // Only act when the active track is the LAST entry. Triggering
+    // earlier risks ballooning the queue with batches the user never
+    // reaches.
+    if (repo.currentIndex < q.length - 1) {
+      // ignore: avoid_print
+      print('[autoplay] skip: not on last entry '
+          '(idx=${repo.currentIndex}, len=${q.length})');
+      return;
+    }
+    _autoplayPriming = true;
+    // ignore: discarded_futures
+    _runAutoplayPrime(seed, apiClient, repo);
+  }
+
+  Future<void> _runAutoplayPrime(
+      FeedItem seed, SunohApi apiClient, AudioRepo repo) async {
+    // Backed by `/music/recommend` — a single call that internally hits
+    // Saavn's reco.getreco + the song-detail sections + a derived radio
+    // station + the explicit Similar Songs endpoint, merges + dedupes
+    // them, and filters out the seed. Replaces the older two-step
+    // (radio/session + radio/<id>) which sometimes returned 0 songs
+    // for Gaana seeds and required a client-side Saavn pivot.
+    //
+    // We pass both `q` (so the backend can search Saavn when the seed
+    // is a Gaana slug) and `songId` (used directly when the seed is
+    // already a Saavn id). The backend prefers songId over q.
+    final lang = (seed.language ?? '').isNotEmpty
+        ? seed.language
+        : selectedLanguagesCsv;
+    final isSaavnId = (seed.source ?? '').toLowerCase() == 'saavn';
+    final q = '${seed.title} ${seed.subtitle ?? ''}'.trim();
+    // ignore: avoid_print
+    print('[autoplay] priming recs from id="${seed.id}" '
+        'title="${seed.title}" source="${seed.source ?? '?'}"');
+    try {
+      final songs = await apiClient.fetchRecommendations(
+        // Only pass songId when we're sure it's a Saavn id; for Gaana
+        // seeds the backend's q-based search produces a clean songId
+        // internally.
+        songId: isSaavnId ? seed.id : null,
+        query: q,
+        lang: lang,
+      );
+      if (songs.isEmpty) {
+        // ignore: avoid_print
+        print('[autoplay] prime failed — 0 recommendations');
+        return;
+      }
+      // Three-layer dedup before appending:
+      //   1. By Saavn songId — catches exact repeats from the queue.
+      //   2. By a normalized "title | primary artist | duration" key —
+      //      catches near-duplicates Saavn ships as separate ids: e.g.
+      //      "Gehra Hua" and "Gehra Hua (From \"Dhurandhar\")" are the
+      //      same recording with different titles. RN's findBestMatch
+      //      uses a similar normalization.
+      //   3. Within the new batch itself — Saavn's reco aggregation can
+      //      return both versions inside the same response.
+      final queueIds = repo.queue.map((s) => s.id).toSet();
+      final seenKeys = <String>{
+        _autoplayDedupKey(seed),
+        for (final s in repo.queue) _autoplayDedupKey(s),
+      };
+      final filtered = <FeedItem>[];
+      var idDups = 0;
+      var titleDups = 0;
+      for (final s in songs) {
+        if (queueIds.contains(s.id)) {
+          idDups++;
+          continue;
+        }
+        final key = _autoplayDedupKey(s);
+        if (seenKeys.contains(key)) {
+          titleDups++;
+          continue;
+        }
+        seenKeys.add(key);
+        filtered.add(s);
+      }
+      // ignore: avoid_print
+      print('[autoplay] appending ${filtered.length} song(s) to queue '
+          '(api returned ${songs.length}, id-dups=$idDups, title-dups=$titleDups)');
+      for (final s in filtered) {
+        await repo.addToQueue(s);
+      }
+    } catch (e, st) {
+      // ignore: avoid_print
+      print('[autoplay] prime threw: $e\n$st');
+    } finally {
+      _autoplayPriming = false;
+    }
+  }
+
+  /// Title + primary artist + duration key for catching same-recording-
+  /// different-title duplicates from Saavn's recommendation set. Strips
+  /// `(From "Xyz")` / `(from Xyz)` / `(In "Xyz")` suffixes that Saavn
+  /// uses to disambiguate OST releases of the same recording.
+  static final RegExp _autoplayFromSuffix =
+      RegExp(r'\s*\((from|in)\s+["“]?[^)]*["”]?\)\s*',
+          caseSensitive: false);
+  String _autoplayDedupKey(FeedItem s) {
+    final title = s.title
+        .toLowerCase()
+        .replaceAll(_autoplayFromSuffix, ' ')
+        .replaceAll(RegExp(r'\s+'), ' ')
+        .trim();
+    final primaryArtist = ((s.artists ?? const <ApiArtistRef>[]).isNotEmpty
+            ? s.artists!.first.name
+            : '')
+        .toLowerCase()
+        .trim();
+    final dur = int.tryParse(s.duration ?? '') ?? 0;
+    return '$title|$primaryArtist|$dur';
+  }
+
+  // ── Sleep timer API ────────────────────────────────────────────────────
+  void armSleepTimer({Duration? duration, bool endOfTrack = false}) {
+    cancelSleepTimer(silent: true);
+    if (endOfTrack) {
+      sleepAtTrackEnd = true;
+      _sleepCapturedSongId = currentApiSong?.id;
+    } else if (duration != null && duration.inSeconds > 0) {
+      sleepRemaining = duration;
+      _sleepTickTimer =
+          Timer.periodic(const Duration(seconds: 1), (_) async {
+        final r = sleepRemaining;
+        if (r == null) return;
+        final next = r - const Duration(seconds: 1);
+        if (next.inSeconds <= 0) {
+          _sleepTickTimer?.cancel();
+          _sleepTickTimer = null;
+          sleepRemaining = null;
+          notifyListeners();
+          await _fadeAndPause();
+        } else {
+          sleepRemaining = next;
+          notifyListeners();
+        }
+      });
+    }
+    notifyListeners();
+  }
+
+  void cancelSleepTimer({bool silent = false}) {
+    _sleepTickTimer?.cancel();
+    _sleepTickTimer = null;
+    sleepRemaining = null;
+    sleepAtTrackEnd = false;
+    _sleepCapturedSongId = null;
+    if (!silent) notifyListeners();
+  }
+
+  // Called from the `currentSongStream` listener (in _bindAudio) when the
+  // active track changes. If end-of-track mode is armed AND the captured
+  // song was the previous one, pause now.
+  void _onTrackChangedForSleep(String? newId) {
+    if (!sleepAtTrackEnd) return;
+    if (_sleepCapturedSongId == null) return;
+    if (newId == _sleepCapturedSongId) return; // unchanged
+    final wasArmed = sleepAtTrackEnd;
+    cancelSleepTimer(silent: true);
+    notifyListeners();
+    if (wasArmed) {
+      // ignore: discarded_futures
+      _fadeAndPause();
+    }
+  }
+
+  Future<void> _fadeAndPause() async {
+    final repo = audioRepo;
+    if (repo == null) return;
+    // When casting, mpv is muted — fading mpv's volume changes nothing the
+    // user can hear. Just pause through the cast layer.
+    if (isCasting) {
+      await CastService.instance.pause();
+      return;
+    }
+    const totalMs = 1400;
+    const steps = 14;
+    for (var i = steps; i >= 0; i--) {
+      final vol = (i / steps) * 100.0;
+      await repo.handler.setVolume(vol);
+      await Future<void>.delayed(
+          const Duration(milliseconds: totalMs ~/ steps));
+    }
+    await repo.pause();
+    // Restore so the next manual play isn't silent.
+    await repo.handler.setVolume(100);
+  }
+
   @override
   void dispose() {
     WidgetsBinding.instance.removeObserver(this);
     _tick?.cancel();
     _toastTimer?.cancel();
+    _sleepTickTimer?.cancel();
     for (final s in _audioSubs) {
       s.cancel();
     }
