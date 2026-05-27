@@ -1820,19 +1820,32 @@ class AppState extends ChangeNotifier with WidgetsBindingObserver {
       print('[autoplay] skip: queue empty');
       return;
     }
-    // Only act when the active track is the LAST entry. Triggering
-    // earlier risks ballooning the queue with batches the user never
-    // reaches.
-    if (repo.currentIndex < q.length - 1) {
+    // Threshold-based trigger: fire when there are AT MOST
+    // `_autoplayPrimeThreshold` tracks left after the current one.
+    // The previous "only on the very last entry" check gave the
+    // network round trip zero headroom — if the user rapid-tapped
+    // next, the player ran out of queue before the prime's serial
+    // addToQueue loop could land, the EOF event cleared the queue,
+    // and autoplay silently failed. The threshold matches RN's
+    // `useAutoQueue` shape.
+    final remaining = q.length - repo.currentIndex - 1;
+    if (remaining > _autoplayPrimeThreshold) {
       // ignore: avoid_print
-      print('[autoplay] skip: not on last entry '
-          '(idx=${repo.currentIndex}, len=${q.length})');
+      print('[autoplay] skip: $remaining tracks ahead '
+          '(idx=${repo.currentIndex}, len=${q.length}, '
+          'threshold=$_autoplayPrimeThreshold)');
       return;
     }
     _autoplayPriming = true;
     // ignore: discarded_futures
     _runAutoplayPrime(seed, apiClient, repo);
   }
+
+  /// Fire the prime when fewer than this many tracks remain after the
+  /// active one. 3 gives ~3-track buffer for the recommendation fetch
+  /// + serial addToQueue loop to complete (~1-2s on a healthy network)
+  /// before the user reaches the end of the queue.
+  static const int _autoplayPrimeThreshold = 3;
 
   Future<void> _runAutoplayPrime(
       FeedItem seed, SunohApi apiClient, AudioRepo repo) async {
@@ -1851,9 +1864,22 @@ class AppState extends ChangeNotifier with WidgetsBindingObserver {
         : selectedLanguagesCsv;
     final isSaavnId = (seed.source ?? '').toLowerCase() == 'saavn';
     final q = '${seed.title} ${seed.subtitle ?? ''}'.trim();
+    // Capture playback state at prime start so we can recover if the
+    // user blew through the queue end during the in-flight fetch.
+    // `wasPlaying` is the only honest signal of intent — if the user
+    // had paused before the prime fired, we don't auto-resume.
+    // `origQueueLen` is the threshold for "user reached the end of the
+    // original queue" — without this check, a user who manually
+    // pauses mid-queue AFTER the threshold trigger would get force-
+    // restarted when prime lands. We only resume when the user is at
+    // (or past) the original last track, i.e. they actually ran out.
+    final wasPlaying = isPlaying;
+    final origQueueLen = repo.queue.length;
+    final resumeIndex = repo.currentIndex + 1;
     // ignore: avoid_print
     print('[autoplay] priming recs from id="${seed.id}" '
-        'title="${seed.title}" source="${seed.source ?? '?'}"');
+        'title="${seed.title}" source="${seed.source ?? '?'}" '
+        'wasPlaying=$wasPlaying resumeIndex=$resumeIndex');
     try {
       final songs = await apiClient.fetchRecommendations(
         // Only pass songId when we're sure it's a Saavn id; for Gaana
@@ -1908,6 +1934,30 @@ class AppState extends ChangeNotifier with WidgetsBindingObserver {
         songsAppended: filtered.length,
         seedId: seed.id,
       );
+      // If the player stopped while we were appending — the race the
+      // threshold trigger is supposed to avoid, but can still happen
+      // if the user skips fast on a short queue — jump to the first
+      // newly-appended track and resume. Three gates:
+      //   - wasPlaying: user was actually listening at prime start.
+      //   - !isPlaying: player has stopped (vs still going naturally).
+      //   - currentIndex >= origQueueLen - 1: user reached or passed
+      //     the ORIGINAL last track, so the stop is from running out
+      //     of queue (not an intentional pause mid-queue).
+      final reachedOriginalEnd = repo.currentIndex >= origQueueLen - 1;
+      if (wasPlaying && !isPlaying && filtered.isNotEmpty && reachedOriginalEnd) {
+        final newLen = repo.queue.length;
+        if (resumeIndex >= 0 && resumeIndex < newLen) {
+          // ignore: avoid_print
+          print('[autoplay] player died waiting for prime — '
+              'jumping to index $resumeIndex of $newLen');
+          try {
+            await repo.jumpToIndex(resumeIndex);
+          } catch (e) {
+            // ignore: avoid_print
+            print('[autoplay] resume jumpToIndex($resumeIndex) failed: $e');
+          }
+        }
+      }
     } catch (e, st) {
       // ignore: avoid_print
       print('[autoplay] prime threw: $e\n$st');
