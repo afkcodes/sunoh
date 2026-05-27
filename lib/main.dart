@@ -25,6 +25,7 @@ import 'audio/download_store.dart';
 import 'audio/library_store.dart';
 import 'audio/playback_state_store.dart';
 import 'audio/settings_store.dart';
+import 'cast/cast_service.dart';
 import 'providers/downloads_provider.dart';
 import 'router/deep_links.dart';
 import 'router/router.dart';
@@ -151,6 +152,10 @@ Future<void> main() async {
     // ignore: avoid_print
     print('[downloads] init failed (continuing without offline tier): $e\n$st');
   }
+  // Cast SDK init — fire-and-forget. Devices without Google Play
+  // Services will silently fail to discover anything; the rest of the
+  // app keeps working.
+  unawaited(CastService.instance.init());
   final handler = SunohAudioHandler(resolver: resolver);
   final repo = AudioRepo(
     handler: handler,

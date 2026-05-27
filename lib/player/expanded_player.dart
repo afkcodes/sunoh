@@ -18,6 +18,7 @@ import 'package:go_router/go_router.dart';
 import 'package:phosphor_flutter/phosphor_flutter.dart';
 import 'package:solar_icons/solar_icons.dart';
 
+import '../cast/cast_button.dart';
 import '../data/catalog.dart';
 import '../data/models.dart';
 import '../overlays/eq_sheet.dart';
@@ -59,9 +60,10 @@ class _ExpandedPlayerState extends ConsumerState<ExpandedPlayer>
   }
 
   void _snapBackToTop() {
-    final anim = Tween<double>(begin: _drag, end: 0).animate(
-      CurvedAnimation(parent: _snapBack, curve: Curves.easeOutCubic),
-    );
+    final anim = Tween<double>(
+      begin: _drag,
+      end: 0,
+    ).animate(CurvedAnimation(parent: _snapBack, curve: Curves.easeOutCubic));
     void tick() => setState(() => _drag = anim.value);
     anim.addListener(tick);
     _snapBack.forward(from: 0).whenComplete(() => anim.removeListener(tick));
@@ -87,7 +89,9 @@ class _ExpandedPlayerState extends ConsumerState<ExpandedPlayer>
     return GestureDetector(
       onVerticalDragUpdate: (d) {
         if (d.delta.dy > 0 || _drag > 0) {
-          setState(() => _drag = (_drag + d.delta.dy).clamp(0, double.infinity));
+          setState(
+            () => _drag = (_drag + d.delta.dy).clamp(0, double.infinity),
+          );
         }
       },
       onVerticalDragEnd: (d) {
@@ -150,8 +154,13 @@ class _ExpandedPlayerState extends ConsumerState<ExpandedPlayer>
     );
   }
 
-  Widget _header(BuildContext context, AppState s, SunohColors c, Track track,
-      String? sourceLabel) {
+  Widget _header(
+    BuildContext context,
+    AppState s,
+    SunohColors c,
+    Track track,
+    String? sourceLabel,
+  ) {
     // Resolve the eyebrow + main label. API-mode songs pass an explicit
     // `apiSourceLabel` in the form "PLAYLIST · Title" / "ALBUM · Title".
     // Split on ' · ' so the eyebrow gets the category and the main line
@@ -175,10 +184,11 @@ class _ExpandedPlayerState extends ConsumerState<ExpandedPlayer>
         mainAxisAlignment: MainAxisAlignment.spaceBetween,
         children: [
           IconBtn(
-              icon: SolarIconsOutline.altArrowDown,
-              color: c.fg,
-              size: 22,
-              onTap: () => context.pop()),
+            icon: SolarIconsOutline.altArrowDown,
+            color: c.fg,
+            size: 22,
+            onTap: () => context.pop(),
+          ),
           Expanded(
             child: Column(
               mainAxisSize: MainAxisSize.min,
@@ -191,32 +201,38 @@ class _ExpandedPlayerState extends ConsumerState<ExpandedPlayer>
                   overflow: TextOverflow.ellipsis,
                   textAlign: TextAlign.center,
                   style: SunohType.sans(
-                      fontSize: 12, fontWeight: FontWeight.w500, color: c.fg),
+                    fontSize: 12,
+                    fontWeight: FontWeight.w500,
+                    color: c.fg,
+                  ),
                 ),
               ],
             ),
           ),
           IconBtn(
-              icon: SolarIconsBold.menuDots,
-              color: c.fg,
-              size: 20,
-              // Opens the reusable track-actions sheet for the currently-
-              // playing song (Like / Play next / Add to queue / View Artist
-              // / Share). No-op when the current track is a dummy entry
-              // (radio stations, podcasts — no FeedItem to act on).
-              onTap: () {
-                final song = s.currentApiSong;
-                if (song == null) return;
-                showTrackMenuSheet(context,
-                    song: song,
-                    sourceLabel: s.apiSourceLabel,
-                    sourceRef: s.apiSourceRef,
-                    // True so the sheet's navigation rows also pop the
-                    // player itself before pushing the destination —
-                    // otherwise the album/artist lands behind the still-
-                    // open player and looks like nothing happened.
-                    fromPlayer: true);
-              }),
+            icon: SolarIconsBold.menuDots,
+            color: c.fg,
+            size: 20,
+            // Opens the reusable track-actions sheet for the currently-
+            // playing song (Like / Play next / Add to queue / View Artist
+            // / Share). No-op when the current track is a dummy entry
+            // (radio stations, podcasts — no FeedItem to act on).
+            onTap: () {
+              final song = s.currentApiSong;
+              if (song == null) return;
+              showTrackMenuSheet(
+                context,
+                song: song,
+                sourceLabel: s.apiSourceLabel,
+                sourceRef: s.apiSourceRef,
+                // True so the sheet's navigation rows also pop the
+                // player itself before pushing the destination —
+                // otherwise the album/artist lands behind the still-
+                // open player and looks like nothing happened.
+                fromPlayer: true,
+              );
+            },
+          ),
         ],
       ),
     );
@@ -231,125 +247,173 @@ class _ExpandedPlayerState extends ConsumerState<ExpandedPlayer>
     required Color tint,
     required String? lyricLine,
   }) {
-    return Column(
+    // The icon strip is overlaid via `Positioned` so its vertical position
+    // can be tuned without redistributing the Spacer slack above it (which
+    // would shift the cover / title / transport). The Column reserves a
+    // SizedBox of the strip's intrinsic height so the transport stays
+    // anchored at the same y as before.
+    return Stack(
       children: [
-        const Spacer(flex: 2),
-        _StaticCover(
-          id: track.id,
-          url: s.currentApiSong?.artwork,
-          playing: s.isPlaying,
-        ),
-        const SizedBox(height: 24),
-        // Title block in a reserved-height container — 1-line vs 2-line
-        // titles don't cause the cover or controls below to jump on track
-        // change. Sized to comfortably fit a 2-line title + artist + a one-
-        // line lyric teaser; shorter content top-aligns inside the box.
-        Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 24),
-          child: SizedBox(
-            height: _titleBlockHeight,
-            child: Row(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(track.title,
-                          maxLines: 2,
-                          overflow: TextOverflow.ellipsis,
-                          style: SunohType.heading(
+        Column(
+          children: [
+            const Spacer(flex: 2),
+            _StaticCover(
+              id: track.id,
+              url: s.currentApiSong?.artwork,
+              playing: s.isPlaying,
+            ),
+            const SizedBox(height: 24),
+            // Title block in a reserved-height container — 1-line vs 2-line
+            // titles don't cause the cover or controls below to jump on track
+            // change. Sized to comfortably fit a 2-line title + artist + a one-
+            // line lyric teaser; shorter content top-aligns inside the box.
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 24),
+              child: SizedBox(
+                height: _titleBlockHeight,
+                child: Row(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            track.title,
+                            maxLines: 2,
+                            overflow: TextOverflow.ellipsis,
+                            style: SunohType.heading(
                               fontSize: 26,
                               color: c.fg,
                               height: 1.1,
-                              letterSpacing: -0.3)),
-                      const SizedBox(height: 4),
-                      Text(track.artist,
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
-                          style: SunohType.sans(fontSize: 13.5, color: c.fgDim)),
-                      if (lyricLine != null) ...[
-                        const SizedBox(height: 8),
-                        _LyricsTeaser(
-                            line: lyricLine,
-                            accent: accent,
-                            onTap: () => context.openLyrics()),
-                      ],
-                    ],
-                  ),
+                              letterSpacing: -0.3,
+                            ),
+                          ),
+                          const SizedBox(height: 4),
+                          Text(
+                            track.artist,
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: SunohType.sans(
+                              fontSize: 13.5,
+                              color: c.fgDim,
+                            ),
+                          ),
+                          if (lyricLine != null) ...[
+                            const SizedBox(height: 8),
+                            _LyricsTeaser(
+                              line: lyricLine,
+                              accent: accent,
+                              onTap: () => context.openLyrics(),
+                            ),
+                          ],
+                        ],
+                      ),
+                    ),
+                    Padding(
+                      padding: const EdgeInsets.only(top: 4),
+                      child: IconBtn(
+                        icon: s.isLikedCurrentApi
+                            ? SolarIconsBold.heart
+                            : SolarIconsOutline.heart,
+                        color: s.isLikedCurrentApi ? accent : c.fgDim,
+                        size: 26,
+                        onTap: () {
+                          final song = s.currentApiSong;
+                          if (song != null) {
+                            s.toggleLikedSong(song);
+                          } else {
+                            // Dummy-path fallback (radio stations etc.)
+                            s.toggleLike();
+                          }
+                        },
+                      ),
+                    ),
+                  ],
                 ),
-                Padding(
-                  padding: const EdgeInsets.only(top: 4),
-                  child: IconBtn(
-                      icon: s.isLikedCurrentApi
-                          ? SolarIconsBold.heart
-                          : SolarIconsOutline.heart,
-                      color: s.isLikedCurrentApi ? accent : c.fgDim,
-                      size: 26,
-                      onTap: () {
-                        final song = s.currentApiSong;
-                        if (song != null) {
-                          s.toggleLikedSong(song);
-                        } else {
-                          // Dummy-path fallback (radio stations etc.)
-                          s.toggleLike();
-                        }
-                      }),
-                ),
-              ],
+              ),
             ),
-          ),
+            const SizedBox(height: 20),
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 24),
+              child: _progress(
+                s,
+                accent,
+                c.fg,
+                layout: (scrubber, pos, remaining) => Column(
+                  children: [
+                    scrubber,
+                    const SizedBox(height: 4),
+                    _times(c, fmt(pos), '-${fmt(remaining)}'),
+                  ],
+                ),
+              ),
+            ),
+            const SizedBox(height: 18),
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 24),
+              child: Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  IconBtn(
+                    icon: PhosphorIconsBold.shuffle,
+                    color: s.shuffle ? accent : c.fgMute,
+                    size: 22,
+                    onTap: s.toggleShuffle,
+                  ),
+                  IconBtn(
+                    icon: PhosphorIconsFill.skipBack,
+                    color: c.fg,
+                    size: 30,
+                    onTap: s.prev,
+                  ),
+                  _PlayButton(
+                    playing: s.isPlaying,
+                    accent: accent,
+                    onTap: s.playPause,
+                  ),
+                  IconBtn(
+                    icon: PhosphorIconsFill.skipForward,
+                    color: c.fg,
+                    size: 30,
+                    onTap: s.next,
+                  ),
+                  IconBtn(
+                    icon: s.repeat == LoopMode.one
+                        ? PhosphorIconsBold.repeatOnce
+                        : PhosphorIconsBold.repeat,
+                    color: s.repeat != LoopMode.off ? accent : c.fgMute,
+                    size: 22,
+                    onTap: s.cycleRepeat,
+                  ),
+                ],
+              ),
+            ),
+            const Spacer(flex: 3),
+            // Reservation for the floating strip below. Keeps the
+            // transport row anchored at the same y it had before the
+            // strip was lifted out of the column flow.
+            const SizedBox(height: _bottomBarReservedHeight),
+          ],
         ),
-        const SizedBox(height: 20),
-        Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 24),
-          child: _progress(s, accent, c.fg,
-              layout: (scrubber, pos, remaining) => Column(
-                    children: [
-                      scrubber,
-                      const SizedBox(height: 4),
-                      _times(c, fmt(pos), '-${fmt(remaining)}'),
-                    ],
-                  )),
+        Positioned(
+          left: 0,
+          right: 0,
+          bottom: _bottomBarLift,
+          child: _bottomBar(context, c),
         ),
-        const SizedBox(height: 18),
-        Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 24),
-          child: Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-            children: [
-              IconBtn(
-                  icon: PhosphorIconsBold.shuffle,
-                  color: s.shuffle ? accent : c.fgMute,
-                  size: 22,
-                  onTap: s.toggleShuffle),
-              IconBtn(
-                  icon: PhosphorIconsFill.skipBack,
-                  color: c.fg,
-                  size: 30,
-                  onTap: s.prev),
-              _PlayButton(
-                  playing: s.isPlaying, accent: accent, onTap: s.playPause),
-              IconBtn(
-                  icon: PhosphorIconsFill.skipForward,
-                  color: c.fg,
-                  size: 30,
-                  onTap: s.next),
-              IconBtn(
-                  icon: s.repeat == LoopMode.one
-                      ? PhosphorIconsBold.repeatOnce
-                      : PhosphorIconsBold.repeat,
-                  color: s.repeat != LoopMode.off ? accent : c.fgMute,
-                  size: 22,
-                  onTap: s.cycleRepeat),
-            ],
-          ),
-        ),
-        const Spacer(flex: 3),
-        _bottomBar(context, c),
       ],
     );
   }
+
+  // Strip's intrinsic height with the original padding (top 4 + bottom 12 +
+  // icon's own vertical 10×2 + glyph 22 ≈ 58). Bump if the iconBtn padding
+  // changes.
+  static const double _bottomBarReservedHeight = 58;
+  // Distance the strip floats above the SafeArea bottom inset. Increasing
+  // this lifts ONLY the strip — the column reservation above keeps every
+  // other element pinned.
+  static const double _bottomBarLift = 20;
 
   Widget _progress(
     AppState s,
@@ -376,36 +440,66 @@ class _ExpandedPlayerState extends ConsumerState<ExpandedPlayer>
   }
 
   Widget _times(SunohColors c, String left, String right) {
-    final style = SunohType.mono(fontSize: 11, color: c.fgMute, letterSpacing: 0.4);
+    final style = SunohType.mono(
+      fontSize: 11,
+      color: c.fgMute,
+      letterSpacing: 0.4,
+    );
     return Row(
       mainAxisAlignment: MainAxisAlignment.spaceBetween,
-      children: [Text(left, style: style), Text(right, style: style)],
+      children: [
+        Text(left, style: style),
+        Text(right, style: style),
+      ],
     );
   }
 
   Widget _bottomBar(BuildContext context, SunohColors c) {
-    Widget label(String t, VoidCallback onTap) => GestureDetector(
+    Widget iconBtn(IconData icon, VoidCallback onTap, {Color? color}) =>
+        GestureDetector(
           onTap: onTap,
           behavior: HitTestBehavior.opaque,
           child: Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-            child: Text(t,
-                style: SunohType.mono(
-                    fontSize: 10,
-                    color: c.fgMute,
-                    letterSpacing: 1.4,
-                    fontWeight: FontWeight.w500)),
+            padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 10),
+            child: Icon(icon, size: 22, color: color ?? c.fgMute),
           ),
         );
     return Padding(
+      // Strip is overlaid by `_classic`'s Stack with a `Positioned.bottom`
+      // offset (`_bottomBarLift`) that handles the visual lift off the
+      // home indicator. Internal padding stays minimal so the strip's
+      // intrinsic height matches `_bottomBarReservedHeight`.
       padding: const EdgeInsets.fromLTRB(4, 4, 4, 12),
-      child: Row(
-        mainAxisAlignment: MainAxisAlignment.spaceAround,
-        children: [
-          label('LYRICS', () => context.openLyrics()),
-          label('EQ', () => showEqSheet(context)),
-          label('QUEUE', () => context.openQueue()),
-        ],
+      child: Consumer(
+        builder: (ctx, ref, _) {
+          final s = ref.watch(appStateProvider);
+          final accent = s.resolvedAccent;
+          return Row(
+            mainAxisAlignment: MainAxisAlignment.spaceAround,
+            children: [
+              // Lyrics — `subtitles` is the CC-style two-line frame,
+              // the canonical "lyrics / captions" glyph. Distinct from a
+              // microphone (which reads as "record").
+              iconBtn(SolarIconsOutline.subtitles, () => context.openLyrics()),
+              // EQ — Solar's `tuning` is the three-slider stack, exactly
+              // the EQ metaphor.
+              iconBtn(SolarIconsOutline.tuning, () => showEqSheet(context)),
+              // Cast — accent + filled glyph when a session is live so
+              // the user can spot the connected state at a glance.
+              iconBtn(
+                s.isCasting
+                    ? SolarIconsBold.screencast
+                    : SolarIconsOutline.screencast,
+                () => openCastPicker(context),
+                color: s.isCasting ? accent : null,
+              ),
+              // Queue — `playlist` (the lined-card with a music-note
+              // accent) reads as "music queue" more clearly than the
+              // minimalistic stack-of-lines variant we had before.
+              iconBtn(SolarIconsOutline.playlist, () => context.openQueue()),
+            ],
+          );
+        },
       ),
     );
   }
@@ -534,8 +628,7 @@ class _StaticCover extends StatelessWidget {
           scale: playing ? 1.0 : 0.92,
           duration: const Duration(milliseconds: 340),
           curve: Curves.easeOutCubic,
-          child:
-              SunohArt(id: id, imageUrl: url, size: coverSize, radius: 16),
+          child: SunohArt(id: id, imageUrl: url, size: coverSize, radius: 16),
         ),
       ),
     );

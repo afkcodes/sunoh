@@ -99,6 +99,12 @@ class AudioRepo {
 
   SunohAudioServiceBridge? _bridge;
 
+  /// Exposed so AppState's cast wiring can push cast-derived playback
+  /// state directly into the OS notification (otherwise the bridge
+  /// keeps mirroring mpv's muted-paused state while casting). Null
+  /// when audio_service init failed.
+  SunohAudioServiceBridge? get bridge => _bridge;
+
   void attachBridge(SunohAudioServiceBridge bridge) {
     debugPrint('[audio] bridge attached — OS integration live');
     _bridge = bridge;

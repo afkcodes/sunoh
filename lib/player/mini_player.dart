@@ -5,6 +5,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:phosphor_flutter/phosphor_flutter.dart';
 
+import '../cast/cast_button.dart';
 import '../providers/app_state_provider.dart';
 import '../providers/palette_provider.dart';
 import '../router/router.dart';
@@ -71,6 +72,11 @@ class MiniPlayer extends ConsumerWidget {
                     ],
                   ),
                 ),
+                // Cast button — small enough to share the row with the
+                // play/pause cluster but legible. Flips glyph + color
+                // when a session is live (watches AppState.isCasting).
+                const CastButton(size: 20, width: 36, height: 36),
+                const SizedBox(width: 8),
                 // Play/pause gets a subtle accent-tinted circular wash so it
                 // reads as the primary action. Alpha 0.20 over the frosted
                 // bottom bar lands near the surface color but with palette
@@ -84,6 +90,7 @@ class MiniPlayer extends ConsumerWidget {
                     22,
                     s.playPause,
                     background: accent.withValues(alpha: 0.20)),
+                const SizedBox(width: 4),
                 _miniBtn(PhosphorIconsFill.skipForward, c.fg, 22, s.next),
               ],
             ),

@@ -95,13 +95,17 @@ class StreamResolver {
   /// — the embedded URLs are the original signed ones from when the feed
   /// was fetched, which is the exact set of URLs we need to bypass.
   Future<ResolvedStream> resolve(FeedItem song,
-      {bool forceRefresh = false}) async {
+      {bool forceRefresh = false, bool network = false}) async {
     // 0) Offline tier — short-circuits everything. forceRefresh DOESN'T
     //    bypass this because local files don't have expiry; the only
     //    reason to "force refresh" is a stale signed URL, which is a
     //    network concern.
+    //
+    // `network: true` *does* bypass this — used by the Cast path where
+    // the Cast receiver can't reach the phone's `file://` paths and we
+    // genuinely need a public-network URL.
     final local = localSource;
-    if (local != null) {
+    if (local != null && !network) {
       try {
         final url = await local.localUrlFor(song.id);
         if (url != null && url.isNotEmpty) {

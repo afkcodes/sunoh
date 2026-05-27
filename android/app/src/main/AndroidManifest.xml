@@ -7,6 +7,24 @@
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE"/>
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE_MEDIA_PLAYBACK"/>
     <uses-permission android:name="android.permission.POST_NOTIFICATIONS"/>
+    <!-- Chromecast / Google Cast discovery. The flutter_chrome_cast
+         plugin ships an empty manifest so the host app declares these:
+           * ACCESS_NETWORK_STATE / ACCESS_WIFI_STATE — query the active
+             SSID + connectivity state, used by the Cast SDK to filter
+             discoverable devices to the local network.
+           * CHANGE_WIFI_MULTICAST_STATE — subscribe to mDNS multicast
+             packets (the protocol Cast uses to advertise devices on the
+             LAN). Without this the SDK silently never sees any device.
+           * NEARBY_WIFI_DEVICES — Android 13+ runtime permission for
+             scanning nearby Wi-Fi devices. Marked `neverForLocation` so
+             the system doesn't also prompt for fine-location (we don't
+             need it for Cast). -->
+    <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE"/>
+    <uses-permission android:name="android.permission.ACCESS_WIFI_STATE"/>
+    <uses-permission android:name="android.permission.CHANGE_WIFI_MULTICAST_STATE"/>
+    <uses-permission android:name="android.permission.NEARBY_WIFI_DEVICES"
+        android:usesPermissionFlags="neverForLocation"
+        tools:targetApi="33"/>
     <application
         android:label="sunoh"
         android:name="${applicationName}"
@@ -60,6 +78,24 @@
         <meta-data
             android:name="flutterEmbedding"
             android:value="2" />
+
+        <!-- Google Cast SDK requires the consuming app to declare the
+             OptionsProvider class. flutter_chrome_cast's plugin manifest
+             is empty, so we point at its provider here. WITHOUT this the
+             Cast SDK initialises with an empty provider, discovery
+             silently never starts, and the device picker stays empty
+             even on a fully Cast-capable LAN. -->
+        <meta-data
+            android:name="com.google.android.gms.cast.framework.OPTIONS_PROVIDER_CLASS_NAME"
+            android:value="com.felnanuke.google_cast.GoogleCastOptionsProvider"/>
+
+        <!-- Cast SDK posts a media-style notification while a session
+             is active so the user can pause/skip from the lockscreen
+             without re-opening the app. -->
+        <service
+            android:name="com.google.android.gms.cast.framework.media.MediaNotificationService"
+            android:exported="false"
+            android:foregroundServiceType="mediaPlayback"/>
 
         <!-- audio_service plumbing — foreground media service + hardware
              media-button receiver (headset play/pause). -->

@@ -736,6 +736,11 @@ class SunohAudioHandler {
 
   Future<void> seek(Duration position) => _player.seek(position);
 
+  /// Volume override. 0–100. Used by the Cast handoff to mute mpv while
+  /// a Cast session owns playback; the cast layer restores to 100 on
+  /// disconnect. Mpv stays loaded + paused/playing as normal otherwise.
+  Future<void> setVolume(double volume) => _player.setVolume(volume);
+
   Future<void> stop() async {
     _userPlaying = false;
     _pausedForInterruption = false;

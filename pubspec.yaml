@@ -108,6 +108,14 @@ dependencies:
   # the broken release build. Re-evaluate when Flutter SDK fixes the
   # dev_dependency exclusion path.
   flutter_native_splash: ^2.4.6
+  # Google Cast SDK wrapper. Used by `lib/cast/cast_service.dart` to
+  # discover Cast devices on the LAN + remote-control a Cast session
+  # (load media, play/pause/seek, position stream). The Cast device
+  # fetches the URL itself, so mpv goes silent during a cast session;
+  # AudioRepo routes transport commands to whichever backend currently
+  # owns playback. Requires Google Play Services on the phone — devices
+  # without GApps can't cast.
+  flutter_chrome_cast: ^1.4.6
 
 dev_dependencies:
   flutter_test:

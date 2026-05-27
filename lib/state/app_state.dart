@@ -6,9 +6,12 @@ import 'package:flutter/material.dart';
 
 import '../api/dto.dart';
 import '../audio/audio_handler.dart' show PlayMode;
+import 'package:flutter_chrome_cast/enums.dart';
+
 import '../audio/audio_repo.dart';
 import '../audio/eq_presets.dart';
 import '../audio/settings_store.dart';
+import '../cast/cast_service.dart';
 import '../data/catalog.dart';
 import '../data/models.dart';
 import '../theme/tokens.dart';
@@ -23,6 +26,7 @@ class AppState extends ChangeNotifier with WidgetsBindingObserver {
     liked = {kTracks[0].id: true};
     WidgetsBinding.instance.addObserver(this);
     _bindAudio();
+    _wireCast();
     _restoreSavedPlayback();
     _restoreSavedEq();
     _restoreSavedSettings();
@@ -525,8 +529,14 @@ class AppState extends ChangeNotifier with WidgetsBindingObserver {
     // Position → positionTick (the scrubber + lyrics already watch this).
     // Also persists position to disk roughly every 5 seconds so a crash
     // doesn't lose more than that.
+    //
+    // Gated by `!isCasting` — when a Cast session is live, the receiver
+    // owns the play-head and the cast position stream drives positionTick.
+    // mpv is muted but still ticks its own position from 0, which would
+    // clobber the cast position if we didn't gate here.
     int lastPersistedSec = 0;
     _audioSubs.add(handler.positionStream.listen((pos) {
+      if (isCasting) return;
       if (currentApiSong == null) return; // dummy clock still owns the tick
       final secs = pos.inSeconds;
       if (secs != position) position = secs;
@@ -578,8 +588,41 @@ class AppState extends ChangeNotifier with WidgetsBindingObserver {
         unawaited(_pushPlayedHistory(prev));
       }
       _applySong(song);
+      // Cast handoff for queue advances. mpv's playlist drives `next`
+      // even when casting (mpv is muted) so we always know what comes
+      // next — we just need to forward it to the receiver.
+      if (isCasting) {
+        unawaited(_pushCurrentSongToCast(song));
+      }
       notifyListeners();
     }));
+  }
+
+  /// Resolve [song] to a network URL and load it onto the active Cast
+  /// session. Called for queue advances + new song selections while
+  /// casting + mid-track URL refreshes. Skips the LocalSourceProvider
+  /// tier (cast device can't reach `file://`) and force-refreshes so
+  /// the receiver gets a fresh signed URL.
+  Future<void> _pushCurrentSongToCast(
+    FeedItem song, {
+    Duration position = Duration.zero,
+  }) async {
+    final repo = audioRepo;
+    if (repo == null) return;
+    try {
+      final resolved =
+          await repo.resolver.resolve(song, forceRefresh: true, network: true);
+      final ok = await CastService.instance.loadSong(
+        song: song,
+        url: resolved.url,
+        position: position,
+      );
+      if (!ok) {
+        debugPrint('[cast] push loadSong failed');
+      }
+    } catch (e, st) {
+      debugPrint('[cast] push failed: $e\n$st');
+    }
   }
 
   Future<void> _pushPlayedHistory(FeedItem song) async {
@@ -819,6 +862,12 @@ class AppState extends ChangeNotifier with WidgetsBindingObserver {
       return;
     }
     try {
+      // mpv always loads the queue — even while casting. mpv is muted
+      // (setVolume(0) on cast connect) so it produces no sound; we keep
+      // it loaded so its playlist + index stay the queue source of truth
+      // for skipToNext / repeat / shuffle. The currentSongStream listener
+      // in _bindAudio detects the casting state and forwards each new
+      // song to the receiver via _pushCurrentSongToCast.
       await repo.playQueue(songs, startIndex,
           sourceLabel: sourceLabel, sourceRef: sourceRef, mode: mode);
     } catch (e) {
@@ -951,6 +1000,19 @@ class AppState extends ChangeNotifier with WidgetsBindingObserver {
 
   void playPause() {
     isPlaying = !isPlaying;
+    // Cast routing — when a Cast session is live, the receiver is the
+    // source of truth. mpv stays paused; the cast service forwards
+    // commands to the device. Position state on the phone is best-
+    // effort until v2 wires the mediaStatus → positionTick bridge.
+    if (isCasting) {
+      if (isPlaying) {
+        CastService.instance.play();
+      } else {
+        CastService.instance.pause();
+      }
+      notifyListeners();
+      return;
+    }
     if (currentApiSong != null && audioRepo != null) {
       if (isPlaying) {
         audioRepo!.play();
@@ -961,6 +1023,229 @@ class AppState extends ChangeNotifier with WidgetsBindingObserver {
       _ensureTimer();
     }
     notifyListeners();
+  }
+
+  // ── Chromecast ────────────────────────────────────────────────────────
+  //
+  // Tap of the cast button hands control of the active song to a Cast
+  // receiver. The phone becomes a remote controller: mpv pauses, the
+  // receiver fetches the network URL itself + reports back. On
+  // disconnect we resume on mpv from the last known position.
+  //
+  // Only basic transport is wired in v1 (play / pause / disconnect).
+  // Mid-track URL refresh on Cast, queue advance while casting, and
+  // position sync from the receiver are v2.
+
+  bool _isCasting = false;
+  String? _castDeviceName;
+
+  bool get isCasting => _isCasting;
+  String? get castDeviceName => _castDeviceName;
+
+  StreamSubscription? _castSessionSub;
+  StreamSubscription? _castPositionSub;
+  StreamSubscription? _castStatusSub;
+  StreamSubscription? _castTrackEndedSub;
+  StreamSubscription? _castErrorSub;
+  StreamSubscription? _castRefreshSub;
+
+  void _wireCast() {
+    _castSessionSub?.cancel();
+    _castPositionSub?.cancel();
+    _castStatusSub?.cancel();
+    _castTrackEndedSub?.cancel();
+    _castErrorSub?.cancel();
+    _castRefreshSub?.cancel();
+
+    _castSessionSub =
+        CastService.instance.sessionStream.listen((session) async {
+      final nowConnected = CastService.instance.isConnected;
+      final wasCasting = _isCasting;
+      _isCasting = nowConnected;
+      _castDeviceName = session?.device?.friendlyName;
+
+      if (!wasCasting && nowConnected) {
+        // Just connected → mute mpv (avoid double-audio if mpv's
+        // playback bleeds during the handoff), flip the audio_service
+        // bridge into cast-override mode (so the lockscreen notification
+        // reflects the cast device, not mpv's now-paused state), and
+        // hand off the current song.
+        try {
+          await audioRepo?.handler.setVolume(0);
+        } catch (_) {}
+        audioRepo?.bridge?.setCastingActive(
+          active: true,
+          playing: isPlaying,
+          position: Duration(seconds: position),
+        );
+        await _handOffToCast();
+      } else if (wasCasting && !nowConnected) {
+        // Just disconnected → drop cast-override (bridge resumes
+        // mirroring mpv), restore mpv volume + seek + resume.
+        audioRepo?.bridge?.setCastingActive(
+          active: false,
+          playing: isPlaying,
+          position: Duration(seconds: position),
+        );
+        await _resumeOnPhone();
+      }
+      notifyListeners();
+    });
+
+    // Position stream from the Cast receiver. While casting we want the
+    // scrubber to track the cast device's playhead, not mpv's stale 0.
+    // Also push to audio_service so the lockscreen notification's
+    // scrubber moves in step with the receiver.
+    _castPositionSub =
+        CastService.instance.positionStream.listen((pos) {
+      if (!_isCasting) return;
+      final secs = pos.inSeconds;
+      if (secs != position) position = secs;
+      audioRepo?.bridge?.setCastingPlaybackState(
+        playing: isPlaying,
+        position: pos,
+      );
+    });
+
+    // Cast media status flips between playing / paused independently
+    // (e.g. user paused via Google Home app). Mirror that to isPlaying
+    // so the in-app UI + notification stay correct.
+    _castStatusSub?.cancel();
+    _castStatusSub =
+        CastService.instance.mediaStatusStream.listen((status) {
+      if (!_isCasting || status == null) return;
+      final castPlaying =
+          status.playerState == CastMediaPlayerState.playing;
+      if (castPlaying != isPlaying) {
+        isPlaying = castPlaying;
+        audioRepo?.bridge?.setCastingPlaybackState(
+          playing: isPlaying,
+          position: CastService.instance.lastReportedPosition,
+        );
+        notifyListeners();
+      }
+    });
+
+    // Cast track ended → advance the queue, honoring repeat mode.
+    //   - LoopMode.one  : re-push the same song at position 0. mpv's
+    //                     native loop-file works for it (muted), but
+    //                     we have to drive the receiver explicitly.
+    //   - LoopMode.all  : at end-of-queue, jump back to 0 and let the
+    //                     existing `currentSongStream` listener push;
+    //                     otherwise plain repo.next().
+    //   - LoopMode.off  : at end-of-queue, stop cleanly (isPlaying=
+    //                     false, position at song end). Otherwise
+    //                     repo.next().
+    _castTrackEndedSub =
+        CastService.instance.trackEndedStream.listen((_) async {
+      if (!_isCasting) return;
+      final repo = audioRepo;
+      if (repo == null) return;
+      if (repo.queue.isEmpty) return;
+
+      if (repeat == LoopMode.one) {
+        final song = currentApiSong;
+        if (song != null) {
+          unawaited(_pushCurrentSongToCast(song));
+        }
+        return;
+      }
+
+      final isLast = repo.currentIndex >= repo.queue.length - 1;
+      if (isLast) {
+        if (repeat == LoopMode.all) {
+          // Wrap to the top.
+          await repo.jumpToIndex(0);
+        } else {
+          // Clean stop at end of queue.
+          isPlaying = false;
+          flashToast('End of queue');
+          notifyListeners();
+        }
+        return;
+      }
+      await repo.next();
+    });
+
+    // Cast media error (network drop, bad URL, segment fetch fail on
+    // HLS) → re-resolve + reload at the receiver's last known position
+    // so playback can pick back up where it left off.
+    _castErrorSub =
+        CastService.instance.mediaErrorStream.listen((_) async {
+      if (!_isCasting) return;
+      final song = currentApiSong;
+      if (song == null) return;
+      final at = CastService.instance.lastReportedPosition;
+      debugPrint('[cast] media error @ ${at.inSeconds}s — re-pushing');
+      unawaited(_pushCurrentSongToCast(song, position: at));
+    });
+
+    // Proactive signed-URL refresh ~5 min before expiry. Same defense-
+    // in-depth pattern as mpv's url_refresh.dart, mirrored onto the
+    // cast receiver so long albums/playlists don't trip 403s mid-track.
+    _castRefreshSub =
+        CastService.instance.refreshNeededStream.listen((_) async {
+      if (!_isCasting) return;
+      final song = currentApiSong;
+      if (song == null) return;
+      final at = CastService.instance.lastReportedPosition;
+      debugPrint('[cast] proactive URL refresh @ ${at.inSeconds}s');
+      unawaited(_pushCurrentSongToCast(song, position: at));
+    });
+  }
+
+  Future<void> _handOffToCast() async {
+    final song = currentApiSong;
+    final repo = audioRepo;
+    if (song == null || repo == null) {
+      // Nothing to play; user can still pick songs and they'll cast.
+      return;
+    }
+    final wasPlaying = isPlaying;
+    final atPosition = Duration(seconds: position);
+    try {
+      await repo.handler.pause();
+    } catch (_) {}
+    // Skip the local downloads tier — the Cast receiver needs a public
+    // network URL it can fetch. forceRefresh also drops the resolver
+    // cache so we hand the receiver a fresh signed URL.
+    final resolved = await repo.resolver
+        .resolve(song, forceRefresh: true, network: true);
+    final ok = await CastService.instance.loadSong(
+      song: song,
+      url: resolved.url,
+      position: atPosition,
+    );
+    if (ok) {
+      isPlaying = wasPlaying;
+      flashToast('Casting to ${_castDeviceName ?? "device"}');
+    } else {
+      flashToast('Couldn’t start cast');
+    }
+    notifyListeners();
+  }
+
+  Future<void> _resumeOnPhone() async {
+    final repo = audioRepo;
+    if (repo == null) return;
+    // Restore mpv's volume (was muted during cast) and hand the play
+    // head back from the cast device. mpv is currently sitting paused
+    // at the pre-cast position; seek to wherever the cast device left
+    // off, then resume if the user was playing.
+    try {
+      await repo.handler.setVolume(100);
+    } catch (_) {}
+    final lastCastPos = CastService.instance.lastReportedPosition;
+    if (lastCastPos > Duration.zero) {
+      try {
+        await repo.seek(lastCastPos);
+      } catch (_) {}
+      position = lastCastPos.inSeconds;
+    }
+    if (isPlaying) {
+      await repo.play();
+    }
+    flashToast('Resumed on phone');
   }
 
   void next() {
@@ -1019,6 +1304,14 @@ class AppState extends ChangeNotifier with WidgetsBindingObserver {
 
   void seek(int v) {
     position = v.clamp(0, current.duration);
+    // Cast routing — when a session is active the receiver owns playback.
+    // Send the seek to it; mpv stays where it is (muted) and will be
+    // re-synced at disconnect via `_resumeOnPhone`.
+    if (isCasting) {
+      CastService.instance.seek(Duration(seconds: position));
+      notifyListeners();
+      return;
+    }
     if (currentApiSong != null && audioRepo != null) {
       audioRepo!.seek(Duration(seconds: position));
     }
@@ -1168,6 +1461,12 @@ class AppState extends ChangeNotifier with WidgetsBindingObserver {
     for (final s in _audioSubs) {
       s.cancel();
     }
+    _castSessionSub?.cancel();
+    _castPositionSub?.cancel();
+    _castStatusSub?.cancel();
+    _castTrackEndedSub?.cancel();
+    _castErrorSub?.cancel();
+    _castRefreshSub?.cancel();
     positionTick.dispose();
     super.dispose();
   }
