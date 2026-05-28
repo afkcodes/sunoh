@@ -39,12 +39,15 @@ import '../widgets/ui.dart';
 const double _kLoadMoreThreshold = 600;
 
 /// One-shot expand size for the full episode list. PodcastIndex's
-/// /episodes/byfeedid has no real cursor (no "older-than" param), so
-/// we can't page in small batches — instead the initial fast 30 (from
-/// the bundled /podcasts/:id call) gets replaced with a single bigger
-/// fetch the moment the user scrolls in. 500 covers ~all shows; the
-/// rare longer ones can pick up a follow-up bump later.
-const int _kFullFetchMax = 500;
+/// /episodes/byfeedid has no older-than cursor (only `since=…` which
+/// is a NEWER-than filter), and the API hard-caps at max=1000 — so
+/// 1000 is the absolute ceiling, full stop. The initial fast 30 (from
+/// the bundled /podcasts/:id call) gets replaced with this fetch the
+/// moment the user scrolls in. Covers ~every podcast ever made except
+/// a handful of long-running daily shows (Rogan, This American Life,
+/// Stuff You Should Know); reaching beyond would need a server-side
+/// raw-RSS parse, which isn't worth the new dep right now.
+const int _kFullFetchMax = 1000;
 
 class PodcastShowScreen extends ConsumerStatefulWidget {
   const PodcastShowScreen({super.key, required this.id});
