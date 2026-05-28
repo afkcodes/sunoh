@@ -130,12 +130,6 @@ class _SleepSheet extends ConsumerWidget {
               mainAxisSize: MainAxisSize.min,
               children: [
                 for (var i = 0; i < _options.length; i++) ...[
-                  if (i > 0)
-                    Container(
-                      height: 0.5,
-                      color: c.line.withValues(alpha: 0.5),
-                      margin: const EdgeInsets.symmetric(horizontal: 22),
-                    ),
                   _OptionRow(
                     option: _options[i],
                     active: _isActive(_options[i], s),

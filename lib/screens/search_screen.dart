@@ -11,6 +11,7 @@ import '../api/dto.dart';
 import '../data/models.dart';
 import '../overlays/track_menu_sheet.dart';
 import '../providers/app_state_provider.dart';
+import '../providers/podcast_provider.dart';
 import '../providers/search_provider.dart';
 import '../router/deep_links.dart';
 import '../router/router.dart';
@@ -300,6 +301,10 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
       return const _ResultsSkeleton();
     }
     final async = ref.watch(searchProvider(_activeQuery));
+    // Parallel podcast search. The two providers fire independently;
+    // we merge results when the music search resolves. Podcast search
+    // failures degrade gracefully — the section just doesn't appear.
+    final podcastAsync = ref.watch(podcastSearchProvider(_activeQuery));
     return async.when(
       loading: () => const _ResultsSkeleton(),
       error: (e, _) => _SearchHint(
@@ -309,6 +314,12 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
       ),
       data: (sections) {
         final nonEmpty = sections.where((sec) => sec.items.isNotEmpty).toList();
+        // Merge podcast results in as a HomeSection-shaped row so the
+        // existing _ResultsSection renderer can draw the tiles unchanged.
+        final podcasts = podcastAsync.asData?.value ?? const <FeedItem>[];
+        if (podcasts.isNotEmpty) {
+          nonEmpty.add(HomeSection(heading: 'Podcasts', items: podcasts));
+        }
         if (nonEmpty.isEmpty) {
           return _SearchHint(
             colors: c,

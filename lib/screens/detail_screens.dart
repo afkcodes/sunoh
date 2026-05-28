@@ -10,7 +10,8 @@ import 'package:phosphor_flutter/phosphor_flutter.dart';
 import 'package:solar_icons/solar_icons.dart';
 
 import '../api/dto.dart';
-import '../data/catalog.dart';
+// catalog.dart was the dummy data source for the now-removed podcast
+// screen — the file is still used by other screens but not here.
 import '../data/models.dart';
 import '../overlays/hero_menu_sheet.dart';
 import '../overlays/track_menu_sheet.dart';
@@ -176,10 +177,6 @@ class _HeroActions extends StatelessWidget {
 // Scroll distance over which the hero artwork shrinks+fades and the sticky
 // header takes over. Mirrors RN's HEADER_SCROLL_DISTANCE.
 const double _kHeroScrollDistance = 360;
-
-// Static zero offset — for hero contexts that don't have a scroll listener
-// attached (e.g., the dummy PodcastScreen). Cheap to keep alive forever.
-final ValueNotifier<double> _kZeroOffset = ValueNotifier<double>(0);
 
 /// Pick a foreground (icon/text) color that reads cleanly on top of [bg].
 /// Light backgrounds → near-black; dark backgrounds → near-white. Used for
@@ -1620,224 +1617,10 @@ class _ArtistBody extends ConsumerWidget {
   }
 }
 
-// ── Podcast detail (still on dummy catalog — backend support is upcoming) ────
-class PodcastScreen extends ConsumerStatefulWidget {
-  const PodcastScreen({super.key, required this.id});
-  final String id;
-  @override
-  ConsumerState<PodcastScreen> createState() => _PodcastScreenState();
-}
-
-class _PodcastScreenState extends ConsumerState<PodcastScreen> {
-  String tab = 'Episodes';
-
-  @override
-  Widget build(BuildContext context) {
-    final s = ref.watch(appStateProvider);
-    final c = s.colors;
-    final pod = podcastOf(widget.id) ?? kPodcasts[0];
-    final episodes = episodesOf(pod.id);
-    final accent = artAccent(widget.id);
-
-    void playEpisode(Episode e) => s.playTrack(Track(
-          id: e.id,
-          title: e.title,
-          artist: pod.title,
-          duration: 6500,
-          plays: '—',
-          album: pod.id,
-        ));
-
-    return ColoredBox(
-      color: c.bg,
-      child: ListView(
-        padding: const EdgeInsets.only(bottom: 140),
-        children: [
-          _DetailHero(
-            id: widget.id,
-            title: pod.title,
-            eyebrowText: 'PODCAST · ${pod.cadence.toUpperCase()}',
-            sub: pod.host,
-            secondary: '${pod.episodes} episodes',
-            colors: c,
-            accent: accent,
-            scrollOffset: _kZeroOffset,
-          ),
-          Padding(
-            padding: const EdgeInsets.fromLTRB(24, 4, 24, 16),
-            child: Text(pod.sub,
-                textAlign: TextAlign.center,
-                style: SunohType.sans(fontSize: 13, color: c.fgDim, height: 1.5)),
-          ),
-          _HeroActions(
-            colors: c,
-            accent: accent,
-            liked: true,
-            isPlaying: false,
-            onPlay: () => episodes.isNotEmpty ? playEpisode(episodes.first) : null,
-            onShuffle: () {},
-          ),
-          Container(
-            padding: const EdgeInsets.fromLTRB(20, 0, 20, 12),
-            decoration: BoxDecoration(
-              border: Border(bottom: BorderSide(color: c.line, width: 0.5)),
-            ),
-            child: Row(
-              children: [
-                for (final t in ['Episodes', 'About', 'Reviews'])
-                  Padding(
-                    padding: const EdgeInsets.only(right: 18),
-                    child: GestureDetector(
-                      onTap: () => setState(() => tab = t),
-                      child: Column(
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          Text(t,
-                              style: SunohType.sans(
-                                  fontSize: 13,
-                                  fontWeight: t == tab ? FontWeight.w600 : FontWeight.w500,
-                                  color: t == tab ? c.fg : c.fgMute)),
-                          const SizedBox(height: 4),
-                          Container(
-                              height: 1.5,
-                              width: 24,
-                              color: t == tab ? accent : Colors.transparent),
-                        ],
-                      ),
-                    ),
-                  ),
-              ],
-            ),
-          ),
-          if (tab == 'Episodes')
-            for (var i = 0; i < episodes.length; i++)
-              _EpisodeRow(
-                episode: episodes[i],
-                colors: c,
-                isLast: i == episodes.length - 1,
-                onTap: () => playEpisode(episodes[i]),
-              ),
-          if (tab == 'About')
-            Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    '${pod.sub} A weekly show recorded in a small studio in a small city. Listener questions read out at the start of each month.',
-                    style: SunohType.sans(fontSize: 13.5, color: c.fgDim, height: 1.55),
-                  ),
-                  const SizedBox(height: 18),
-                  DefaultTextStyle(
-                    style: SunohType.mono(fontSize: 11, color: c.fgMute, letterSpacing: 0.4, height: 1.8),
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        _kv('HOSTED BY', pod.host, c),
-                        _kv('CADENCE', pod.cadence, c),
-                        _kv('EPISODES', '${pod.episodes}', c),
-                      ],
-                    ),
-                  ),
-                ],
-              ),
-            ),
-          if (tab == 'Reviews')
-            Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 40),
-              child: Column(
-                children: [
-                  Text('4.8 out of 5', style: SunohType.heading(fontSize: 22, color: c.fgDim)),
-                  const SizedBox(height: 6),
-                  eyebrow('1,402 RATINGS', c.fgMute, size: 10, letterSpacing: 1.2),
-                ],
-              ),
-            ),
-          const SizedBox(height: 24),
-        ],
-      ),
-    );
-  }
-
-  Widget _kv(String k, String v, SunohColors c) => RichText(
-        text: TextSpan(
-          style: SunohType.mono(fontSize: 11, color: c.fgMute, letterSpacing: 0.4),
-          children: [
-            TextSpan(text: '$k '),
-            TextSpan(text: v, style: SunohType.mono(fontSize: 11, color: c.fg, letterSpacing: 0.4)),
-          ],
-        ),
-      );
-}
-
-class _EpisodeRow extends StatelessWidget {
-  const _EpisodeRow({
-    required this.episode,
-    required this.colors,
-    required this.isLast,
-    required this.onTap,
-  });
-  final Episode episode;
-  final SunohColors colors;
-  final bool isLast;
-  final VoidCallback onTap;
-
-  @override
-  Widget build(BuildContext context) {
-    final c = colors;
-    return GestureDetector(
-      onTap: onTap,
-      behavior: HitTestBehavior.opaque,
-      child: Container(
-        padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 14),
-        decoration: BoxDecoration(
-          border: isLast ? null : Border(bottom: BorderSide(color: c.line, width: 0.5)),
-        ),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            eyebrow('EP ${episode.num.toString().padLeft(3, '0')} · ${episode.date.toUpperCase()}',
-                c.fgMute, size: 10, letterSpacing: 1.2),
-            const SizedBox(height: 8),
-            Text(episode.title,
-                style: SunohType.heading(fontSize: 18, color: c.fg, height: 1.2, letterSpacing: -0.2)),
-            if (episode.sub.isNotEmpty) ...[
-              const SizedBox(height: 8),
-              Text(episode.sub,
-                  style: SunohType.sans(fontSize: 13, color: c.fgDim, height: 1.45)),
-            ],
-            const SizedBox(height: 12),
-            Row(
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-              children: [
-                Container(
-                  width: 36,
-                  height: 36,
-                  decoration: BoxDecoration(
-                    color: c.surface,
-                    shape: BoxShape.circle,
-                    border: Border.all(color: c.line, width: 0.5),
-                  ),
-                  child: Icon(PhosphorIconsFill.play, size: 14, color: c.fg),
-                ),
-                Row(
-                  children: [
-                    Text(episode.duration,
-                        style: SunohType.mono(fontSize: 10, color: c.fgMute, letterSpacing: 0.6)),
-                    const SizedBox(width: 16),
-                    Icon(SolarIconsOutline.downloadMinimalistic, size: 15, color: c.fgMute),
-                    const SizedBox(width: 16),
-                    Icon(SolarIconsBold.menuDots, size: 15, color: c.fgMute),
-                  ],
-                ),
-              ],
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-}
+// ── Podcast detail — moved to lib/screens/podcast_show_screen.dart ────────
+// The dummy implementation that used `kPodcasts` / `episodesOf` from the
+// catalog was removed when the real /podcasts/* backend landed. Routes
+// in router.dart now point at PodcastShowScreen directly.
 
 // ── Occasion detail (browse-category collections from /music/occasions/:slug) ──
 // Same hero + sticky-header pattern as album/playlist, but with no track list

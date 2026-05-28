@@ -144,8 +144,25 @@ class SunohAudioHandler {
     _queueListenable.value = List.unmodifiable(list);
     final newIdx = pl.index;
     final indexChanged = newIdx != _currentIndex;
+    final oldIdx = _currentIndex;
     _currentIndex = newIdx;
     if (indexChanged) {
+      // Index moved — log the transition so we can spot unexpected
+      // skips in logcat (the "songs/episodes skip themselves" bug).
+      // Includes positions of both old and new tracks. The endFile +
+      // mpv-error log lines right above this in logcat tell us WHY
+      // mpv moved on (natural EOF / premature EOF / load error).
+      final from = (oldIdx >= 0 && oldIdx < list.length)
+          ? list[oldIdx]
+          : null;
+      final to = (newIdx >= 0 && newIdx < list.length)
+          ? list[newIdx]
+          : null;
+      // ignore: avoid_print
+      print('[audio] playlist index $oldIdx → $newIdx '
+          'len=${list.length} '
+          'from="${from?.title ?? '?'}" (${from?.id ?? '?'}) '
+          '→ to="${to?.title ?? '?'}" (${to?.id ?? '?'})');
       _icyTitleCtl.add(null); // new track → reset ICY title
       _emitCurrentSong();
     }
@@ -484,12 +501,19 @@ class SunohAudioHandler {
   //   - Hard load errors → retry up to 2× per song id.
 
   void _onEndFile(MpvFileEndedEvent event) {
-    debugPrint('[audio] endFile reason=${event.reason}');
+    // Promoted to `print` because the unexpected-skip bug surfaces in
+    // release builds where `debugPrint` is dropped. The reason field
+    // tells us WHY mpv emitted endFile — eof, stop, redirect, error.
+    final pos = _player.state.position;
+    final dur = _player.state.duration;
+    final song = currentSong;
+    // ignore: avoid_print
+    print('[audio] endFile reason=${event.reason} '
+        'pos=${pos.inSeconds}s dur=${dur.inSeconds}s '
+        'id="${song?.id ?? '?'}" title="${song?.title ?? '?'}"');
     if (event.reason != MpvEndFileReason.eof) return;
 
     if (_playMode == PlayMode.live) {
-      // Live streams never end naturally — EOF means the connection
-      // dropped. Refresh the same source.
       // ignore: avoid_print
       print('[audio] live stream EOF — reconnecting');
       unawaited(_urlRefresh.triggerRefresh(reason: 'live stream EOF'));
@@ -498,8 +522,6 @@ class SunohAudioHandler {
 
     // Track mode: was this a natural end (mpv will auto-advance) or a
     // premature network drop? Compare position vs duration.
-    final pos = _player.state.position;
-    final dur = _player.state.duration;
     final isPremature = dur > const Duration(seconds: 3) &&
         pos < dur - const Duration(seconds: 15) &&
         pos.inMilliseconds < (dur.inMilliseconds * 0.9).round();
@@ -510,10 +532,9 @@ class SunohAudioHandler {
           '— url-refresh');
       unawaited(_urlRefresh.triggerRefresh(reason: 'premature EOF'));
     } else {
-      // Natural end — mpv's playlist auto-advance will handle it. The
-      // playlist stream listener will emit the new currentSong.
-      debugPrint(
-          '[audio] natural EOF @ ${pos.inSeconds}/${dur.inSeconds}s (mpv auto-advances)');
+      // ignore: avoid_print
+      print('[audio] natural EOF @ ${pos.inSeconds}/${dur.inSeconds}s '
+          '(mpv will auto-advance)');
     }
   }
 
@@ -522,22 +543,23 @@ class SunohAudioHandler {
   static const _maxRetries = 2;
 
   void _onError(MpvPlayerError err) {
-    debugPrint('[mpv error] $err');
+    // ignore: avoid_print
+    print('[mpv error] $err');
     if (err is! MpvEndFileError || !err.isLoadingError) return;
     final song = currentSong;
     if (song == null) return;
 
     final tries = _loadFailRetries[song.id] ?? 0;
     if (tries >= _maxRetries) {
-      debugPrint('[audio] giving up on ${song.id} after $tries retries');
+      // ignore: avoid_print
+      print('[audio] giving up on ${song.id} ("${song.title}") '
+          'after $tries retries — mpv will auto-advance to next');
       _loadFailRetries.remove(song.id);
-      // In track mode mpv will auto-advance through the playlist on
-      // playback failure (its own retry policy). In live mode there's
-      // no next, so we just surface the failure.
       return;
     }
     _loadFailRetries[song.id] = tries + 1;
-    debugPrint('[audio] load error for ${song.id} '
+    // ignore: avoid_print
+    print('[audio] load error for ${song.id} ("${song.title}") '
         '(try ${tries + 1}/$_maxRetries) — force-refresh');
     unawaited(_refreshCurrentTrack());
   }
@@ -618,25 +640,28 @@ class SunohAudioHandler {
   // → gapless transition. Position survives via `_pendingStartPosition`.
   Future<void> _refreshCurrentTrack() async {
     final song = currentSong;
-    if (song == null) return;
+    if (song == null) {
+      // ignore: avoid_print
+      print('[url-refresh] no current song to refresh');
+      return;
+    }
     final pos = _player.state.position;
-    debugPrint('[url-refresh] reload ${song.id} @ ${pos.inSeconds}s');
+    // ignore: avoid_print
+    print('[url-refresh] reload ${song.id} ("${song.title}") '
+        '@ ${pos.inSeconds}s');
     _pendingStartPosition = pos;
     _forceRefreshNextResolve = true;
     try {
       if (_playMode == PlayMode.live) {
-        // Single-entry mode — re-open the same source. Honour user
-        // intent (don't surprise-resume after a refresh if the user had
-        // paused mid-stream).
         await _player.open(_toMedia(song), play: _userPlaying);
       } else {
-        // Track mode: per docs, `replace(currentIndex, …)` inherits
-        // mpv's prefetch-driven transition — the swap is gapless and
-        // playing state is preserved automatically.
         await _player.replace(_currentIndex, _toMedia(song));
       }
+      // ignore: avoid_print
+      print('[url-refresh] reload OK ${song.id}');
     } catch (e) {
-      debugPrint('[url-refresh] reload failed: $e');
+      // ignore: avoid_print
+      print('[url-refresh] reload failed for ${song.id}: $e');
       _pendingStartPosition = null;
       _forceRefreshNextResolve = false;
     }
@@ -749,11 +774,23 @@ class SunohAudioHandler {
     await _deactivateSession();
   }
 
-  Future<void> skipToNext() => _player.next();
+  Future<void> skipToNext() {
+    // ignore: avoid_print
+    print('[audio] skipToNext() called (user-initiated next)');
+    return _player.next();
+  }
 
-  Future<void> skipToPrevious() => _player.previous();
+  Future<void> skipToPrevious() {
+    // ignore: avoid_print
+    print('[audio] skipToPrevious() called (user-initiated prev)');
+    return _player.previous();
+  }
 
-  Future<void> jumpTo(int index) => _player.jump(index);
+  Future<void> jumpTo(int index) {
+    // ignore: avoid_print
+    print('[audio] jumpTo($index) called (user-initiated jump)');
+    return _player.jump(index);
+  }
 
   /// Insert `song` immediately after the currently-playing entry.
   Future<void> playNext(FeedItem song) async {

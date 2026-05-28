@@ -25,6 +25,10 @@ import '../screens/library_screen.dart';
 import '../screens/liked_songs_screen.dart';
 import '../screens/recently_played_screen.dart';
 import '../screens/search_screen.dart';
+import '../screens/episode_detail_screen.dart';
+import '../screens/podcast_categories_screen.dart';
+import '../screens/podcast_category_screen.dart';
+import '../screens/podcast_show_screen.dart';
 import '../screens/section_screen.dart';
 import '../screens/settings_screen.dart';
 import '../screens/user_playlist_screen.dart';
@@ -162,7 +166,31 @@ List<RouteBase> _detailRoutes() => [
       ),
       GoRoute(
         path: 'podcast/:id',
-        pageBuilder: (c, s) => _slideRight(PodcastScreen(id: s.pathParameters['id']!), s),
+        pageBuilder: (c, s) =>
+            _slideRight(PodcastShowScreen(id: s.pathParameters['id']!), s),
+      ),
+      GoRoute(
+        path: 'podcast-episode/:guid',
+        pageBuilder: (c, s) => _slideRight(
+            EpisodeDetailScreen(guid: s.pathParameters['guid']!), s),
+      ),
+      GoRoute(
+        path: 'podcast-categories',
+        pageBuilder: (c, s) =>
+            _slideRight(const PodcastCategoriesScreen(), s),
+      ),
+      GoRoute(
+        path: 'podcast-category/:slug',
+        pageBuilder: (c, s) {
+          // `extra` carries the category name when navigating from the
+          // categories grid so the per-category screen can show a clean
+          // title without a second fetch.
+          final name = s.extra is String ? s.extra as String : null;
+          return _slideRight(
+              PodcastCategoryScreen(
+                  slug: s.pathParameters['slug']!, name: name),
+              s);
+        },
       ),
       GoRoute(
         path: 'occasion/:slug',
@@ -356,6 +384,13 @@ extension SunohNav on BuildContext {
   void openDownloads() => push('$_branchPrefix/downloads');
   void openUserPlaylist(String id) =>
       push('$_branchPrefix/user-playlist/$id');
+  void openPodcastEpisode(String guid) =>
+      push('$_branchPrefix/podcast-episode/${Uri.encodeComponent(guid)}');
+  void openPodcastCategories() =>
+      push('$_branchPrefix/podcast-categories');
+  void openPodcastCategory(String slug, {String? name}) => push(
+      '$_branchPrefix/podcast-category/${Uri.encodeComponent(slug)}',
+      extra: name);
 }
 
 /// NavigatorObserver that fires Firebase `screen_view` whenever a route

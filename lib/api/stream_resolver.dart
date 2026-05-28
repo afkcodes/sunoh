@@ -6,10 +6,13 @@
 //      in here without the handler needing to know about offline storage.
 //   1. If the song already carries `mediaUrls`, pick a variant from that
 //      list per the current `quality` preference. Zero network round-trips.
-//   2. Hit `/music/song/:id?provider=…` — this is the full song endpoint,
-//      works for BOTH saavn and gaana, and the response contains `mediaUrls`.
-//      Used when restoring from persisted state where we don't keep URLs
-//      (gaana signed URLs expire and saavn ones may drift).
+//   2a. Podcasts (`source == 'podcastindex'`) re-fetch through
+//       `/podcasts/episode/:id` — `/music/song/` 400s for podcast ids,
+//       so it's a dead end. We bail here for podcasts after that one
+//       attempt rather than falling through to the music tiers.
+//   2b. Hit `/music/song/:id?provider=…` — full saavn/gaana song endpoint,
+//      response contains `mediaUrls`. Used when restoring from persisted
+//      state where we don't keep URLs (signed gaana URLs expire).
 //   3. For gaana specifically, fall back to `/music/song/:id/stream?provider=gaana`
 //      — that's the dedicated refresh endpoint that re-signs URLs.
 //
@@ -140,6 +143,32 @@ class StreamResolver {
     }
 
     final provider = song.source;
+
+    // Podcasts live in a parallel namespace — the `/music/song/...` path
+    // is hardwired to saavn/gaana and 400s on `provider=podcastindex`. Refetch
+    // the episode through `/podcasts/episode/:id` instead; that response
+    // carries the enclosure URL as `mediaUrls[0].link`.
+    if (provider == 'podcastindex') {
+      try {
+        final res = await _dio.get<Map<String, dynamic>>(
+          '/podcasts/episode/${Uri.encodeComponent(song.id)}',
+        );
+        final dataRaw = res.data?['data'];
+        if (dataRaw is Map) {
+          final parsed =
+              FeedItem.fromJson(dataRaw.cast<String, dynamic>());
+          final url = _pick(parsed.mediaUrls);
+          if (url != null) {
+            return _store(song.id, ResolvedStream(url, enriched: parsed));
+          }
+        }
+      } on DioException catch (_) {
+        // Fall through to the throw — no other tier can recover a podcast.
+      }
+      throw StreamResolveException(
+          'No playable stream variants for "${song.title}" (${song.id}).');
+    }
+
     final query = <String, dynamic>{
       if (provider != null && provider.isNotEmpty) 'provider': provider,
     };

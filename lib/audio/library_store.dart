@@ -30,6 +30,16 @@ class LibraryStore {
   // User-created playlists (local only). Distinct from `saved_playlists`
   // which holds API-sourced playlists the user has bookmarked.
   static const _kUserPlaylists = 'user_playlists';
+  // Subscribed podcast shows. Separate key because shows aren't the
+  // same conceptual bucket as albums/playlists — they're feeds, not
+  // collections, and "subscribed" implies wanting new episodes
+  // surfaced.
+  static const _kSubscribedPodcasts = 'subscribed_podcasts';
+  // Map of episodeId → position seconds. Survives app restarts so
+  // resume-where-you-left-off works across cold starts. Capped at
+  // [_maxEpisodeProgress] entries (LRU by updatedAt).
+  static const _kEpisodeProgress = 'episode_progress';
+  static const _maxEpisodeProgress = 200;
 
   /// Max items kept in the played-history list. Older entries get evicted
   /// LRU-style. 50 is enough for "Recently Played" sections without growing
@@ -314,5 +324,138 @@ class LibraryStore {
     debugPrint('[library-store] deleted user-playlist $id '
         '(total=${current.length})');
     return current;
+  }
+
+  // ── Subscribed podcasts ────────────────────────────────────────────────
+  // Persists as a JSON list of FeedItems, newest-first. Same encoding
+  // as liked / saved buckets so a FeedItem.fromJson on read does the
+  // right thing.
+
+  Future<Set<String>> loadSubscribedPodcastIds() async {
+    try {
+      final box = await _box();
+      final raw = box.get(_kSubscribedPodcasts);
+      if (raw is! List) return <String>{};
+      return raw
+          .whereType<Map>()
+          .map((m) => (m['id'] ?? '').toString())
+          .where((id) => id.isNotEmpty)
+          .toSet();
+    } catch (e) {
+      debugPrint('[library-store] loadSubscribedPodcastIds failed: $e');
+      return <String>{};
+    }
+  }
+
+  Future<List<FeedItem>> loadSubscribedPodcasts() async {
+    try {
+      final box = await _box();
+      return _decodeList(box.get(_kSubscribedPodcasts));
+    } catch (e) {
+      debugPrint('[library-store] loadSubscribedPodcasts failed: $e');
+      return const [];
+    }
+  }
+
+  Future<List<FeedItem>> setSubscribedPodcast({
+    required FeedItem show,
+    required bool subscribed,
+  }) async {
+    final box = await _box();
+    final current = _decodeList(box.get(_kSubscribedPodcasts));
+    current.removeWhere((s) => s.id == show.id);
+    if (subscribed) current.insert(0, show);
+    await box.put(_kSubscribedPodcasts, _encodeList(current));
+    await box.flush();
+    debugPrint('[library-store] subscribed=${subscribed ? 'on' : 'off'} '
+        'podcast:${show.id} (total=${current.length})');
+    return current;
+  }
+
+  // ── Episode progress ───────────────────────────────────────────────────
+  // Single map keyed by episode id, value `{pos: seconds, t: epoch}`.
+  // The timestamp lets us evict the oldest entries when the cap is hit
+  // so the box doesn't grow forever.
+
+  Future<Map<String, int>> loadEpisodeProgress() async {
+    try {
+      final box = await _box();
+      final raw = box.get(_kEpisodeProgress);
+      if (raw is! Map) return <String, int>{};
+      final out = <String, int>{};
+      for (final entry in raw.entries) {
+        final v = entry.value;
+        final pos = v is Map
+            ? (v['pos'] is num ? (v['pos'] as num).toInt() : null)
+            : (v is num ? v.toInt() : null);
+        if (pos != null) out[entry.key.toString()] = pos;
+      }
+      return out;
+    } catch (e) {
+      debugPrint('[library-store] loadEpisodeProgress failed: $e');
+      return <String, int>{};
+    }
+  }
+
+  Future<void> saveEpisodeProgress(String episodeId, int positionSec) async {
+    if (episodeId.isEmpty) return;
+    try {
+      final box = await _box();
+      final raw = box.get(_kEpisodeProgress);
+      final map = <String, Map<String, int>>{};
+      if (raw is Map) {
+        for (final entry in raw.entries) {
+          final v = entry.value;
+          if (v is Map) {
+            final pos = v['pos'] is num ? (v['pos'] as num).toInt() : null;
+            final t = v['t'] is num ? (v['t'] as num).toInt() : null;
+            if (pos != null && t != null) {
+              map[entry.key.toString()] = {'pos': pos, 't': t};
+            }
+          } else if (v is num) {
+            // Legacy: bare number with no timestamp. Promote to the
+            // new shape with epoch=0 so it gets evicted first.
+            map[entry.key.toString()] = {'pos': v.toInt(), 't': 0};
+          }
+        }
+      }
+      map[episodeId] = {
+        'pos': positionSec,
+        't': DateTime.now().millisecondsSinceEpoch,
+      };
+      // LRU evict by 't' if we're over the cap.
+      if (map.length > _maxEpisodeProgress) {
+        final entries = map.entries.toList()
+          ..sort((a, b) => (a.value['t'] ?? 0).compareTo(b.value['t'] ?? 0));
+        final keep =
+            entries.sublist(entries.length - _maxEpisodeProgress);
+        map
+          ..clear()
+          ..addEntries(keep);
+      }
+      await box.put(_kEpisodeProgress, map);
+      await box.flush();
+    } catch (e) {
+      debugPrint(
+          '[library-store] saveEpisodeProgress($episodeId) failed: $e');
+    }
+  }
+
+  /// Clears the saved progress for a single episode. Called when an
+  /// episode is finished (position ≥ duration - 5s) so resume doesn't
+  /// drop the user one second from the end of a long pod.
+  Future<void> clearEpisodeProgress(String episodeId) async {
+    try {
+      final box = await _box();
+      final raw = box.get(_kEpisodeProgress);
+      if (raw is! Map) return;
+      final map = Map<String, dynamic>.from(raw);
+      if (map.remove(episodeId) == null) return;
+      await box.put(_kEpisodeProgress, map);
+      await box.flush();
+    } catch (e) {
+      debugPrint(
+          '[library-store] clearEpisodeProgress($episodeId) failed: $e');
+    }
   }
 }

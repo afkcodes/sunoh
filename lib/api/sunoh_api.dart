@@ -421,6 +421,206 @@ class SunohApi {
     }
     return env.data ?? const [];
   }
+
+  // ── Podcasts ──────────────────────────────────────────────────────────
+  //
+  // The backend wraps PodcastIndex behind /podcasts/* and maps every
+  // shape into FeedItem (with `type: 'podcast'` for shows, `'episode'`
+  // for episodes). All these helpers parse the standard envelope and
+  // return FeedItem-typed data — no provider-specific branching needed
+  // on the call sites.
+
+  /// `GET /podcasts/home?country=XX` — aggregated multi-section feed
+  /// for the Podcasts tab. Returns the unified HomeSection list shape;
+  /// `country` is forwarded verbatim, the backend falls back to its
+  /// own detection (IP-geo + CF header + Accept-Language) when omitted.
+  Future<List<HomeSection>> fetchPodcastHome({String? country}) async {
+    final res = await _dio.get<Map<String, dynamic>>(
+      '/podcasts/home',
+      queryParameters: {
+        if (country != null && country.isNotEmpty) 'country': country,
+      },
+    );
+    final env = ApiEnvelope.from<List<HomeSection>>(
+      res.data ?? const {},
+      (raw) => raw is List
+          ? raw
+              .whereType<Map>()
+              .map((m) => HomeSection.fromJson(m.cast<String, dynamic>()))
+              .toList()
+          : const <HomeSection>[],
+    );
+    if (!env.isSuccess) {
+      throw SunohApiException(env.message, env.error);
+    }
+    return env.data ?? const [];
+  }
+
+  /// `GET /podcasts/:id?max=N` — show metadata + first page of episodes
+  /// in one round trip.
+  Future<PodcastShowDetail> fetchPodcastShow(String id, {int max = 30}) async {
+    final res = await _dio.get<Map<String, dynamic>>(
+      '/podcasts/${Uri.encodeComponent(id)}',
+      queryParameters: {'max': max},
+    );
+    final env = ApiEnvelope.from<PodcastShowDetail?>(
+      res.data ?? const {},
+      (raw) => raw is Map
+          ? PodcastShowDetail.fromJson(raw.cast<String, dynamic>())
+          : null,
+    );
+    if (!env.isSuccess || env.data == null) {
+      throw SunohApiException(env.message, env.error);
+    }
+    return env.data!;
+  }
+
+  /// `GET /podcasts/:id/episodes?max=&since=` — paginated episode list.
+  /// Pass `since` (unix-seconds) for incremental loads — `null` = newest.
+  Future<List<FeedItem>> fetchPodcastEpisodes(
+    String showId, {
+    int max = 50,
+    int? since,
+  }) async {
+    final res = await _dio.get<Map<String, dynamic>>(
+      '/podcasts/${Uri.encodeComponent(showId)}/episodes',
+      queryParameters: {
+        'max': max,
+        'since': ?since,
+      },
+    );
+    final env = ApiEnvelope.from<List<FeedItem>>(
+      res.data ?? const {},
+      (raw) {
+        if (raw is Map) {
+          final list = raw['list'];
+          if (list is List) {
+            return list
+                .whereType<Map>()
+                .map((m) => FeedItem.fromJson(m.cast<String, dynamic>()))
+                .toList();
+          }
+        }
+        return const <FeedItem>[];
+      },
+    );
+    if (!env.isSuccess) {
+      throw SunohApiException(env.message, env.error);
+    }
+    return env.data ?? const [];
+  }
+
+  /// `GET /podcasts/episode/:guid` — single-episode lookup. The
+  /// backend also accepts `?id=` for numeric ids (used as a fallback
+  /// when the guid lookup misses).
+  Future<FeedItem?> fetchPodcastEpisode(String guidOrId) async {
+    final res = await _dio.get<Map<String, dynamic>>(
+      '/podcasts/episode/${Uri.encodeComponent(guidOrId)}',
+    );
+    final env = ApiEnvelope.from<FeedItem?>(
+      res.data ?? const {},
+      (raw) => raw is Map ? FeedItem.fromJson(raw.cast<String, dynamic>()) : null,
+    );
+    if (!env.isSuccess) {
+      throw SunohApiException(env.message, env.error);
+    }
+    return env.data;
+  }
+
+  /// `GET /podcasts/search?q=…&max=N` — full-text podcast search.
+  /// Returns shows only (episodes don't ship via this endpoint).
+  Future<List<FeedItem>> fetchPodcastSearch(
+    String query, {
+    int max = 30,
+  }) async {
+    final res = await _dio.get<Map<String, dynamic>>(
+      '/podcasts/search',
+      queryParameters: {'q': query, 'max': max},
+    );
+    final env = ApiEnvelope.from<List<FeedItem>>(
+      res.data ?? const {},
+      (raw) {
+        if (raw is Map) {
+          final list = raw['list'];
+          if (list is List) {
+            return list
+                .whereType<Map>()
+                .map((m) => FeedItem.fromJson(m.cast<String, dynamic>()))
+                .toList();
+          }
+        }
+        return const <FeedItem>[];
+      },
+    );
+    if (!env.isSuccess) {
+      throw SunohApiException(env.message, env.error);
+    }
+    return env.data ?? const [];
+  }
+
+  /// `GET /podcasts/categories` — the full PodcastIndex taxonomy
+  /// (~112 entries). Stable; the categories provider caches for 24h.
+  Future<List<PodcastCategory>> fetchPodcastCategories() async {
+    final res = await _dio.get<Map<String, dynamic>>('/podcasts/categories');
+    final env = ApiEnvelope.from<List<PodcastCategory>>(
+      res.data ?? const {},
+      (raw) {
+        if (raw is Map) {
+          final list = raw['list'];
+          if (list is List) {
+            return list
+                .whereType<Map>()
+                .map(
+                  (m) => PodcastCategory.fromJson(m.cast<String, dynamic>()),
+                )
+                .toList();
+          }
+        }
+        return const <PodcastCategory>[];
+      },
+    );
+    if (!env.isSuccess) {
+      throw SunohApiException(env.message, env.error);
+    }
+    return env.data ?? const [];
+  }
+
+  /// `GET /podcasts/by-category/:slug?max=N&lang=…` — shows in a
+  /// category. The `slug` param accepts either the category name
+  /// ("News") or its numeric id ("55"); the categories provider
+  /// surfaces both so callers can pick.
+  Future<List<FeedItem>> fetchPodcastsByCategory(
+    String slug, {
+    int max = 30,
+    String? lang,
+  }) async {
+    final res = await _dio.get<Map<String, dynamic>>(
+      '/podcasts/by-category/${Uri.encodeComponent(slug)}',
+      queryParameters: {
+        'max': max,
+        if (lang != null && lang.isNotEmpty) 'lang': lang,
+      },
+    );
+    final env = ApiEnvelope.from<List<FeedItem>>(
+      res.data ?? const {},
+      (raw) {
+        if (raw is Map) {
+          final list = raw['list'];
+          if (list is List) {
+            return list
+                .whereType<Map>()
+                .map((m) => FeedItem.fromJson(m.cast<String, dynamic>()))
+                .toList();
+          }
+        }
+        return const <FeedItem>[];
+      },
+    );
+    if (!env.isSuccess) {
+      throw SunohApiException(env.message, env.error);
+    }
+    return env.data ?? const [];
+  }
 }
 
 class SunohApiException implements Exception {

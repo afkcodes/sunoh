@@ -56,6 +56,9 @@ class AppState extends ChangeNotifier with WidgetsBindingObserver {
         repo.library.loadSaved('artist'),
         repo.library.loadSavedIds('artist'),
         repo.library.loadUserPlaylists(),
+        repo.library.loadSubscribedPodcasts(),
+        repo.library.loadSubscribedPodcastIds(),
+        repo.library.loadEpisodeProgress(),
       ]);
       _likedIds = results[0] as Set<String>;
       _likedSongs = results[1] as List<FeedItem>;
@@ -67,13 +70,18 @@ class AppState extends ChangeNotifier with WidgetsBindingObserver {
       _savedArtists = results[7] as List<FeedItem>;
       _savedArtistIds = results[8] as Set<String>;
       _userPlaylists = results[9] as List<UserPlaylist>;
+      _subscribedPodcasts = results[10] as List<FeedItem>;
+      _subscribedPodcastIds = results[11] as Set<String>;
+      _episodeProgress = results[12] as Map<String, int>;
       notifyListeners();
       debugPrint('[library] restored liked=${_likedSongs.length} '
           'history=${_playedHistory.length} '
           'albums=${_savedAlbums.length} '
           'playlists=${_savedPlaylists.length} '
           'artists=${_savedArtists.length} '
-          'userPlaylists=${_userPlaylists.length}');
+          'userPlaylists=${_userPlaylists.length} '
+          'podcasts=${_subscribedPodcasts.length} '
+          'episodeProgress=${_episodeProgress.length}');
     } catch (e) {
       debugPrint('[library] restore failed: $e');
     }
@@ -393,6 +401,17 @@ class AppState extends ChangeNotifier with WidgetsBindingObserver {
     return null;
   }
 
+  // ── Podcasts: subscribed shows + episode progress ─────────────────────
+  Set<String> _subscribedPodcastIds = const <String>{};
+  List<FeedItem> _subscribedPodcasts = const <FeedItem>[];
+  List<FeedItem> get subscribedPodcasts => _subscribedPodcasts;
+  bool isSubscribedPodcast(String id) => _subscribedPodcastIds.contains(id);
+
+  /// Episode-id → last-known-position-in-seconds. Loaded at startup;
+  /// kept in memory so the lookup on episode open is synchronous.
+  Map<String, int> _episodeProgress = <String, int>{};
+  int? episodeProgressSec(String episodeId) => _episodeProgress[episodeId];
+
   bool isSavedAlbumId(String id) => _savedAlbumIds.contains(id);
   bool isSavedPlaylistId(String id) => _savedPlaylistIds.contains(id);
   bool isSavedArtistId(String id) => _savedArtistIds.contains(id);
@@ -624,6 +643,71 @@ class AppState extends ChangeNotifier with WidgetsBindingObserver {
     );
     await playApiQueue(p.songs, startIndex,
         sourceLabel: 'PLAYLIST · ${p.name}');
+  }
+
+  // ── Podcasts: subscribe + episode progress ────────────────────────────
+
+  /// Toggle the subscribe state on a podcast show. Optimistic; persists
+  /// via LibraryStore. Show payload must be the FeedItem-shaped result
+  /// from the podcasts API so cards in the Library tab render correctly
+  /// without a re-fetch.
+  Future<void> toggleSubscribedPodcast(FeedItem show) async {
+    final repo = audioRepo;
+    if (repo == null) return;
+    final wasSubscribed = _subscribedPodcastIds.contains(show.id);
+    final shouldSubscribe = !wasSubscribed;
+    _subscribedPodcastIds = {..._subscribedPodcastIds};
+    if (shouldSubscribe) {
+      _subscribedPodcastIds.add(show.id);
+      _subscribedPodcasts = [
+        show,
+        ..._subscribedPodcasts.where((s) => s.id != show.id),
+      ];
+    } else {
+      _subscribedPodcastIds.remove(show.id);
+      _subscribedPodcasts =
+          _subscribedPodcasts.where((s) => s.id != show.id).toList();
+    }
+    flashToast(shouldSubscribe
+        ? 'Subscribed to ${show.title}'
+        : 'Unsubscribed from ${show.title}');
+    notifyListeners();
+    try {
+      final next = await repo.library
+          .setSubscribedPodcast(show: show, subscribed: shouldSubscribe);
+      _subscribedPodcasts = next;
+      _subscribedPodcastIds = next.map((s) => s.id).toSet();
+      notifyListeners();
+    } catch (e) {
+      debugPrint(
+          '[library] toggleSubscribedPodcast(${show.id}) failed: $e');
+    }
+  }
+
+  /// Persist `positionSec` for `episodeId`. Throttled at the caller side
+  /// — `_pushPlayedHistory` is the natural trigger when the player
+  /// advances OFF an episode. In-memory map is updated before the Hive
+  /// write so subsequent `episodeProgressSec` lookups are synchronous.
+  Future<void> saveEpisodeProgress(String episodeId, int positionSec) async {
+    final repo = audioRepo;
+    if (episodeId.isEmpty || repo == null) return;
+    _episodeProgress[episodeId] = positionSec;
+    try {
+      await repo.library.saveEpisodeProgress(episodeId, positionSec);
+    } catch (e) {
+      debugPrint('[library] saveEpisodeProgress($episodeId) failed: $e');
+    }
+  }
+
+  Future<void> clearEpisodeProgress(String episodeId) async {
+    final repo = audioRepo;
+    if (episodeId.isEmpty || repo == null) return;
+    _episodeProgress.remove(episodeId);
+    try {
+      await repo.library.clearEpisodeProgress(episodeId);
+    } catch (e) {
+      debugPrint('[library] clearEpisodeProgress($episodeId) failed: $e');
+    }
   }
 
   Future<void> moveSongInUserPlaylist(
@@ -904,6 +988,20 @@ class AppState extends ChangeNotifier with WidgetsBindingObserver {
   Future<void> _pushPlayedHistory(FeedItem song) async {
     final repo = audioRepo;
     if (repo == null) return;
+    // For podcast episodes, save the position the listener stopped at
+    // so the next open resumes there. Music tracks reset on track
+    // change (different listening model).
+    if (song.type == 'episode') {
+      final pos = position;
+      final dur = currentDurationSec;
+      // Don't save if we're at the very end (the user finished); clear
+      // any prior progress so re-listens start from scratch.
+      if (dur > 0 && pos >= dur - 5) {
+        unawaited(clearEpisodeProgress(song.id));
+      } else if (pos > 30) {
+        unawaited(saveEpisodeProgress(song.id, pos));
+      }
+    }
     // Optimistic update so the Library tab sees the entry immediately.
     _playedHistory = [
       song,
@@ -1012,6 +1110,21 @@ class AppState extends ChangeNotifier with WidgetsBindingObserver {
     _engineDurationSec = 0;
     position = 0;
     _refreshExtractedAccent(song.artwork);
+    // Episode resume: when an episode becomes active and we have a
+    // saved position for it, seek there. The seek queues against
+    // mpv's load — mpv resolves it as soon as the file opens. Skip
+    // very small positions to avoid the "jumped 5s ahead" feel on
+    // fresh starts.
+    if (song.type == 'episode') {
+      final saved = _episodeProgress[song.id] ?? 0;
+      if (saved > 30) {
+        // ignore: discarded_futures
+        Future<void>.delayed(const Duration(milliseconds: 600), () {
+          if (currentApiSong?.id != song.id) return; // moved on already
+          audioRepo?.seek(Duration(seconds: saved));
+        });
+      }
+    }
   }
 
   // Live duration reported by mpv after it opens the current file. 0 when

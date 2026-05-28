@@ -349,9 +349,16 @@ class FeedItem {
               }).toList(),
         if (token != null) 'token': token,
         if (stationType != null) 'stationType': stationType,
-        // Note: we deliberately DON'T persist `mediaUrls` — for gaana those
-        // are signed and expire, and saavn ones may be stale too. The
-        // StreamResolver will re-resolve on play.
+        // mediaUrls are persisted ONLY for podcasts. Gaana/saavn URLs are
+        // signed and expire, so persisting them just costs bytes (resolver
+        // re-resolves on play). Podcast enclosures are static — and the
+        // resolver has no recovery path that doesn't first need an inline
+        // URL or a separate /podcasts/episode round-trip, so saving them
+        // avoids an unnecessary fetch on every restore.
+        if (source == 'podcastindex' && mediaUrls.isNotEmpty)
+          'mediaUrls': mediaUrls
+              .map((i) => {'quality': i.quality, 'link': i.link})
+              .toList(),
       };
 }
 
@@ -683,4 +690,104 @@ class ArtistDetail {
       sections: leftover,
     );
   }
+}
+
+// ── Podcasts ─────────────────────────────────────────────────────────────
+//
+// The backend (`sunoh-api/src/podcast/*`) maps PodcastIndex shapes to the
+// unified FeedItem schema — a show comes through as `type: 'podcast'`,
+// an episode as `type: 'episode'` with the audio URL pre-baked in
+// `mediaUrls[0].link`. So most code can treat them as plain FeedItems.
+//
+// `PodcastShowDetail` mirrors `AlbumDetail` / `PlaylistDetail` — wraps
+// the show's metadata + the first page of episodes the backend bundles
+// for one-round-trip detail loads.
+
+class PodcastShowDetail {
+  const PodcastShowDetail({
+    required this.id,
+    required this.title,
+    required this.image,
+    required this.episodes,
+    this.subtitle,
+    this.description,
+    this.language,
+    this.categories = const [],
+    this.url,
+    this.itunesId,
+    this.episodeCount,
+  });
+
+  final String id;
+  final String title;
+  // Show's author / publisher — fills the "artist" slot in UI surfaces.
+  final String? subtitle;
+  final String? description;
+  final String? language;
+  final List<String> categories;
+  final String? url;
+  final int? itunesId;
+  /// Number of episodes the backend returned in `episodes` — usually 30
+  /// for the first page; the rest fetched via `/podcasts/:id/episodes`
+  /// pagination. Treated as a server-side hint, not an exact count.
+  final int? episodeCount;
+  final List<ApiImage> image;
+  final List<FeedItem> episodes;
+
+  String? get artwork {
+    if (image.isEmpty) return null;
+    final sorted = [...image];
+    int score(String q) {
+      final m = RegExp(r'(\d+)').firstMatch(q);
+      return m == null ? 0 : int.tryParse(m.group(1)!) ?? 0;
+    }
+    sorted.sort((a, b) => score(b.quality).compareTo(score(a.quality)));
+    return sorted.first.link;
+  }
+
+  factory PodcastShowDetail.fromJson(Map<String, dynamic> j) {
+    final epRaw = j['episodes'];
+    final episodes = epRaw is List
+        ? epRaw
+            .whereType<Map>()
+            .map((m) => FeedItem.fromJson(m.cast<String, dynamic>()))
+            .toList()
+        : const <FeedItem>[];
+    final catsRaw = j['categories'];
+    final cats = catsRaw is List
+        ? catsRaw.whereType<String>().toList()
+        : const <String>[];
+    return PodcastShowDetail(
+      id: (j['id'] ?? '').toString(),
+      title: _decode((j['title'] ?? '').toString()),
+      subtitle: _decodeNullable(j['subtitle']),
+      description: _decodeNullable(j['description']),
+      language: _decodeNullable(j['language']),
+      categories: cats,
+      url: j['url']?.toString(),
+      itunesId: (j['itunesId'] is num) ? (j['itunesId'] as num).toInt() : null,
+      episodeCount: (j['episodeCount'] is num)
+          ? (j['episodeCount'] as num).toInt()
+          : null,
+      image: ApiImage.listFrom(j['image']),
+      episodes: episodes,
+    );
+  }
+}
+
+/// A PodcastIndex category — `{id, name}`. Used by the categories
+/// browse screen + the per-category routes. Numeric id is what gets
+/// passed to `/podcasts/by-category/:slug` (the slug param accepts
+/// either the name or the id; we pass the id to avoid casing /
+/// space mismatches).
+class PodcastCategory {
+  const PodcastCategory({required this.id, required this.name});
+  final int id;
+  final String name;
+
+  factory PodcastCategory.fromJson(Map<String, dynamic> j) =>
+      PodcastCategory(
+        id: (j['id'] is num) ? (j['id'] as num).toInt() : 0,
+        name: (j['name'] ?? '').toString(),
+      );
 }

@@ -230,6 +230,10 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen> {
               accent: s.resolvedAccent),
           const SizedBox(height: 18),
         ],
+        if (s.subscribedPodcasts.isNotEmpty) ...[
+          _SubscribedShowsStrip(shows: s.subscribedPodcasts, colors: c),
+          const SizedBox(height: 18),
+        ],
         if (items.isEmpty)
           _EmptyState(filter: filter, colors: c)
         else if (grid)
@@ -618,5 +622,81 @@ class _UserPlaylistsStrip extends StatelessWidget {
       if (a != null && a.isNotEmpty) return a;
     }
     return null;
+  }
+}
+
+/// Horizontal scroller of subscribed podcasts. Renders only when the
+/// user has any (the Library tab hides the section otherwise).
+class _SubscribedShowsStrip extends StatelessWidget {
+  const _SubscribedShowsStrip({
+    required this.shows,
+    required this.colors,
+  });
+  final List<FeedItem> shows;
+  final SunohColors colors;
+  @override
+  Widget build(BuildContext context) {
+    final c = colors;
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Padding(
+          padding: const EdgeInsets.fromLTRB(20, 0, 20, 10),
+          child: eyebrow('MY SHOWS', c.fgMute,
+              size: 10, letterSpacing: 1.4),
+        ),
+        SizedBox(
+          height: 158,
+          child: ListView.separated(
+            scrollDirection: Axis.horizontal,
+            padding: const EdgeInsets.symmetric(horizontal: 20),
+            itemCount: shows.length,
+            separatorBuilder: (_, _) => const SizedBox(width: 12),
+            itemBuilder: (context, i) {
+              final show = shows[i];
+              return GestureDetector(
+                onTap: () => context.openRef(DetailRef(
+                    'podcast', show.id,
+                    source: show.source)),
+                behavior: HitTestBehavior.opaque,
+                child: SizedBox(
+                  width: 116,
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      squircleClip(
+                        radius: 10,
+                        child: SunohArt(
+                          id: show.id,
+                          imageUrl: show.artwork,
+                          size: 116,
+                          radius: 10,
+                        ),
+                      ),
+                      const SizedBox(height: 8),
+                      Text(show.title,
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: SunohType.sans(
+                              fontSize: 13,
+                              fontWeight: FontWeight.w500,
+                              color: c.fg)),
+                      if ((show.subtitle ?? '').isNotEmpty) ...[
+                        const SizedBox(height: 1),
+                        Text(show.subtitle!,
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: SunohType.sans(
+                                fontSize: 11, color: c.fgMute)),
+                      ],
+                    ],
+                  ),
+                ),
+              );
+            },
+          ),
+        ),
+      ],
+    );
   }
 }
