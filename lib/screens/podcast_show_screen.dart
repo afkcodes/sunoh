@@ -23,6 +23,7 @@ import 'package:phosphor_flutter/phosphor_flutter.dart';
 import 'package:solar_icons/solar_icons.dart';
 
 import '../api/dto.dart';
+import '../providers/api_providers.dart';
 import '../providers/app_state_provider.dart';
 import '../providers/palette_provider.dart';
 import '../providers/podcast_provider.dart';
@@ -31,15 +32,118 @@ import '../widgets/album_art.dart';
 import '../widgets/playing_bars.dart';
 import '../widgets/ui.dart';
 
-class PodcastShowScreen extends ConsumerWidget {
+/// Threshold (in pixels from the bottom of the list) at which the
+/// expand-to-full fetch fires. 600 ≈ a screenful — by the time the user
+/// has the bottom of the initial 30 in view, the rest are already
+/// loading (and usually landed) so there's no visible gap.
+const double _kLoadMoreThreshold = 600;
+
+/// One-shot expand size for the full episode list. PodcastIndex's
+/// /episodes/byfeedid has no real cursor (no "older-than" param), so
+/// we can't page in small batches — instead the initial fast 30 (from
+/// the bundled /podcasts/:id call) gets replaced with a single bigger
+/// fetch the moment the user scrolls in. 500 covers ~all shows; the
+/// rare longer ones can pick up a follow-up bump later.
+const int _kFullFetchMax = 500;
+
+class PodcastShowScreen extends ConsumerStatefulWidget {
   const PodcastShowScreen({super.key, required this.id});
   final String id;
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
+  ConsumerState<PodcastShowScreen> createState() => _PodcastShowScreenState();
+}
+
+class _PodcastShowScreenState extends ConsumerState<PodcastShowScreen> {
+  final ScrollController _scroll = ScrollController();
+  // Local mirror of the episode list. Initialised from the bundled show
+  // fetch (30 newest); replaced wholesale once the "load full list"
+  // request lands. We mirror locally so the list can grow independently
+  // of the upstream provider (which caches the initial show payload).
+  List<FeedItem>? _episodes;
+  bool _expanding = false;
+  bool _expanded = false;
+  String? _expandError;
+
+  @override
+  void initState() {
+    super.initState();
+    _scroll.addListener(_onScroll);
+  }
+
+  @override
+  void dispose() {
+    _scroll.removeListener(_onScroll);
+    _scroll.dispose();
+    super.dispose();
+  }
+
+  void _onScroll() {
+    if (_expanded || _expanding) return;
+    if (!_scroll.hasClients) return;
+    final pos = _scroll.position;
+    if (pos.maxScrollExtent - pos.pixels <= _kLoadMoreThreshold) {
+      _expandEpisodes();
+    }
+  }
+
+  Future<void> _expandEpisodes() async {
+    if (_expanded || _expanding) return;
+    setState(() {
+      _expanding = true;
+      _expandError = null;
+    });
+    try {
+      final api = ref.read(sunohApiProvider);
+      final list = await api.fetchPodcastEpisodes(widget.id, max: _kFullFetchMax);
+      if (!mounted) return;
+      // Defensive dedup by id — the bundled 30 and the full 500 overlap
+      // entirely so we just take the new list, but if anything weird
+      // happens upstream the union is the safe move.
+      final byId = <String, FeedItem>{};
+      for (final e in list) {
+        byId[e.id] = e;
+      }
+      // Merge in any locally-known episodes the fresh fetch lacks. For
+      // a typical show this is a no-op; for a very-long-running one
+      // where the full fetch hit the 500 ceiling, keeping the older
+      // bundled ones is wrong (they're newer than the 500th of the
+      // re-fetch), so this only adds when ids don't collide.
+      final existing = _episodes ?? const <FeedItem>[];
+      for (final e in existing) {
+        byId.putIfAbsent(e.id, () => e);
+      }
+      final merged = byId.values.toList()
+        ..sort((a, b) {
+          // PodcastIndex sorts newest first; preserve that.
+          // We don't carry datePublished as a comparable here, so fall
+          // back to the order of the fresh fetch (which IS newest first).
+          final ai = list.indexWhere((x) => x.id == a.id);
+          final bi = list.indexWhere((x) => x.id == b.id);
+          if (ai >= 0 && bi >= 0) return ai.compareTo(bi);
+          if (ai >= 0) return -1;
+          if (bi >= 0) return 1;
+          return 0;
+        });
+      setState(() {
+        _episodes = merged;
+        _expanded = true;
+        _expanding = false;
+      });
+    } catch (e) {
+      if (!mounted) return;
+      setState(() {
+        _expanding = false;
+        _expandError = '$e';
+      });
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
     final s = ref.watch(appStateProvider);
     final c = s.colors;
-    final async = ref.watch(podcastShowProvider(id));
+    final async = ref.watch(podcastShowProvider(widget.id));
     return ColoredBox(
       color: c.bg,
       child: SafeArea(
@@ -48,9 +152,13 @@ class PodcastShowScreen extends ConsumerWidget {
           error: (e, _) => _ErrorState(
             colors: c,
             message: '$e',
-            onRetry: () => ref.invalidate(podcastShowProvider(id)),
+            onRetry: () => ref.invalidate(podcastShowProvider(widget.id)),
           ),
           data: (show) {
+            // Seed the local list from the provider's bundled episodes
+            // on the first build that has data.
+            _episodes ??= show.episodes;
+            final episodes = _episodes ?? const <FeedItem>[];
             final url = show.artwork ?? '';
             final palette = url.isEmpty
                 ? null
@@ -65,32 +173,70 @@ class PodcastShowScreen extends ConsumerWidget {
                   colors: c,
                 ),
                 Expanded(
-                  child: ListView(
+                  child: ListView.builder(
+                    controller: _scroll,
                     padding: const EdgeInsets.only(bottom: 140),
-                    children: [
-                      const SizedBox(height: 8),
-                      _Cover(show: show, tint: tint, colors: c),
-                      const SizedBox(height: 18),
-                      _AboutCard(
-                          show: show, colors: c, accent: accent),
-                      const SizedBox(height: 22),
-                      _EpisodesHeader(
-                          count: show.episodes.length, colors: c),
-                      if (show.episodes.isEmpty)
-                        _NoEpisodes(colors: c)
-                      else
-                        for (var i = 0; i < show.episodes.length; i++)
-                          _EpisodeRow(
-                            episode: show.episodes[i],
-                            colors: c,
-                            accent: accent,
-                            onTap: () => s.playApiQueue(
-                              show.episodes,
-                              i,
-                              sourceLabel: 'PODCAST · ${show.title}',
-                            ),
+                    // 1 cover + 1 about + 1 episodes header + N episodes
+                    // (or 1 empty-state placeholder) + 1 footer slot.
+                    itemCount: 4 + (episodes.isEmpty ? 1 : episodes.length),
+                    itemBuilder: (context, idx) {
+                      if (idx == 0) {
+                        return Padding(
+                          padding: const EdgeInsets.only(top: 8),
+                          child: _Cover(show: show, tint: tint, colors: c),
+                        );
+                      }
+                      if (idx == 1) {
+                        return Padding(
+                          padding: const EdgeInsets.only(top: 18),
+                          child: _AboutCard(
+                              show: show, colors: c, accent: accent),
+                        );
+                      }
+                      if (idx == 2) {
+                        return Padding(
+                          padding: const EdgeInsets.only(top: 22),
+                          child: _EpisodesHeader(
+                              count: episodes.length,
+                              total: _expanded ? episodes.length : null,
+                              colors: c),
+                        );
+                      }
+                      if (idx == 3) {
+                        if (episodes.isEmpty) return _NoEpisodes(colors: c);
+                        // No placeholder needed once episodes are present;
+                        // first real episode lives at idx==4.
+                        idx = 3; // fallthrough to episode row at idx-4
+                      }
+                      // Episodes start at idx == 3 when there are any,
+                      // ... but we just consumed idx==3 above; the
+                      // builder count guarantees 4 + N total slots so
+                      // episodes occupy idx 3..(3+N-1). Footer at the
+                      // very end is handled by an extra slot count.
+                      final epIdx = idx - 3;
+                      if (epIdx >= 0 && epIdx < episodes.length) {
+                        return _EpisodeRow(
+                          episode: episodes[epIdx],
+                          colors: c,
+                          accent: accent,
+                          onTap: () => s.playApiQueue(
+                            episodes,
+                            epIdx,
+                            sourceLabel: 'PODCAST · ${show.title}',
                           ),
-                    ],
+                        );
+                      }
+                      // Footer: loading row while expanding, error row
+                      // on failure (with retry), nothing once fully
+                      // expanded or when the show genuinely has ≤ the
+                      // initial bundle.
+                      return _EpisodesFooter(
+                        expanding: _expanding,
+                        error: _expandError,
+                        onRetry: _expandEpisodes,
+                        colors: c,
+                      );
+                    },
                   ),
                 ),
               ],
@@ -99,6 +245,71 @@ class PodcastShowScreen extends ConsumerWidget {
         ),
       ),
     );
+  }
+}
+
+/// Bottom-of-list footer slot — shows a small loading spinner while the
+/// "expand to full episode list" fetch is in flight, an error pill with
+/// retry on failure, and nothing in the steady state.
+class _EpisodesFooter extends StatelessWidget {
+  const _EpisodesFooter({
+    required this.expanding,
+    required this.error,
+    required this.onRetry,
+    required this.colors,
+  });
+  final bool expanding;
+  final String? error;
+  final VoidCallback onRetry;
+  final SunohColors colors;
+  @override
+  Widget build(BuildContext context) {
+    final c = colors;
+    if (error != null) {
+      return Padding(
+        padding: const EdgeInsets.fromLTRB(20, 18, 20, 8),
+        child: Row(
+          children: [
+            Icon(SolarIconsOutline.dangerCircle, color: c.fgDim, size: 16),
+            const SizedBox(width: 8),
+            Expanded(
+              child: Text(
+                'Couldn’t load more episodes.',
+                style: SunohType.sans(fontSize: 12.5, color: c.fgMute),
+              ),
+            ),
+            GestureDetector(
+              behavior: HitTestBehavior.opaque,
+              onTap: onRetry,
+              child: Padding(
+                padding:
+                    const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                child: Text(
+                  'Retry',
+                  style: SunohType.sans(
+                      fontSize: 12.5,
+                      fontWeight: FontWeight.w500,
+                      color: c.fg),
+                ),
+              ),
+            ),
+          ],
+        ),
+      );
+    }
+    if (expanding) {
+      return Padding(
+        padding: const EdgeInsets.fromLTRB(20, 20, 20, 8),
+        child: Center(
+          child: SizedBox(
+            width: 18,
+            height: 18,
+            child: CircularProgressIndicator(strokeWidth: 2, color: c.fgDim),
+          ),
+        ),
+      );
+    }
+    return const SizedBox.shrink();
   }
 }
 
@@ -482,8 +693,17 @@ FeedItem _showAsFeedItem(PodcastShowDetail s) => FeedItem(
     );
 
 class _EpisodesHeader extends StatelessWidget {
-  const _EpisodesHeader({required this.count, required this.colors});
+  const _EpisodesHeader({
+    required this.count,
+    required this.colors,
+    this.total,
+  });
   final int count;
+  /// Final count once the full list has been fetched. Until then it's
+  /// null and the row shows only the initial (bundled) count. Kept
+  /// optional so the header doesn't have to fake a "30+" string while
+  /// expanding — simpler to just show the live number.
+  final int? total;
   final SunohColors colors;
   @override
   Widget build(BuildContext context) {
