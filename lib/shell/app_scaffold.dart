@@ -9,6 +9,7 @@ import 'package:go_router/go_router.dart';
 import '../player/mini_player.dart';
 import '../providers/app_state_provider.dart';
 import '../theme/tokens.dart';
+import '../widgets/spotify_import_banner.dart';
 import 'bottom_nav.dart';
 
 class AppScaffold extends ConsumerWidget {
@@ -67,6 +68,10 @@ class _BottomBar extends StatelessWidget {
           child: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
+              // Persistent Spotify-import banner — visible across all
+              // screens while an import is running, completed, or
+              // failed. Renders nothing in the idle state.
+              const SpotifyImportBanner(),
               // NOT const — `const MiniPlayer()` made Flutter compare the
               // same widget reference between rebuilds and short-circuit
               // subtree reconciliation, which interfered with the mini

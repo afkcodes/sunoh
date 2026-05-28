@@ -621,6 +621,34 @@ class SunohApi {
     }
     return env.data ?? const [];
   }
+
+  /// `GET /spotify/import?url=…` — paste a Spotify playlist URL, get
+  /// the mapped result back. The backend scrapes Spotify (~80 s for a
+  /// 300-track playlist), matches each track against Saavn, and
+  /// returns the merged envelope.
+  ///
+  /// We override the receive timeout to 180 s because the default
+  /// (20 s) is far below this endpoint's worst case. The Cloudflare
+  /// edge times out at ~100 s, so very-large playlists will still cut
+  /// out at the network layer regardless of what we set here — but for
+  /// the common <500-track case 180 s gives plenty of headroom.
+  Future<SpotifyImportResult> importSpotifyPlaylist(String spotifyUrl) async {
+    final res = await _dio.get<Map<String, dynamic>>(
+      '/spotify/import',
+      queryParameters: {'url': spotifyUrl},
+      options: Options(receiveTimeout: const Duration(seconds: 180)),
+    );
+    final env = ApiEnvelope.from<SpotifyImportResult?>(
+      res.data ?? const {},
+      (raw) => raw is Map
+          ? SpotifyImportResult.fromJson(raw.cast<String, dynamic>())
+          : null,
+    );
+    if (!env.isSuccess || env.data == null) {
+      throw SunohApiException(env.message, env.error);
+    }
+    return env.data!;
+  }
 }
 
 class SunohApiException implements Exception {

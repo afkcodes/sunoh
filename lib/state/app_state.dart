@@ -24,6 +24,49 @@ import '../widgets/album_art.dart';
 
 enum LoopMode { off, all, one }
 
+/// Single-import-at-a-time state machine for Spotify playlist imports.
+/// AppState mutates this through `importSpotifyPlaylist` /
+/// `dismissSpotifyImport`; the persistent banner watches it across all
+/// screens.
+enum SpotifyImportStatus { idle, fetching, completed, failed }
+
+class SpotifyImportState {
+  const SpotifyImportState({
+    required this.status,
+    this.sourceUrl,
+    this.sourceName,
+    this.newPlaylistId,
+    this.totalTracks,
+    this.matchedTracks,
+    this.errorMessage,
+    this.startedAt,
+  });
+  const SpotifyImportState.idle()
+      : status = SpotifyImportStatus.idle,
+        sourceUrl = null,
+        sourceName = null,
+        newPlaylistId = null,
+        totalTracks = null,
+        matchedTracks = null,
+        errorMessage = null,
+        startedAt = null;
+  final SpotifyImportStatus status;
+  /// The original URL the user pasted — kept so the failure banner can
+  /// offer a "retry" without re-asking.
+  final String? sourceUrl;
+  /// Playlist name from the Spotify API once it lands. Used for the
+  /// completion banner ("Imported X — N songs").
+  final String? sourceName;
+  /// UserPlaylist id created on successful import. Tapping the
+  /// completion banner navigates here.
+  final String? newPlaylistId;
+  final int? totalTracks;
+  final int? matchedTracks;
+  final String? errorMessage;
+  /// Used by the banner to render an elapsed-time hint while running.
+  final DateTime? startedAt;
+}
+
 class AppState extends ChangeNotifier with WidgetsBindingObserver {
   AppState({this.audioRepo, this.api, this.palettize}) {
     current = kTracks[0];
@@ -538,6 +581,122 @@ class AppState extends ChangeNotifier with WidgetsBindingObserver {
       }
     }
     return p;
+  }
+
+  // ── Spotify import ──────────────────────────────────────────────────────
+  //
+  // Anyone can paste a public Spotify playlist URL. The backend scrapes
+  // it through headless Chrome and maps each track to a Saavn song;
+  // takes ~80 s for a 300-track playlist. The UI runs it on a background
+  // future, surfaces a persistent banner across all screens while it's
+  // in flight, and saves the result as a regular UserPlaylist on
+  // completion — so the imported result is indistinguishable from a
+  // hand-built playlist after the fact.
+  //
+  // Single import at a time. Kicking off a second one while one is in
+  // flight is a no-op (the banner stays as-is) + a toast nudge.
+
+  SpotifyImportState _spotifyImport = const SpotifyImportState.idle();
+  SpotifyImportState get spotifyImport => _spotifyImport;
+
+  Future<void> importSpotifyPlaylist(String url) async {
+    final trimmed = url.trim();
+    if (trimmed.isEmpty) {
+      flashToast('Paste a Spotify playlist URL');
+      return;
+    }
+    if (_spotifyImport.status == SpotifyImportStatus.fetching) {
+      flashToast('Already importing — finish or dismiss first');
+      return;
+    }
+    final apiClient = api;
+    if (apiClient == null) {
+      flashToast('Backend not configured');
+      return;
+    }
+    _spotifyImport = SpotifyImportState(
+      status: SpotifyImportStatus.fetching,
+      sourceUrl: trimmed,
+      startedAt: DateTime.now(),
+    );
+    notifyListeners();
+    try {
+      final result = await apiClient.importSpotifyPlaylist(trimmed);
+      final songs = result.matchedSongs;
+      if (songs.isEmpty) {
+        _spotifyImport = SpotifyImportState(
+          status: SpotifyImportStatus.failed,
+          sourceUrl: trimmed,
+          sourceName: result.source.name,
+          errorMessage: 'No tracks could be matched on Saavn',
+        );
+        notifyListeners();
+        return;
+      }
+      // Persist as a UserPlaylist so the rest of the library handles it
+      // identically to a hand-built playlist (renaming, deleting,
+      // reordering, "add to queue", etc. all work without specialcasing).
+      final now = DateTime.now();
+      final id = '${now.microsecondsSinceEpoch.toRadixString(36)}-'
+          '${now.millisecond.toRadixString(36)}';
+      final playlist = UserPlaylist(
+        id: id,
+        name: result.source.name.trim().isEmpty
+            ? 'Spotify playlist'
+            : result.source.name.trim(),
+        songs: songs,
+        createdAt: now,
+        updatedAt: now,
+      );
+      _userPlaylists = [playlist, ..._userPlaylists];
+      notifyListeners();
+      AnalyticsService.instance.logPlaylistCreate(
+        id: playlist.id,
+        name: playlist.name,
+      );
+      final repo = audioRepo;
+      if (repo != null) {
+        try {
+          await repo.library.upsertUserPlaylist(playlist);
+        } catch (e) {
+          debugPrint('[library] spotify import persist failed: $e');
+        }
+      }
+      _spotifyImport = SpotifyImportState(
+        status: SpotifyImportStatus.completed,
+        sourceUrl: trimmed,
+        sourceName: playlist.name,
+        newPlaylistId: playlist.id,
+        totalTracks: result.summary.total,
+        matchedTracks: result.summary.matched,
+      );
+      notifyListeners();
+    } catch (e) {
+      _spotifyImport = SpotifyImportState(
+        status: SpotifyImportStatus.failed,
+        sourceUrl: trimmed,
+        errorMessage: _humaniseImportError(e),
+      );
+      notifyListeners();
+    }
+  }
+
+  /// Clear a completed / failed import banner. Idempotent.
+  void dismissSpotifyImport() {
+    if (_spotifyImport.status == SpotifyImportStatus.idle) return;
+    _spotifyImport = const SpotifyImportState.idle();
+    notifyListeners();
+  }
+
+  static String _humaniseImportError(Object e) {
+    final raw = e.toString();
+    if (raw.contains('SocketException') || raw.contains('timeout')) {
+      return 'Network issue — check connection and retry';
+    }
+    if (raw.contains('502') || raw.contains('Could not extract')) {
+      return 'Couldn’t open that playlist — check the URL';
+    }
+    return 'Import failed';
   }
 
   Future<void> renameUserPlaylist(String id, String name) async {

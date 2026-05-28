@@ -791,3 +791,155 @@ class PodcastCategory {
         name: (j['name'] ?? '').toString(),
       );
 }
+
+// ── Spotify import ───────────────────────────────────────────────────────
+//
+// Result envelope returned by `GET /spotify/import?url=…`. The backend
+// scrapes the Spotify playlist, matches each track against Saavn, and
+// returns the merged result. Only the bits the app actually consumes
+// are modelled below — the per-item `query` / `candidatesConsidered`
+// debugging fields are ignored on parse.
+
+class SpotifyImportSource {
+  const SpotifyImportSource({
+    required this.id,
+    required this.name,
+    required this.trackCount,
+    this.description,
+    this.owner,
+    this.artworkUrl,
+    this.url,
+  });
+  final String id;
+  final String name;
+  final String? description;
+  final String? owner;
+  final String? artworkUrl;
+  final String? url;
+  final int trackCount;
+
+  factory SpotifyImportSource.fromJson(Map<String, dynamic> j) =>
+      SpotifyImportSource(
+        id: (j['id'] ?? '').toString(),
+        name: (j['name'] ?? '').toString(),
+        description: (j['description'] as String?)?.trim().isNotEmpty == true
+            ? j['description'] as String
+            : null,
+        owner: (j['owner'] as String?)?.trim().isNotEmpty == true
+            ? j['owner'] as String
+            : null,
+        artworkUrl: (j['artworkUrl'] as String?)?.trim().isNotEmpty == true
+            ? j['artworkUrl'] as String
+            : null,
+        url: (j['url'] as String?)?.trim().isNotEmpty == true
+            ? j['url'] as String
+            : null,
+        trackCount: (j['trackCount'] is num)
+            ? (j['trackCount'] as num).toInt()
+            : 0,
+      );
+}
+
+class SpotifyImportItem {
+  const SpotifyImportItem({
+    required this.spotifyTitle,
+    required this.spotifyArtists,
+    required this.matched,
+    required this.score,
+    this.saavn,
+  });
+  /// Original Spotify track title — kept so the UI can show
+  /// "Couldn't match X" rows in a missed-tracks section.
+  final String spotifyTitle;
+  final List<String> spotifyArtists;
+  /// The Saavn match parsed as a regular FeedItem. Null when the
+  /// matcher found no candidates above [SpotifyImportItem.score]
+  /// threshold (whatever the backend's MIN_ACCEPT_SCORE is — currently
+  /// 0.55). Even when [matched] is true, `saavn` may still be null in
+  /// edge cases; check both.
+  final FeedItem? saavn;
+  /// True iff the matcher accepted [saavn] as a confident match.
+  final bool matched;
+  /// 0..1 confidence score (title + artist + duration). Mostly for
+  /// debugging; the UI doesn't surface it.
+  final double score;
+
+  factory SpotifyImportItem.fromJson(Map<String, dynamic> j) {
+    final spotify = (j['spotify'] is Map)
+        ? (j['spotify'] as Map).cast<String, dynamic>()
+        : const <String, dynamic>{};
+    final saavnRaw = j['saavn'];
+    final artistsRaw = spotify['artists'];
+    final artists = artistsRaw is List
+        ? artistsRaw.whereType<String>().toList()
+        : const <String>[];
+    return SpotifyImportItem(
+      spotifyTitle: (spotify['name'] ?? '').toString(),
+      spotifyArtists: artists,
+      saavn: saavnRaw is Map
+          ? FeedItem.fromJson(saavnRaw.cast<String, dynamic>())
+          : null,
+      matched: j['matched'] == true,
+      score: (j['score'] is num) ? (j['score'] as num).toDouble() : 0.0,
+    );
+  }
+}
+
+class SpotifyImportSummary {
+  const SpotifyImportSummary({
+    required this.total,
+    required this.matched,
+    required this.unmatched,
+  });
+  final int total;
+  final int matched;
+  final int unmatched;
+
+  factory SpotifyImportSummary.fromJson(Map<String, dynamic> j) =>
+      SpotifyImportSummary(
+        total: (j['total'] is num) ? (j['total'] as num).toInt() : 0,
+        matched: (j['matched'] is num) ? (j['matched'] as num).toInt() : 0,
+        unmatched: (j['unmatched'] is num) ? (j['unmatched'] as num).toInt() : 0,
+      );
+}
+
+class SpotifyImportResult {
+  const SpotifyImportResult({
+    required this.source,
+    required this.summary,
+    required this.items,
+  });
+  final SpotifyImportSource source;
+  final SpotifyImportSummary summary;
+  final List<SpotifyImportItem> items;
+
+  /// Just the matched Saavn FeedItems, in playlist order. This is the
+  /// list that becomes the body of a new UserPlaylist after import.
+  List<FeedItem> get matchedSongs => items
+      .where((i) => i.matched && i.saavn != null)
+      .map((i) => i.saavn!)
+      .toList();
+
+  factory SpotifyImportResult.fromJson(Map<String, dynamic> j) {
+    final itemsRaw = j['items'];
+    final items = itemsRaw is List
+        ? itemsRaw
+            .whereType<Map>()
+            .map((m) => SpotifyImportItem.fromJson(m.cast<String, dynamic>()))
+            .toList()
+        : const <SpotifyImportItem>[];
+    return SpotifyImportResult(
+      source: SpotifyImportSource.fromJson(
+        (j['source'] is Map)
+            ? (j['source'] as Map).cast<String, dynamic>()
+            : const <String, dynamic>{},
+      ),
+      summary: SpotifyImportSummary.fromJson(
+        (j['summary'] is Map)
+            ? (j['summary'] as Map).cast<String, dynamic>()
+            : const <String, dynamic>{},
+      ),
+      items: items,
+    );
+  }
+}

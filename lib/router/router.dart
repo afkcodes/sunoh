@@ -28,6 +28,7 @@ import '../screens/search_screen.dart';
 import '../screens/episode_detail_screen.dart';
 import '../screens/podcast_categories_screen.dart';
 import '../screens/podcast_category_screen.dart';
+import '../screens/spotify_import_screen.dart';
 import '../screens/podcast_show_screen.dart';
 import '../screens/section_screen.dart';
 import '../screens/settings_screen.dart';
@@ -238,6 +239,10 @@ List<RouteBase> _detailRoutes() => [
         pageBuilder: (c, s) => _slideRight(
             UserPlaylistScreen(id: s.pathParameters['id']!), s),
       ),
+      GoRoute(
+        path: 'spotify-import',
+        pageBuilder: (c, s) => _slideRight(const SpotifyImportScreen(), s),
+      ),
     ];
 
 /// Scroll + safe-area padding for the non-scrolling tab screens (Column roots).
@@ -391,6 +396,7 @@ extension SunohNav on BuildContext {
   void openPodcastCategory(String slug, {String? name}) => push(
       '$_branchPrefix/podcast-category/${Uri.encodeComponent(slug)}',
       extra: name);
+  void openSpotifyImport() => push('$_branchPrefix/spotify-import');
 }
 
 /// NavigatorObserver that fires Firebase `screen_view` whenever a route

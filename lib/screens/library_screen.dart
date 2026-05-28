@@ -71,6 +71,13 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen> {
                     height: 32,
                     onTap: () {}),
                 IconBtn(
+                    icon: SolarIconsOutline.downloadMinimalistic,
+                    color: c.fgDim,
+                    size: 18,
+                    width: 32,
+                    height: 32,
+                    onTap: () => context.openSpotifyImport()),
+                IconBtn(
                     icon: SolarIconsOutline.addCircle,
                     color: c.fgDim,
                     size: 18,
