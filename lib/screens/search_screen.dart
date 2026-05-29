@@ -430,6 +430,7 @@ class _ResultsSection extends StatelessWidget {
                 case 'album':
                 case 'playlist':
                 case 'artist':
+                case 'podcast':
                   context.openRef(DetailRef(item.type, item.id,
                       source: item.source ?? section.source));
                 default:
@@ -568,6 +569,7 @@ class _TrendingRow extends ConsumerWidget {
               case 'album':
               case 'playlist':
               case 'artist':
+              case 'podcast':
                 context.openRef(DetailRef(item.type, item.id,
                     source: item.source ?? section.source));
               default:
