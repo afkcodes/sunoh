@@ -112,8 +112,10 @@ class PlaybackStateStore {
     });
     // Force fsync — same reason as library_store / settings_store: without
     // flush, Hive buffers in memory and a process-kill mid-write drops
-    // the update. The position survived in practice because we write
-    // every 5 s, but the queue + sourceRef would lose the last save.
+    // the update. (Earlier comment here claimed position survived because
+    // we write every 5 s — wrong. `updatePosition` also wasn't flushing,
+    // so cold-kill restore landed on the last full save's position. Both
+    // call sites now flush.)
     await box.flush();
     debugPrint('[playback-store] saved queue=${queue.length} '
         'idx=$currentIndex pos=${positionSec}s src=$sourceLabel '
@@ -161,10 +163,19 @@ class PlaybackStateStore {
 
   /// Lightweight update — used for position ticks. Only writes the position
   /// (no queue serialization). Cheap enough to call every N seconds.
+  ///
+  /// `flush()` is required — without it Hive only writes to its in-memory
+  /// buffer and the OS may not flush the underlying file before a hard
+  /// kill (force-close from recents). The result: cold-launch restore
+  /// would land on the last position written by `save()` (which only
+  /// fires on track / queue / source changes), not the most recent tick.
+  /// On flash storage even 12 flushes / minute is well within the
+  /// device's wear budget.
   Future<void> updatePosition(int positionSec) async {
     if (!Hive.isBoxOpen(_boxName)) return;
     final box = Hive.box(_boxName);
     if (box.get(_kQueue) == null) return; // nothing saved → no-op
     await box.put(_kPosition, positionSec);
+    await box.flush();
   }
 }
