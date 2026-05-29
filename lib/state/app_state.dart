@@ -243,12 +243,27 @@ class AppState extends ChangeNotifier with WidgetsBindingObserver {
       position = saved.positionSec;
       // Engine is loaded but paused — UI shows "ready to play".
       isPlaying = false;
+      // Guard against mpv's positionStream clobbering the restored value
+      // back to 0. `prepareQueue` opens the file paused; mpv has the
+      // `file-local-options/start=Ns` property set in the load hook, but
+      // that only takes effect WHEN PLAYBACK STARTS. Until then mpv
+      // reports position 0, and the positionStream listener would
+      // overwrite our saved value. Holding a non-zero guard makes the
+      // listener ignore 0-reports until mpv emits a real non-zero value
+      // (which happens the instant the user hits play and mpv seeks).
+      _restoredPositionGuard = saved.positionSec;
       notifyListeners();
       debugPrint('[audio] restored "${song.title}" @ ${saved.positionSec}s');
     } catch (e) {
       debugPrint('[audio] restore failed: $e');
     }
   }
+
+  /// Non-zero while the most recent restore is still holding its saved
+  /// position against mpv's "paused at 0" reports. Cleared the moment
+  /// mpv emits a non-zero position (i.e. playback began and seek
+  /// landed), or the user explicitly seeks / starts a new song.
+  int _restoredPositionGuard = 0;
 
   /// Real audio engine. Null only when audio is intentionally disabled
   /// (tests, headless contexts).
@@ -1052,6 +1067,13 @@ class AppState extends ChangeNotifier with WidgetsBindingObserver {
       if (isCasting) return;
       if (currentApiSong == null) return; // dummy clock still owns the tick
       final secs = pos.inSeconds;
+      // Restore guard — see `_restoredPositionGuard` for the why. mpv
+      // reports position 0 while the file is loaded-but-paused (the
+      // `file-local-options/start` only applies once playback begins);
+      // without this gate, that 0 would overwrite the restored value
+      // before the user ever hit play.
+      if (_restoredPositionGuard > 0 && secs == 0) return;
+      if (_restoredPositionGuard > 0 && secs > 0) _restoredPositionGuard = 0;
       if (secs != position) position = secs;
       if ((secs - lastPersistedSec).abs() >= 5) {
         lastPersistedSec = secs;
@@ -1268,6 +1290,10 @@ class AppState extends ChangeNotifier with WidgetsBindingObserver {
     // duration for the new one.
     _engineDurationSec = 0;
     position = 0;
+    // Track change invalidates any pending restore guard — we're past the
+    // restored track now and subsequent 0-reports from mpv (e.g. a new
+    // track loading paused) shouldn't be filtered.
+    _restoredPositionGuard = 0;
     _refreshExtractedAccent(song.artwork);
     // Episode resume: when an episode becomes active and we have a
     // saved position for it, seek there. The seek queues against
@@ -1882,6 +1908,9 @@ class AppState extends ChangeNotifier with WidgetsBindingObserver {
 
   void seek(int v) {
     position = v.clamp(0, current.duration);
+    // Explicit user seek — drop the restore guard so subsequent mpv
+    // 0-reports (e.g. scrubbing to 0) are honored normally.
+    _restoredPositionGuard = 0;
     // Cast routing — when a session is active the receiver owns playback.
     // Send the seek to it; mpv stays where it is (muted) and will be
     // re-synced at disconnect via `_resumeOnPhone`.
