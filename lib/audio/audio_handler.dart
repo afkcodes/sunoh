@@ -293,6 +293,15 @@ class SunohAudioHandler {
   /// URL-refresh paths).
   Duration? _pendingStartPosition;
 
+  /// If non-null, [_pendingStartPosition] is only honored when the load
+  /// hook fires for THIS song id. Needed because mpv's `openAll(index: N)`
+  /// loads index 0 first and only then jumps to N — the index-0 load
+  /// hook would otherwise consume the pending start position and apply
+  /// it to the wrong track, leaving the actual restored track at offset
+  /// 0. Set to null for paths where the pending position isn't tied to
+  /// a particular song (URL refresh swaps the current entry in place).
+  String? _pendingStartSongId;
+
   /// One-shot: when true, the next on_load resolve calls the resolver
   /// with `forceRefresh: true` (bypasses cache + inline mediaUrls).
   bool _forceRefreshNextResolve = false;
@@ -578,7 +587,7 @@ class SunohAudioHandler {
       if (resolved == null) return;
       await _applyResolvedUrl(resolved.url);
       _mergeEnrichmentIfAny(song.id, resolved.enriched);
-      await _applyPendingStartPosition();
+      await _applyPendingStartPosition(song.id);
       _urlRefresh.schedule(songId: song.id, resolvedUrl: resolved.url);
     } catch (e, st) {
       debugPrint('[audio] hook failed: $e\n$st');
@@ -622,15 +631,27 @@ class SunohAudioHandler {
     _mergeSongMetadata(songId, enriched);
   }
 
-  Future<void> _applyPendingStartPosition() async {
+  Future<void> _applyPendingStartPosition(String loadingSongId) async {
     final start = _pendingStartPosition;
     if (start == null || start.inMilliseconds <= 0) return;
-    debugPrint('[audio] hook applying start=${start.inSeconds}s');
+    // Gate by target song id when one was set. If mpv's openAll fires
+    // the hook for the wrong index first (index 0 before the requested
+    // start index), we skip — leaving the pending position intact for
+    // the real target's hook.
+    final target = _pendingStartSongId;
+    if (target != null && target != loadingSongId) {
+      debugPrint('[audio] hook skipping start=${start.inSeconds}s for '
+          '$loadingSongId (waiting for target=$target)');
+      return;
+    }
+    debugPrint(
+        '[audio] hook applying start=${start.inSeconds}s for $loadingSongId');
     await _player.setRawProperty(
       'file-local-options/start',
       start.inSeconds.toString(),
     );
     _pendingStartPosition = null;
+    _pendingStartSongId = null;
   }
 
   // ── URL refresh action (scheduler callback) ───────────────────────────
@@ -650,6 +671,10 @@ class SunohAudioHandler {
     print('[url-refresh] reload ${song.id} ("${song.title}") '
         '@ ${pos.inSeconds}s');
     _pendingStartPosition = pos;
+    // URL refresh swaps the current entry in place — the load hook
+    // will fire for this same song, so tag the song-id gate so the
+    // gate matches on first fire.
+    _pendingStartSongId = song.id;
     _forceRefreshNextResolve = true;
     try {
       if (_playMode == PlayMode.live) {
@@ -663,6 +688,7 @@ class SunohAudioHandler {
       // ignore: avoid_print
       print('[url-refresh] reload failed for ${song.id}: $e');
       _pendingStartPosition = null;
+      _pendingStartSongId = null;
       _forceRefreshNextResolve = false;
     }
   }
@@ -715,22 +741,25 @@ class SunohAudioHandler {
     _icyTitleCtl.add(null);
     _userPlaying = false;
     _pendingStartPosition = seekTo;
+    // Tag the target song so the load hook only consumes the pending
+    // position for the right track. mpv's openAll(index: N) fires the
+    // load hook for index 0 first even when N != 0, and we don't want
+    // the start offset applied to whichever track happens to be at
+    // index 0.
+    final clampedIdx = startIndex.clamp(0, songs.length - 1);
+    _pendingStartSongId = seekTo != null ? songs[clampedIdx].id : null;
     final medias = songs.map(_toMedia).toList();
     if (mode == PlayMode.live) {
-      await _player.open(medias[startIndex.clamp(0, medias.length - 1)],
-          play: false);
+      await _player.open(medias[clampedIdx], play: false);
     } else {
-      await _player.openAll(medias,
-          index: startIndex.clamp(0, medias.length - 1), play: false);
+      await _player.openAll(medias, index: clampedIdx, play: false);
     }
-    // Explicit seek-while-paused. `file-local-options/start` (set in the
-    // load hook via _applyPendingStartPosition) only takes effect when
-    // playback BEGINS, so until the user hits play, mpv reports
-    // position=0. That 0 propagates to the UI before the user can see
-    // the actual restored position. Seeking explicitly here makes mpv's
-    // own state agree with the saved value immediately — paused, but
-    // sitting at the right offset. mpv supports seek-while-paused on a
-    // loaded file; the wait is for mpv to acknowledge the open.
+    // Explicit seek-while-paused once the target track has actually
+    // settled. `file-local-options/start` set in the load hook seeks
+    // mpv internally, but mpv only reports the new position after
+    // playback BEGINS — until then the positionStream emits 0. Explicit
+    // seek bridges that: mpv moves to the offset paused, and the next
+    // positionStream emit carries the real value.
     if (seekTo != null && seekTo.inMilliseconds > 0) {
       try {
         await _player.seek(seekTo);
