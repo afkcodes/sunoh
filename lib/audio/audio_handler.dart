@@ -723,6 +723,23 @@ class SunohAudioHandler {
       await _player.openAll(medias,
           index: startIndex.clamp(0, medias.length - 1), play: false);
     }
+    // Explicit seek-while-paused. `file-local-options/start` (set in the
+    // load hook via _applyPendingStartPosition) only takes effect when
+    // playback BEGINS, so until the user hits play, mpv reports
+    // position=0. That 0 propagates to the UI before the user can see
+    // the actual restored position. Seeking explicitly here makes mpv's
+    // own state agree with the saved value immediately — paused, but
+    // sitting at the right offset. mpv supports seek-while-paused on a
+    // loaded file; the wait is for mpv to acknowledge the open.
+    if (seekTo != null && seekTo.inMilliseconds > 0) {
+      try {
+        await _player.seek(seekTo);
+      } catch (e) {
+        // Some file types reject seek before the first frame is decoded.
+        // The pending-start fallback handles that case on play.
+        debugPrint('[audio] post-open seek($seekTo) deferred: $e');
+      }
+    }
   }
 
   Future<void> play() async {
