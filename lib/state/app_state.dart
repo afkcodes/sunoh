@@ -1451,11 +1451,22 @@ class AppState extends ChangeNotifier with WidgetsBindingObserver {
       // mpv always loads the queue — even while casting. mpv is muted
       // (setVolume(0) on cast connect) so it produces no sound; we keep
       // it loaded so its playlist + index stay the queue source of truth
-      // for skipToNext / repeat / shuffle. The currentSongStream listener
-      // in _bindAudio detects the casting state and forwards each new
-      // song to the receiver via _pushCurrentSongToCast.
+      // for skipToNext / repeat / shuffle. AUTO-advances within the
+      // queue forward to the receiver via the currentSongStream listener
+      // in _bindAudio.
       await repo.playQueue(songs, startIndex,
           sourceLabel: sourceLabel, sourceRef: sourceRef, mode: mode);
+      // Tap-to-play handoff: `_applySong(startSong)` above already set
+      // `currentApiSong = startSong`. By the time mpv's
+      // currentSongStream emits `startSong`, the listener at the top of
+      // _bindAudio short-circuits with "already in sync" and skips the
+      // cast push inside it. Push explicitly here so the receiver
+      // actually switches to the new track. Without this, the cast
+      // device kept playing the previous song when the user tapped a
+      // new one in search / albums / playlists.
+      if (isCasting) {
+        unawaited(_pushCurrentSongToCast(startSong));
+      }
       // `currentSongStream` only fires on *changes*, so a 1-track queue
       // (search→play, single hero tap, etc.) never triggers the per-track
       // autoplay check. Probe here so endless autoplay still extends those
