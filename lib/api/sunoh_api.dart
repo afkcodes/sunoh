@@ -649,6 +649,44 @@ class SunohApi {
     }
     return env.data!;
   }
+
+  /// `GET /radios/search?q=…&country=…&limit=…` — full-text search over
+  /// the sunoh-radio catalog. Returns FeedItems with type=`radio_station`,
+  /// `stationType=live`, and `mediaUrls[0].link` = stream URL ready for
+  /// the resolver's tier-1 inline pickup.
+  Future<List<FeedItem>> fetchRadioSearch(
+    String query, {
+    int limit = 30,
+    String? country,
+  }) async {
+    final res = await _dio.get<Map<String, dynamic>>(
+      '/radios/search',
+      queryParameters: {
+        'q': query,
+        'limit': limit,
+        if (country != null && country.isNotEmpty) 'country': country,
+      },
+    );
+    final env = ApiEnvelope.from<List<FeedItem>>(
+      res.data ?? const {},
+      (raw) {
+        if (raw is Map) {
+          final list = raw['list'];
+          if (list is List) {
+            return list
+                .whereType<Map>()
+                .map((m) => FeedItem.fromJson(m.cast<String, dynamic>()))
+                .toList();
+          }
+        }
+        return const <FeedItem>[];
+      },
+    );
+    if (!env.isSuccess) {
+      throw SunohApiException(env.message, env.error);
+    }
+    return env.data ?? const [];
+  }
 }
 
 class SunohApiException implements Exception {

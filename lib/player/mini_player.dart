@@ -90,22 +90,32 @@ class MiniPlayer extends ConsumerWidget {
                     22,
                     s.playPause,
                     background: accent.withValues(alpha: 0.20)),
-                const SizedBox(width: 4),
-                _miniBtn(PhosphorIconsFill.skipForward, c.fg, 22, s.next),
+                // Skip-next is meaningless for live streams (single-entry
+                // playlist; there's no "next" track). Hide it.
+                if (!s.isLive) ...[
+                  const SizedBox(width: 4),
+                  _miniBtn(
+                      PhosphorIconsFill.skipForward, c.fg, 22, s.next),
+                ],
               ],
             ),
           ),
-          // Full-width seek line, sitting between the mini player and the nav.
-          ValueListenableBuilder<int>(
-            valueListenable: s.positionTick,
-            builder: (_, pos, _) => Scrubber(
-              value: pos,
-              max: s.currentDurationSec,
-              accent: accent,
-              fg: c.fg,
-              compact: true,
+          // Full-width seek line for finite tracks. Live streams have
+          // no duration/position, so the scrubber would just render
+          // 0:00 / 0:00 — replace it with a flat live indicator strip.
+          if (s.isLive)
+            _LiveIndicator(accent: accent, fg: c.fg)
+          else
+            ValueListenableBuilder<int>(
+              valueListenable: s.positionTick,
+              builder: (_, pos, _) => Scrubber(
+                value: pos,
+                max: s.currentDurationSec,
+                accent: accent,
+                fg: c.fg,
+                compact: true,
+              ),
             ),
-          ),
         ],
       ),
     );
@@ -128,6 +138,41 @@ class MiniPlayer extends ConsumerWidget {
             ? null
             : BoxDecoration(color: background, shape: BoxShape.circle),
         child: Icon(icon, size: size, color: color),
+      ),
+    );
+  }
+}
+
+/// Thin coloured strip with a "● LIVE" pill, used in place of the
+/// position scrubber while a live stream is playing. Same height as
+/// the compact Scrubber so the layout doesn't jump on mode transitions.
+class _LiveIndicator extends StatelessWidget {
+  const _LiveIndicator({required this.accent, required this.fg});
+  final Color accent;
+  final Color fg;
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(20, 4, 20, 8),
+      child: Row(
+        children: [
+          Container(
+            width: 6,
+            height: 6,
+            decoration: BoxDecoration(color: accent, shape: BoxShape.circle),
+          ),
+          const SizedBox(width: 6),
+          Text(
+            'LIVE',
+            style: TextStyle(
+              fontSize: 10,
+              fontWeight: FontWeight.w700,
+              letterSpacing: 1.4,
+              color: accent,
+            ),
+          ),
+        ],
       ),
     );
   }

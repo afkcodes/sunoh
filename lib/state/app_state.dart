@@ -1437,6 +1437,9 @@ class AppState extends ChangeNotifier with WidgetsBindingObserver {
     apiSourceRef = sourceRef;
     _applySong(startSong);
     isPlaying = true;
+    // Surface the live-vs-track distinction so the player UI can adapt
+    // (no scrubber / no skip buttons / no queue UI for radios).
+    _isLive = mode == PlayMode.live;
     _tick?.cancel();
     notifyListeners();
 
@@ -1638,6 +1641,15 @@ class AppState extends ChangeNotifier with WidgetsBindingObserver {
   // Only basic transport is wired in v1 (play / pause / disconnect).
   // Mid-track URL refresh on Cast, queue advance while casting, and
   // position sync from the receiver are v2.
+
+  /// True when the currently-playing item is a live stream
+  /// (`PlayMode.live` in the audio handler). Drives player-UI
+  /// adaptations: hide the scrubber, hide skip-prev/skip-next, etc.
+  /// — live streams have no duration / position / next-track. Set by
+  /// `playApiQueue` from its `mode` param; cleared back to false the
+  /// next time a track-mode queue is loaded.
+  bool _isLive = false;
+  bool get isLive => _isLive;
 
   bool _isCasting = false;
   // Stamp the moment a cast session goes live so logCastDisconnect can

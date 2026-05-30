@@ -335,59 +335,99 @@ class _ExpandedPlayerState extends ConsumerState<ExpandedPlayer>
               ),
             ),
             const SizedBox(height: 20),
-            Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 24),
-              child: _progress(
-                s,
-                accent,
-                c.fg,
-                layout: (scrubber, pos, remaining) => Column(
+            if (s.isLive)
+              // Live streams: no scrubber / no times. Show a discrete
+              // "● LIVE" pill where the position would be — same vertical
+              // slot so the layout below doesn't jump on mode change.
+              Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 24),
+                child: Row(
                   children: [
-                    scrubber,
-                    const SizedBox(height: 4),
-                    _times(c, fmt(pos), '-${fmt(remaining)}'),
+                    Container(
+                      width: 8,
+                      height: 8,
+                      decoration: BoxDecoration(
+                          color: accent, shape: BoxShape.circle),
+                    ),
+                    const SizedBox(width: 8),
+                    Text(
+                      'LIVE',
+                      style: TextStyle(
+                        fontSize: 11,
+                        fontWeight: FontWeight.w700,
+                        letterSpacing: 1.6,
+                        color: accent,
+                      ),
+                    ),
                   ],
                 ),
+              )
+            else
+              Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 24),
+                child: _progress(
+                  s,
+                  accent,
+                  c.fg,
+                  layout: (scrubber, pos, remaining) => Column(
+                    children: [
+                      scrubber,
+                      const SizedBox(height: 4),
+                      _times(c, fmt(pos), '-${fmt(remaining)}'),
+                    ],
+                  ),
+                ),
               ),
-            ),
             const SizedBox(height: 18),
             Padding(
               padding: const EdgeInsets.symmetric(horizontal: 24),
               child: Row(
                 mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                children: [
-                  IconBtn(
-                    icon: PhosphorIconsBold.shuffle,
-                    color: s.shuffle ? accent : c.fgMute,
-                    size: 22,
-                    onTap: s.toggleShuffle,
-                  ),
-                  IconBtn(
-                    icon: PhosphorIconsFill.skipBack,
-                    color: c.fg,
-                    size: 30,
-                    onTap: s.prev,
-                  ),
-                  _PlayButton(
-                    playing: s.isPlaying,
-                    accent: accent,
-                    onTap: s.playPause,
-                  ),
-                  IconBtn(
-                    icon: PhosphorIconsFill.skipForward,
-                    color: c.fg,
-                    size: 30,
-                    onTap: s.next,
-                  ),
-                  IconBtn(
-                    icon: s.repeat == LoopMode.one
-                        ? PhosphorIconsBold.repeatOnce
-                        : PhosphorIconsBold.repeat,
-                    color: s.repeat != LoopMode.off ? accent : c.fgMute,
-                    size: 22,
-                    onTap: s.cycleRepeat,
-                  ),
-                ],
+                children: s.isLive
+                    // Live streams: just the play/pause button. Shuffle,
+                    // repeat, skip-prev/next are meaningless when the
+                    // playlist is a single live entry with no duration.
+                    ? [
+                        _PlayButton(
+                          playing: s.isPlaying,
+                          accent: accent,
+                          onTap: s.playPause,
+                        ),
+                      ]
+                    : [
+                        IconBtn(
+                          icon: PhosphorIconsBold.shuffle,
+                          color: s.shuffle ? accent : c.fgMute,
+                          size: 22,
+                          onTap: s.toggleShuffle,
+                        ),
+                        IconBtn(
+                          icon: PhosphorIconsFill.skipBack,
+                          color: c.fg,
+                          size: 30,
+                          onTap: s.prev,
+                        ),
+                        _PlayButton(
+                          playing: s.isPlaying,
+                          accent: accent,
+                          onTap: s.playPause,
+                        ),
+                        IconBtn(
+                          icon: PhosphorIconsFill.skipForward,
+                          color: c.fg,
+                          size: 30,
+                          onTap: s.next,
+                        ),
+                        IconBtn(
+                          icon: s.repeat == LoopMode.one
+                              ? PhosphorIconsBold.repeatOnce
+                              : PhosphorIconsBold.repeat,
+                          color:
+                              s.repeat != LoopMode.off ? accent : c.fgMute,
+                          size: 22,
+                          onTap: s.cycleRepeat,
+                        ),
+                      ],
               ),
             ),
             const Spacer(flex: 3),

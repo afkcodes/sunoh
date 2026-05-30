@@ -11,7 +11,9 @@ import '../api/dto.dart';
 import '../data/models.dart';
 import '../overlays/track_menu_sheet.dart';
 import '../providers/app_state_provider.dart';
+import '../audio/audio_handler.dart' show PlayMode;
 import '../providers/podcast_provider.dart';
+import '../providers/radio_provider.dart';
 import '../providers/search_provider.dart';
 import '../router/deep_links.dart';
 import '../router/router.dart';
@@ -301,10 +303,12 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
       return const _ResultsSkeleton();
     }
     final async = ref.watch(searchProvider(_activeQuery));
-    // Parallel podcast search. The two providers fire independently;
-    // we merge results when the music search resolves. Podcast search
-    // failures degrade gracefully — the section just doesn't appear.
+    // Parallel podcast + radio searches. The three providers fire
+    // independently; we merge results when the music search resolves.
+    // Either side failing degrades gracefully — its section just
+    // doesn't appear in the list.
     final podcastAsync = ref.watch(podcastSearchProvider(_activeQuery));
+    final radioAsync = ref.watch(radioSearchProvider(_activeQuery));
     return async.when(
       loading: () => const _ResultsSkeleton(),
       error: (e, _) => _SearchHint(
@@ -314,11 +318,17 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
       ),
       data: (sections) {
         final nonEmpty = sections.where((sec) => sec.items.isNotEmpty).toList();
-        // Merge podcast results in as a HomeSection-shaped row so the
-        // existing _ResultsSection renderer can draw the tiles unchanged.
+        // Merge podcast + radio results in as HomeSection-shaped rows
+        // so the existing _ResultsSection renderer can draw the tiles
+        // unchanged. Both `type` discriminators (`podcast`, `radio_station`)
+        // already route correctly in _ResultsSection's switch.
         final podcasts = podcastAsync.asData?.value ?? const <FeedItem>[];
         if (podcasts.isNotEmpty) {
           nonEmpty.add(HomeSection(heading: 'Podcasts', items: podcasts));
+        }
+        final radios = radioAsync.asData?.value ?? const <FeedItem>[];
+        if (radios.isNotEmpty) {
+          nonEmpty.add(HomeSection(heading: 'Radio stations', items: radios));
         }
         if (nonEmpty.isEmpty) {
           return _SearchHint(
@@ -343,6 +353,15 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
                 colors: c,
                 onPlay: (song) => s.playApiSong(song,
                     sourceLabel: 'SEARCH · $_activeQuery'),
+                // Live streams need PlayMode.live so the audio handler
+                // takes the single-entry path (no playlist auto-advance,
+                // EOF means stream dropped → URL refresh).
+                onPlayStation: (station) => s.playApiQueue(
+                  [station],
+                  0,
+                  sourceLabel: 'RADIO · ${station.title}',
+                  mode: PlayMode.live,
+                ),
               ),
               if (i < ordered.length - 1) const SizedBox(height: 20),
             ],
@@ -404,10 +423,15 @@ class _ResultsSection extends StatelessWidget {
     required this.section,
     required this.colors,
     required this.onPlay,
+    required this.onPlayStation,
   });
   final HomeSection section;
   final SunohColors colors;
   final void Function(FeedItem song) onPlay;
+  /// Separate from [onPlay] because radio stations need PlayMode.live —
+  /// the regular playApiSong path uses PlayMode.track which would treat
+  /// the stream as a finite file (no auto-refresh on stream-drop EOF).
+  final void Function(FeedItem station) onPlayStation;
 
   @override
   Widget build(BuildContext context) {
@@ -427,6 +451,11 @@ class _ResultsSection extends StatelessWidget {
               switch (item.type) {
                 case 'song':
                   onPlay(item);
+                case 'radio_station':
+                  // Live streams — tap-to-play. No detail screen for
+                  // radios today; the player owns the now-playing UI
+                  // via the ICY title stream.
+                  onPlayStation(item);
                 case 'album':
                 case 'playlist':
                 case 'artist':
