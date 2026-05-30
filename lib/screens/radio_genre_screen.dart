@@ -92,16 +92,11 @@ class RadioGenreScreen extends ConsumerWidget {
                     ),
                   ),
                 ),
-                error: (e, _) => Center(
-                  child: Padding(
-                    padding: const EdgeInsets.all(24),
-                    child: Text(
-                      'Couldn’t load stations.\n$e',
-                      textAlign: TextAlign.center,
-                      style:
-                          SunohType.sans(fontSize: 13, color: c.fgMute),
-                    ),
-                  ),
+                error: (e, _) => _GenreErrorState(
+                  colors: c,
+                  accent: accent,
+                  onRetry: () => ref.invalidate(radiosByGenreProvider(
+                      RadioGenreKey(genre: genre, country: country))),
                 ),
                 data: (stations) {
                   if (stations.isEmpty) {
@@ -216,6 +211,81 @@ class _StationRow extends ConsumerWidget {
               )
             else
               Icon(SolarIconsBold.playCircle, color: accent, size: 28),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+/// Centered error block — medallion + title + retry chip. Same shape
+/// as the Radio tab's _RadioMessageBlock; duplicated here rather than
+/// extracted because the cross-screen reuse is shallow and each
+/// instance reads cleanly on its own.
+class _GenreErrorState extends StatelessWidget {
+  const _GenreErrorState({
+    required this.colors,
+    required this.accent,
+    required this.onRetry,
+  });
+  final SunohColors colors;
+  final Color accent;
+  final VoidCallback onRetry;
+
+  @override
+  Widget build(BuildContext context) {
+    final c = colors;
+    return Center(
+      child: Padding(
+        padding: const EdgeInsets.fromLTRB(32, 32, 32, 32),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Container(
+              width: 56,
+              height: 56,
+              decoration: BoxDecoration(
+                shape: BoxShape.circle,
+                color: accent.withValues(alpha: 0.16),
+              ),
+              alignment: Alignment.center,
+              child: Icon(SolarIconsOutline.wifiRouterRound,
+                  color: accent, size: 24),
+            ),
+            const SizedBox(height: 16),
+            Text(
+              'Couldn’t load stations',
+              style: SunohType.heading(
+                  fontSize: 15, color: c.fg, letterSpacing: -0.2),
+            ),
+            const SizedBox(height: 6),
+            Text(
+              'Check your connection and try again.',
+              textAlign: TextAlign.center,
+              style: SunohType.sans(fontSize: 12.5, color: c.fgMute),
+            ),
+            const SizedBox(height: 16),
+            GestureDetector(
+              onTap: onRetry,
+              behavior: HitTestBehavior.opaque,
+              child: Container(
+                padding:
+                    const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                decoration: squircleDecoration(
+                  radius: 999,
+                  color: accent.withValues(alpha: 0.14),
+                  borderColor: accent.withValues(alpha: 0.32),
+                ),
+                child: Text(
+                  'Try again',
+                  style: SunohType.sans(
+                    fontSize: 12.5,
+                    fontWeight: FontWeight.w600,
+                    color: accent,
+                  ),
+                ),
+              ),
+            ),
           ],
         ),
       ),

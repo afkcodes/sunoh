@@ -11,34 +11,16 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:solar_icons/solar_icons.dart';
 
-import '../api/dto.dart';
 import '../providers/app_state_provider.dart';
 import '../providers/radio_provider.dart';
-import '../router/router.dart';
 import '../theme/tokens.dart';
 import '../widgets/ui.dart';
-import 'radio_tab.dart' show titleCase;
+import 'radio_tab.dart' show GenreTile, GenreTileVariant;
 
-/// 12-color curated palette — same set used by
-/// `podcast_categories_screen.dart`. Each genre picks one
-/// deterministically by `value.hashCode % 12`, so the same genre always
-/// wears the same color across renders. Sanctioned hex literals (per
-/// the design-system rule about palettes being an exception to the
-/// token-only color rule).
-const _genrePalette = <Color>[
-  Color(0xFFE05656),
-  Color(0xFFE07A3C),
-  Color(0xFFD9A93C),
-  Color(0xFF6FBF73),
-  Color(0xFF3FB7C7),
-  Color(0xFF4A8FE0),
-  Color(0xFF8466DC),
-  Color(0xFFCB5BB6),
-  Color(0xFFC36F4F),
-  Color(0xFF4F9F8F),
-  Color(0xFFB36FB9),
-  Color(0xFF6FAB4F),
-];
+// Tile design + per-genre color/icon mapping live in `radio_tab.dart`
+// (`GenreTile`, `genreColorFor`, `genreIconFor`) so the same genre
+// always wears the same look whether it's rendered in the preview
+// strip on the Radio tab or the full grid here.
 
 class RadioGenresScreen extends ConsumerWidget {
   const RadioGenresScreen({super.key});
@@ -95,28 +77,82 @@ class RadioGenresScreen extends ConsumerWidget {
                 ),
                 error: (e, _) => Center(
                   child: Padding(
-                    padding: const EdgeInsets.all(24),
-                    child: Text(
-                      'Couldn’t load genres.\n$e',
-                      textAlign: TextAlign.center,
-                      style:
-                          SunohType.sans(fontSize: 13, color: c.fgMute),
+                    padding: const EdgeInsets.fromLTRB(32, 32, 32, 32),
+                    child: Column(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Container(
+                          width: 56,
+                          height: 56,
+                          decoration: BoxDecoration(
+                            shape: BoxShape.circle,
+                            color: s.resolvedAccent.withValues(alpha: 0.16),
+                          ),
+                          alignment: Alignment.center,
+                          child: Icon(SolarIconsOutline.wifiRouterRound,
+                              color: s.resolvedAccent, size: 24),
+                        ),
+                        const SizedBox(height: 16),
+                        Text(
+                          'Couldn’t load genres',
+                          style: SunohType.heading(
+                              fontSize: 15,
+                              color: c.fg,
+                              letterSpacing: -0.2),
+                        ),
+                        const SizedBox(height: 6),
+                        Text(
+                          'Check your connection and try again.',
+                          textAlign: TextAlign.center,
+                          style: SunohType.sans(
+                              fontSize: 12.5, color: c.fgMute),
+                        ),
+                        const SizedBox(height: 16),
+                        GestureDetector(
+                          onTap: () =>
+                              ref.invalidate(radioGenresProvider),
+                          behavior: HitTestBehavior.opaque,
+                          child: Container(
+                            padding: const EdgeInsets.symmetric(
+                                horizontal: 16, vertical: 8),
+                            decoration: squircleDecoration(
+                              radius: 999,
+                              color: s.resolvedAccent
+                                  .withValues(alpha: 0.14),
+                              borderColor: s.resolvedAccent
+                                  .withValues(alpha: 0.32),
+                            ),
+                            child: Text(
+                              'Try again',
+                              style: SunohType.sans(
+                                fontSize: 12.5,
+                                fontWeight: FontWeight.w600,
+                                color: s.resolvedAccent,
+                              ),
+                            ),
+                          ),
+                        ),
+                      ],
                     ),
                   ),
                 ),
                 data: (genres) => GridView.builder(
                   padding: const EdgeInsets.fromLTRB(20, 0, 20, 140),
+                  // 4:3 tiles in two columns — chunky enough for the
+                  // bold heading + corner glyph to read, taller than
+                  // the old wide-pill aspect so each tile feels like
+                  // its own card rather than a row in a list.
                   gridDelegate:
                       const SliverGridDelegateWithFixedCrossAxisCount(
                     crossAxisCount: 2,
-                    mainAxisSpacing: 10,
-                    crossAxisSpacing: 10,
-                    childAspectRatio: 180 / 64,
+                    mainAxisSpacing: 12,
+                    crossAxisSpacing: 12,
+                    childAspectRatio: 4 / 3,
                   ),
                   itemCount: genres.length,
-                  itemBuilder: (context, i) => _GenreCard(
+                  itemBuilder: (context, i) => GenreTile(
                     facet: genres[i],
-                    colors: c,
+                    variant: GenreTileVariant.card,
                   ),
                 ),
               ),
@@ -128,63 +164,3 @@ class RadioGenresScreen extends ConsumerWidget {
   }
 }
 
-class _GenreCard extends StatelessWidget {
-  const _GenreCard({required this.facet, required this.colors});
-  final RadioFacet facet;
-  final SunohColors colors;
-
-  @override
-  Widget build(BuildContext context) {
-    final c = colors;
-    final seed = _genrePalette[facet.value.hashCode.abs() % _genrePalette.length];
-    return GestureDetector(
-      onTap: () => context.openRadioGenre(facet.value),
-      behavior: HitTestBehavior.opaque,
-      child: squircleClip(
-        radius: 10,
-        child: Container(
-          decoration: BoxDecoration(
-            gradient: LinearGradient(
-              begin: Alignment.centerLeft,
-              end: Alignment.centerRight,
-              colors: [
-                Color.lerp(c.bg, seed, 0.62)!,
-                Color.lerp(c.bg, seed, 0.22)!,
-              ],
-            ),
-          ),
-          child: Padding(
-            padding: const EdgeInsets.fromLTRB(14, 8, 14, 8),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              mainAxisAlignment: MainAxisAlignment.center,
-              children: [
-                Text(
-                  titleCase(facet.value),
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                  style: SunohType.heading(
-                    fontSize: 14,
-                    color: Colors.white,
-                    letterSpacing: -0.1,
-                    height: 1.15,
-                  ),
-                ),
-                const SizedBox(height: 2),
-                Text(
-                  '${facet.count} stations',
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                  style: SunohType.sans(
-                    fontSize: 11,
-                    color: Colors.white.withValues(alpha: 0.75),
-                  ),
-                ),
-              ],
-            ),
-          ),
-        ),
-      ),
-    );
-  }
-}

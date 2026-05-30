@@ -102,6 +102,8 @@ class AppState extends ChangeNotifier with WidgetsBindingObserver {
         repo.library.loadSubscribedPodcasts(),
         repo.library.loadSubscribedPodcastIds(),
         repo.library.loadEpisodeProgress(),
+        repo.library.loadLikedStations(),
+        repo.library.loadLikedStationIds(),
       ]);
       _likedIds = results[0] as Set<String>;
       _likedSongs = results[1] as List<FeedItem>;
@@ -116,6 +118,8 @@ class AppState extends ChangeNotifier with WidgetsBindingObserver {
       _subscribedPodcasts = results[10] as List<FeedItem>;
       _subscribedPodcastIds = results[11] as Set<String>;
       _episodeProgress = results[12] as Map<String, int>;
+      _likedStations = results[13] as List<FeedItem>;
+      _likedStationIds = results[14] as Set<String>;
       notifyListeners();
       debugPrint('[library] restored liked=${_likedSongs.length} '
           'history=${_playedHistory.length} '
@@ -124,7 +128,8 @@ class AppState extends ChangeNotifier with WidgetsBindingObserver {
           'artists=${_savedArtists.length} '
           'userPlaylists=${_userPlaylists.length} '
           'podcasts=${_subscribedPodcasts.length} '
-          'episodeProgress=${_episodeProgress.length}');
+          'episodeProgress=${_episodeProgress.length} '
+          'stations=${_likedStations.length}');
     } catch (e) {
       debugPrint('[library] restore failed: $e');
     }
@@ -241,6 +246,11 @@ class AppState extends ChangeNotifier with WidgetsBindingObserver {
       apiSourceRef = saved.sourceRef;
       _applySong(song);
       position = saved.positionSec;
+      // Restore the live flag too — without this, a radio-station
+      // queue would re-mount with the track-mode player UI (scrubber,
+      // skip buttons) and tapping play after restore would silently
+      // no-op because the prior session reached EOF on the live entry.
+      _isLive = saved.playMode == PlayMode.live;
       // Engine is loaded but paused — UI shows "ready to play".
       isPlaying = false;
       // Guard against mpv's positionStream clobbering the restored value
@@ -432,6 +442,10 @@ class AppState extends ChangeNotifier with WidgetsBindingObserver {
   // toggles a heart or a new track auto-plays.
   Set<String> _likedIds = const <String>{};
   List<FeedItem> _likedSongs = const <FeedItem>[];
+  /// Liked radio stations — own bucket so they don't pollute Liked
+  /// Songs. Newest-first; toggled via [toggleLikedStation].
+  Set<String> _likedStationIds = const <String>{};
+  List<FeedItem> _likedStations = const <FeedItem>[];
   List<FeedItem> _playedHistory = const <FeedItem>[];
 
   // Saved collections — same newest-first ordering as liked_songs,
@@ -938,6 +952,8 @@ class AppState extends ChangeNotifier with WidgetsBindingObserver {
 
   /// Full liked list — newest-first.
   List<FeedItem> get likedSongs => _likedSongs;
+  List<FeedItem> get likedStations => _likedStations;
+  bool isLikedStationId(String id) => _likedStationIds.contains(id);
 
   /// Last-played API songs — newest-first, capped at LibraryStore's max.
   List<FeedItem> get playedHistory => _playedHistory;
@@ -945,12 +961,64 @@ class AppState extends ChangeNotifier with WidgetsBindingObserver {
   /// O(1) liked check by song id. Use for heart icons in lists.
   bool isLikedId(String id) => _likedIds.contains(id);
 
-  /// True when the currently-playing API song is liked. Drives the heart
-  /// in the expanded + mini players.
+  /// True when the currently-playing API item is liked. Drives the
+  /// heart in the expanded + mini players. Reads from the **correct**
+  /// bucket — songs go to liked songs, radio stations go to liked
+  /// stations — so a hearted station shows hearted on the player and
+  /// vice versa.
   bool get isLikedCurrentApi {
-    final id = currentApiSong?.id;
-    if (id == null) return likedCurrent; // dummy-path fallback
-    return _likedIds.contains(id);
+    final song = currentApiSong;
+    if (song == null) return likedCurrent; // dummy-path fallback
+    if (song.type == 'radio_station') {
+      return _likedStationIds.contains(song.id);
+    }
+    return _likedIds.contains(song.id);
+  }
+
+  /// Dispatcher — routes the heart action to the right bucket based on
+  /// the item's `type`. Radio stations go to [toggleLikedStation],
+  /// everything else (songs, episodes-treated-as-songs, …) goes to
+  /// [toggleLikedSong]. Use this from the player UI; surfaces that
+  /// know they're dealing with a song specifically can call
+  /// [toggleLikedSong] directly.
+  Future<void> toggleLikedApi(FeedItem item) =>
+      item.type == 'radio_station'
+          ? toggleLikedStation(item)
+          : toggleLikedSong(item);
+
+  /// Like / unlike a radio station. Independent bucket from
+  /// [toggleLikedSong] so hearting a station doesn't dump it into the
+  /// "Liked songs" list.
+  Future<void> toggleLikedStation(FeedItem station) async {
+    final repo = audioRepo;
+    if (repo == null) return;
+    final wasLiked = _likedStationIds.contains(station.id);
+    final shouldLike = !wasLiked;
+    _likedStationIds = {..._likedStationIds};
+    if (shouldLike) {
+      _likedStationIds.add(station.id);
+      _likedStations = [
+        station,
+        ..._likedStations.where((s) => s.id != station.id),
+      ];
+    } else {
+      _likedStationIds.remove(station.id);
+      _likedStations =
+          _likedStations.where((s) => s.id != station.id).toList();
+    }
+    flashToast(shouldLike ? 'Added to Liked stations' : 'Removed from Liked stations');
+    notifyListeners();
+    AnalyticsService.instance
+        .logLike(station.id, liked: shouldLike, title: station.title);
+    try {
+      final next = await repo.library
+          .setLikedStation(station: station, liked: shouldLike);
+      _likedStations = next;
+      _likedStationIds = next.map((s) => s.id).toSet();
+      notifyListeners();
+    } catch (e) {
+      debugPrint('[library] toggleLikedStation failed for ${station.id}: $e');
+    }
   }
 
   /// Like / unlike an API song. Updates the in-memory cache, persists,
@@ -1095,6 +1163,18 @@ class AppState extends ChangeNotifier with WidgetsBindingObserver {
       if (currentApiSong == null) return;
       if (playing != isPlaying) {
         isPlaying = playing;
+        notifyListeners();
+      }
+    }));
+    // ICY title from live streams — "Now Playing: Artist - Song" or
+    // similar metadata embedded in the audio stream. Only meaningful
+    // in PlayMode.live; for track-mode the handler emits null on every
+    // track change (no-op for the UI).
+    _audioSubs.add(handler.icyTitleStream.listen((title) {
+      final clean = (title ?? '').trim();
+      final next = clean.isEmpty ? null : clean;
+      if (next != _icyTitle) {
+        _icyTitle = next;
         notifyListeners();
       }
     }));
@@ -1294,6 +1374,9 @@ class AppState extends ChangeNotifier with WidgetsBindingObserver {
     // restored track now and subsequent 0-reports from mpv (e.g. a new
     // track loading paused) shouldn't be filtered.
     _restoredPositionGuard = 0;
+    // ICY metadata is per-stream; clear so the UI doesn't briefly show
+    // the previous station's "Now Playing" against the new song's title.
+    _icyTitle = null;
     _refreshExtractedAccent(song.artwork);
     // Episode resume: when an episode becomes active and we have a
     // saved position for it, seek there. The seek queues against
@@ -1650,6 +1733,16 @@ class AppState extends ChangeNotifier with WidgetsBindingObserver {
   /// next time a track-mode queue is loaded.
   bool _isLive = false;
   bool get isLive => _isLive;
+
+  /// "Now playing" track metadata from the live stream's ICY/Shoutcast
+  /// title field. Format is usually "Artist - Song" but it's free-text
+  /// — anything from "Diverse FM - Tum Hi Ho" to "ad break" can land
+  /// here. Null when not in live mode OR the upstream hasn't emitted
+  /// any metadata yet. UI uses this as the primary text in player
+  /// surfaces (mini + expanded) when set, falling back to the station
+  /// name otherwise.
+  String? _icyTitle;
+  String? get icyTitle => _icyTitle;
 
   bool _isCasting = false;
   // Stamp the moment a cast session goes live so logCastDisconnect can

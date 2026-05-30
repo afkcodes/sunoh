@@ -58,17 +58,44 @@ class MiniPlayer extends ConsumerWidget {
                     mainAxisSize: MainAxisSize.min,
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      Text(track.title,
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
-                          style: SunohType.sans(
-                              fontSize: 13.5,
-                              fontWeight: FontWeight.w500,
-                              color: c.fg)),
-                      Text(track.artist,
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
-                          style: SunohType.sans(fontSize: 11.5, color: c.fgMute)),
+                      // Title row — live streams get a pulsing red dot
+                      // tucked to the left of the title (instead of a
+                      // pill + label). Quieter chrome but still reads
+                      // as "this is on-air right now".
+                      Row(
+                        children: [
+                          if (s.isLive) ...[
+                            const _PingingDot(),
+                            const SizedBox(width: 8),
+                          ],
+                          Expanded(
+                            child: Text(
+                              // Live: prefer the ICY now-playing track,
+                              // fall back to the station name. Non-live:
+                              // always the track title.
+                              s.isLive
+                                  ? (s.icyTitle ?? track.title)
+                                  : track.title,
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                              style: SunohType.sans(
+                                  fontSize: 13.5,
+                                  fontWeight: FontWeight.w500,
+                                  color: c.fg),
+                            ),
+                          ),
+                        ],
+                      ),
+                      Text(
+                        // Secondary line: station name when live (so the
+                        // user always knows the source even when ICY is
+                        // the big slot); otherwise the artist.
+                        s.isLive ? track.title : track.artist,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: SunohType.sans(
+                            fontSize: 11.5, color: c.fgMute),
+                      ),
                     ],
                   ),
                 ),
@@ -83,8 +110,15 @@ class MiniPlayer extends ConsumerWidget {
                 // identity — bright enough to spot, soft enough to not
                 // dominate.
                 _miniBtn(
+                    // Live streams don't pause meaningfully (buffer
+                    // drains; resume jumps to the live edge). The
+                    // user-facing semantic is "stop", so swap the
+                    // icon — the underlying action stays s.playPause
+                    // which mpv handles either way.
                     s.isPlaying
-                        ? PhosphorIconsFill.pause
+                        ? (s.isLive
+                            ? PhosphorIconsFill.stop
+                            : PhosphorIconsFill.pause)
                         : PhosphorIconsFill.play,
                     c.fg,
                     22,
@@ -100,12 +134,11 @@ class MiniPlayer extends ConsumerWidget {
               ],
             ),
           ),
-          // Full-width seek line for finite tracks. Live streams have
-          // no duration/position, so the scrubber would just render
-          // 0:00 / 0:00 — replace it with a flat live indicator strip.
-          if (s.isLive)
-            _LiveIndicator(accent: accent, fg: c.fg)
-          else
+          // Scrubber for finite tracks only. Live streams put the LIVE
+          // chip + ICY title inline in the row above and drop this
+          // strip entirely so the mini player doesn't have a useless
+          // 0:00/0:00 progress bar.
+          if (!s.isLive)
             ValueListenableBuilder<int>(
               valueListenable: s.positionTick,
               builder: (_, pos, _) => Scrubber(
@@ -143,36 +176,76 @@ class MiniPlayer extends ConsumerWidget {
   }
 }
 
-/// Thin coloured strip with a "● LIVE" pill, used in place of the
-/// position scrubber while a live stream is playing. Same height as
-/// the compact Scrubber so the layout doesn't jump on mode transitions.
-class _LiveIndicator extends StatelessWidget {
-  const _LiveIndicator({required this.accent, required this.fg});
-  final Color accent;
-  final Color fg;
+/// Small pulsing red dot — radio "on-air" indicator. Always red
+/// regardless of the user's accent so it reads universally as a
+/// broadcast signal (same convention as TV "REC" lights). Animates a
+/// gentle scale + opacity bounce to suggest a heartbeat without
+/// becoming distracting.
+class _PingingDot extends StatefulWidget {
+  const _PingingDot();
+  @override
+  State<_PingingDot> createState() => _PingingDotState();
+}
+
+class _PingingDotState extends State<_PingingDot>
+    with SingleTickerProviderStateMixin {
+  late final AnimationController _ctl;
+
+  @override
+  void initState() {
+    super.initState();
+    _ctl = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 1100),
+    )..repeat();
+  }
+
+  @override
+  void dispose() {
+    _ctl.dispose();
+    super.dispose();
+  }
 
   @override
   Widget build(BuildContext context) {
-    return Padding(
-      padding: const EdgeInsets.fromLTRB(20, 4, 20, 8),
-      child: Row(
-        children: [
-          Container(
-            width: 6,
-            height: 6,
-            decoration: BoxDecoration(color: accent, shape: BoxShape.circle),
-          ),
-          const SizedBox(width: 6),
-          Text(
-            'LIVE',
-            style: TextStyle(
-              fontSize: 10,
-              fontWeight: FontWeight.w700,
-              letterSpacing: 1.4,
-              color: accent,
-            ),
-          ),
-        ],
+    const dotColor = Color(0xFFE05656);
+    return SizedBox(
+      width: 10,
+      height: 10,
+      child: AnimatedBuilder(
+        animation: _ctl,
+        builder: (_, _) {
+          // Halo pulses from 0 → ~2.4× the dot diameter while fading
+          // out; the inner dot stays at constant size + opacity so the
+          // identity reads even when the halo is at zero alpha.
+          final t = _ctl.value;
+          final haloScale = 1.0 + t * 1.4;
+          final haloAlpha = (1.0 - t) * 0.55;
+          return Stack(
+            alignment: Alignment.center,
+            children: [
+              Transform.scale(
+                scale: haloScale,
+                child: Container(
+                  width: 10,
+                  height: 10,
+                  decoration: BoxDecoration(
+                    shape: BoxShape.circle,
+                    color: dotColor.withValues(alpha: haloAlpha),
+                  ),
+                ),
+              ),
+              Container(
+                width: 6,
+                height: 6,
+                decoration: const BoxDecoration(
+                  shape: BoxShape.circle,
+                  color: dotColor,
+                ),
+              ),
+            ],
+          );
+        },
       ),
     );
   }

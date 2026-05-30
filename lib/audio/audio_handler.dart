@@ -779,15 +779,25 @@ class SunohAudioHandler {
     // they fire perfectly, a 1-hour-TTL URL inevitably goes stale during
     // a long pause. Hitting `play()` with a stale URL trips mpv's
     // load-error retry → exhaustion → auto-advance, which surfaces as
-    // "wrong song plays". Refresh inline before letting mpv resume.
+    // "wrong song plays" (track mode) or silently no-ops (live mode —
+    // single-entry playlist has nothing to advance to). Refresh
+    // inline before letting mpv resume.
+    //
+    // Live mode is ALWAYS refreshed on play: the live edge has moved
+    // on whether the pause was 10s or 10h, and the previously-buffered
+    // bytes are effectively a stale snapshot of "now". For track mode
+    // we gate on the URL refresh scheduler's safety check so short
+    // pauses don't waste a round-trip.
     final song = currentSong;
-    if (song != null &&
-        _playMode == PlayMode.track &&
-        _urlRefresh.isPastSafetyFor(song.id)) {
-      // ignore: avoid_print
-      print('[audio] play() with stale URL for "${song.title}" — '
-          'refreshing inline');
-      await _refreshCurrentTrack();
+    if (song != null) {
+      final stale = _playMode == PlayMode.live ||
+          _urlRefresh.isPastSafetyFor(song.id);
+      if (stale) {
+        // ignore: avoid_print
+        print('[audio] play() refreshing ${song.id} ("${song.title}") '
+            'mode=$_playMode');
+        await _refreshCurrentTrack();
+      }
     }
 
     await _player.play();

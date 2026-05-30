@@ -35,6 +35,10 @@ class LibraryStore {
   // collections, and "subscribed" implies wanting new episodes
   // surfaced.
   static const _kSubscribedPodcasts = 'subscribed_podcasts';
+  // Liked radio stations — own bucket so heart on a station doesn't
+  // dump it into the "Liked songs" list. Same encoding (JSON list of
+  // FeedItems, newest-first) as the other buckets.
+  static const _kLikedStations = 'liked_stations';
   // Map of episodeId → position seconds. Survives app restarts so
   // resume-where-you-left-off works across cold starts. Capped at
   // [_maxEpisodeProgress] entries (LRU by updatedAt).
@@ -369,6 +373,49 @@ class LibraryStore {
     await box.flush();
     debugPrint('[library-store] subscribed=${subscribed ? 'on' : 'off'} '
         'podcast:${show.id} (total=${current.length})');
+    return current;
+  }
+
+  // ── Liked stations ─────────────────────────────────────────────────────
+
+  Future<Set<String>> loadLikedStationIds() async {
+    try {
+      final box = await _box();
+      final raw = box.get(_kLikedStations);
+      if (raw is! List) return <String>{};
+      return raw
+          .whereType<Map>()
+          .map((m) => (m['id'] ?? '').toString())
+          .where((id) => id.isNotEmpty)
+          .toSet();
+    } catch (e) {
+      debugPrint('[library-store] loadLikedStationIds failed: $e');
+      return <String>{};
+    }
+  }
+
+  Future<List<FeedItem>> loadLikedStations() async {
+    try {
+      final box = await _box();
+      return _decodeList(box.get(_kLikedStations));
+    } catch (e) {
+      debugPrint('[library-store] loadLikedStations failed: $e');
+      return const [];
+    }
+  }
+
+  Future<List<FeedItem>> setLikedStation({
+    required FeedItem station,
+    required bool liked,
+  }) async {
+    final box = await _box();
+    final current = _decodeList(box.get(_kLikedStations));
+    current.removeWhere((s) => s.id == station.id);
+    if (liked) current.insert(0, station);
+    await box.put(_kLikedStations, _encodeList(current));
+    await box.flush();
+    debugPrint('[library-store] liked=${liked ? 'on' : 'off'} '
+        'station:${station.id} (total=${current.length})');
     return current;
   }
 

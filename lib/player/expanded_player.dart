@@ -12,6 +12,8 @@
 //
 // Swipe-down dismisses; Hero album art animates back into the mini player.
 
+import 'dart:ui';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
@@ -262,6 +264,11 @@ class _ExpandedPlayerState extends ConsumerState<ExpandedPlayer>
               id: track.id,
               url: s.currentApiSong?.artwork,
               playing: s.isPlaying,
+              // Live streams = radio stations = often low-res logos
+              // with text baked in. The framed-on-blur treatment makes
+              // them look intentional instead of stretched-and-soft.
+              isLive: s.isLive,
+              accent: accent,
             ),
             const SizedBox(height: 24),
             // Title block in a reserved-height container — 1-line vs 2-line
@@ -279,8 +286,37 @@ class _ExpandedPlayerState extends ConsumerState<ExpandedPlayer>
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
+                          // Tiny ON-AIR header above the title for live
+                          // streams — clarifies that the big text below
+                          // is the live "now playing" track and the
+                          // smaller line is the station, not the other
+                          // way around.
+                          if (s.isLive)
+                            Padding(
+                              padding: const EdgeInsets.only(bottom: 4),
+                              child: Row(
+                                children: [
+                                  Container(
+                                    width: 6,
+                                    height: 6,
+                                    decoration: BoxDecoration(
+                                        color: accent,
+                                        shape: BoxShape.circle),
+                                  ),
+                                  const SizedBox(width: 6),
+                                  Text('ON AIR',
+                                      style: SunohType.mono(
+                                          fontSize: 9,
+                                          color: accent,
+                                          letterSpacing: 1.8)),
+                                ],
+                              ),
+                            ),
                           Text(
-                            track.title,
+                            // Live: prefer the ICY now-playing track;
+                            // fall back to the station name. Non-live:
+                            // always the track title.
+                            s.isLive ? (s.icyTitle ?? track.title) : track.title,
                             maxLines: 2,
                             overflow: TextOverflow.ellipsis,
                             style: SunohType.heading(
@@ -292,7 +328,11 @@ class _ExpandedPlayerState extends ConsumerState<ExpandedPlayer>
                           ),
                           const SizedBox(height: 4),
                           Text(
-                            track.artist,
+                            // Secondary line: in live mode show the
+                            // station name (so the user always knows
+                            // the source even when ICY occupies the
+                            // big slot); otherwise the artist.
+                            s.isLive ? track.title : track.artist,
                             maxLines: 1,
                             overflow: TextOverflow.ellipsis,
                             style: SunohType.sans(
@@ -300,7 +340,7 @@ class _ExpandedPlayerState extends ConsumerState<ExpandedPlayer>
                               color: c.fgDim,
                             ),
                           ),
-                          if (lyricLine != null) ...[
+                          if (lyricLine != null && !s.isLive) ...[
                             const SizedBox(height: 8),
                             _LyricsTeaser(
                               line: lyricLine,
@@ -320,11 +360,14 @@ class _ExpandedPlayerState extends ConsumerState<ExpandedPlayer>
                         color: s.isLikedCurrentApi ? accent : c.fgDim,
                         size: 26,
                         onTap: () {
-                          final song = s.currentApiSong;
-                          if (song != null) {
-                            s.toggleLikedSong(song);
+                          final item = s.currentApiSong;
+                          if (item != null) {
+                            // Dispatcher routes by item.type — radio
+                            // stations land in `_likedStations`, songs
+                            // (and episodes-treated-as-songs) in
+                            // `_likedSongs`. Keeps the buckets clean.
+                            s.toggleLikedApi(item);
                           } else {
-                            // Dummy-path fallback (radio stations etc.)
                             s.toggleLike();
                           }
                         },
@@ -336,32 +379,11 @@ class _ExpandedPlayerState extends ConsumerState<ExpandedPlayer>
             ),
             const SizedBox(height: 20),
             if (s.isLive)
-              // Live streams: no scrubber / no times. Show a discrete
-              // "● LIVE" pill where the position would be — same vertical
-              // slot so the layout below doesn't jump on mode change.
-              Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 24),
-                child: Row(
-                  children: [
-                    Container(
-                      width: 8,
-                      height: 8,
-                      decoration: BoxDecoration(
-                          color: accent, shape: BoxShape.circle),
-                    ),
-                    const SizedBox(width: 8),
-                    Text(
-                      'LIVE',
-                      style: TextStyle(
-                        fontSize: 11,
-                        fontWeight: FontWeight.w700,
-                        letterSpacing: 1.6,
-                        color: accent,
-                      ),
-                    ),
-                  ],
-                ),
-              )
+              // Live streams: no scrubber / no times — the ON AIR
+              // header above the title already carries the live signal.
+              // Reserved spacer keeps the transport row anchored at the
+              // same y as the track-mode layout.
+              const SizedBox(height: 38)
             else
               Padding(
                 padding: const EdgeInsets.symmetric(horizontal: 24),
@@ -382,7 +404,14 @@ class _ExpandedPlayerState extends ConsumerState<ExpandedPlayer>
             Padding(
               padding: const EdgeInsets.symmetric(horizontal: 24),
               child: Row(
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                // spaceBetween distributes the 5-button track-mode row
+                // edge-to-edge. With a single child (the live mode's
+                // lone play/pause button) it would pin to the start
+                // (visually = left). Center in that case so the button
+                // sits in the middle of the screen.
+                mainAxisAlignment: s.isLive
+                    ? MainAxisAlignment.center
+                    : MainAxisAlignment.spaceBetween,
                 children: s.isLive
                     // Live streams: just the play/pause button. Shuffle,
                     // repeat, skip-prev/next are meaningless when the
@@ -392,6 +421,7 @@ class _ExpandedPlayerState extends ConsumerState<ExpandedPlayer>
                           playing: s.isPlaying,
                           accent: accent,
                           onTap: s.playPause,
+                          isLive: true,
                         ),
                       ]
                     : [
@@ -580,15 +610,23 @@ class _PlayButton extends StatelessWidget {
     required this.playing,
     required this.accent,
     required this.onTap,
+    this.isLive = false,
   });
   final bool playing;
   final Color accent;
   final VoidCallback onTap;
+  /// When true, the "playing" state shows a stop glyph instead of
+  /// pause — radio doesn't pause meaningfully (buffer drains; resume
+  /// jumps to the live edge), so stop matches the user's mental model.
+  /// Action is the same `s.playPause`.
+  final bool isLive;
   static const double size = 72;
 
   @override
   Widget build(BuildContext context) {
-    final icon = playing ? PhosphorIconsFill.pause : PhosphorIconsFill.play;
+    final icon = playing
+        ? (isLive ? PhosphorIconsFill.stop : PhosphorIconsFill.pause)
+        : PhosphorIconsFill.play;
     final iconColor = accent.computeLuminance() > 0.55
         ? const Color(0xFF0B0B0D)
         : const Color(0xFFFAFAFA);
@@ -661,12 +699,25 @@ class _StaticCover extends StatelessWidget {
     required this.id,
     required this.url,
     required this.playing,
+    this.isLive = false,
+    required this.accent,
   });
   final String id;
   final String? url;
   final bool playing;
+  /// When true, render as a small framed card on a heavily-blurred
+  /// backdrop of the same image — disguises the resolution issues
+  /// most radio-station logos suffer from. Falls back to the standard
+  /// full-bleed cover when false (regular tracks).
+  final bool isLive;
+  final Color accent;
 
   static const double coverSize = 336;
+  /// Inner card side for the live treatment — small enough that the
+  /// blurred backdrop reads as a halo around it, big enough that the
+  /// logo is still recognisable. Tuned against 150×150 onlineradiobox
+  /// logos which are the most common upstream resolution.
+  static const double _liveCardSize = 200;
 
   @override
   Widget build(BuildContext context) {
@@ -679,9 +730,66 @@ class _StaticCover extends StatelessWidget {
           scale: playing ? 1.0 : 0.92,
           duration: const Duration(milliseconds: 340),
           curve: Curves.easeOutCubic,
-          child: SunohArt(id: id, imageUrl: url, size: coverSize, radius: 16),
+          child: isLive
+              ? _liveTreatment()
+              : SunohArt(
+                  id: id, imageUrl: url, size: coverSize, radius: 16),
         ),
       ),
+    );
+  }
+
+  Widget _liveTreatment() {
+    return Stack(
+      alignment: Alignment.center,
+      fit: StackFit.expand,
+      children: [
+        // Layer 1 — full-bleed art rendered LARGE then heavily blurred.
+        // Acts as a coloured ambient backdrop that picks up the
+        // station's palette without exposing its pixelation.
+        ClipRRect(
+          borderRadius: BorderRadius.circular(20),
+          child: Stack(
+            fit: StackFit.expand,
+            children: [
+              // The raw art, scaled up so the blur has substance.
+              Transform.scale(
+                scale: 1.3,
+                child: SunohArt(
+                    id: id, imageUrl: url, size: coverSize, radius: 0),
+              ),
+              BackdropFilter(
+                filter: ImageFilter.blur(sigmaX: 36, sigmaY: 36),
+                child: Container(color: Colors.black.withValues(alpha: 0.32)),
+              ),
+            ],
+          ),
+        ),
+        // Layer 2 — small framed card with the crisp logo. Subtle
+        // accent-tinted border so it reads as deliberately framed
+        // rather than awkwardly inset.
+        Container(
+          width: _liveCardSize,
+          height: _liveCardSize,
+          decoration: BoxDecoration(
+            borderRadius: BorderRadius.circular(16),
+            border: Border.all(
+                color: Colors.white.withValues(alpha: 0.18), width: 1),
+            boxShadow: [
+              BoxShadow(
+                color: Colors.black.withValues(alpha: 0.32),
+                blurRadius: 24,
+                offset: const Offset(0, 12),
+              ),
+            ],
+          ),
+          child: ClipRRect(
+            borderRadius: BorderRadius.circular(15),
+            child: SunohArt(
+                id: id, imageUrl: url, size: _liveCardSize, radius: 0),
+          ),
+        ),
+      ],
     );
   }
 }

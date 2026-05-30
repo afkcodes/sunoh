@@ -83,6 +83,13 @@ class AudioRepo {
   int _currentIndex = 0;
   String? _sourceLabel;
   DetailRef? _sourceRef;
+  /// Tracks the play mode the current queue was started with so
+  /// `persistAll` can save it alongside queue/index/position. Without
+  /// this, cold-restore always defaults `prepareQueue` to
+  /// `PlayMode.track` — which works for songs but turns a live radio
+  /// queue into a finite-track playback where `play` does nothing
+  /// (mpv reached EOF on the prior session and there's no "next").
+  PlayMode _playMode = PlayMode.track;
   List<FeedItem> get queue => _queue;
   int get currentIndex => _currentIndex;
   String? get sourceLabel => _sourceLabel;
@@ -146,6 +153,7 @@ class AudioRepo {
     _currentIndex = startIndex;
     _sourceLabel = sourceLabel;
     _sourceRef = sourceRef;
+    _playMode = mode;
     await handler.setQueue(songs, startIndex, mode: mode);
 
     // Best-effort OS metadata push: full queue + the starting item.
@@ -178,10 +186,12 @@ class AudioRepo {
       _currentIndex = saved.currentIndex;
       _sourceLabel = saved.sourceLabel;
       _sourceRef = saved.sourceRef;
+      _playMode = saved.playMode;
       await handler.prepareQueue(
         saved.queue,
         saved.currentIndex,
         seekTo: Duration(seconds: saved.positionSec),
+        mode: saved.playMode,
       );
       final bridge = _bridge;
       if (bridge != null) {
@@ -206,6 +216,7 @@ class AudioRepo {
       positionSec: handler.position.inSeconds,
       sourceLabel: _sourceLabel,
       sourceRef: _sourceRef,
+      playMode: _playMode,
     );
   }
 
