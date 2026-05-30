@@ -754,21 +754,17 @@ class SunohAudioHandler {
     } else {
       await _player.openAll(medias, index: clampedIdx, play: false);
     }
-    // Explicit seek-while-paused once the target track has actually
-    // settled. `file-local-options/start` set in the load hook seeks
-    // mpv internally, but mpv only reports the new position after
-    // playback BEGINS — until then the positionStream emits 0. Explicit
-    // seek bridges that: mpv moves to the offset paused, and the next
-    // positionStream emit carries the real value.
-    if (seekTo != null && seekTo.inMilliseconds > 0) {
-      try {
-        await _player.seek(seekTo);
-      } catch (e) {
-        // Some file types reject seek before the first frame is decoded.
-        // The pending-start fallback handles that case on play.
-        debugPrint('[audio] post-open seek($seekTo) deferred: $e');
-      }
-    }
+    // NOTE: there used to be an explicit `_player.seek(seekTo)` here as
+    // a belt-and-braces companion to file-local-options/start. It made
+    // the UI immediately show the saved position on cold restore, BUT
+    // when the restored track was an HLS stream (Gaana signed URLs are
+    // .m3u8) the await on the seek could hang mpv's command queue —
+    // subsequent `setQueue` / `openAll` calls from "tap to play a new
+    // song" then sat behind the unfulfilled seek and the old track
+    // kept playing. The song-id-gated `_pendingStartPosition` (v1.6.8)
+    // applies file-local-options/start correctly the moment the user
+    // hits play, and the AppState position guard keeps the UI value
+    // correct until then. So the explicit seek is redundant + harmful.
   }
 
   Future<void> play() async {
