@@ -119,6 +119,40 @@ class StreamResolver {
       }
     }
 
+    // Radio stations are a special case: the inline mediaUrls entry IS
+    // the live stream URL, served directly by the broadcaster (zeno.fm
+    // / streamtheworld / etc.). These URLs never expire the way signed
+    // music URLs do — there's nothing TO refresh. Honouring
+    // `forceRefresh` for them would bypass inline mediaUrls and fall
+    // through to `/music/song/...`, which 404s on `source=sunoh-radio`
+    // and leaves mpv with an unresolved sunoh-song:// placeholder.
+    // Always use the inline URL; ignore forceRefresh.
+    if (song.source == 'sunoh-radio') {
+      final embedded = _pick(song.mediaUrls);
+      if (embedded != null) {
+        return _store(song.id, ResolvedStream(embedded));
+      }
+      // No inline mediaUrls — refetch through the backend by slug.
+      try {
+        final res = await _dio.get<Map<String, dynamic>>(
+          '/radios/${Uri.encodeComponent(song.id)}',
+        );
+        final dataRaw = res.data?['data'];
+        if (dataRaw is Map) {
+          final parsed = FeedItem.fromJson(dataRaw.cast<String, dynamic>());
+          final url = _pick(parsed.mediaUrls);
+          if (url != null) {
+            return _store(song.id, ResolvedStream(url, enriched: parsed));
+          }
+        }
+      } on DioException catch (_) {
+        // Fall through to the throw below — no other resolver tier can
+        // recover a radio station.
+      }
+      throw StreamResolveException(
+          'No playable stream for radio station "${song.title}" (${song.id}).');
+    }
+
     if (forceRefresh) {
       // Stale-URL recovery path — drop any cached entry so the in-flight
       // pre-resolve from a prior tick can't return a known-bad URL.

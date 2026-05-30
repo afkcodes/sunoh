@@ -404,60 +404,54 @@ class _ExpandedPlayerState extends ConsumerState<ExpandedPlayer>
             Padding(
               padding: const EdgeInsets.symmetric(horizontal: 24),
               child: Row(
-                // spaceBetween distributes the 5-button track-mode row
-                // edge-to-edge. With a single child (the live mode's
-                // lone play/pause button) it would pin to the start
-                // (visually = left). Center in that case so the button
-                // sits in the middle of the screen.
-                mainAxisAlignment: s.isLive
-                    ? MainAxisAlignment.center
-                    : MainAxisAlignment.spaceBetween,
-                children: s.isLive
-                    // Live streams: just the play/pause button. Shuffle,
-                    // repeat, skip-prev/next are meaningless when the
-                    // playlist is a single live entry with no duration.
-                    ? [
-                        _PlayButton(
-                          playing: s.isPlaying,
-                          accent: accent,
-                          onTap: s.playPause,
-                          isLive: true,
-                        ),
-                      ]
-                    : [
-                        IconBtn(
-                          icon: PhosphorIconsBold.shuffle,
-                          color: s.shuffle ? accent : c.fgMute,
-                          size: 22,
-                          onTap: s.toggleShuffle,
-                        ),
-                        IconBtn(
-                          icon: PhosphorIconsFill.skipBack,
-                          color: c.fg,
-                          size: 30,
-                          onTap: s.prev,
-                        ),
-                        _PlayButton(
-                          playing: s.isPlaying,
-                          accent: accent,
-                          onTap: s.playPause,
-                        ),
-                        IconBtn(
-                          icon: PhosphorIconsFill.skipForward,
-                          color: c.fg,
-                          size: 30,
-                          onTap: s.next,
-                        ),
-                        IconBtn(
-                          icon: s.repeat == LoopMode.one
-                              ? PhosphorIconsBold.repeatOnce
-                              : PhosphorIconsBold.repeat,
-                          color:
-                              s.repeat != LoopMode.off ? accent : c.fgMute,
-                          size: 22,
-                          onTap: s.cycleRepeat,
-                        ),
-                      ],
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                // Same 5-button row regardless of mode. In live mode the
+                // non-applicable controls (shuffle / skip / repeat) are
+                // rendered DISABLED (low-opacity, no-op onTap) instead
+                // of hidden — keeps the play/pause anchored where the
+                // muscle memory expects and avoids the empty-row look.
+                children: [
+                  IconBtn(
+                    icon: PhosphorIconsBold.shuffle,
+                    color: s.isLive
+                        ? c.fgMute.withValues(alpha: 0.35)
+                        : (s.shuffle ? accent : c.fgMute),
+                    size: 22,
+                    onTap: s.isLive ? () {} : s.toggleShuffle,
+                  ),
+                  IconBtn(
+                    icon: PhosphorIconsFill.skipBack,
+                    color: s.isLive
+                        ? c.fg.withValues(alpha: 0.25)
+                        : c.fg,
+                    size: 30,
+                    onTap: s.isLive ? () {} : s.prev,
+                  ),
+                  _PlayButton(
+                    playing: s.isPlaying,
+                    accent: accent,
+                    onTap: s.playPause,
+                    isLive: s.isLive,
+                  ),
+                  IconBtn(
+                    icon: PhosphorIconsFill.skipForward,
+                    color: s.isLive
+                        ? c.fg.withValues(alpha: 0.25)
+                        : c.fg,
+                    size: 30,
+                    onTap: s.isLive ? () {} : s.next,
+                  ),
+                  IconBtn(
+                    icon: s.repeat == LoopMode.one
+                        ? PhosphorIconsBold.repeatOnce
+                        : PhosphorIconsBold.repeat,
+                    color: s.isLive
+                        ? c.fgMute.withValues(alpha: 0.35)
+                        : (s.repeat != LoopMode.off ? accent : c.fgMute),
+                    size: 22,
+                    onTap: s.isLive ? () {} : s.cycleRepeat,
+                  ),
+                ],
               ),
             ),
             const Spacer(flex: 3),
