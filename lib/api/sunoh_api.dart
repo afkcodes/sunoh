@@ -658,14 +658,81 @@ class SunohApi {
     String query, {
     int limit = 30,
     String? country,
-  }) async {
-    final res = await _dio.get<Map<String, dynamic>>(
-      '/radios/search',
-      queryParameters: {
+  }) =>
+      _fetchRadioStationList('/radios/search', {
         'q': query,
         'limit': limit,
         if (country != null && country.isNotEmpty) 'country': country,
+      });
+
+  /// `GET /radios/home?country=IN` — country-aware multi-section feed.
+  /// Mirrors the podcast-home shape; the Flutter renderer reuses the
+  /// HomeSection-based UI components.
+  Future<List<HomeSection>> fetchRadioHome({String? country}) async {
+    final res = await _dio.get<Map<String, dynamic>>(
+      '/radios/home',
+      queryParameters: {
+        if (country != null && country.isNotEmpty) 'country': country,
       },
+    );
+    final env = ApiEnvelope.from<List<HomeSection>>(
+      res.data ?? const {},
+      (raw) {
+        if (raw is List) {
+          return raw
+              .whereType<Map>()
+              .map((m) => HomeSection.fromJson(m.cast<String, dynamic>()))
+              .toList();
+        }
+        return const <HomeSection>[];
+      },
+    );
+    if (!env.isSuccess) {
+      throw SunohApiException(env.message, env.error);
+    }
+    return env.data ?? const [];
+  }
+
+  /// `GET /radios/stations?country=…&genre=…&q=…&limit=…&offset=…`
+  /// Paginated, filterable listing. Use for genre / country drilldowns.
+  Future<List<FeedItem>> fetchRadioStations({
+    String? country,
+    String? genre,
+    String? language,
+    String? query,
+    int limit = 50,
+    int offset = 0,
+  }) =>
+      _fetchRadioStationList('/radios/stations', {
+        if (country != null && country.isNotEmpty) 'country': country,
+        if (genre != null && genre.isNotEmpty) 'genre': genre,
+        if (language != null && language.isNotEmpty) 'language': language,
+        if (query != null && query.isNotEmpty) 'q': query,
+        'limit': limit,
+        'offset': offset,
+      });
+
+  /// `GET /radios/genres` — facet list `[{value, count}, …]` over the
+  /// working stations. Cached 10 min server-side; fine to call from a
+  /// provider with no TTL.
+  Future<List<RadioFacet>> fetchRadioGenres() =>
+      _fetchRadioFacets('/radios/genres');
+
+  /// `GET /radios/countries` — same shape as genres.
+  Future<List<RadioFacet>> fetchRadioCountries() =>
+      _fetchRadioFacets('/radios/countries');
+
+  // ── Radios internals ─────────────────────────────────────────────────
+
+  /// Internal helper: hit a /radios/* endpoint that returns
+  /// `{data: {list: [...]}}` and parse the list into FeedItems.
+  Future<List<FeedItem>> _fetchRadioStationList(
+    String path,
+    Map<String, dynamic> queryParameters,
+  ) async {
+    final res = await _dio.get<Map<String, dynamic>>(
+      path,
+      queryParameters: queryParameters,
     );
     final env = ApiEnvelope.from<List<FeedItem>>(
       res.data ?? const {},
@@ -680,6 +747,26 @@ class SunohApi {
           }
         }
         return const <FeedItem>[];
+      },
+    );
+    if (!env.isSuccess) {
+      throw SunohApiException(env.message, env.error);
+    }
+    return env.data ?? const [];
+  }
+
+  Future<List<RadioFacet>> _fetchRadioFacets(String path) async {
+    final res = await _dio.get<Map<String, dynamic>>(path);
+    final env = ApiEnvelope.from<List<RadioFacet>>(
+      res.data ?? const {},
+      (raw) {
+        if (raw is List) {
+          return raw
+              .whereType<Map>()
+              .map((m) => RadioFacet.fromJson(m.cast<String, dynamic>()))
+              .toList();
+        }
+        return const <RadioFacet>[];
       },
     );
     if (!env.isSuccess) {

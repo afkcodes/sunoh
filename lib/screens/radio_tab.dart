@@ -1,509 +1,428 @@
-// Radio tab — on-air hero, the FM dial centerpiece, saved stations, categories.
-// Ported from radio.jsx.
+// Radio tab — country-aware live-stream catalog from /radios/home.
+//
+// Visually distinct from PodcastsTab:
+//   - Tiles are SQUARE LOGOS, not "labeled cards". Radio station logos
+//     are typically logotype-on-solid-background and don't benefit from
+//     the bottom-gradient title overlay podcast covers use. The title
+//     sits BELOW the cover instead.
+//   - Tap = play (PlayMode.live). No detail screen — live streams have
+//     no metadata browse, the player itself adapts (see [[sunoh-audio]]
+//     and `expanded_player.dart` for the LIVE-mode UI).
+//
+// Country comes from the device locale; the backend has its own
+// IP-geo fallback if the locale doesn't carry one.
+//
+// (Earlier incarnation was a Stateful FM-dial mockup ported from
+// radio.jsx — long since unused; this file replaces it wholesale.)
+
+import 'dart:ui';
 
 import 'package:flutter/material.dart';
-import 'package:phosphor_flutter/phosphor_flutter.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:solar_icons/solar_icons.dart';
 
+import '../api/dto.dart';
+import '../audio/audio_handler.dart' show PlayMode;
+import '../providers/app_state_provider.dart';
+import '../providers/radio_provider.dart';
 import '../router/router.dart';
-
-import '../data/catalog.dart';
-import '../data/models.dart';
 import '../theme/tokens.dart';
 import '../widgets/album_art.dart';
-import '../widgets/playing_bars.dart';
 import '../widgets/ui.dart';
 
-class RadioTab extends StatefulWidget {
+class RadioTab extends ConsumerWidget {
   const RadioTab({super.key, required this.colors});
   final SunohColors colors;
 
   @override
-  State<RadioTab> createState() => _RadioTabState();
-}
+  Widget build(BuildContext context, WidgetRef ref) {
+    final c = colors;
+    final country =
+        PlatformDispatcher.instance.locale.countryCode?.toUpperCase();
+    final async = ref.watch(radioHomeProvider(country));
 
-class _RadioTabState extends State<RadioTab> {
-  double freq = 92.3;
-
-  Station get closest => kStations.reduce((best, s) =>
-      (s.freqValue - freq).abs() < (best.freqValue - freq).abs() ? s : best);
-
-  @override
-  Widget build(BuildContext context) {
-    final c = widget.colors;
-    final cl = closest;
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        // on-air hero
+        // Eyebrow + "Browse genres" chip on the right. Same 20-px
+        // gutter the podcasts tab uses.
         Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 20),
-          child: squircleClip(
-            radius: 18,
-            child: Container(
-              decoration: squircleDecoration(radius: 18, color: c.surface, borderColor: c.line),
-              child: Stack(
-                children: [
-                  Positioned.fill(
-                    child: DecoratedBox(
-                      decoration: BoxDecoration(
-                        gradient: RadialGradient(
-                          center: const Alignment(-1, -1),
-                          radius: 1.1,
-                          colors: [
-                            artAccent(cl.id).withValues(alpha: 0.27),
-                            artAccent(cl.id).withValues(alpha: 0),
-                          ],
-                          stops: const [0, 0.6],
-                        ),
-                      ),
-                    ),
-                  ),
-                  Padding(
-                    padding: const EdgeInsets.all(18),
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Row(
-                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                          children: [
-                            Container(
-                              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-                              decoration: BoxDecoration(
-                                color: const Color(0xFFFF3C3C).withValues(alpha: 0.15),
-                                borderRadius: BorderRadius.circular(999),
-                                border: Border.all(
-                                    color: const Color(0xFFFF5050).withValues(alpha: 0.4),
-                                    width: 0.5),
-                              ),
-                              child: Row(
-                                mainAxisSize: MainAxisSize.min,
-                                children: [
-                                  const PlayingBars(color: Color(0xFFFF7575), size: 12),
-                                  const SizedBox(width: 8),
-                                  eyebrow('ON AIR', const Color(0xFFFF7575),
-                                      size: 10, letterSpacing: 1.2),
-                                ],
-                              ),
-                            ),
-                            eyebrow('${cl.listeners} listening', c.fgMute,
-                                size: 10, letterSpacing: 1.2),
-                          ],
-                        ),
-                        const SizedBox(height: 16),
-                        Row(
-                          children: [
-                            SunohArt(id: cl.id, size: 64, radius: 8),
-                            const SizedBox(width: 14),
-                            Expanded(
-                              child: Column(
-                                crossAxisAlignment: CrossAxisAlignment.start,
-                                children: [
-                                  Text(cl.name,
-                                      style: SunohType.heading(
-                                          fontSize: 22, color: c.fg, height: 1.1, letterSpacing: -0.2)),
-                                  const SizedBox(height: 2),
-                                  Text(cl.tag,
-                                      style: SunohType.sans(fontSize: 12, color: c.fgDim)),
-                                  const SizedBox(height: 4),
-                                  eyebrow(cl.live, c.fgMute, size: 10, letterSpacing: 0.4),
-                                ],
-                              ),
-                            ),
-                            const SizedBox(width: 8),
-                            _PlayPill(
-                              accent: c.accent,
-                              onTap: () => context.openRef(DetailRef('station', cl.id)),
-                            ),
-                          ],
-                        ),
-                      ],
-                    ),
-                  ),
-                ],
-              ),
-            ),
-          ),
-        ),
-        const SizedBox(height: 40),
-
-        // dial
-        Padding(
-          padding: const EdgeInsets.only(left: 20, bottom: 8),
-          child: eyebrow('TUNE', c.fgMute),
-        ),
-        RadioDial(
-          colors: c,
-          currentFreq: freq,
-          onTune: (f) => setState(() => freq = f),
-        ),
-        const SizedBox(height: 40),
-
-        // saved stations
-        SectionHeader(title: 'Saved stations',  colors: c),
-        for (final st in kStations)
-          GestureDetector(
-            onTap: () => setState(() => freq = st.freqValue),
-            child: Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 10),
-              child: Row(
-                children: [
-                  SunohArt(id: st.id, size: 44, radius: 6),
-                  const SizedBox(width: 12),
-                  Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Row(
-                          crossAxisAlignment: CrossAxisAlignment.baseline,
-                          textBaseline: TextBaseline.alphabetic,
-                          children: [
-                            Text(st.name,
-                                style: SunohType.sans(
-                                    fontSize: 14, fontWeight: FontWeight.w500, color: c.fg)),
-                            const SizedBox(width: 8),
-                            Text(st.freq,
-                                style: SunohType.mono(
-                                    fontSize: 10, color: c.fgMute, letterSpacing: 0.4)),
-                          ],
-                        ),
-                        const SizedBox(height: 2),
-                        Text('${st.tag} · ${st.listeners} listening',
-                            maxLines: 1,
-                            overflow: TextOverflow.ellipsis,
-                            style: SunohType.sans(fontSize: 11.5, color: c.fgMute)),
-                      ],
-                    ),
-                  ),
-                  if ((st.freqValue - freq).abs() < 0.2)
-                    PlayingBars(color: c.accent, size: 14),
-                ],
-              ),
-            ),
-          ),
-        const SizedBox(height: 40),
-
-        // categories
-        SectionHeader(title: 'By kind',  colors: c),
-        Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 20),
-          child: GridView.count(
-            crossAxisCount: 2,
-            shrinkWrap: true,
-            physics: const NeverScrollableScrollPhysics(),
-            crossAxisSpacing: 8,
-            mainAxisSpacing: 8,
-            childAspectRatio: 171 / 78,
+          padding: const EdgeInsets.fromLTRB(20, 0, 20, 18),
+          child: Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
-              _CategoryTile('Music', '24 stations', const [Color(0xFF2C1B16), Color(0xFFD97757)]),
-              _CategoryTile('Talk', '18 stations', const [Color(0xFF0F1820), Color(0xFF7FB3D5)]),
-              _CategoryTile('News', '12 stations', const [Color(0xFF1C1410), Color(0xFF8C5A3E)]),
-              _CategoryTile('Sports', '8 stations', const [Color(0xFF1F2418), Color(0xFFCAA66B)]),
+              eyebrow('RADIO', c.fgMute, size: 10, letterSpacing: 1.4),
+              GestureDetector(
+                onTap: () => context.openRadioGenres(),
+                behavior: HitTestBehavior.opaque,
+                child: Container(
+                  padding: const EdgeInsets.symmetric(
+                      horizontal: 12, vertical: 6),
+                  decoration: squircleDecoration(
+                    radius: 999,
+                    color: c.surface,
+                    borderColor: c.line,
+                  ),
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Icon(SolarIconsOutline.widget,
+                          size: 12, color: c.fgDim),
+                      const SizedBox(width: 6),
+                      Text('Browse',
+                          style: SunohType.sans(
+                              fontSize: 12,
+                              fontWeight: FontWeight.w500,
+                              color: c.fgDim)),
+                    ],
+                  ),
+                ),
+              ),
             ],
           ),
         ),
-        const SizedBox(height: 20),
+        async.when(
+          loading: () => _RadioSkeleton(colors: c),
+          error: (e, _) => _RadioErrorState(colors: c, message: '$e'),
+          data: (sections) {
+            if (sections.isEmpty) return _RadioEmpty(colors: c);
+            return Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                for (var i = 0; i < sections.length; i++) ...[
+                  _RadioSection(
+                      section: sections[i],
+                      colors: c,
+                      featured: i == 0),
+                  if (i < sections.length - 1) const SizedBox(height: 32),
+                  // Drop the genres preview after the featured section
+                  // for the same discovery-aid reason podcasts use the
+                  // categories strip after Trending.
+                  if (i == 0) ...[
+                    const _GenresPreview(),
+                    const SizedBox(height: 32),
+                  ],
+                ],
+              ],
+            );
+          },
+        ),
+        const SizedBox(height: 40),
       ],
     );
   }
 }
 
-class _PlayPill extends StatelessWidget {
-  const _PlayPill({required this.accent, required this.onTap});
-  final Color accent;
-  final VoidCallback onTap;
-  @override
-  Widget build(BuildContext context) {
-    return GestureDetector(
-      onTap: onTap,
-      child: Container(
-        width: 44,
-        height: 44,
-        decoration: BoxDecoration(
-          color: accent,
-          shape: BoxShape.circle,
-          boxShadow: [
-            BoxShadow(color: Colors.black.withValues(alpha: 0.4), blurRadius: 18, offset: const Offset(0, 6)),
-          ],
-        ),
-        child: const Icon(PhosphorIconsFill.play, size: 22, color: Color(0xFF0B0B0D)),
-      ),
-    );
-  }
-}
-
-class _CategoryTile extends StatelessWidget {
-  const _CategoryTile(this.label, this.sub, this.gradient);
-  final String label;
-  final String sub;
-  final List<Color> gradient;
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      padding: const EdgeInsets.all(14),
-      decoration: squircleDecoration(
-        radius: 12,
-        gradient: LinearGradient(
-            colors: gradient, begin: Alignment.topLeft, end: Alignment.bottomRight),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        mainAxisAlignment: MainAxisAlignment.spaceBetween,
-        children: [
-          Text(label,
-              style: SunohType.heading(fontSize: 19, color: Colors.white, letterSpacing: -0.2)),
-          eyebrow(sub, Colors.white.withValues(alpha: 0.6), size: 9, letterSpacing: 1.2),
-        ],
-      ),
-    );
-  }
-}
-
-// ── The FM dial — horizontal scrollable tick strip with a fixed center pointer
-class RadioDial extends StatefulWidget {
-  const RadioDial({
-    super.key,
+/// One horizontally-scrolling row of station tiles. Featured (first)
+/// section gets bigger tiles, same convention as music + podcasts home.
+class _RadioSection extends ConsumerWidget {
+  const _RadioSection({
+    required this.section,
     required this.colors,
-    required this.currentFreq,
-    required this.onTune,
+    this.featured = false,
   });
+  final HomeSection section;
   final SunohColors colors;
-  final double currentFreq;
-  final ValueChanged<double> onTune;
+  final bool featured;
 
   @override
-  State<RadioDial> createState() => _RadioDialState();
+  Widget build(BuildContext context, WidgetRef ref) {
+    final c = colors;
+    final items = section.items;
+    final width = featured ? 180.0 : 140.0;
+    // height = cover (square) + spacing + 2 lines of caption.
+    final height = width + 48;
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        SectionHeader(title: section.heading, colors: c),
+        SizedBox(
+          height: height,
+          child: ListView.separated(
+            scrollDirection: Axis.horizontal,
+            padding: const EdgeInsets.symmetric(horizontal: 20),
+            itemCount: items.length,
+            separatorBuilder: (_, _) => const SizedBox(width: 14),
+            itemBuilder: (context, i) => _RadioTile(
+              item: items[i],
+              colors: c,
+              width: width,
+            ),
+          ),
+        ),
+      ],
+    );
+  }
 }
 
-class _RadioDialState extends State<RadioDial> {
-  static const double minF = 87, maxF = 108, pxPerUnit = 60;
-  final controller = ScrollController();
-  double _viewport = 0;
+/// Square-logo tile. Tap → play live; no detail screen.
+class _RadioTile extends ConsumerWidget {
+  const _RadioTile({
+    required this.item,
+    required this.colors,
+    required this.width,
+  });
+  final FeedItem item;
+  final SunohColors colors;
+  final double width;
 
   @override
-  void initState() {
-    super.initState();
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      if (!controller.hasClients) return;
-      _viewport = controller.position.viewportDimension;
-      final offset = (widget.currentFreq - minF) * pxPerUnit;
-      controller.jumpTo((offset).clamp(0, controller.position.maxScrollExtent));
-      setState(() {});
-    });
-    controller.addListener(_onScroll);
-  }
-
-  void _onScroll() {
-    final c = controller.offset + _viewport / 2;
-    final freq = minF + (c - _viewport / 2) / pxPerUnit;
-    final snapped = (freq * 10).round() / 10;
-    if ((snapped - widget.currentFreq).abs() > 0.05 &&
-        snapped >= minF &&
-        snapped <= maxF) {
-      widget.onTune(snapped);
-    }
-  }
-
-  @override
-  void didUpdateWidget(RadioDial old) {
-    super.didUpdateWidget(old);
-    // When tuned externally (tapping a saved station), recenter.
-    if (old.currentFreq != widget.currentFreq && controller.hasClients) {
-      final target = (widget.currentFreq - minF) * pxPerUnit;
-      if ((controller.offset - target).abs() > 2) {
-        controller.animateTo(
-          target.clamp(0, controller.position.maxScrollExtent),
-          duration: const Duration(milliseconds: 220),
-          curve: Curves.easeOut,
-        );
-      }
-    }
-  }
-
-  @override
-  void dispose() {
-    controller.dispose();
-    super.dispose();
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    final c = widget.colors;
-    final ticks = <double>[];
-    for (var f = (minF * 10).round(); f <= (maxF * 10).round(); f++) {
-      ticks.add(f / 10);
-    }
-    return Column(
-      children: [
-        // readout
-        Column(
+  Widget build(BuildContext context, WidgetRef ref) {
+    final c = colors;
+    final s = ref.read(appStateProvider);
+    return GestureDetector(
+      onTap: () => s.playApiQueue(
+        [item],
+        0,
+        sourceLabel: 'RADIO · ${item.title}',
+        mode: PlayMode.live,
+      ),
+      behavior: HitTestBehavior.opaque,
+      child: SizedBox(
+        width: width,
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            eyebrow('FM · LIVE', c.fgMute),
-            const SizedBox(height: 4),
-            RichText(
-              text: TextSpan(
-                text: widget.currentFreq.toStringAsFixed(1),
-                style: SunohType.mono(
-                    fontSize: 40,
-                    fontWeight: FontWeight.w500,
-                    color: c.fg,
-                    letterSpacing: -1,
-                    height: 1),
-                children: [
-                  TextSpan(
-                    text: ' MHz',
-                    style: SunohType.mono(fontSize: 18, color: c.fgMute),
-                  ),
-                ],
+            squircleClip(
+              radius: 14,
+              child: SunohArt(
+                id: item.id,
+                imageUrl: item.artwork,
+                size: width,
+                radius: 14,
               ),
             ),
+            const SizedBox(height: 8),
+            Text(
+              item.title,
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              style: SunohType.sans(
+                fontSize: 12.5,
+                fontWeight: FontWeight.w600,
+                color: c.fg,
+                height: 1.2,
+              ),
+            ),
+            if ((item.subtitle ?? '').isNotEmpty) ...[
+              const SizedBox(height: 2),
+              Text(
+                item.subtitle!,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: SunohType.sans(
+                  fontSize: 11,
+                  color: c.fgMute,
+                  height: 1.2,
+                ),
+              ),
+            ],
           ],
         ),
-        const SizedBox(height: 14),
-        // dial
-        SizedBox(
-          height: 84,
-          child: Stack(
+      ),
+    );
+  }
+}
+
+/// Compact 2-row grid of genre chips — top 8 from the facet endpoint
+/// with a "See all" CTA opening the full taxonomy. Lives between the
+/// featured section and the rest of the genre rows.
+class _GenresPreview extends ConsumerWidget {
+  const _GenresPreview();
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final s = ref.watch(appStateProvider);
+    final c = s.colors;
+    final accent = s.resolvedAccent;
+    final async = ref.watch(radioGenresProvider);
+    final genres = async.asData?.value ?? const <RadioFacet>[];
+    if (genres.isEmpty) return const SizedBox.shrink();
+    final top = genres.take(8).toList();
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Padding(
+          padding: const EdgeInsets.fromLTRB(20, 0, 20, 12),
+          child: Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            crossAxisAlignment: CrossAxisAlignment.end,
             children: [
-              LayoutBuilder(builder: (context, box) {
-                final half = box.maxWidth / 2;
-                return SingleChildScrollView(
-                  controller: controller,
-                  scrollDirection: Axis.horizontal,
-                  child: SizedBox(
-                    width: (maxF - minF) * pxPerUnit + box.maxWidth,
-                    height: 84,
-                    child: Stack(
-                      clipBehavior: Clip.none,
-                      children: [
-                        for (final f in ticks)
-                          Positioned(
-                            left: half + (f - minF) * pxPerUnit,
-                            top: 14,
-                            child: _Tick(f: f, colors: c),
-                          ),
-                        for (final st in kStations)
-                          Positioned(
-                            left: half + (st.freqValue - minF) * pxPerUnit,
-                            top: 0,
-                            child: _StationPin(
-                              station: st,
-                              close: (st.freqValue - widget.currentFreq).abs() < 0.2,
-                              colors: c,
-                            ),
-                          ),
-                      ],
-                    ),
-                  ),
-                );
-              }),
-              // gradient masks
-              Positioned(
-                left: 0, top: 0, bottom: 0, width: 40,
-                child: IgnorePointer(
-                  child: DecoratedBox(
-                    decoration: BoxDecoration(
-                      gradient: LinearGradient(colors: [c.bg, c.bg.withValues(alpha: 0)]),
-                    ),
-                  ),
-                ),
+              Text(
+                'Genres',
+                style: SunohType.heading(
+                    fontSize: 17, color: c.fg, letterSpacing: -0.2),
               ),
-              Positioned(
-                right: 0, top: 0, bottom: 0, width: 40,
-                child: IgnorePointer(
-                  child: DecoratedBox(
-                    decoration: BoxDecoration(
-                      gradient: LinearGradient(
-                          colors: [c.bg, c.bg.withValues(alpha: 0)],
-                          begin: Alignment.centerRight,
-                          end: Alignment.centerLeft),
-                    ),
-                  ),
-                ),
-              ),
-              // center pointer
-              Align(
-                alignment: Alignment.center,
-                child: IgnorePointer(
-                  child: Container(width: 2, color: c.accent),
-                ),
-              ),
-              Align(
-                alignment: Alignment.topCenter,
-                child: IgnorePointer(
-                  child: Transform.translate(
-                    offset: const Offset(0, -4),
-                    child: Transform.rotate(
-                      angle: 0.785398,
-                      child: Container(
-                        width: 12,
-                        height: 12,
-                        decoration: BoxDecoration(
-                            color: c.accent, borderRadius: BorderRadius.circular(2)),
-                      ),
-                    ),
+              GestureDetector(
+                onTap: () => context.openRadioGenres(),
+                behavior: HitTestBehavior.opaque,
+                child: Text(
+                  'See all',
+                  style: SunohType.sans(
+                    fontSize: 12,
+                    fontWeight: FontWeight.w500,
+                    color: accent,
                   ),
                 ),
               ),
             ],
           ),
         ),
+        SizedBox(
+          height: 96,
+          child: ListView.separated(
+            scrollDirection: Axis.horizontal,
+            padding: const EdgeInsets.symmetric(horizontal: 20),
+            itemCount: top.length,
+            separatorBuilder: (_, _) => const SizedBox(width: 10),
+            itemBuilder: (context, i) => _GenreChip(
+              facet: top[i],
+              colors: c,
+              accent: accent,
+            ),
+          ),
+        ),
       ],
     );
   }
 }
 
-class _Tick extends StatelessWidget {
-  const _Tick({required this.f, required this.colors});
-  final double f;
+/// Single genre chip — bigger than a typical chip; doubles as a "genre
+/// card" that surfaces the count.
+class _GenreChip extends StatelessWidget {
+  const _GenreChip({
+    required this.facet,
+    required this.colors,
+    required this.accent,
+  });
+  final RadioFacet facet;
+  final SunohColors colors;
+  final Color accent;
+
+  @override
+  Widget build(BuildContext context) {
+    final c = colors;
+    return GestureDetector(
+      onTap: () => context.openRadioGenre(facet.value),
+      behavior: HitTestBehavior.opaque,
+      child: Container(
+        width: 140,
+        padding: const EdgeInsets.fromLTRB(14, 12, 14, 12),
+        decoration: squircleDecoration(
+          radius: 12,
+          color: Color.alphaBlend(accent.withValues(alpha: 0.10), c.surface),
+          borderColor: accent.withValues(alpha: 0.20),
+        ),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+          children: [
+            Text(
+              titleCase(facet.value),
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              style: SunohType.heading(
+                fontSize: 14,
+                color: c.fg,
+                letterSpacing: -0.2,
+              ),
+            ),
+            Text(
+              '${facet.count} stations',
+              style: SunohType.sans(fontSize: 11, color: c.fgMute),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+/// Title-cased genre label — "hip-hop" → "Hip-Hop", "top40" → "Top40".
+/// Used by genre chips + the genre-detail screen header.
+String titleCase(String s) {
+  if (s.isEmpty) return s;
+  return s.split(RegExp(r'\s+')).map((w) {
+    if (w.isEmpty) return w;
+    return w[0].toUpperCase() + w.substring(1).toLowerCase();
+  }).join(' ');
+}
+
+class _RadioSkeleton extends StatelessWidget {
+  const _RadioSkeleton({required this.colors});
   final SunohColors colors;
   @override
   Widget build(BuildContext context) {
-    final isMajor = (f - f.round()).abs() < 0.05;
+    final c = colors;
     return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Container(
-          width: 1,
-          height: isMajor ? 30 : 14,
-          color: colors.fgMute.withValues(alpha: isMajor ? 0.6 : 0.25),
-        ),
-        if (isMajor) ...[
-          const SizedBox(height: 6),
-          Text(f.round().toString(),
-              style: SunohType.mono(fontSize: 10, color: colors.fgMute, letterSpacing: 0.5)),
+        for (var i = 0; i < 3; i++) ...[
+          Padding(
+            padding: const EdgeInsets.fromLTRB(20, 12, 20, 12),
+            child: Container(
+              width: 120,
+              height: 14,
+              decoration: BoxDecoration(
+                color: c.surface,
+                borderRadius: BorderRadius.circular(4),
+              ),
+            ),
+          ),
+          SizedBox(
+            height: 188,
+            child: ListView.separated(
+              scrollDirection: Axis.horizontal,
+              padding: const EdgeInsets.symmetric(horizontal: 20),
+              itemCount: 5,
+              separatorBuilder: (_, _) => const SizedBox(width: 14),
+              itemBuilder: (_, _) => Container(
+                width: 140,
+                height: 140,
+                decoration: BoxDecoration(
+                  color: c.surface,
+                  borderRadius: BorderRadius.circular(14),
+                ),
+              ),
+            ),
+          ),
+          const SizedBox(height: 20),
         ],
       ],
     );
   }
 }
 
-class _StationPin extends StatelessWidget {
-  const _StationPin({required this.station, required this.close, required this.colors});
-  final Station station;
-  final bool close;
+class _RadioErrorState extends StatelessWidget {
+  const _RadioErrorState({required this.colors, required this.message});
+  final SunohColors colors;
+  final String message;
+  @override
+  Widget build(BuildContext context) {
+    final c = colors;
+    return Padding(
+      padding: const EdgeInsets.all(24),
+      child: Text(
+        'Couldn’t load radio stations.\n$message',
+        style: SunohType.sans(fontSize: 13, color: c.fgMute),
+      ),
+    );
+  }
+}
+
+class _RadioEmpty extends StatelessWidget {
+  const _RadioEmpty({required this.colors});
   final SunohColors colors;
   @override
   Widget build(BuildContext context) {
-    final col = close ? colors.accent : colors.fgDim;
-    return Column(
-      children: [
-        Transform.translate(
-          offset: const Offset(-2, 0),
-          child: Container(
-            width: 6,
-            height: 6,
-            decoration: BoxDecoration(color: col, shape: BoxShape.circle),
-          ),
-        ),
-        const SizedBox(height: 2),
-        Transform.translate(
-          offset: const Offset(-10, 0),
-          child: Text(station.name.split(' ').first.toUpperCase(),
-              style: SunohType.mono(
-                  fontSize: 8,
-                  color: close ? colors.accent : colors.fgMute,
-                  letterSpacing: 0.4)),
-        ),
-      ],
+    final c = colors;
+    return Padding(
+      padding: const EdgeInsets.all(24),
+      child: Text(
+        'No radio stations yet.',
+        style: SunohType.sans(fontSize: 13, color: c.fgMute),
+      ),
     );
   }
 }

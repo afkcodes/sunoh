@@ -792,6 +792,20 @@ class PodcastCategory {
       );
 }
 
+/// `{value, count}` — the facet shape returned by `/radios/genres`,
+/// `/radios/countries`, `/radios/languages`. Sorted desc by count
+/// server-side.
+class RadioFacet {
+  const RadioFacet({required this.value, required this.count});
+  final String value;
+  final int count;
+
+  factory RadioFacet.fromJson(Map<String, dynamic> j) => RadioFacet(
+        value: (j['value'] ?? '').toString(),
+        count: (j['count'] is num) ? (j['count'] as num).toInt() : 0,
+      );
+}
+
 // ── Spotify import ───────────────────────────────────────────────────────
 //
 // Result envelope returned by `GET /spotify/import?url=…`. The backend

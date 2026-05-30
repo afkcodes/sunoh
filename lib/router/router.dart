@@ -28,6 +28,8 @@ import '../screens/search_screen.dart';
 import '../screens/episode_detail_screen.dart';
 import '../screens/podcast_categories_screen.dart';
 import '../screens/podcast_category_screen.dart';
+import '../screens/radio_genre_screen.dart';
+import '../screens/radio_genres_screen.dart';
 import '../screens/spotify_import_screen.dart';
 import '../screens/podcast_show_screen.dart';
 import '../screens/section_screen.dart';
@@ -243,6 +245,17 @@ List<RouteBase> _detailRoutes() => [
         path: 'spotify-import',
         pageBuilder: (c, s) => _slideRight(const SpotifyImportScreen(), s),
       ),
+      GoRoute(
+        path: 'radio-genres',
+        pageBuilder: (c, s) => _slideRight(const RadioGenresScreen(), s),
+      ),
+      GoRoute(
+        path: 'radio-genre/:slug',
+        pageBuilder: (c, s) => _slideRight(
+            RadioGenreScreen(
+                genre: Uri.decodeComponent(s.pathParameters['slug']!)),
+            s),
+      ),
     ];
 
 /// Scroll + safe-area padding for the non-scrolling tab screens (Column roots).
@@ -397,6 +410,9 @@ extension SunohNav on BuildContext {
       '$_branchPrefix/podcast-category/${Uri.encodeComponent(slug)}',
       extra: name);
   void openSpotifyImport() => push('$_branchPrefix/spotify-import');
+  void openRadioGenres() => push('$_branchPrefix/radio-genres');
+  void openRadioGenre(String genre) =>
+      push('$_branchPrefix/radio-genre/${Uri.encodeComponent(genre)}');
 }
 
 /// NavigatorObserver that fires Firebase `screen_view` whenever a route
