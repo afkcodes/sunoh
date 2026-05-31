@@ -25,6 +25,13 @@
     <uses-permission android:name="android.permission.NEARBY_WIFI_DEVICES"
         android:usesPermissionFlags="neverForLocation"
         tools:targetApi="33"/>
+    <!-- In-app updater (v1.7.2+): downloads the next release APK to
+         this app's external cache, then hands it to the system
+         package installer via open_filex. Android 8+ guards this
+         behind a per-app "Install unknown apps" toggle — the first
+         install attempt opens the system Settings page to grant it;
+         subsequent updates are one-tap. -->
+    <uses-permission android:name="android.permission.REQUEST_INSTALL_PACKAGES"/>
     <application
         android:label="sunoh"
         android:name="${applicationName}"

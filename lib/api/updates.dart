@@ -31,13 +31,33 @@ class UpdateInfo {
     required this.url,
     this.buildNumber,
     this.notes,
+    this.apks = const <String, String>{},
   });
   final String version;
   final int? buildNumber;
+  /// GitHub release page URL — the "Release notes / view all" link.
+  /// Still used as the fallback when no matching APK URL is present
+  /// for the user's ABI.
   final String url;
   final String? notes;
+  /// Per-ABI direct-download URLs for the release's APK assets, e.g.
+  /// `{"arm64-v8a": "https://github.com/.../app-arm64-v8a-release.apk", ...}`.
+  /// Empty when the manifest pre-dates the in-app-download work — the
+  /// updater falls back to launching `url` in the browser.
+  final Map<String, String> apks;
 
   factory UpdateInfo.fromJson(Map<String, dynamic> j) {
+    final apksRaw = j['apks'];
+    final apks = <String, String>{};
+    if (apksRaw is Map) {
+      for (final entry in apksRaw.entries) {
+        final k = entry.key.toString();
+        final v = entry.value;
+        if (v is String && v.trim().isNotEmpty) {
+          apks[k] = v.trim();
+        }
+      }
+    }
     return UpdateInfo(
       version: (j['version'] ?? '').toString().trim(),
       buildNumber: j['buildNumber'] is num
@@ -45,6 +65,7 @@ class UpdateInfo {
           : int.tryParse('${j['buildNumber'] ?? ''}'),
       url: (j['url'] ?? '').toString().trim(),
       notes: (j['notes'] as String?)?.trim(),
+      apks: apks,
     );
   }
 

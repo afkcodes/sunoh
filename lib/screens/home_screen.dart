@@ -12,7 +12,8 @@ import '../providers/home_provider.dart';
 import '../providers/palette_provider.dart';
 import '../audio/radio_actions.dart';
 import '../router/router.dart';
-import '../widgets/update_banner.dart';
+import '../providers/update_provider.dart';
+import '../widgets/update_dialog.dart';
 import '../theme/tokens.dart';
 import '../widgets/album_art.dart';
 import '../widgets/ui.dart';
@@ -22,13 +23,38 @@ import '../widgets/ui.dart';
 import 'podcasts_tab.dart';
 import 'radio_tab.dart';
 
-class HomeScreen extends ConsumerWidget {
+class HomeScreen extends ConsumerStatefulWidget {
   const HomeScreen({super.key});
+  @override
+  ConsumerState<HomeScreen> createState() => _HomeScreenState();
+}
+
+class _HomeScreenState extends ConsumerState<HomeScreen> {
+  // Track which version we've already prompted for this app launch so
+  // re-entering Home doesn't fire the dialog twice (e.g. user taps
+  // Later, navigates away, comes back — should NOT re-prompt until
+  // next launch).
+  String? _promptedVersion;
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
+  Widget build(BuildContext context) {
     final s = ref.watch(appStateProvider);
     final c = s.colors;
+
+    // Watch the update provider. When a non-null UpdateInfo lands AND
+    // we haven't prompted for this exact version yet THIS session,
+    // schedule the dialog for the next frame. (Can't show during
+    // build — flutter forbids opening routes synchronously from a
+    // widget's build method.)
+    final updateInfo =
+        ref.watch(availableUpdateProvider).asData?.value;
+    if (updateInfo != null && _promptedVersion != updateInfo.version) {
+      _promptedVersion = updateInfo.version;
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (mounted) showUpdateDialog(context, updateInfo);
+      });
+    }
+
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -57,12 +83,6 @@ class HomeScreen extends ConsumerWidget {
           ),
         ),
         _TopTabs(tab: s.topTab, onChange: s.setTopTab, colors: c),
-        // Slim "Update available" ribbon — renders only when the published
-        // manifest carries a strictly-newer version than this build, and
-        // the user hasn't dismissed that exact version yet. Sits between
-        // the tabs and the feed so it reads as a tab-level notice rather
-        // than chrome wedged between the title and the tabs.
-        const UpdateBanner(),
         const SizedBox(height: 22),
         TweenAnimationBuilder<double>(
           key: ValueKey('tab-${s.topTab}'),

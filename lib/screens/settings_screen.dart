@@ -75,6 +75,20 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
     }
   }
 
+  /// Opens the Telegram community group. Same external-launcher path
+  /// the donation links use — hand the URL off to the OS and let it
+  /// pick Telegram-app-or-browser.
+  Future<void> _openCommunity(BuildContext context, WidgetRef ref) async {
+    final s = ref.read(appStateProvider);
+    final uri = Uri.parse('https://web.telegram.org/a/#-1003663737551');
+    try {
+      final ok = await launchUrl(uri, mode: LaunchMode.externalApplication);
+      if (!ok) s.flashToast('Couldn’t open Telegram');
+    } catch (_) {
+      s.flashToast('Couldn’t open Telegram');
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     final s = ref.watch(appStateProvider);
@@ -201,6 +215,25 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
               ],
             );
           }),
+
+          // COMMUNITY — single-row section linking to the Telegram
+          // group. Placed above ABOUT because users look for "join the
+          // discussion" near the bottom of Settings; the version/about
+          // bits stay at the very bottom as the conventional anchor.
+          _Section(
+            label: 'COMMUNITY',
+            colors: c,
+            scale: scale,
+            rows: [
+              _Link(
+                label: 'Join on Telegram',
+                trailing: 'Open',
+                icon: SolarIconsOutline.usersGroupRounded,
+                colors: c,
+                onTap: () => _openCommunity(context, ref),
+              ),
+            ],
+          ),
 
           // ABOUT — wrapped in a Consumer so we can conditionally
           // include the "Update available" row INSIDE the section (so

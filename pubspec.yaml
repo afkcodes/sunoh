@@ -125,6 +125,8 @@ dependencies:
   # `lib/services/analytics_service.dart` for the surface.
   firebase_core: ^4.2.0
   firebase_analytics: ^12.1.0
+  open_filex: ^4.7.0
+  device_info_plus: ^12.4.0
 
 dev_dependencies:
   flutter_test:

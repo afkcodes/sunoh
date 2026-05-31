@@ -283,6 +283,25 @@ data["buildNumber"] = ${NEW_BUILD}
 data["url"] = "${RELEASE_URL}"
 notes = ${NOTES_SUMMARY@Q}
 data["notes"] = notes
+# Per-ABI direct-download URLs for the in-app updater (added v1.7.2).
+# Names match the artifact filenames flutter build emits for
+# --split-per-abi. When --fat-apk was used these keys are absent;
+# updater falls back to launching the release page in the browser.
+asset_url = "https://github.com/${GH_SLUG}/releases/download/${TAG}"
+if ${SPLIT_APKS} == 1:
+    data["apks"] = {
+        "arm64-v8a": f"{asset_url}/app-arm64-v8a-release.apk",
+        "armeabi-v7a": f"{asset_url}/app-armeabi-v7a-release.apk",
+        "x86_64": f"{asset_url}/app-x86_64-release.apk",
+    }
+else:
+    data["apks"] = {
+        # The fat APK runs on any ABI — map the same URL under all keys
+        # so the updater's "pick by ABI" logic always matches.
+        "arm64-v8a": f"{asset_url}/app-release.apk",
+        "armeabi-v7a": f"{asset_url}/app-release.apk",
+        "x86_64": f"{asset_url}/app-release.apk",
+    }
 p.write_text(json.dumps(data, indent=2) + "\n")
 PY
   fi

@@ -1,50 +1,29 @@
-// "Update available" ribbon rendered at the top of Home (and as a card
-// in Settings → About). Reads the AsyncValue at
-// `availableUpdateProvider` — when it yields a non-null UpdateInfo, the
-// banner draws itself; otherwise it's a zero-height SizedBox.
+// "Update available" card rendered inside Settings → About.
 //
-// Two affordances: the whole row taps through to the GitHub release URL
-// (via url_launcher), and a trailing × dismisses the banner until the
-// next published version.
+// The home-screen banner variant lived here too once — it was replaced
+// (v1.7.2) by the auto-show update DIALOG (see widgets/update_dialog.dart)
+// because users were ignoring the slim ribbon. The Settings card stays
+// as a discoverability backstop: if the user dismisses the dialog or
+// skips the version, they can still find the update via Settings →
+// About. Tapping the card re-opens the same dialog.
 
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:solar_icons/solar_icons.dart';
-import 'package:url_launcher/url_launcher.dart';
 
 import '../api/updates.dart';
 import '../providers/app_state_provider.dart';
 import '../providers/update_provider.dart';
 import '../theme/tokens.dart';
 import 'ui.dart';
-
-/// Slim ribbon variant — used at the top of Home so it never steals
-/// vertical real-estate from the feed. Matches the home feed's
-/// 20 px horizontal gutter; adds a bit of top breathing room when
-/// visible. Zero height when there's no update.
-class UpdateBanner extends ConsumerWidget {
-  const UpdateBanner({super.key});
-
-  @override
-  Widget build(BuildContext context, WidgetRef ref) {
-    final s = ref.watch(appStateProvider);
-    final c = s.colors;
-    final accent = s.resolvedAccent;
-    final async = ref.watch(availableUpdateProvider);
-    final info = async.asData?.value;
-    if (info == null) return const SizedBox.shrink();
-    return Padding(
-      padding: const EdgeInsets.fromLTRB(20, 14, 20, 0),
-      child: _UpdateRow(info: info, colors: c, accent: accent, slim: true),
-    );
-  }
-}
+import 'update_dialog.dart';
 
 /// Card variant — used inside Settings → About so the same info has a
-/// home if the user dismissed the Home ribbon. Designed to live as the
-/// first row inside a `_Section`, so it inherits the section's
-/// horizontal padding — no extra padding here. Returns SizedBox.shrink
-/// when no update is published so the caller doesn't need to gate.
+/// home if the user dismissed the auto-shown dialog on Home. Designed
+/// to live as the first row inside a `_Section`, so it inherits the
+/// section's horizontal padding — no extra padding here. Returns
+/// SizedBox.shrink when no update is published so the caller doesn't
+/// need to gate.
 class UpdateAboutCard extends ConsumerWidget {
   const UpdateAboutCard({super.key});
 
@@ -77,7 +56,10 @@ class _UpdateRow extends ConsumerWidget {
     final c = colors;
     return GestureDetector(
       behavior: HitTestBehavior.opaque,
-      onTap: () => _open(info.url),
+      // Re-open the auto-show dialog — keeps Settings as a backstop
+      // for the user who dismissed the home dialog with "Later" and
+      // came back later to actually update.
+      onTap: () => showUpdateDialog(context, info),
       child: Container(
         padding: EdgeInsets.symmetric(horizontal: 14, vertical: slim ? 12 : 16),
         decoration: squircleDecoration(
@@ -144,11 +126,4 @@ class _UpdateRow extends ConsumerWidget {
     );
   }
 
-  Future<void> _open(String url) async {
-    final uri = Uri.tryParse(url);
-    if (uri == null) return;
-    try {
-      await launchUrl(uri, mode: LaunchMode.externalApplication);
-    } catch (_) {/* user can re-tap; no toast spam */}
-  }
 }
