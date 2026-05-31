@@ -285,15 +285,19 @@ rm -f "$NOTES_TMP"
 if (( SKIP_MANIFEST == 0 )); then
   log "updating $SUNOH_NEXT_DIR/$MANIFEST_PATH"
   if (( DRY_RUN == 0 )); then
-    python3 - <<PY
-import json, pathlib
+    # Pass NOTES_SUMMARY through the environment, NOT inline shell
+    # substitution. `${NOTES_SUMMARY@Q}` produces bash-style quoting
+    # (e.g. `'foo'\''s bar'` for "foo's bar") which is valid in bash
+    # but breaks Python's string parser. Reading from os.environ
+    # sidesteps the shell-quote escape problem entirely.
+    NOTES_SUMMARY="$NOTES_SUMMARY" python3 - <<PY
+import json, os, pathlib
 p = pathlib.Path("${SUNOH_NEXT_DIR}/${MANIFEST_PATH}")
 data = json.loads(p.read_text())
 data["version"] = "${NEW_SEMVER}"
 data["buildNumber"] = ${NEW_BUILD}
 data["url"] = "${RELEASE_URL}"
-notes = ${NOTES_SUMMARY@Q}
-data["notes"] = notes
+data["notes"] = os.environ.get("NOTES_SUMMARY", "")
 # Per-ABI direct-download URLs for the in-app updater (added v1.7.2).
 # Names match the artifact filenames flutter build emits for
 # --split-per-abi. When --fat-apk was used these keys are absent;
