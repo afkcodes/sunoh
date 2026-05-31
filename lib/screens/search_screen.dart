@@ -45,6 +45,12 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
   // string means "don't search yet" (browse view stays up).
   String _activeQuery = '';
   Timer? _debounce;
+  // GlobalKeys per section heading, persisted across rebuilds so the
+  // section-pills row can ensureVisible the right slot. Cleared on
+  // `_clear()` to release keys for headings that no longer appear.
+  final Map<String, GlobalKey> _sectionKeys = {};
+  GlobalKey _keyForSection(String heading) =>
+      _sectionKeys.putIfAbsent(heading, () => GlobalKey());
 
   @override
   void initState() {
@@ -82,10 +88,27 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
   void _clear() {
     _debounce?.cancel();
     controller.clear();
+    _sectionKeys.clear();
     setState(() {
       q = '';
       _activeQuery = '';
     });
+  }
+
+  /// Animated scroll so the section under [heading] lands roughly a
+  /// third of the way down the viewport. `Scrollable.ensureVisible`
+  /// walks the closest `Scrollable` ancestor — works with the router-
+  /// level `_RootScroll` SingleChildScrollView wrapping this screen,
+  /// no scroll-controller plumbing needed.
+  void _jumpToSection(String heading) {
+    final ctx = _sectionKeys[heading]?.currentContext;
+    if (ctx == null) return;
+    Scrollable.ensureVisible(
+      ctx,
+      alignment: 0.25,
+      duration: const Duration(milliseconds: 320),
+      curve: Curves.easeOutCubic,
+    );
   }
 
   @override
@@ -346,21 +369,38 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
         return Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            const SizedBox(height: 12),
-            for (var i = 0; i < ordered.length; i++) ...[
-              _ResultsSection(
-                section: ordered[i],
+            // Section-jump pills. Horizontal scrollable row above all
+            // results — tap a pill, the matching section scrolls
+            // smoothly into view (alignment 0.25 = "upper quarter" of
+            // the viewport so the section's eyebrow sits below the
+            // search field, not under it).
+            if (ordered.length > 1) ...[
+              const SizedBox(height: 8),
+              _SectionPills(
+                sections: ordered,
                 colors: c,
-                onPlay: (song) => s.playApiSong(song,
-                    sourceLabel: 'SEARCH · $_activeQuery'),
-                // Live streams need PlayMode.live so the audio handler
-                // takes the single-entry path (no playlist auto-advance,
-                // EOF means stream dropped → URL refresh).
-                onPlayStation: (station) => s.playApiQueue(
-                  [station],
-                  0,
-                  sourceLabel: 'RADIO · ${station.title}',
-                  mode: PlayMode.live,
+                onTap: _jumpToSection,
+              ),
+            ],
+            const SizedBox(height: 4),
+            for (var i = 0; i < ordered.length; i++) ...[
+              Container(
+                key: _keyForSection(ordered[i].heading),
+                child: _ResultsSection(
+                  section: ordered[i],
+                  colors: c,
+                  onPlay: (song) => s.playApiSong(song,
+                      sourceLabel: 'SEARCH · $_activeQuery'),
+                  // Live streams need PlayMode.live so the audio
+                  // handler takes the single-entry path (no playlist
+                  // auto-advance, EOF means stream dropped → URL
+                  // refresh).
+                  onPlayStation: (station) => s.playApiQueue(
+                    [station],
+                    0,
+                    sourceLabel: 'RADIO · ${station.title}',
+                    mode: PlayMode.live,
+                  ),
                 ),
               ),
               if (i < ordered.length - 1) const SizedBox(height: 20),
@@ -411,6 +451,80 @@ class _SearchHint extends StatelessWidget {
         ),
       ),
     );
+  }
+}
+
+/// Horizontal scrollable row of "jump to section" pills, rendered
+/// above the first section in `_liveResults`. Tap a pill and the
+/// matching `_ResultsSection` scrolls into view (alignment 0.25, so
+/// the section's heading lands in the upper quarter rather than at
+/// the very top — leaves visual room for the search field above).
+///
+/// Hidden when there's only one section (single result = no useful
+/// jump targets, just visual chrome).
+class _SectionPills extends StatelessWidget {
+  const _SectionPills({
+    required this.sections,
+    required this.colors,
+    required this.onTap,
+  });
+  final List<HomeSection> sections;
+  final SunohColors colors;
+  final void Function(String heading) onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    final c = colors;
+    return SizedBox(
+      height: 36,
+      child: ListView.separated(
+        scrollDirection: Axis.horizontal,
+        padding: const EdgeInsets.symmetric(horizontal: 20),
+        itemCount: sections.length,
+        separatorBuilder: (_, _) => const SizedBox(width: 8),
+        itemBuilder: (context, i) {
+          final s = sections[i];
+          final label = _shortLabel(s.heading);
+          return GestureDetector(
+            onTap: () => onTap(s.heading),
+            behavior: HitTestBehavior.opaque,
+            child: Container(
+              padding:
+                  const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+              decoration: squircleDecoration(
+                radius: 999,
+                color: c.surface,
+                borderColor: c.line,
+              ),
+              child: Center(
+                child: Text(
+                  label,
+                  style: SunohType.sans(
+                    fontSize: 12.5,
+                    fontWeight: FontWeight.w500,
+                    color: c.fg,
+                  ),
+                ),
+              ),
+            ),
+          );
+        },
+      ),
+    );
+  }
+
+  /// Compact display label for a section heading. Most headings come
+  /// straight from the upstream API ("Songs", "Artists") and read
+  /// fine; the longer / casing-inconsistent ones get normalised.
+  static String _shortLabel(String heading) {
+    final h = heading.trim();
+    final lower = h.toLowerCase();
+    if (lower.contains('top result') || lower == 'topquery') return 'Top';
+    if (lower.contains('radio')) return 'Radio';
+    if (lower.contains('podcast')) return 'Podcasts';
+    return h.isEmpty
+        ? '—'
+        : h[0].toUpperCase() + h.substring(1);
   }
 }
 

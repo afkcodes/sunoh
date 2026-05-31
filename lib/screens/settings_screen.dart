@@ -80,7 +80,9 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
   /// pick Telegram-app-or-browser.
   Future<void> _openCommunity(BuildContext context, WidgetRef ref) async {
     final s = ref.read(appStateProvider);
-    final uri = Uri.parse('https://web.telegram.org/a/#-1003663737551');
+    // Telegram t.me/+invite-hash deeplink — Android picks Telegram-app
+    // when installed, falls back to the web join page otherwise.
+    final uri = Uri.parse('https://t.me/+uVuFSUN4lp01M2Y1');
     try {
       final ok = await launchUrl(uri, mode: LaunchMode.externalApplication);
       if (!ok) s.flashToast('Couldn’t open Telegram');
