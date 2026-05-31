@@ -231,10 +231,21 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen> {
           ),
         ),
         if (s.userPlaylists.isNotEmpty) ...[
-          _UserPlaylistsStrip(
-              playlists: s.userPlaylists,
-              colors: c,
-              accent: s.resolvedAccent),
+          // Grid mode: horizontal carousel (existing strip).
+          // List mode: eyebrow + per-playlist rows that match the
+          // _ListRow visual below — so the "My playlists" bucket
+          // respects the same view toggle as everything else on the
+          // Library tab.
+          if (grid)
+            _UserPlaylistsStrip(
+                playlists: s.userPlaylists,
+                colors: c,
+                accent: s.resolvedAccent)
+          else
+            _UserPlaylistsList(
+                playlists: s.userPlaylists,
+                colors: c,
+                accent: s.resolvedAccent),
           const SizedBox(height: 18),
         ],
         if (s.subscribedPodcasts.isNotEmpty) ...[
@@ -629,6 +640,123 @@ class _UserPlaylistsStrip extends StatelessWidget {
       if (a != null && a.isNotEmpty) return a;
     }
     return null;
+  }
+}
+
+/// List-mode counterpart of [_UserPlaylistsStrip] — eyebrow header
+/// plus one [_UserPlaylistRow] per playlist. Same vertical rhythm as
+/// the saved-items `_ListRow`s rendered below so the Library reads as
+/// a single uniform list when grid mode is off.
+class _UserPlaylistsList extends StatelessWidget {
+  const _UserPlaylistsList({
+    required this.playlists,
+    required this.colors,
+    required this.accent,
+  });
+  final List<UserPlaylist> playlists;
+  final SunohColors colors;
+  final Color accent;
+
+  @override
+  Widget build(BuildContext context) {
+    final c = colors;
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Padding(
+          padding: const EdgeInsets.fromLTRB(20, 0, 20, 8),
+          child: eyebrow('MY PLAYLISTS', c.fgMute,
+              size: 10, letterSpacing: 1.4),
+        ),
+        for (final p in playlists)
+          _UserPlaylistRow(playlist: p, colors: c, accent: accent),
+      ],
+    );
+  }
+}
+
+/// Single user-playlist row in list mode. Mirrors the visual shape of
+/// `_ListRow` (50-px cover + title + subtitle) but takes a
+/// `UserPlaylist` directly because the FeedItem mapper for user
+/// playlists doesn't exist (and routing the tap is a single line, so
+/// not worth synthesizing one).
+class _UserPlaylistRow extends StatelessWidget {
+  const _UserPlaylistRow({
+    required this.playlist,
+    required this.colors,
+    required this.accent,
+  });
+  final UserPlaylist playlist;
+  final SunohColors colors;
+  final Color accent;
+
+  @override
+  Widget build(BuildContext context) {
+    final c = colors;
+    final cover = _UserPlaylistsStrip._firstArtwork(playlist);
+    final n = playlist.songs.length;
+    return GestureDetector(
+      onTap: () => context.openUserPlaylist(playlist.id),
+      behavior: HitTestBehavior.opaque,
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 8),
+        child: Row(
+          children: [
+            // Same artwork treatment as the strip — accent gradient
+            // fallback with a music-library glyph when the playlist
+            // has no songs yet, real cover from the first song
+            // otherwise. 50-px to match _ListRow.
+            squircleClip(
+              radius: 8,
+              child: Container(
+                width: 50,
+                height: 50,
+                decoration: BoxDecoration(
+                  gradient: cover == null
+                      ? LinearGradient(
+                          colors: [
+                            accent.withValues(alpha: 0.85),
+                            accent.withValues(alpha: 0.35),
+                          ],
+                          begin: Alignment.topLeft,
+                          end: Alignment.bottomRight,
+                        )
+                      : null,
+                ),
+                child: cover == null
+                    ? Icon(SolarIconsBold.musicLibrary2,
+                        size: 22,
+                        color: Colors.white.withValues(alpha: 0.9))
+                    : Image.network(cover,
+                        fit: BoxFit.cover,
+                        errorBuilder: (_, _, _) => Icon(
+                            SolarIconsBold.musicLibrary2,
+                            size: 22,
+                            color: Colors.white.withValues(alpha: 0.9))),
+              ),
+            ),
+            const SizedBox(width: 12),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(playlist.name,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: SunohType.sans(
+                          fontSize: 14.5,
+                          fontWeight: FontWeight.w500,
+                          color: c.fg)),
+                  const SizedBox(height: 2),
+                  Text('$n ${n == 1 ? 'song' : 'songs'}',
+                      style: SunohType.sans(fontSize: 11.5, color: c.fgMute)),
+                ],
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
   }
 }
 
