@@ -181,26 +181,26 @@ class UpdaterController extends ChangeNotifier {
     return info.apks['arm64-v8a'];
   }
 
-  /// Where to drop the downloaded APK. Uses the app's external
-  /// cache directory (Android: `/storage/emulated/0/Android/data/<pkg>/cache/`)
-  /// so the file is readable by the system installer without needing
-  /// MANAGE_EXTERNAL_STORAGE. File name includes the version so older
-  /// half-downloaded files don't get confused with newer ones.
+  /// Where to drop the downloaded APK.
+  ///
+  /// Uses the app's INTERNAL temp directory (`/data/user/0/<pkg>/cache/…`),
+  /// NOT external storage. open_filex's Android pre-flight rejects any
+  /// path containing `/storage/` unless MANAGE_EXTERNAL_STORAGE is held
+  /// (a heavyweight Google-restricted permission we don't want to ask
+  /// for). open_filex itself uses a FileProvider to grant the system
+  /// installer temporary read access to the internal-cache file, so
+  /// the installer reads it fine — no shared-storage requirement.
+  ///
+  /// File name includes the version so older half-downloaded files
+  /// don't get confused with newer ones.
   Future<String> _destinationPath(String version) async {
-    // getExternalCacheDirectories is Android-only; on iOS / desktop
-    // this code path won't run (we early-return above) so the null
-    // check is defensive.
-    final dirs = await getExternalCacheDirectories();
-    final dir = (dirs != null && dirs.isNotEmpty)
-        ? dirs.first
-        : await getTemporaryDirectory();
+    final dir = await getTemporaryDirectory();
     final safeVersion = version.replaceAll(RegExp(r'[^A-Za-z0-9._-]'), '_');
     final file = File('${dir.path}/sunoh-update-v$safeVersion.apk');
     if (await file.exists()) {
       // Older session may have left a partial / completed download
       // under the same name. Delete so the new download can't pick up
-      // half-baked bytes (Dio's `download` overwrites by default but
-      // being explicit avoids weird Android FS edge cases).
+      // half-baked bytes.
       try {
         await file.delete();
       } catch (_) {}

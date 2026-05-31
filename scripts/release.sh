@@ -181,8 +181,19 @@ EOF
   fi
 fi
 
-# Compact summary for the manifest (first non-empty line).
-NOTES_SUMMARY="$(printf '%s\n' "$NOTES" | awk 'NF{print; exit}')"
+# Compact summary for the manifest. Strategy:
+#   1. First markdown BULLET ("- foo") — typical release notes lead
+#      with a section header ("New", "Fix") and then bullets; the
+#      first bullet is the actual headline change.
+#   2. Fall back to the first non-empty line (legacy single-line notes).
+# Strip inline `**bold**` / `*italic*` markdown so the in-app dialog
+# (plain Text widget) doesn't render literal asterisks.
+NOTES_SUMMARY="$(printf '%s\n' "$NOTES" | awk '/^- /{sub(/^- /, ""); print; exit}')"
+if [[ -z "$NOTES_SUMMARY" ]]; then
+  NOTES_SUMMARY="$(printf '%s\n' "$NOTES" | awk 'NF{print; exit}')"
+fi
+# Strip `**bold**` and `*italic*` and `__bold__` markdown.
+NOTES_SUMMARY="$(printf '%s' "$NOTES_SUMMARY" | sed -E 's/\*\*([^*]+)\*\*/\1/g; s/\*([^*]+)\*/\1/g; s/__([^_]+)__/\1/g')"
 
 # Trim release URL ahead of time so we can put it in the manifest.
 ORIGIN_URL="$(git remote get-url origin)"
