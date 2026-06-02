@@ -4,6 +4,7 @@
 import 'dart:async';
 import 'dart:math' show Random;
 
+import 'package:audio_service/audio_service.dart' show MediaItem;
 import 'package:flutter/material.dart';
 
 import '../api/dto.dart';
@@ -1598,6 +1599,13 @@ class AppState extends ChangeNotifier with WidgetsBindingObserver {
     _nowPlayingTimer?.cancel();
     _nowPlayingSlug = slug;
     _nowPlaying = null;
+    _notificationShowsShazam = false;
+    // Snapshot the station's MediaItem so we can revert the OS
+    // notification back to it when Shazam returns no-match between
+    // songs. Built from currentApiSong because that's what
+    // audio_repo's _mediaItemFor would have just pushed via the bridge.
+    final song = currentApiSong;
+    _radioStationMediaItem = song != null ? _buildStationMediaItem(song) : null;
     // Fire immediately so the first response lands ~5 s into playback
     // rather than 5 s + the poll interval.
     unawaited(_fetchNowPlayingOnce(slug));
@@ -1618,12 +1626,71 @@ class AppState extends ChangeNotifier with WidgetsBindingObserver {
     if (res == null) return;
     _nowPlaying = res;
     notifyListeners();
+    _pushNowPlayingToNotification(res);
+  }
+
+  /// Mirror the matched Shazam track into the OS media notification so
+  /// the lockscreen / pull-down shade / wearables show the actual track
+  /// (not just the station name). Reverts to the station MediaItem on
+  /// matched → no-match transitions. No-op when the audio engine isn't
+  /// wired yet (early startup) or no bridge attached.
+  void _pushNowPlayingToNotification(RadioNowPlaying res) {
+    final bridge = audioRepo?.bridge;
+    if (bridge == null) return;
+    if (res.matched && res.track != null) {
+      final t = res.track!;
+      bridge.onTrackChanged(MediaItem(
+        // Stable per-match id so the OS doesn't treat every poll as a
+        // brand-new track. `shazam:<id>` keys naturally — `<title|artist>`
+        // fallback covers the rare case shazamId is null.
+        id: 'shazam:${t.shazamId ?? '${t.title}|${t.artist}'}',
+        title: t.title ?? _radioStationMediaItem?.title ?? '',
+        artist: t.artist ?? _radioStationMediaItem?.artist ?? '',
+        album: t.album ?? '',
+        artUri: (t.image != null && t.image!.isNotEmpty)
+            ? Uri.tryParse(t.image!)
+            : _radioStationMediaItem?.artUri,
+        extras: const {'source': 'sunoh-radio'},
+      ));
+      _notificationShowsShazam = true;
+    } else if (_notificationShowsShazam &&
+        _radioStationMediaItem != null) {
+      // Just transitioned matched → no-match. Restore the station's
+      // MediaItem so the notification stops showing the previously-
+      // matched track once it's no longer airing.
+      bridge.onTrackChanged(_radioStationMediaItem!);
+      _notificationShowsShazam = false;
+    }
+  }
+
+  /// Construct a fresh MediaItem from a station FeedItem. Mirrors the
+  /// shape AudioRepo's `_mediaItemFor` produces — kept inline here
+  /// rather than reaching across the layer because (a) AudioRepo's
+  /// helper is private and (b) we only need this for the override-
+  /// revert path, which is a state-presentation concern.
+  MediaItem _buildStationMediaItem(FeedItem song) {
+    return MediaItem(
+      id: song.id,
+      title: song.title,
+      artist: (song.artists ?? const <ApiArtistRef>[])
+          .map((a) => a.name)
+          .where((n) => n.isNotEmpty)
+          .take(2)
+          .join(', '),
+      album: '',
+      artUri: (song.artwork ?? '').isEmpty
+          ? null
+          : Uri.tryParse(song.artwork!),
+      extras: {'source': song.source ?? ''},
+    );
   }
 
   void _stopNowPlayingPoll() {
     _nowPlayingTimer?.cancel();
     _nowPlayingTimer = null;
     _nowPlayingSlug = null;
+    _radioStationMediaItem = null;
+    _notificationShowsShazam = false;
     if (_nowPlaying != null) {
       _nowPlaying = null;
       notifyListeners();
@@ -1829,6 +1896,15 @@ class AppState extends ChangeNotifier with WidgetsBindingObserver {
       _nowPlaying?.matched == true ? _nowPlaying!.track : null;
   Timer? _nowPlayingTimer;
   String? _nowPlayingSlug;
+  /// Saved-off MediaItem for the station before we started overriding it
+  /// with Shazam metadata. Used to revert the OS notification back to
+  /// "station name + station logo" when Shazam transitions matched →
+  /// no-match (talk segment, instrumental break, ad).
+  MediaItem? _radioStationMediaItem;
+  /// Whether the notification is currently showing Shazam metadata
+  /// (instead of the station's own MediaItem). Lets us push a revert
+  /// exactly once on a matched → no-match transition.
+  bool _notificationShowsShazam = false;
 
   bool _isCasting = false;
   // Stamp the moment a cast session goes live so logCastDisconnect can
