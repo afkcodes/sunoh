@@ -712,6 +712,39 @@ class SunohApi {
         'offset': offset,
       });
 
+  /// `GET /radios/:slug/now-playing` — listener-driven Shazam result.
+  ///
+  /// Polled by [AppState] every ~5 s while a live radio station is the
+  /// active queue head. The polling itself is the "I'm listening"
+  /// signal that keeps the backend worker fingerprinting the slug; if
+  /// polls stop arriving for ~30 s the worker drops the station and
+  /// stops spending Shazam calls. Result populates AppState.nowPlaying.
+  ///
+  /// Returns `null` on error so the caller (the timer loop) doesn't
+  /// have to wrap every tick in a try/catch — a transient backend blip
+  /// just means "keep showing the last known result + try again next
+  /// tick".
+  Future<RadioNowPlaying?> fetchRadioNowPlaying(String slug) async {
+    try {
+      final res = await _dio.get<Map<String, dynamic>>(
+        '/radios/${Uri.encodeComponent(slug)}/now-playing',
+      );
+      final env = ApiEnvelope.from<RadioNowPlaying>(
+        res.data ?? const {},
+        (raw) {
+          if (raw is Map) {
+            return RadioNowPlaying.fromJson(raw.cast<String, dynamic>());
+          }
+          throw const FormatException('Expected map payload');
+        },
+      );
+      if (!env.isSuccess) return null;
+      return env.data;
+    } catch (_) {
+      return null;
+    }
+  }
+
   /// `GET /radios/genres` — facet list `[{value, count}, …]` over the
   /// working stations. Cached 10 min server-side; fine to call from a
   /// provider with no TTL.

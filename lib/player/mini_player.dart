@@ -22,12 +22,24 @@ class MiniPlayer extends ConsumerWidget {
     final c = s.colors;
     final track = s.current;
 
+    // Radio Shazam swap — when the backend worker has identified the
+    // live track, prefer its title/artist/image over the ICY title +
+    // station logo. Fallback order, top to bottom:
+    //   - Shazam match (structured: title, artist, image)
+    //   - ICY metadata (free-text title only)
+    //   - Station name + logo
+    final np = s.nowPlayingTrack;
+    final hasShazam = s.isLive && np != null;
+    final liveImageUrl = hasShazam && np.image != null && np.image!.isNotEmpty
+        ? np.image
+        : s.currentApiSong?.artwork;
+
     // Match the expanded player: pull the live palette directly from
     // artPaletteProvider keyed by the current artwork URL. Without this
     // the mini player only sees the user's accent + AppState's cached
     // `_extractedAccent` and lags behind track changes when AppState's
     // notify lands before the palette extraction completes.
-    final url = s.currentApiSong?.artwork ?? '';
+    final url = liveImageUrl ?? '';
     final palette = url.isEmpty
         ? null
         : ref.watch(artPaletteProvider(url)).value;
@@ -47,7 +59,7 @@ class MiniPlayer extends ConsumerWidget {
                   tag: 'sunoh-player-art',
                   child: SunohArt(
                       id: track.id,
-                      imageUrl: s.currentApiSong?.artwork,
+                      imageUrl: liveImageUrl,
                       size: 44,
                       radius: 9,
                       shadow: false),
@@ -70,11 +82,15 @@ class MiniPlayer extends ConsumerWidget {
                           ],
                           Expanded(
                             child: Text(
-                              // Live: prefer the ICY now-playing track,
-                              // fall back to the station name. Non-live:
-                              // always the track title.
+                              // Live: prefer Shazam title, then ICY,
+                              // then station name. Non-live: always the
+                              // track title.
                               s.isLive
-                                  ? (s.icyTitle ?? track.title)
+                                  ? (hasShazam
+                                          ? np.title
+                                          : null) ??
+                                      s.icyTitle ??
+                                      track.title
                                   : track.title,
                               maxLines: 1,
                               overflow: TextOverflow.ellipsis,
@@ -87,10 +103,15 @@ class MiniPlayer extends ConsumerWidget {
                         ],
                       ),
                       Text(
-                        // Secondary line: station name when live (so the
-                        // user always knows the source even when ICY is
-                        // the big slot); otherwise the artist.
-                        s.isLive ? track.title : track.artist,
+                        // Secondary line:
+                        //   - live + Shazam matched: artist (the big
+                        //     slot already shows the track title)
+                        //   - live + no Shazam: station name (so the
+                        //     user still sees the source)
+                        //   - non-live: artist
+                        s.isLive
+                            ? (hasShazam ? (np.artist ?? track.title) : track.title)
+                            : track.artist,
                         maxLines: 1,
                         overflow: TextOverflow.ellipsis,
                         style: SunohType.sans(

@@ -78,9 +78,19 @@ class _ExpandedPlayerState extends ConsumerState<ExpandedPlayer>
     final c = s.colors;
     final track = s.current;
 
+    // Radio Shazam swap — when the backend worker has identified the
+    // live track, prefer its title/artist/image over the ICY title +
+    // station logo. Fallback: Shazam → ICY → station. Same shape used
+    // by mini_player.dart; keeping both player surfaces in sync.
+    final np = s.nowPlayingTrack;
+    final hasShazam = s.isLive && np != null;
+    final liveImageUrl = hasShazam && np.image != null && np.image!.isNotEmpty
+        ? np.image
+        : s.currentApiSong?.artwork;
+
     // Live palette for the current artwork. While loading or missing, fall
     // back to the user/deterministic accent so the UI never looks broken.
-    final url = s.currentApiSong?.artwork ?? '';
+    final url = liveImageUrl ?? '';
     final palette = url.isEmpty
         ? null
         : ref.watch(artPaletteProvider(url)).value;
@@ -250,6 +260,17 @@ class _ExpandedPlayerState extends ConsumerState<ExpandedPlayer>
     required Color tint,
     required String? lyricLine,
   }) {
+    // Same Shazam-swap derivation as in `build()`. Re-derived here
+    // because `_classic` is a separate method and doesn't see locals
+    // from the build scope. Cheap (three nullable reads) so it's not
+    // worth threading three extra named params just to skip it.
+    final np = s.nowPlayingTrack;
+    final hasShazam = s.isLive && np != null;
+    final liveImageUrl =
+        hasShazam && np.image != null && np.image!.isNotEmpty
+            ? np.image
+            : s.currentApiSong?.artwork;
+
     // The icon strip is overlaid via `Positioned` so its vertical position
     // can be tuned without redistributing the Spacer slack above it (which
     // would shift the cover / title / transport). The Column reserves a
@@ -262,12 +283,18 @@ class _ExpandedPlayerState extends ConsumerState<ExpandedPlayer>
             const Spacer(flex: 2),
             _StaticCover(
               id: track.id,
-              url: s.currentApiSong?.artwork,
+              // Prefer the Shazam-supplied Apple Music art (400×400,
+              // high quality) over the station logo while a track is
+              // matched — and revert to the logo on no_match.
+              url: liveImageUrl,
               playing: s.isPlaying,
               // Live streams = radio stations = often low-res logos
               // with text baked in. The framed-on-blur treatment makes
               // them look intentional instead of stretched-and-soft.
-              isLive: s.isLive,
+              // Shazam art doesn't need the frame (it's already 400×400
+              // album cover), so we skip the live treatment when a
+              // Shazam image is in play.
+              isLive: s.isLive && !hasShazam,
               accent: accent,
             ),
             const SizedBox(height: 24),
@@ -313,10 +340,14 @@ class _ExpandedPlayerState extends ConsumerState<ExpandedPlayer>
                               ),
                             ),
                           Text(
-                            // Live: prefer the ICY now-playing track;
-                            // fall back to the station name. Non-live:
-                            // always the track title.
-                            s.isLive ? (s.icyTitle ?? track.title) : track.title,
+                            // Live: prefer Shazam title, then ICY,
+                            // then station name. Non-live: always
+                            // the track title.
+                            s.isLive
+                                ? ((hasShazam ? np.title : null) ??
+                                    s.icyTitle ??
+                                    track.title)
+                                : track.title,
                             maxLines: 2,
                             overflow: TextOverflow.ellipsis,
                             style: SunohType.heading(
@@ -328,11 +359,16 @@ class _ExpandedPlayerState extends ConsumerState<ExpandedPlayer>
                           ),
                           const SizedBox(height: 4),
                           Text(
-                            // Secondary line: in live mode show the
-                            // station name (so the user always knows
-                            // the source even when ICY occupies the
-                            // big slot); otherwise the artist.
-                            s.isLive ? track.title : track.artist,
+                            // Secondary line:
+                            //   - live + Shazam matched: artist
+                            //     (title slot is the Shazam track)
+                            //   - live + no Shazam: station name
+                            //   - non-live: artist
+                            s.isLive
+                                ? (hasShazam
+                                    ? (np.artist ?? track.title)
+                                    : track.title)
+                                : track.artist,
                             maxLines: 1,
                             overflow: TextOverflow.ellipsis,
                             style: SunohType.sans(

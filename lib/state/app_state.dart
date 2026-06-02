@@ -1524,6 +1524,14 @@ class AppState extends ChangeNotifier with WidgetsBindingObserver {
     // (no scrubber / no skip buttons / no queue UI for radios).
     _isLive = mode == PlayMode.live;
     _tick?.cancel();
+    // Now-playing Shazam polling — fires ONLY for live mode AND only
+    // when the source is sunoh-radio. Music + podcasts never trigger
+    // this; the source gate is the belt to the live-mode suspenders.
+    if (mode == PlayMode.live && startSong.source == 'sunoh-radio') {
+      _startNowPlayingPoll(startSong.id);
+    } else {
+      _stopNowPlayingPoll();
+    }
     notifyListeners();
 
     final repo = audioRepo;
@@ -1561,6 +1569,63 @@ class AppState extends ChangeNotifier with WidgetsBindingObserver {
     } catch (e) {
       flashToast('Could not play: $e');
       isPlaying = false;
+      notifyListeners();
+    }
+  }
+
+  // ── Radio now-playing (Shazam) polling ────────────────────────────────
+  //
+  // Lifecycle: `_startNowPlayingPoll(slug)` is called by playApiQueue
+  // when entering live mode on a sunoh-radio station. It clears any
+  // existing state, fires an immediate fetch (so the UI gets out of
+  // its `pending` state ASAP), then ticks every 5 s. The polling
+  // itself signals "I'm listening" to the backend — see
+  // /radios/:slug/now-playing in sunoh-api. When the user switches
+  // queues, plays music/podcasts, or AppState disposes, the timer is
+  // cancelled and `_nowPlaying` is reset to null so the UI falls back
+  // to ICY title / station name.
+
+  /// Poll cadence. Worker re-fingerprints on a 30 s match / back-off
+  /// miss cadence on the backend, so anything ≤ ~5 s here is plenty —
+  /// the user-visible lag between a real song change and the dialog
+  /// updating is bounded by the worker, not the client.
+  static const Duration _kNowPlayingPollInterval = Duration(seconds: 5);
+
+  void _startNowPlayingPoll(String slug) {
+    // Already polling this slug → just keep ticking; no need to reset
+    // state (would flicker the player back to "pending").
+    if (_nowPlayingSlug == slug && _nowPlayingTimer?.isActive == true) return;
+    _nowPlayingTimer?.cancel();
+    _nowPlayingSlug = slug;
+    _nowPlaying = null;
+    // Fire immediately so the first response lands ~5 s into playback
+    // rather than 5 s + the poll interval.
+    unawaited(_fetchNowPlayingOnce(slug));
+    _nowPlayingTimer = Timer.periodic(_kNowPlayingPollInterval, (_) {
+      if (_nowPlayingSlug != slug) return;
+      unawaited(_fetchNowPlayingOnce(slug));
+    });
+  }
+
+  Future<void> _fetchNowPlayingOnce(String slug) async {
+    final apiClient = api;
+    if (apiClient == null) return;
+    final res = await apiClient.fetchRadioNowPlaying(slug);
+    // Race-guard: the user may have switched stations / queues between
+    // the fetch starting and resolving. Drop a stale response on the
+    // floor rather than briefly flashing the wrong track.
+    if (_nowPlayingSlug != slug) return;
+    if (res == null) return;
+    _nowPlaying = res;
+    notifyListeners();
+  }
+
+  void _stopNowPlayingPoll() {
+    _nowPlayingTimer?.cancel();
+    _nowPlayingTimer = null;
+    _nowPlayingSlug = null;
+    if (_nowPlaying != null) {
+      _nowPlaying = null;
       notifyListeners();
     }
   }
@@ -1743,6 +1808,27 @@ class AppState extends ChangeNotifier with WidgetsBindingObserver {
   /// name otherwise.
   String? _icyTitle;
   String? get icyTitle => _icyTitle;
+
+  /// Shazam-identified track currently playing on the live radio
+  /// station. Polled from `/radios/:slug/now-playing` every 5 s — the
+  /// polling itself is the "I'm listening" signal that keeps the
+  /// backend worker fingerprinting this slug. Null when:
+  ///   - not playing a radio station (track mode), OR
+  ///   - the backend worker hasn't matched anything yet (pending /
+  ///     no_match status).
+  /// UI consumers should prefer this over `icyTitle` when set —
+  /// shazam metadata is structured (title + artist + image + ISRC)
+  /// where ICY is just free-text. Fallback order in the player:
+  /// `nowPlaying.track → icyTitle → station name`.
+  RadioNowPlaying? _nowPlaying;
+  RadioNowPlaying? get nowPlaying => _nowPlaying;
+  /// Convenience: the matched track if any (i.e. `null` for pending /
+  /// no-match states). Lets UI write `s.nowPlayingTrack?.title` without
+  /// having to thread the status enum into every widget.
+  RadioNowPlayingTrack? get nowPlayingTrack =>
+      _nowPlaying?.matched == true ? _nowPlaying!.track : null;
+  Timer? _nowPlayingTimer;
+  String? _nowPlayingSlug;
 
   bool _isCasting = false;
   // Stamp the moment a cast session goes live so logCastDisconnect can
@@ -2494,6 +2580,7 @@ class AppState extends ChangeNotifier with WidgetsBindingObserver {
     _tick?.cancel();
     _toastTimer?.cancel();
     _sleepTickTimer?.cancel();
+    _nowPlayingTimer?.cancel();
     for (final s in _audioSubs) {
       s.cancel();
     }
