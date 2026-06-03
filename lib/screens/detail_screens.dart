@@ -613,8 +613,8 @@ class _ActiveSongProgress extends StatelessWidget {
 
 // ── Reused loading/error states ─────────────────────────────────────────────
 
-class _DetailLoading extends StatelessWidget {
-  const _DetailLoading({required this.colors, this.round = false});
+class DetailLoading extends StatelessWidget {
+  const DetailLoading({super.key, required this.colors, this.round = false});
   final SunohColors colors;
   final bool round;
   @override
@@ -728,7 +728,7 @@ class AlbumScreen extends ConsumerWidget {
 
     if (isPlaylist) {
       final async = ref.watch(playlistProvider(key));
-      if (async.isLoading) return _DetailLoading(colors: c);
+      if (async.isLoading) return DetailLoading(colors: c);
       if (async.hasError) {
         return _DetailError(
           colors: c,
@@ -742,9 +742,9 @@ class AlbumScreen extends ConsumerWidget {
       // the hero would briefly render with the deterministic accent and then
       // snap to the extracted tint, which reads as a half-loaded page.
       if (!_paletteSettled(ref, pl.artwork)) {
-        return _DetailLoading(colors: c);
+        return DetailLoading(colors: c);
       }
-      return _AlbumLikeBody(
+      return AlbumLikeBody(
         colors: c,
         id: pl.id,
         title: pl.title,
@@ -761,7 +761,7 @@ class AlbumScreen extends ConsumerWidget {
     }
 
     final async = ref.watch(albumProvider(key));
-    if (async.isLoading) return _DetailLoading(colors: c);
+    if (async.isLoading) return DetailLoading(colors: c);
     if (async.hasError) {
       return _DetailError(
         colors: c,
@@ -772,9 +772,9 @@ class AlbumScreen extends ConsumerWidget {
     }
     final al = async.requireValue;
     if (!_paletteSettled(ref, al.artwork)) {
-      return _DetailLoading(colors: c);
+      return DetailLoading(colors: c);
     }
-    return _AlbumLikeBody(
+    return AlbumLikeBody(
       colors: c,
       id: al.id,
       title: al.title,
@@ -802,8 +802,9 @@ bool _paletteSettled(WidgetRef ref, String? url) {
   return !ref.watch(artPaletteProvider(url)).isLoading;
 }
 
-class _AlbumLikeBody extends ConsumerStatefulWidget {
-  const _AlbumLikeBody({
+class AlbumLikeBody extends ConsumerStatefulWidget {
+  const AlbumLikeBody({
+    super.key,
     required this.colors,
     required this.id,
     required this.title,
@@ -836,10 +837,10 @@ class _AlbumLikeBody extends ConsumerStatefulWidget {
   final bool showAlbumArtInRow;
 
   @override
-  ConsumerState<_AlbumLikeBody> createState() => _AlbumLikeBodyState();
+  ConsumerState<AlbumLikeBody> createState() => AlbumLikeBodyState();
 }
 
-class _AlbumLikeBodyState extends ConsumerState<_AlbumLikeBody> {
+class AlbumLikeBodyState extends ConsumerState<AlbumLikeBody> {
   late final ScrollController _scroll;
   // Drives the hero shrink + sticky header fade-in. ValueNotifier so the
   // animated bits rebuild independently of the whole tree on each tick.
@@ -1310,7 +1311,7 @@ class ArtistScreen extends ConsumerWidget {
     final c = s.colors;
     final key = (id: id, source: source);
     final async = ref.watch(artistProvider(key));
-    if (async.isLoading) return _DetailLoading(colors: c, round: true);
+    if (async.isLoading) return DetailLoading(colors: c, round: true);
     if (async.hasError) {
       return _DetailError(
         colors: c,
@@ -1321,7 +1322,7 @@ class ArtistScreen extends ConsumerWidget {
     }
     final artist = async.requireValue;
     if (!_paletteSettled(ref, artist.artwork)) {
-      return _DetailLoading(colors: c, round: true);
+      return DetailLoading(colors: c, round: true);
     }
     return _ArtistBody(colors: c, artist: artist);
   }

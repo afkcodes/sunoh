@@ -20,6 +20,7 @@ import '../router/router.dart';
 import '../theme/tokens.dart';
 import '../widgets/album_art.dart';
 import '../widgets/ui.dart';
+import 'audiobook_categories_screen.dart' show AudiobookCategoryCard;
 
 class AudiobooksTab extends ConsumerWidget {
   const AudiobooksTab({super.key, required this.colors});
@@ -89,8 +90,20 @@ class AudiobooksTab extends ConsumerWidget {
             return Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                for (final s in sections)
-                  _AudiobookSection(section: s, colors: c),
+                for (var i = 0; i < sections.length; i++) ...[
+                  // Mirror music + podcasts home: the first section
+                  // (always "Latest additions") gets the featured
+                  // treatment with bigger tiles, the rest are standard
+                  // size. Keeps the visual rhythm consistent across
+                  // tabs.
+                  _AudiobookSection(
+                    section: sections[i],
+                    colors: c,
+                    featured: i == 0,
+                  ),
+                  if (i < sections.length - 1)
+                    const SizedBox(height: 32),
+                ],
                 const SizedBox(height: 24),
               ],
             );
@@ -115,67 +128,147 @@ class AudiobooksTab extends ConsumerWidget {
   }
 }
 
-/// One horizontal strip — heading + scrolling row of tiles. Tile type
-/// is decided per-item: `audiobook_category` renders as a chip, anything
-/// else (`audiobook`) renders as a cover tile.
+/// One horizontal strip — SectionHeader (shared with music/podcasts/
+/// radio so the title styling is consistent across tabs) + a scrolling
+/// row of tiles. The chip strip ("Browse genres") is a special case:
+/// renders short chip rows instead of cover tiles.
 class _AudiobookSection extends StatelessWidget {
-  const _AudiobookSection({required this.section, required this.colors});
+  const _AudiobookSection({
+    required this.section,
+    required this.colors,
+    this.featured = false,
+  });
   final HomeSection section;
   final SunohColors colors;
+  /// First section on the tab gets the featured treatment — bigger
+  /// covers to anchor the page. Matches music/podcast home.
+  final bool featured;
 
   @override
   Widget build(BuildContext context) {
     final c = colors;
     final items = section.items;
     if (items.isEmpty) return const SizedBox.shrink();
-    final isCategoryStrip =
-        items.isNotEmpty && items.first.type == 'audiobook_category';
-    return Padding(
-      padding: const EdgeInsets.only(bottom: 18),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Padding(
-            padding: const EdgeInsets.fromLTRB(20, 0, 20, 12),
-            child: Text(
-              section.heading,
-              style: SunohType.sans(
-                fontSize: 17,
-                fontWeight: FontWeight.w600,
-                color: c.fg,
-                letterSpacing: -0.2,
-              ),
+    final isCategoryStrip = items.first.type == 'audiobook_category';
+
+    // Category preview reuses the same 3-row horizontal grid of
+    // gradient cards as PodcastsTab._CategoriesPreview — keeps the
+    // "Browse genres" surface visually identical across tabs and lines
+    // up with what the user sees when they tap "See all" into the full
+    // genres screen (also gradient cards).
+    if (isCategoryStrip) {
+      return _AudiobookCategoryPreview(
+        items: items,
+        colors: c,
+      );
+    }
+
+    // Book strips: featured 220, standard 160 — same dimensions music +
+    // podcast home strips use.
+    final tileWidth = featured ? 220.0 : 160.0;
+    final stripHeight = featured ? 296.0 : 232.0;
+    final gap = featured ? 14.0 : 12.0;
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        SectionHeader(title: section.heading, colors: c),
+        SizedBox(
+          height: stripHeight,
+          child: ListView.separated(
+            scrollDirection: Axis.horizontal,
+            padding: const EdgeInsets.symmetric(horizontal: 20),
+            itemCount: items.length,
+            separatorBuilder: (_, _) => SizedBox(width: gap),
+            itemBuilder: (ctx, i) => _AudiobookTile(
+              item: items[i],
+              colors: c,
+              width: tileWidth,
+              featured: featured,
             ),
           ),
-          SizedBox(
-            height: isCategoryStrip ? 56 : 184,
-            child: ListView.separated(
-              scrollDirection: Axis.horizontal,
-              padding: const EdgeInsets.symmetric(horizontal: 20),
-              itemCount: items.length,
-              separatorBuilder: (_, _) => const SizedBox(width: 12),
-              itemBuilder: (ctx, i) {
-                final it = items[i];
-                if (it.type == 'audiobook_category') {
-                  return _CategoryChip(item: it, colors: c);
-                }
-                return _AudiobookTile(item: it, colors: c);
-              },
-            ),
-          ),
-        ],
-      ),
+        ),
+      ],
     );
   }
 }
 
-/// Cover + title + author. Square 120×120 cover (squircle 14) so two
-/// fit comfortably side-by-side on a mid-density phone, with title +
-/// author below in two reserved lines so adjacent tiles stay aligned.
+/// 3-row horizontal grid of gradient category cards — clone of
+/// PodcastsTab._CategoriesPreview so the "Browse genres" preview reads
+/// identically across the two tabs. Each tile uses the same
+/// `AudiobookCategoryCard` the full Genres screen uses, so the visual
+/// continues straight through if the user taps "See all".
+class _AudiobookCategoryPreview extends StatelessWidget {
+  const _AudiobookCategoryPreview({
+    required this.items,
+    required this.colors,
+  });
+  final List<FeedItem> items;
+  final SunohColors colors;
+
+  @override
+  Widget build(BuildContext context) {
+    final c = colors;
+    const tileW = 180.0;
+    const tileH = 64.0;
+    const gap = 10.0;
+    const rows = 3;
+    final totalH = rows * tileH + (rows - 1) * gap;
+    // Build lightweight AudiobookCategory shims from the home payload
+    // so AudiobookCategoryCard doesn't have to learn a second shape.
+    final cats = [
+      for (final it in items)
+        AudiobookCategory(
+          id: int.tryParse(it.id) ?? 0,
+          name: it.title,
+          slug: it.id,
+          count: 0,
+        ),
+    ];
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        SectionHeader(
+          title: 'Genres',
+          colors: c,
+          onSeeAll: () => context.openAudiobookCategories(),
+        ),
+        SizedBox(
+          height: totalH,
+          child: GridView.builder(
+            scrollDirection: Axis.horizontal,
+            padding: const EdgeInsets.symmetric(horizontal: 20),
+            gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
+              crossAxisCount: rows,
+              // Horizontal GridView: childAspectRatio = height/width.
+              childAspectRatio: tileH / tileW,
+              mainAxisSpacing: gap,
+              crossAxisSpacing: gap,
+            ),
+            itemCount: cats.length,
+            itemBuilder: (context, i) =>
+                AudiobookCategoryCard(category: cats[i], colors: c),
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+/// Cover + title + author. Width passed in so featured / standard
+/// strips can use the same widget at different sizes — matches the
+/// pattern used by music + podcast home.
 class _AudiobookTile extends StatelessWidget {
-  const _AudiobookTile({required this.item, required this.colors});
+  const _AudiobookTile({
+    required this.item,
+    required this.colors,
+    required this.width,
+    this.featured = false,
+  });
   final FeedItem item;
   final SunohColors colors;
+  final double width;
+  final bool featured;
 
   @override
   Widget build(BuildContext context) {
@@ -184,40 +277,40 @@ class _AudiobookTile extends StatelessWidget {
       onTap: () => context.openAudiobook(item.id, item: item),
       behavior: HitTestBehavior.opaque,
       child: SizedBox(
-        width: 120,
+        width: width,
         child: Column(
           mainAxisSize: MainAxisSize.min,
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             squircleClip(
-              radius: 14,
+              radius: featured ? 16 : 14,
               child: SunohArt(
                 id: item.id,
                 imageUrl: item.artwork,
-                size: 120,
-                radius: 14,
+                size: width,
+                radius: featured ? 16 : 14,
               ),
             ),
-            const SizedBox(height: 8),
+            SizedBox(height: featured ? 10 : 8),
             Text(
               item.title,
               maxLines: 2,
               overflow: TextOverflow.ellipsis,
               style: SunohType.sans(
-                fontSize: 12.5,
+                fontSize: featured ? 14 : 13,
                 fontWeight: FontWeight.w600,
                 color: c.fg,
                 height: 1.2,
               ),
             ),
             if ((item.subtitle ?? '').isNotEmpty) ...[
-              const SizedBox(height: 2),
+              SizedBox(height: featured ? 4 : 2),
               Text(
                 item.subtitle!,
                 maxLines: 1,
                 overflow: TextOverflow.ellipsis,
                 style: SunohType.sans(
-                  fontSize: 11,
+                  fontSize: featured ? 12.5 : 11.5,
                   color: c.fgMute,
                   height: 1.2,
                 ),
@@ -230,48 +323,3 @@ class _AudiobookTile extends StatelessWidget {
   }
 }
 
-/// Genre chip — name + count badge. Used in the "Browse genres" strip
-/// at the top of the home; tap → per-category screen.
-class _CategoryChip extends StatelessWidget {
-  const _CategoryChip({required this.item, required this.colors});
-  final FeedItem item;
-  final SunohColors colors;
-
-  @override
-  Widget build(BuildContext context) {
-    final c = colors;
-    final idNum = int.tryParse(item.id) ?? 0;
-    return GestureDetector(
-      onTap: () => context.openAudiobookCategory(idNum, name: item.title),
-      behavior: HitTestBehavior.opaque,
-      child: Container(
-        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
-        decoration: squircleDecoration(
-          radius: 12,
-          color: c.surface,
-          borderColor: c.line,
-        ),
-        child: Row(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Text(
-              item.title,
-              style: SunohType.sans(
-                fontSize: 13,
-                fontWeight: FontWeight.w600,
-                color: c.fg,
-              ),
-            ),
-            if ((item.subtitle ?? '').isNotEmpty) ...[
-              const SizedBox(width: 8),
-              Text(
-                item.subtitle!,
-                style: SunohType.sans(fontSize: 11, color: c.fgMute),
-              ),
-            ],
-          ],
-        ),
-      ),
-    );
-  }
-}
