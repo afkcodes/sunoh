@@ -30,6 +30,12 @@ class AudiobooksTab extends ConsumerWidget {
     final c = colors;
     final async = ref.watch(audiobookHomeProvider);
 
+    // Tab root is a plain Column — the parent _RootScroll handles
+    // scrolling for this whole branch. Using Expanded + ListView here
+    // (as a sibling of the heading row) would force a Flex parent and
+    // collapse the list to 0 px height inside the SingleChildScrollView
+    // wrapper → blank tab. PodcastsTab + RadioTab follow the same
+    // straight-children pattern.
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -68,31 +74,38 @@ class AudiobooksTab extends ConsumerWidget {
             ],
           ),
         ),
-        Expanded(
-          child: async.when(
-            data: (sections) {
-              if (sections.isEmpty) {
-                return Center(
+        async.when(
+          data: (sections) {
+            if (sections.isEmpty) {
+              return Padding(
+                padding: const EdgeInsets.symmetric(
+                    horizontal: 24, vertical: 48),
+                child: Center(
                   child: Text('No audiobooks yet',
                       style: SunohType.sans(fontSize: 13, color: c.fgMute)),
-                );
-              }
-              return ListView.builder(
-                padding: const EdgeInsets.only(bottom: 24),
-                itemCount: sections.length,
-                itemBuilder: (ctx, i) =>
-                    _AudiobookSection(section: sections[i], colors: c),
-              );
-            },
-            loading: () => const Center(child: CircularProgressIndicator()),
-            error: (_, _) => Center(
-              child: Padding(
-                padding: const EdgeInsets.all(24),
-                child: Text(
-                  'Couldn’t load audiobooks. Try again later.',
-                  textAlign: TextAlign.center,
-                  style: SunohType.sans(fontSize: 13, color: c.fgMute),
                 ),
+              );
+            }
+            return Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                for (final s in sections)
+                  _AudiobookSection(section: s, colors: c),
+                const SizedBox(height: 24),
+              ],
+            );
+          },
+          loading: () => const Padding(
+            padding: EdgeInsets.symmetric(vertical: 48),
+            child: Center(child: CircularProgressIndicator()),
+          ),
+          error: (_, _) => Padding(
+            padding: const EdgeInsets.all(24),
+            child: Center(
+              child: Text(
+                'Couldn’t load audiobooks. Try again later.',
+                textAlign: TextAlign.center,
+                style: SunohType.sans(fontSize: 13, color: c.fgMute),
               ),
             ),
           ),
