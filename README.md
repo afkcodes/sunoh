@@ -54,50 +54,35 @@ Dependencies are unpinned to current majors (`google_fonts`, `provider`); run
 
 ## Sources & disclaimers
 
-`sunoh.` is a **personal, non-commercial project** built for two private users
-and intentionally not distributed through any app store. It is a thin client
-that surfaces content from publicly accessible APIs and open-source services
-— it does not host, mirror, encode, decode, or rights-clear any audio,
-artwork, or metadata.
+`sunoh.` is a **personal, non-commercial project** built for a couple of
+private users and intentionally not distributed through any app store. It is
+a thin client that surfaces content from publicly available APIs and
+open-source repositories. It does not host, mirror, encode, decode, or
+rights-clear any audio, artwork, or metadata.
 
-Every piece of streamable content flows directly from its upstream source to
-the device at playback time:
-
-| Surface | Upstream | Hosted by |
-|---|---|---|
-| Music search / streaming | JioSaavn, Gaana (public HTTP APIs) | Their respective owners |
-| Spotify playlist import | Spotify Web API + Spotify embed page | Spotify; matched against Saavn for playback |
-| Podcasts | [PodcastIndex.org](https://podcastindex.org) (open directory) | The respective podcast publishers |
-| Internet radio | [radio-browser.info](https://www.radio-browser.info/) catalogue, surfaced via the open-source [`sunoh-radio`](https://github.com/afkcodes/sunoh-radio) proxy | The respective broadcasters |
-| Audiobooks | [cozyaudiobooks.com](https://cozyaudiobooks.com) (a community WordPress site) | cozyaudiobooks.com and the original rights-holders |
-
-The companion API ([`sunoh-api`](https://github.com/afkcodes/sunoh-api))
-proxies and lightly caches these upstream calls on a small private VPS for
-the project owner's own devices. It does **not** persist or redistribute any
-audio. No media files of any kind live on the project's servers.
+Every piece of streamable content flows directly from the public upstream to
+the device at playback time. The companion proxy that the app talks to
+lightly caches metadata responses on a small private server for the
+project's own devices, but **no media files of any kind live on the
+project's infrastructure**. Nothing is persisted, mirrored, or
+redistributed.
 
 ### Copyright
 
-All audio, cover art, artist names, episode titles, chapter audio, and
-related metadata are the property of their respective rights-holders. The
-project does not claim ownership of any third-party content. No commercial
-use is made of any of it; the app is not sold, advertised, or made publicly
-available.
+All audio, cover art, names, titles, and related metadata are the property
+of their respective rights-holders. The project does not claim ownership of
+any third-party content. No commercial use is made of any of it; the app is
+not sold, advertised, or made publicly available.
 
-If you are a rights-holder and would like content removed from a surface of
-this app:
-
-1. **For the underlying content** — please contact the upstream source listed
-   in the table above (Saavn, Spotify, PodcastIndex, radio-browser.info,
-   cozyaudiobooks.com). Removing content there removes it from this app
-   automatically since nothing is mirrored locally.
-2. **For a specific reference in this repository** — open an issue on the
-   GitHub repo and the relevant reference will be removed promptly.
+If you are a rights-holder and would like a specific reference removed from
+this repository, please open an issue on GitHub and it will be addressed
+promptly. The underlying content itself is not stored here — removal at the
+public upstream is the durable path to it disappearing from the app.
 
 ### Code license
 
 The code in this repository is the original work of the authors and is
-licensed separately from the third-party content it references. See `LICENSE`
-for the source-code terms. The license covers the code only; it does not
-grant any rights in third-party media or APIs accessed through it.
+licensed separately from any third-party content it references. See
+`LICENSE` for the source-code terms. The license covers the code only; it
+does not grant any rights in third-party media or APIs accessed through it.
 
