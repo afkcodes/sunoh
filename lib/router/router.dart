@@ -26,6 +26,9 @@ import '../screens/liked_songs_screen.dart';
 import '../screens/recently_played_screen.dart';
 import '../screens/search_screen.dart';
 import '../screens/episode_detail_screen.dart';
+import '../screens/audiobook_categories_screen.dart';
+import '../screens/audiobook_category_screen.dart';
+import '../screens/audiobook_detail_screen.dart';
 import '../screens/podcast_categories_screen.dart';
 import '../screens/podcast_category_screen.dart';
 import '../screens/radio_genre_screen.dart';
@@ -256,6 +259,35 @@ List<RouteBase> _detailRoutes() => [
                 genre: Uri.decodeComponent(s.pathParameters['slug']!)),
             s),
       ),
+      GoRoute(
+        path: 'audiobook-categories',
+        pageBuilder: (c, s) =>
+            _slideRight(const AudiobookCategoriesScreen(), s),
+      ),
+      GoRoute(
+        path: 'audiobook-category/:id',
+        pageBuilder: (c, s) {
+          final id = int.tryParse(s.pathParameters['id']!) ?? 0;
+          final name = s.extra is String ? s.extra as String : null;
+          return _slideRight(
+            AudiobookCategoryScreen(id: id, name: name),
+            s,
+          );
+        },
+      ),
+      GoRoute(
+        path: 'audiobook/:slug',
+        pageBuilder: (c, s) {
+          // `extra` carries the FeedItem tile that opened this screen so
+          // the hero shows title + cover before the network detail resolves.
+          final seed = s.extra is FeedItem ? s.extra as FeedItem : null;
+          return _slideRight(
+            AudiobookDetailScreen(
+                slug: s.pathParameters['slug']!, seed: seed),
+            s,
+          );
+        },
+      ),
     ];
 
 /// Scroll + safe-area padding for the non-scrolling tab screens (Column roots).
@@ -413,6 +445,14 @@ extension SunohNav on BuildContext {
   void openRadioGenres() => push('$_branchPrefix/radio-genres');
   void openRadioGenre(String genre) =>
       push('$_branchPrefix/radio-genre/${Uri.encodeComponent(genre)}');
+  void openAudiobookCategories() =>
+      push('$_branchPrefix/audiobook-categories');
+  void openAudiobookCategory(int id, {String? name}) =>
+      push('$_branchPrefix/audiobook-category/$id', extra: name);
+  void openAudiobook(String slug, {FeedItem? item}) => push(
+        '$_branchPrefix/audiobook/${Uri.encodeComponent(slug)}',
+        extra: item,
+      );
 }
 
 /// NavigatorObserver that fires Firebase `screen_view` whenever a route

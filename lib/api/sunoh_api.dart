@@ -712,6 +712,134 @@ class SunohApi {
         'offset': offset,
       });
 
+  // ── Audiobooks (cozyaudiobooks.com via sunoh-api) ────────────────────
+
+  /// `GET /audiobooks/home` — multi-section feed for the Audiobooks tab
+  /// (Latest hero + Browse-genres preview + 5 fixed genre strips).
+  /// Aggressively cached server-side; the 1 h Redis TTL means the
+  /// scrape cost is paid at most ~24 times a day.
+  Future<List<HomeSection>> fetchAudiobookHome() async {
+    final res = await _dio.get<Map<String, dynamic>>('/audiobooks/home');
+    final env = ApiEnvelope.from<List<HomeSection>>(
+      res.data ?? const {},
+      (raw) {
+        if (raw is List) {
+          return raw
+              .whereType<Map>()
+              .map((m) => HomeSection.fromJson(m.cast<String, dynamic>()))
+              .toList();
+        }
+        return const <HomeSection>[];
+      },
+    );
+    if (!env.isSuccess) throw SunohApiException(env.message, env.error);
+    return env.data ?? const [];
+  }
+
+  /// `GET /audiobooks/categories` — full facet list sorted by count
+  /// desc, with "Uncategorized" stripped server-side.
+  Future<List<AudiobookCategory>> fetchAudiobookCategories() async {
+    final res = await _dio.get<Map<String, dynamic>>('/audiobooks/categories');
+    final env = ApiEnvelope.from<List<AudiobookCategory>>(
+      res.data ?? const {},
+      (raw) {
+        if (raw is List) {
+          return raw
+              .whereType<Map>()
+              .map((m) => AudiobookCategory.fromJson(m.cast<String, dynamic>()))
+              .toList();
+        }
+        return const <AudiobookCategory>[];
+      },
+    );
+    if (!env.isSuccess) throw SunohApiException(env.message, env.error);
+    return env.data ?? const [];
+  }
+
+  /// `GET /audiobooks/by-category?id=…&page=…&limit=…` — skeleton-only
+  /// listing (no cover/author). Flutter side lazy-enriches each tile
+  /// via [fetchAudiobookDetail] as it scrolls into view.
+  Future<List<FeedItem>> fetchAudiobooksByCategory({
+    required int categoryId,
+    int page = 1,
+    int limit = 50,
+  }) async {
+    final res = await _dio.get<Map<String, dynamic>>(
+      '/audiobooks/by-category',
+      queryParameters: {'id': categoryId, 'page': page, 'limit': limit},
+    );
+    final env = ApiEnvelope.from<List<FeedItem>>(
+      res.data ?? const {},
+      (raw) {
+        if (raw is Map) {
+          final list = raw['list'];
+          if (list is List) {
+            return list
+                .whereType<Map>()
+                .map((m) => FeedItem.fromJson(m.cast<String, dynamic>()))
+                .toList();
+          }
+        }
+        return const <FeedItem>[];
+      },
+    );
+    if (!env.isSuccess) throw SunohApiException(env.message, env.error);
+    return env.data ?? const [];
+  }
+
+  /// `GET /audiobooks/search?q=…` — proxies the custom cozy_search
+  /// AJAX endpoint, which returns rich rows (cover + author inline)
+  /// so no per-tile enrichment is needed for results.
+  Future<List<FeedItem>> fetchAudiobookSearch(String query) async {
+    if (query.trim().isEmpty) return const [];
+    final res = await _dio.get<Map<String, dynamic>>(
+      '/audiobooks/search',
+      queryParameters: {'q': query},
+    );
+    final env = ApiEnvelope.from<List<FeedItem>>(
+      res.data ?? const {},
+      (raw) {
+        if (raw is Map) {
+          final list = raw['list'];
+          if (list is List) {
+            return list
+                .whereType<Map>()
+                .map((m) => FeedItem.fromJson(m.cast<String, dynamic>()))
+                .toList();
+          }
+        }
+        return const <FeedItem>[];
+      },
+    );
+    if (!env.isSuccess) throw SunohApiException(env.message, env.error);
+    return env.data ?? const [];
+  }
+
+  /// `GET /audiobooks/:slug` — full enriched detail + chapter list.
+  /// Used by the detail screen AND by category-list tiles to lazy-load
+  /// cover/author. Caches for 24 h server-side, so repeat tile renders
+  /// after the first viewer are instant.
+  Future<AudiobookDetail?> fetchAudiobookDetail(String slug) async {
+    try {
+      final res = await _dio.get<Map<String, dynamic>>(
+        '/audiobooks/${Uri.encodeComponent(slug)}',
+      );
+      final env = ApiEnvelope.from<AudiobookDetail>(
+        res.data ?? const {},
+        (raw) {
+          if (raw is Map) {
+            return AudiobookDetail.fromJson(raw.cast<String, dynamic>());
+          }
+          throw const FormatException('Expected map payload');
+        },
+      );
+      if (!env.isSuccess) return null;
+      return env.data;
+    } catch (_) {
+      return null;
+    }
+  }
+
   /// `GET /radios/:slug/now-playing` — listener-driven Shazam result.
   ///
   /// Polled by [AppState] every ~5 s while a live radio station is the

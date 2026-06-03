@@ -20,6 +20,7 @@ import '../widgets/ui.dart';
 // Tab implementations: Music (the original /music/home feed), Podcasts
 // (backed by /podcasts/home via `podcastHomeProvider`, since v1.5.5),
 // and Radio (live internet stations via /radios/home, since v1.7.0).
+import 'audiobooks_tab.dart';
 import 'podcasts_tab.dart';
 import 'radio_tab.dart';
 
@@ -99,6 +100,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
           child: switch (s.topTab) {
             'Podcasts' => PodcastsTab(colors: c),
             'Radio' => RadioTab(colors: c),
+            'Audiobooks' => AudiobooksTab(colors: c),
             _ => MusicTab(colors: c),
           },
         ),
@@ -119,8 +121,9 @@ class _TopTabs extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    // Music + Podcasts + Radio (live internet streams, v1.7.0).
-    const opts = ['Music', 'Radio', 'Podcasts'];
+    // Music + Radio (live streams, v1.7.0) + Podcasts + Audiobooks
+    // (cozyaudiobooks.com, v1.8.0).
+    const opts = ['Music', 'Radio', 'Podcasts', 'Audiobooks'];
     return Container(
       padding: const EdgeInsets.fromLTRB(20, 8, 20, 14),
       decoration: BoxDecoration(

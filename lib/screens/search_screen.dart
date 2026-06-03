@@ -12,6 +12,7 @@ import '../data/models.dart';
 import '../overlays/track_menu_sheet.dart';
 import '../providers/app_state_provider.dart';
 import '../audio/audio_handler.dart' show PlayMode;
+import '../providers/audiobook_provider.dart';
 import '../providers/podcast_provider.dart';
 import '../providers/radio_provider.dart';
 import '../providers/search_provider.dart';
@@ -332,6 +333,8 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
     // doesn't appear in the list.
     final podcastAsync = ref.watch(podcastSearchProvider(_activeQuery));
     final radioAsync = ref.watch(radioSearchProvider(_activeQuery));
+    final audiobookAsync =
+        ref.watch(audiobookSearchProvider(_activeQuery));
     return async.when(
       loading: () => const _ResultsSkeleton(),
       error: (e, _) => _SearchHint(
@@ -352,6 +355,10 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
         final radios = radioAsync.asData?.value ?? const <FeedItem>[];
         if (radios.isNotEmpty) {
           nonEmpty.add(HomeSection(heading: 'Radio stations', items: radios));
+        }
+        final audiobooks = audiobookAsync.asData?.value ?? const <FeedItem>[];
+        if (audiobooks.isNotEmpty) {
+          nonEmpty.add(HomeSection(heading: 'Audiobooks', items: audiobooks));
         }
         if (nonEmpty.isEmpty) {
           return _SearchHint(
@@ -570,6 +577,11 @@ class _ResultsSection extends StatelessWidget {
                   // radios today; the player owns the now-playing UI
                   // via the ICY title stream.
                   onPlayStation(item);
+                case 'audiobook':
+                  // Open the book detail screen — chapter list lives
+                  // there; tapping a chapter row plays it via the
+                  // standard PlayMode.track queue.
+                  context.openAudiobook(item.id, item: item);
                 case 'album':
                 case 'playlist':
                 case 'artist':
@@ -709,6 +721,8 @@ class _TrendingRow extends ConsumerWidget {
                 // carousel should never open a song-detail screen.
                 s.playApiSong(item,
                     sourceLabel: 'TRENDING · ${section.heading}');
+              case 'audiobook':
+                context.openAudiobook(item.id, item: item);
               case 'album':
               case 'playlist':
               case 'artist':
