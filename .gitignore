@@ -12,6 +12,10 @@
 .swiftpm/
 migrate_working_dir/
 
+# Personal reference docs dropped in the repo root (e.g. third-party
+# API surface notes used while wiring a new integration). Local-only.
+cozyaudiobooks_api_endpoints.md
+
 # IntelliJ related
 *.iml
 *.ipr
