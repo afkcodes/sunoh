@@ -1,18 +1,27 @@
 // On-device InnerTube `/player` client — resolves YouTube Music
-// stream URLs from the phone's IP so the response binds the URL to a
-// residential address and skips YouTube's "Sign in to confirm you're
-// not a bot" datacenter-IP check.
+// stream URLs straight from the phone, with the user's YouTube cookies
+// attached. The cookies are captured by `ytmusic_signin_screen.dart`
+// when the user signs in once via a WebView.
+//
+// Why cookies are mandatory:
+//   In 2024–2025 YouTube tightened the bot check so /player returns
+//   `LOGIN_REQUIRED: "Sign in to confirm you're not a bot"` for
+//   unauthenticated requests from ALL IPs — residential phone IPs
+//   included. The fix is sending a logged-in cookie set (specifically
+//   the SAPISID-derived Authorization header) so the request is
+//   treated as an authenticated user, not a probe.
 //
 // Search stays server-side (`/ytmusic/search` in sunoh-api) — anonymous
-// search works fine from the VPS. ONLY /player is moved here because
-// it's the bot-checked endpoint AND because device-resolved URLs are
-// IP-bound to the device, which means we skip the proxy hop entirely.
+// search isn't bot-checked. Only /player needs auth.
 //
 // Direct port of OuterTune's `YTPlayerUtils.playerResponseForPlayback`
-// + `InnerTube.player(...)` reduced to the minimum:
-//   - ANDROID_VR_NO_AUTH client (no PoToken, no auth required)
-//   - bare /player POST, pick the highest-bitrate audio format
+// + `InnerTube.player(...)`:
+//   - ANDROID_VR_NO_AUTH client config (lighter format set, unsigned URLs)
+//   - cookie + SAPISIDHASH auth attached when available
 
+import 'dart:convert' show utf8;
+
+import 'package:crypto/crypto.dart' show sha1;
 import 'package:dio/dio.dart';
 
 const String _origin = 'https://music.youtube.com';
@@ -76,26 +85,70 @@ class YouTubeMusicResolveException implements Exception {
       status == null ? message : '$message (status=$status)';
 }
 
+/// Parse the raw `name=value; name=value; …` cookie header into a map
+/// for SAPISID lookup. Keys are case-sensitive; YouTube uses mixed
+/// case (`SAPISID`, `__Secure-3PAPISID`, etc.).
+Map<String, String> _parseCookies(String cookieHeader) {
+  final out = <String, String>{};
+  for (final part in cookieHeader.split(';')) {
+    final i = part.indexOf('=');
+    if (i <= 0) continue;
+    out[part.substring(0, i).trim()] = part.substring(i + 1).trim();
+  }
+  return out;
+}
+
+/// Build the `Authorization: SAPISIDHASH …` header from a SAPISID
+/// cookie. YouTube's web client computes this for every authed call:
+/// `SHA1(${epochSeconds} ${SAPISID} ${origin})` keyed by the timestamp.
+/// Returns null when neither SAPISID nor __Secure-3PAPISID is present.
+String? _buildSapisidHashAuth(String cookieHeader) {
+  final cookies = _parseCookies(cookieHeader);
+  final sapisid = cookies['SAPISID'] ?? cookies['__Secure-3PAPISID'];
+  if (sapisid == null || sapisid.isEmpty) return null;
+  final t = DateTime.now().millisecondsSinceEpoch ~/ 1000;
+  final digest = sha1.convert(utf8.encode('$t $sapisid $_origin')).toString();
+  return 'SAPISIDHASH ${t}_$digest';
+}
+
 /// Resolve a video id → playable audio URL by hitting InnerTube
-/// directly from the device. Uses a one-shot Dio instance scoped to
-/// `music.youtube.com`; the caller can reuse this method without
-/// worrying about state, the function is pure.
-Future<YouTubeMusicStream> resolveYouTubeMusicStream(String videoId) async {
+/// directly from the device. [cookieHeader], when provided, is the
+/// raw cookie string the user captured during the sign-in flow —
+/// without it, YouTube returns `LOGIN_REQUIRED` on every request
+/// today (regardless of IP). The function is pure; caller supplies
+/// the cookie from `AppState.ytMusicCookie`.
+Future<YouTubeMusicStream> resolveYouTubeMusicStream(
+  String videoId, {
+  String? cookieHeader,
+}) async {
+  if (cookieHeader == null || cookieHeader.isEmpty) {
+    throw YouTubeMusicResolveException(
+      'Not signed in to YouTube Music. '
+      'Open Settings → Connect YouTube Music to sign in once.',
+      status: 'NO_AUTH',
+    );
+  }
+
   // A fresh Dio instance per call — the request is heavyweight (single
   // POST + parse) and there's no per-host state worth carrying.
   // Connection pooling under-the-hood still kicks in for repeat hits
   // because Dio uses the system HTTP client.
+  final headers = <String, String>{
+    'content-type': 'application/json',
+    'x-goog-api-format-version': '1',
+    'x-youtube-client-name': _androidVrClient['clientId'],
+    'x-youtube-client-version': _androidVrClient['clientVersion'],
+    'x-origin': _origin,
+    'referer': '$_origin/',
+    'user-agent': _androidVrUserAgent,
+    'accept-language': 'en-US,en;q=0.9',
+    'cookie': cookieHeader,
+  };
+  final auth = _buildSapisidHashAuth(cookieHeader);
+  if (auth != null) headers['authorization'] = auth;
+
   final dio = Dio(BaseOptions(
-    headers: {
-      'content-type': 'application/json',
-      'x-goog-api-format-version': '1',
-      'x-youtube-client-name': _androidVrClient['clientId'],
-      'x-youtube-client-version': _androidVrClient['clientVersion'],
-      'x-origin': _origin,
-      'referer': '$_origin/',
-      'user-agent': _androidVrUserAgent,
-      'accept-language': 'en-US,en;q=0.9',
-    },
+    headers: headers,
     sendTimeout: const Duration(seconds: 15),
     receiveTimeout: const Duration(seconds: 15),
   ));

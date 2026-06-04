@@ -200,6 +200,17 @@ class AppState extends ChangeNotifier with WidgetsBindingObserver {
       final analytics = await repo.settings.loadAnalyticsEnabled();
       if (analytics != null) analyticsEnabled = analytics;
       await AnalyticsService.instance.setEnabled(analyticsEnabled);
+
+      // YouTube Music cookie — captured by the in-app sign-in
+      // WebView and persisted to the settings box. Loading it here
+      // makes it available before the first /ytmusic search tap
+      // could trigger a stream resolve. Null when the user hasn't
+      // signed in (the YT resolver throws a clear error in that case).
+      _ytMusicCookie = await repo.settings.loadYtMusicCookie();
+      // Push into the resolver so the youtube_music tier picks it
+      // up on subsequent resolves. Kept in sync via setYouTubeMusic-
+      // Cookie when the user signs in/out at runtime.
+      repo.resolver.ytMusicCookie = _ytMusicCookie;
       notifyListeners();
       // Push restored settings as user properties so every subsequent
       // analytics event is grouped by them in Firebase.
@@ -340,6 +351,32 @@ class AppState extends ChangeNotifier with WidgetsBindingObserver {
   /// player fires a radio_station prime seeded by it and appends the
   /// returned songs. Off by default; persisted in settings.
   bool endlessAutoplay = false;
+
+  /// YouTube Music cookie — captured from the in-app sign-in WebView
+  /// and persisted via [SettingsStore.saveYtMusicCookie]. Sent on every
+  /// InnerTube `/player` call from [resolveYouTubeMusicStream] so we
+  /// don't trigger YT's "Sign in to confirm you're not a bot" check.
+  /// Null when the user hasn't signed in yet — the resolver throws a
+  /// clear toast in that state pointing them to Settings.
+  String? _ytMusicCookie;
+  String? get ytMusicCookie => _ytMusicCookie;
+  bool get isYouTubeMusicSignedIn =>
+      _ytMusicCookie != null && _ytMusicCookie!.contains('SAPISID');
+
+  /// Persist + apply the captured cookie (or clear it on sign-out).
+  /// Pushes into the stream resolver so the youtube_music tier sees
+  /// the change on the very next resolve. Notifies so any UI
+  /// reflecting the signed-in state updates.
+  Future<void> setYouTubeMusicCookie(String? cookie) async {
+    _ytMusicCookie = (cookie == null || cookie.isEmpty) ? null : cookie;
+    audioRepo?.resolver.ytMusicCookie = _ytMusicCookie;
+    notifyListeners();
+    try {
+      await audioRepo?.settings.saveYtMusicCookie(_ytMusicCookie);
+    } catch (e) {
+      debugPrint('[ytmusic] saveYtMusicCookie failed: $e');
+    }
+  }
 
   /// User-facing opt-out for Firebase Analytics. On by default; flipping
   /// to false calls `AnalyticsService.setEnabled(false)` which both

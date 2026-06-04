@@ -307,4 +307,30 @@ class SettingsStore {
     await box.put(_kAnalyticsEnabled, enabled);
     await box.flush();
   }
+
+  // YouTube Music cookies — captured from the in-app WebView sign-in.
+  // Sent on every InnerTube /player call so YouTube doesn't bot-block
+  // us with LOGIN_REQUIRED. Stored as the raw `name=value; name=value;
+  // …` cookie header string the same way a browser would send it.
+  static const _kYtMusicCookie = 'ytmusic.cookie';
+
+  Future<String?> loadYtMusicCookie() async {
+    try {
+      final box = await _box();
+      return box.get(_kYtMusicCookie) as String?;
+    } catch (e) {
+      debugPrint('[settings-store] loadYtMusicCookie failed: $e');
+      return null;
+    }
+  }
+
+  Future<void> saveYtMusicCookie(String? cookie) async {
+    final box = await _box();
+    if (cookie == null || cookie.isEmpty) {
+      await box.delete(_kYtMusicCookie);
+    } else {
+      await box.put(_kYtMusicCookie, cookie);
+    }
+    await box.flush();
+  }
 }

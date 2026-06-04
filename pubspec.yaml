@@ -127,6 +127,16 @@ dependencies:
   firebase_analytics: ^12.1.0
   open_filex: ^4.7.0
   device_info_plus: ^12.4.0
+  # WebView host for the one-time YouTube Music sign-in flow that
+  # captures the user's auth cookies (see lib/screens/ytmusic_signin_
+  # screen.dart). YouTube's bot-check now requires authenticated
+  # requests for /player from ANY IP, so a logged-in cookie is the
+  # only way to make stream URL resolution work today.
+  webview_flutter: ^4.10.0
+  # SHA-1 for SAPISIDHASH header used on InnerTube /player calls
+  # (proves the cookie + origin match). Tiny pure-Dart dep, ships
+  # transitively in many Flutter projects already.
+  crypto: ^3.0.6
 
 dev_dependencies:
   flutter_test:

@@ -27,6 +27,7 @@ import '../screens/recently_played_screen.dart';
 import '../screens/search_screen.dart';
 import '../screens/episode_detail_screen.dart';
 import '../screens/audiobook_categories_screen.dart';
+import '../screens/ytmusic_signin_screen.dart';
 import '../screens/audiobook_category_screen.dart';
 import '../screens/audiobook_detail_screen.dart';
 import '../screens/podcast_categories_screen.dart';
@@ -288,6 +289,11 @@ List<RouteBase> _detailRoutes() => [
           );
         },
       ),
+      GoRoute(
+        path: 'ytmusic-signin',
+        pageBuilder: (c, s) =>
+            _slideRight(const YouTubeMusicSignInScreen(), s),
+      ),
     ];
 
 /// Scroll + safe-area padding for the non-scrolling tab screens (Column roots).
@@ -447,6 +453,7 @@ extension SunohNav on BuildContext {
       push('$_branchPrefix/radio-genre/${Uri.encodeComponent(genre)}');
   void openAudiobookCategories() =>
       push('$_branchPrefix/audiobook-categories');
+  void openYouTubeMusicSignIn() => push('$_branchPrefix/ytmusic-signin');
   void openAudiobookCategory(int id, {String? name}) =>
       push('$_branchPrefix/audiobook-category/$id', extra: name);
   void openAudiobook(String slug, {FeedItem? item}) => push(
