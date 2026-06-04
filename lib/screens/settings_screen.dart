@@ -18,7 +18,6 @@ import '../overlays/language_sheet.dart';
 import '../providers/app_state_provider.dart';
 import '../providers/languages_provider.dart';
 import '../providers/update_provider.dart';
-import '../router/router.dart';
 import '../state/app_state.dart';
 import '../theme/tokens.dart';
 import '../widgets/ui.dart';
@@ -95,44 +94,6 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
     }
   }
 
-  /// Sign-out confirm for the YouTube Music account row. Clearing the
-  /// cookie means subsequent YT Music plays will throw "Open Settings
-  /// → Connect…" — irreversible without another sign-in, so we
-  /// double-confirm rather than wipe on a single tap.
-  void _confirmYouTubeMusicSignOut(BuildContext context, WidgetRef ref) {
-    final s = ref.read(appStateProvider);
-    final c = s.colors;
-    showDialog<void>(
-      context: context,
-      builder: (ctx) => AlertDialog(
-        backgroundColor: c.surface,
-        title: Text('Sign out of YouTube Music?',
-            style: SunohType.sans(
-                fontSize: 16, fontWeight: FontWeight.w600, color: c.fg)),
-        content: Text(
-          'YT Music tracks won’t play until you sign in again.',
-          style: SunohType.sans(fontSize: 13, color: c.fgDim),
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.of(ctx).pop(),
-            child: Text('Cancel',
-                style: SunohType.sans(color: c.fgDim)),
-          ),
-          TextButton(
-            onPressed: () async {
-              Navigator.of(ctx).pop();
-              await s.setYouTubeMusicCookie(null);
-              s.flashToast('Signed out of YouTube Music');
-            },
-            child: Text('Sign out',
-                style: SunohType.sans(
-                    color: s.resolvedAccent, fontWeight: FontWeight.w600)),
-          ),
-        ],
-      ),
-    );
-  }
 
   @override
   Widget build(BuildContext context) {
@@ -260,31 +221,6 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
               ],
             );
           }),
-
-          // ACCOUNTS — third-party logins / connections sunoh holds on
-          // behalf of the user. Right now just YouTube Music, which
-          // needs a logged-in cookie to bypass YT's bot-check on stream
-          // resolution.
-          _Section(
-            label: 'ACCOUNTS',
-            colors: c,
-            scale: scale,
-            rows: [
-              _Link(
-                label: 'YouTube Music',
-                trailing: s.isYouTubeMusicSignedIn ? 'Signed in' : 'Sign in',
-                icon: SolarIconsOutline.videoLibrary,
-                colors: c,
-                onTap: () {
-                  if (s.isYouTubeMusicSignedIn) {
-                    _confirmYouTubeMusicSignOut(context, ref);
-                  } else {
-                    context.openYouTubeMusicSignIn();
-                  }
-                },
-              ),
-            ],
-          ),
 
           // COMMUNITY — single-row section linking to the Telegram
           // group. Placed above ABOUT because users look for "join the

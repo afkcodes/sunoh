@@ -815,64 +815,6 @@ class SunohApi {
     return env.data ?? const [];
   }
 
-  /// `GET /ytmusic/search?q=…&filter=songs` — pure-Node InnerTube port
-  /// in sunoh-api hits YouTube Music directly (no yt-dlp / no Python).
-  /// Results come through as `type: 'song'` FeedItems with
-  /// `source: 'youtube_music'`; the stream resolver tier hits
-  /// `/ytmusic/song/:videoId/stream` on play to fetch the actual
-  /// (~6 h-lived, IP-bound) audio URL.
-  Future<List<FeedItem>> fetchYouTubeMusicSearch(String query) async {
-    if (query.trim().isEmpty) return const [];
-    final res = await _dio.get<Map<String, dynamic>>(
-      '/ytmusic/search',
-      queryParameters: {'q': query, 'filter': 'songs'},
-    );
-    final env = ApiEnvelope.from<List<FeedItem>>(
-      res.data ?? const {},
-      (raw) {
-        if (raw is Map) {
-          final list = raw['list'];
-          if (list is List) {
-            return list
-                .whereType<Map>()
-                .map((m) => FeedItem.fromJson(m.cast<String, dynamic>()))
-                .toList();
-          }
-        }
-        return const <FeedItem>[];
-      },
-    );
-    if (!env.isSuccess) throw SunohApiException(env.message, env.error);
-    return env.data ?? const [];
-  }
-
-  /// `GET /ytmusic/song/:videoId/stream` — returns the best audio-only
-  /// stream URL for a YouTube Music video id. Called by the stream
-  /// resolver tier for `source: 'youtube_music'` FeedItems. Returns
-  /// null on failure (track unplayable / upstream blip) so the
-  /// resolver can degrade gracefully.
-  Future<String?> fetchYouTubeMusicStream(String videoId) async {
-    try {
-      final res = await _dio.get<Map<String, dynamic>>(
-        '/ytmusic/song/${Uri.encodeComponent(videoId)}/stream',
-      );
-      final env = ApiEnvelope.from<String?>(
-        res.data ?? const {},
-        (raw) {
-          if (raw is Map) {
-            final u = raw['url'];
-            if (u is String && u.isNotEmpty) return u;
-          }
-          return null;
-        },
-      );
-      if (!env.isSuccess) return null;
-      return env.data;
-    } catch (_) {
-      return null;
-    }
-  }
-
   /// `GET /audiobooks/:slug` — full enriched detail + chapter list.
   /// Used by the detail screen AND by category-list tiles to lazy-load
   /// cover/author. Caches for 24 h server-side, so repeat tile renders

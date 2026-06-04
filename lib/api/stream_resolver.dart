@@ -24,7 +24,6 @@ import 'package:dio/dio.dart';
 
 import '../audio/url_refresh.dart';
 import 'dto.dart';
-import 'ytmusic_player.dart';
 
 /// User stream-quality preference. `auto` and `high` both prefer the highest
 /// available variant; the distinction is reserved for the future (e.g. `auto`
@@ -56,14 +55,6 @@ class StreamResolver {
   /// before any network tier. Defaults to null (network-only). The
   /// downloads feature will set this once it lands.
   LocalSourceProvider? localSource;
-
-  /// YouTube Music auth cookie — captured by the in-app sign-in
-  /// WebView and propagated here by AppState whenever it changes.
-  /// Sent on the InnerTube `/player` call in the `youtube_music`
-  /// tier so YouTube doesn't bot-block the request. Null when the
-  /// user hasn't signed in — the YT tier throws with a clear "Open
-  /// Settings → Connect YouTube Music" message in that case.
-  String? ytMusicCookie;
 
   /// In-memory resolve cache keyed by song id. Populated on every successful
   /// resolve; consulted at the top of [resolve] for non-`forceRefresh` calls.
@@ -194,22 +185,6 @@ class StreamResolver {
     // from the phone's residential IP avoids the check AND binds
     // the resulting stream URL to the phone's IP — no proxy needed.
     // Same architecture OuterTune uses.
-    if (provider == 'youtube_music') {
-      try {
-        final ytStream = await resolveYouTubeMusicStream(
-          song.id,
-          cookieHeader: ytMusicCookie,
-        );
-        return _store(song.id, ResolvedStream(ytStream.url));
-      } on YouTubeMusicResolveException catch (e) {
-        throw StreamResolveException(
-            'YouTube Music: ${e.message} (${song.id}).');
-      } catch (e) {
-        throw StreamResolveException(
-            'YouTube Music: $e (${song.id}).');
-      }
-    }
-
     // Podcasts live in a parallel namespace — the `/music/song/...` path
     // is hardwired to saavn/gaana and 400s on `provider=podcastindex`. Refetch
     // the episode through `/podcasts/episode/:id` instead; that response
