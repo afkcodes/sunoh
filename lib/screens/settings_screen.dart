@@ -32,7 +32,10 @@ final _storageStatsProvider =
 /// (the developer), so the values don't need to be configurable.
 const _kUpiVpa = 'afkcodes@ybl';
 const _kUpiName = 'Sunoh';
-const _kBuyMeCoffeeUrl = 'https://buymeacoffee.com/afkcodes';
+/// Moved from Buy Me a Coffee → Ko-fi (lower platform fees, instant payouts,
+/// no merchant-of-record middleman). Same handle on both, so the swap was
+/// a one-line URL change.
+const _kKofiUrl = 'https://ko-fi.com/afkcodes';
 
 class SettingsScreen extends ConsumerStatefulWidget {
   const SettingsScreen({super.key});
@@ -722,8 +725,9 @@ class _DonationCard extends ConsumerWidget {
             ),
             const SizedBox(height: 12),
             // Two explicit, labeled CTAs so the user can see both options.
-            // Previously BMC was a bare IconButton that looked like card
-            // decoration; users reasonably didn't notice it.
+            // The right-side CTA used to be a bare BMC IconButton that
+            // looked like card decoration; users reasonably didn't notice
+            // it. Now a labeled "Buy a coffee" pill that opens Ko-fi.
             Row(
               children: [
                 Expanded(
@@ -737,8 +741,8 @@ class _DonationCard extends ConsumerWidget {
                 Expanded(
                   child: _DonationAction(
                     icon: SolarIconsOutline.cupHot,
-                    label: 'Buy me a coffee',
-                    onTap: () => _openBmc(context, ref),
+                    label: 'Buy a coffee',
+                    onTap: () => _openKofi(context, ref),
                   ),
                 ),
               ],
@@ -777,9 +781,9 @@ class _DonationCard extends ConsumerWidget {
     }
   }
 
-  Future<void> _openBmc(BuildContext context, WidgetRef ref) async {
+  Future<void> _openKofi(BuildContext context, WidgetRef ref) async {
     final s = ref.read(appStateProvider);
-    final uri = Uri.parse(_kBuyMeCoffeeUrl);
+    final uri = Uri.parse(_kKofiUrl);
     try {
       final ok = await launchUrl(uri, mode: LaunchMode.externalApplication);
       if (!ok) s.flashToast('Couldn’t open browser');
