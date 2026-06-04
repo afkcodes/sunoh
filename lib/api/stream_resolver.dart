@@ -178,6 +178,30 @@ class StreamResolver {
 
     final provider = song.source;
 
+    // YouTube Music — pure-Node InnerTube port in sunoh-api. Stream
+    // URLs come from /ytmusic/song/:videoId/stream and live ~6 h
+    // (server-side cache is conservative at 4 min). The `/music/song`
+    // tier doesn't know about YT ids; route here directly.
+    if (provider == 'youtube_music') {
+      try {
+        final res = await _dio.get<Map<String, dynamic>>(
+          '/ytmusic/song/${Uri.encodeComponent(song.id)}/stream',
+        );
+        final dataRaw = res.data?['data'];
+        if (dataRaw is Map) {
+          final url = (dataRaw['url'] as String?)?.trim() ?? '';
+          if (url.isNotEmpty) {
+            return _store(song.id, ResolvedStream(url));
+          }
+        }
+      } on DioException catch (_) {
+        // Fall through to the throw — no other tier can recover a YT
+        // Music track.
+      }
+      throw StreamResolveException(
+          'No playable stream for "${song.title}" (${song.id}).');
+    }
+
     // Podcasts live in a parallel namespace — the `/music/song/...` path
     // is hardwired to saavn/gaana and 400s on `provider=podcastindex`. Refetch
     // the episode through `/podcasts/episode/:id` instead; that response

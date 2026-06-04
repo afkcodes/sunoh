@@ -15,6 +15,7 @@ import '../audio/audio_handler.dart' show PlayMode;
 import '../providers/audiobook_provider.dart';
 import '../providers/podcast_provider.dart';
 import '../providers/radio_provider.dart';
+import '../providers/ytmusic_provider.dart';
 import '../providers/search_provider.dart';
 import '../router/deep_links.dart';
 import '../router/router.dart';
@@ -335,6 +336,7 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
     final radioAsync = ref.watch(radioSearchProvider(_activeQuery));
     final audiobookAsync =
         ref.watch(audiobookSearchProvider(_activeQuery));
+    final ytmusicAsync = ref.watch(ytmusicSearchProvider(_activeQuery));
     return async.when(
       loading: () => const _ResultsSkeleton(),
       error: (e, _) => _SearchHint(
@@ -359,6 +361,10 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
         final audiobooks = audiobookAsync.asData?.value ?? const <FeedItem>[];
         if (audiobooks.isNotEmpty) {
           nonEmpty.add(HomeSection(heading: 'Audiobooks', items: audiobooks));
+        }
+        final yt = ytmusicAsync.asData?.value ?? const <FeedItem>[];
+        if (yt.isNotEmpty) {
+          nonEmpty.add(HomeSection(heading: 'YouTube Music', items: yt));
         }
         if (nonEmpty.isEmpty) {
           return _SearchHint(
