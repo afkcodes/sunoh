@@ -24,6 +24,7 @@ import 'package:dio/dio.dart';
 
 import '../audio/url_refresh.dart';
 import 'dto.dart';
+import 'ytmusic_player.dart';
 
 /// User stream-quality preference. `auto` and `high` both prefer the highest
 /// available variant; the distinction is reserved for the future (e.g. `auto`
@@ -178,28 +179,24 @@ class StreamResolver {
 
     final provider = song.source;
 
-    // YouTube Music — pure-Node InnerTube port in sunoh-api. Stream
-    // URLs come from /ytmusic/song/:videoId/stream and live ~6 h
-    // (server-side cache is conservative at 4 min). The `/music/song`
-    // tier doesn't know about YT ids; route here directly.
+    // YouTube Music — resolved DIRECTLY from the device, not via
+    // sunoh-api. The VPS IP is a datacenter address that YouTube
+    // flags for bot detection (/player returns LOGIN_REQUIRED "Sign
+    // in to confirm you're not a bot"). Hitting music.youtube.com
+    // from the phone's residential IP avoids the check AND binds
+    // the resulting stream URL to the phone's IP — no proxy needed.
+    // Same architecture OuterTune uses.
     if (provider == 'youtube_music') {
       try {
-        final res = await _dio.get<Map<String, dynamic>>(
-          '/ytmusic/song/${Uri.encodeComponent(song.id)}/stream',
-        );
-        final dataRaw = res.data?['data'];
-        if (dataRaw is Map) {
-          final url = (dataRaw['url'] as String?)?.trim() ?? '';
-          if (url.isNotEmpty) {
-            return _store(song.id, ResolvedStream(url));
-          }
-        }
-      } on DioException catch (_) {
-        // Fall through to the throw — no other tier can recover a YT
-        // Music track.
+        final ytStream = await resolveYouTubeMusicStream(song.id);
+        return _store(song.id, ResolvedStream(ytStream.url));
+      } on YouTubeMusicResolveException catch (e) {
+        throw StreamResolveException(
+            'YouTube Music: ${e.message} (${song.id}).');
+      } catch (e) {
+        throw StreamResolveException(
+            'YouTube Music: $e (${song.id}).');
       }
-      throw StreamResolveException(
-          'No playable stream for "${song.title}" (${song.id}).');
     }
 
     // Podcasts live in a parallel namespace — the `/music/song/...` path
