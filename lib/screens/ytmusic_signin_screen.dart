@@ -43,9 +43,13 @@ class _YouTubeMusicSignInScreenState
   @override
   void initState() {
     super.initState();
+    // No setUserAgent — Google's "this browser may not be secure"
+    // block fires when the UA claims desktop Chrome but the renderer
+    // is a WebView. Letting webview_flutter use its default Android
+    // WebView UA (mobile-Chrome) gets us past the block. Same call
+    // OuterTune makes in their LoginScreen.kt.
     _controller = WebViewController()
       ..setJavaScriptMode(JavaScriptMode.unrestricted)
-      ..setUserAgent(_kDesktopUa)
       ..loadRequest(Uri.parse(_kStartUrl));
     // Cookies become available a moment after the post-login redirect
     // settles. Polling every 1.5 s catches the transition without
@@ -116,16 +120,12 @@ class _YouTubeMusicSignInScreenState
   }
 }
 
-/// YouTube Music's WebView-friendly entry. Sending the user straight
-/// to `accounts.google.com` is tempting but it ends up redirecting to
-/// the consumer YT-music page anyway, and we want the SAPISID set
-/// against the `music.youtube.com` origin specifically.
-const String _kStartUrl = 'https://music.youtube.com/';
-
-/// Desktop UA so YouTube doesn't push the "use the YouTube Music app"
-/// interstitial that mobile UAs trigger. WebView's default UA is
-/// Chrome-Mobile which YT sometimes blocks at the login page.
-const String _kDesktopUa =
-    'Mozilla/5.0 (Windows NT 10.0; Win64; x64) '
-    'AppleWebKit/537.36 (KHTML, like Gecko) '
-    'Chrome/126.0.0.0 Safari/537.36';
+/// Direct entry into the WebView-compatible login flow. Sending
+/// `?continue=music.youtube.com` makes Google bounce back to YT Music
+/// after sign-in completes, so the SAPISID + related cookies land on
+/// the right origin. Same URL OuterTune uses for the same reason —
+/// the bare `music.youtube.com/` route would otherwise force users
+/// through an extra "Sign in" tap, and that secondary flow uses a
+/// stricter WebView-blocking login surface.
+const String _kStartUrl =
+    'https://accounts.google.com/ServiceLogin?continue=https%3A%2F%2Fmusic.youtube.com';
