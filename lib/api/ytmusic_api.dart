@@ -219,23 +219,59 @@ class YtMusicApi {
       ..._context(country: country),
       'browseId': browseId,
     });
-    if (body == null) return null;
+    if (body == null) {
+      // ignore: avoid_print
+      print('[ytmusic] artist $browseId: empty response');
+      return null;
+    }
 
-    final header = _asMap(_dig(body, ['header', 'musicImmersiveHeaderRenderer']));
+    // Artist pages come in two shapes and YouTube serves both:
+    //
+    //   - the classic one, with `musicImmersiveHeaderRenderer` at the top
+    //     level and a single-column body, and
+    //   - the newer two-column layout (the same one playlists use), where
+    //     the header is a `musicResponsiveHeaderRenderer` inside the
+    //     primary column.
+    //
+    // Handling only the first meant some artists parsed to null and the
+    // screen showed "not available".
+    final header = _artistHeader(body);
     final name = _runsText(_asMap(header?['title']));
-    if (name.isEmpty) return null;
+    if (name.isEmpty) {
+      // ignore: avoid_print
+      print('[ytmusic] artist $browseId: no name. '
+          'top=${body.keys.toList()} '
+          'header=${_asMap(body['header'])?.keys.toList()} '
+          'contents=${_asMap(body['contents'])?.keys.toList()}');
+      return null;
+    }
 
     final thumbs = header == null ? const <ApiImage>[] : _thumbnails(header);
     final description = _runsText(_asMap(header?['description']));
     final listeners = _runsText(_asMap(header?['monthlyListenerCount']));
 
-    final radio = _watchSeed(_asMap(header?['startRadioButton']));
-    final play = _watchSeed(_asMap(header?['playButton']));
+    // The classic header names these buttons; the two-column one puts them
+    // in a `buttons` list. Fall back to scanning that, picking the seed out
+    // by its playlist prefix — radio mixes are RD*, everything else is the
+    // plain "play all".
+    var radio = _watchSeed(_asMap(header?['startRadioButton']));
+    var play = _watchSeed(_asMap(header?['playButton']));
+    if (radio == null || play == null) {
+      for (final b in _asList(header?['buttons'])) {
+        final seed = _watchSeed(_asMap(b));
+        if (seed == null) continue;
+        if (seed.$2.startsWith('RD')) {
+          radio ??= seed;
+        } else {
+          play ??= seed;
+        }
+      }
+    }
 
     // Top songs arrive as a list shelf; everything else as carousels.
     final topSongs = <FeedItem>[];
     final sections = <HomeSection>[];
-    for (final shelf in _singleColumnShelves(body)) {
+    for (final shelf in _artistShelves(body)) {
       final list = _asMap(shelf['musicShelfRenderer']);
       if (list != null) {
         for (final raw in _asList(list['contents'])) {
@@ -317,6 +353,53 @@ class YtMusicApi {
       if (out.isNotEmpty) return out;
     }
     return const [];
+  }
+
+  /// The artist header, from whichever layout this page uses.
+  Map<String, dynamic>? _artistHeader(Map<String, dynamic> body) {
+    final immersive =
+        _asMap(_dig(body, ['header', 'musicImmersiveHeaderRenderer']));
+    if (immersive != null) return immersive;
+
+    // Two-column layout: header lives in the primary column.
+    for (final tab in _asList(_dig(body, [
+      'contents',
+      'twoColumnBrowseResultsRenderer',
+      'tabs',
+    ]))) {
+      for (final sec in _asList(_dig(_asMap(tab), [
+        'tabRenderer',
+        'content',
+        'sectionListRenderer',
+        'contents',
+      ]))) {
+        final m = _asMap(sec);
+        final h = _asMap(m?['musicResponsiveHeaderRenderer']) ??
+            _asMap(m?['musicImmersiveHeaderRenderer']);
+        if (h != null) return h;
+      }
+    }
+    // Some variants put a plain header renderer at the top level.
+    return _asMap(_dig(body, ['header', 'musicHeaderRenderer'])) ??
+        _asMap(_dig(body, ['header', 'musicVisualHeaderRenderer']));
+  }
+
+  /// Content shelves for an artist page, from either layout.
+  List<Map<String, dynamic>> _artistShelves(Map<String, dynamic> body) {
+    final single = _singleColumnShelves(body);
+    if (single.isNotEmpty) return single;
+    final out = <Map<String, dynamic>>[];
+    for (final sec in _asList(_dig(body, [
+      'contents',
+      'twoColumnBrowseResultsRenderer',
+      'secondaryContents',
+      'sectionListRenderer',
+      'contents',
+    ]))) {
+      final m = _asMap(sec);
+      if (m != null) out.add(m);
+    }
+    return out;
   }
 
   /// `(videoId, playlistId)` from a header button's watch endpoint.
