@@ -10,9 +10,10 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:solar_icons/solar_icons.dart';
 
-import '../api/dto.dart';
 import '../api/ytmusic_api.dart';
+import '../data/models.dart';
 import '../providers/app_state_provider.dart';
+import 'detail_screens.dart' show AlbumLikeBody;
 import '../providers/ytmusic_provider.dart';
 import '../router/router.dart';
 import '../theme/tokens.dart';
@@ -25,10 +26,8 @@ class _YtScaffold extends StatelessWidget {
     required this.title,
     required this.colors,
     required this.children,
-    this.subtitle,
   });
   final String title;
-  final String? subtitle;
   final SunohColors colors;
   final List<Widget> children;
 
@@ -56,7 +55,7 @@ class _YtScaffold extends StatelessWidget {
             ),
           ),
           Padding(
-            padding: EdgeInsets.fromLTRB(20, 8, 20, subtitle == null ? 20 : 4),
+            padding: const EdgeInsets.fromLTRB(20, 8, 20, 20),
             child: Text(
               title,
               style: SunohType.heading(
@@ -66,12 +65,6 @@ class _YtScaffold extends StatelessWidget {
                   letterSpacing: -0.5),
             ),
           ),
-          if (subtitle != null)
-            Padding(
-              padding: const EdgeInsets.fromLTRB(20, 0, 20, 20),
-              child: Text(subtitle!,
-                  style: SunohType.sans(fontSize: 13, color: c.fgMute)),
-            ),
           ...children,
         ],
       ),
@@ -118,155 +111,117 @@ class YtPlaylistScreen extends ConsumerWidget {
       error: (e, _) => _YtScaffold(
         title: name ?? 'Playlist',
         colors: c,
-        children: [_error(c, 'Couldn’t load this playlist.')],
+        children: [_error(c, 'Couldn\u2019t load this playlist.')],
       ),
       data: (detail) {
         if (detail == null) {
           return _YtScaffold(
             title: name ?? 'Playlist',
             colors: c,
-            children: [_error(c, 'This playlist isn’t available.')],
+            children: [_error(c, 'This playlist isn\u2019t available.')],
           );
         }
-        final tracks = detail.tracks;
-        return _YtScaffold(
-          title: detail.title,
-          subtitle: detail.subtitle,
+        // Reuse the album/playlist body the rest of the app uses, rather
+        // than a bespoke layout — that's what gives YouTube playlists the
+        // same scroll-shrink hero, sticky header, hero actions, track rows
+        // and menus as a saavn or gaana playlist.
+        return AlbumLikeBody(
           colors: c,
-          children: [
-            if (detail.artwork != null)
-              Padding(
-                padding: const EdgeInsets.fromLTRB(20, 0, 20, 20),
-                child: Center(
-                  child: squircleClip(
-                    radius: 16,
-                    child: SunohArt(
-                      id: detail.id,
-                      imageUrl: detail.artwork,
-                      size: 200,
-                      radius: 16,
-                    ),
-                  ),
-                ),
-              ),
-            if (tracks.isNotEmpty)
-              Padding(
-                padding: const EdgeInsets.fromLTRB(20, 0, 20, 16),
-                child: GestureDetector(
-                  onTap: () => s.playApiQueue(
-                    tracks,
-                    0,
-                    sourceLabel: 'YOUTUBE · ${detail.title}',
-                  ),
-                  child: Container(
-                    height: 46,
-                    alignment: Alignment.center,
-                    decoration: squircleDecoration(
-                        radius: 12, color: s.resolvedAccent),
-                    child: Text('Play all',
-                        style: SunohType.sans(
-                            fontSize: 14,
-                            fontWeight: FontWeight.w600,
-                            color: const Color(0xFF0B0B0D))),
-                  ),
-                ),
-              ),
-            for (var i = 0; i < tracks.length; i++)
-              _YtTrackRow(
-                index: i + 1,
-                song: tracks[i],
-                colors: c,
-                onTap: () => s.playApiQueue(
-                  tracks,
-                  i,
-                  sourceLabel: 'YOUTUBE · ${detail.title}',
-                ),
-              ),
-            if (tracks.isEmpty) _error(c, 'No tracks in this playlist.'),
-          ],
+          id: detail.id,
+          title: detail.title,
+          imageUrl: detail.artwork,
+          eyebrowText: 'PLAYLIST',
+          sub: detail.subtitle,
+          secondary: detail.tracks.isEmpty
+              ? null
+              : '${detail.tracks.length} track'
+                  '${detail.tracks.length == 1 ? '' : 's'}',
+          description: detail.description,
+          songs: detail.tracks,
+          sections: const [],
+          // Tracks come from many different albums, so rows show their own
+          // art (the album-style numbered list would be misleading here).
+          showAlbumArtInRow: true,
+          sourceRef: DetailRef('playlist', detail.id, source: 'youtube'),
         );
       },
     );
   }
 }
 
-class _YtTrackRow extends StatelessWidget {
-  const _YtTrackRow({
-    required this.index,
-    required this.song,
-    required this.colors,
-    required this.onTap,
-  });
-  final int index;
-  final FeedItem song;
-  final SunohColors colors;
-  final VoidCallback onTap;
+// ── Artist ─────────────────────────────────────────────────────────────────
+
+class YtArtistScreen extends ConsumerWidget {
+  const YtArtistScreen({super.key, required this.browseId, this.name});
+  final String browseId;
+  final String? name;
 
   @override
-  Widget build(BuildContext context) {
-    final c = colors;
-    return GestureDetector(
-      onTap: onTap,
-      behavior: HitTestBehavior.opaque,
-      child: Padding(
-        padding: const EdgeInsets.fromLTRB(20, 7, 20, 7),
-        child: Row(
-          children: [
-            SizedBox(
-              width: 26,
-              child: Text('$index'.padLeft(2, '0'),
-                  style: SunohType.mono(fontSize: 11, color: c.fgMute)),
-            ),
-            squircleClip(
-              radius: 8,
-              child: SunohArt(
-                id: song.id,
-                imageUrl: song.artwork,
-                size: 44,
-                radius: 8,
-                shadow: false,
-              ),
-            ),
-            const SizedBox(width: 12),
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(song.title,
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                      style: SunohType.sans(
-                          fontSize: 14,
-                          fontWeight: FontWeight.w500,
-                          color: c.fg)),
-                  if ((song.subtitle ?? '').isNotEmpty) ...[
-                    const SizedBox(height: 2),
-                    Text(song.subtitle!,
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                        style:
-                            SunohType.sans(fontSize: 12, color: c.fgMute)),
-                  ],
-                ],
-              ),
-            ),
-            if ((song.duration ?? '').isNotEmpty) ...[
-              const SizedBox(width: 10),
-              Text(_fmt(song.duration!),
-                  style: SunohType.mono(fontSize: 11, color: c.fgMute)),
-            ],
-          ],
-        ),
+  Widget build(BuildContext context, WidgetRef ref) {
+    final s = ref.watch(appStateProvider);
+    final c = s.colors;
+    final async = ref.watch(ytMusicArtistProvider(browseId));
+
+    return async.when(
+      loading: () => _YtScaffold(
+          title: name ?? 'Artist', colors: c, children: [_loading(c)]),
+      error: (e, _) => _YtScaffold(
+        title: name ?? 'Artist',
+        colors: c,
+        children: [_error(c, 'Couldn\u2019t load this artist.')],
       ),
+      data: (artist) {
+        if (artist == null) {
+          return _YtScaffold(
+            title: name ?? 'Artist',
+            colors: c,
+            children: [_error(c, 'This artist isn\u2019t available.')],
+          );
+        }
+        // Same body as every other detail screen — the artist's top songs
+        // become the track list and the discography carousels become the
+        // related sections, so the hero, sticky header and row menus all
+        // behave identically to a saavn/gaana artist.
+        return AlbumLikeBody(
+          colors: c,
+          id: artist.id,
+          title: artist.name,
+          imageUrl: artist.artwork,
+          eyebrowText: 'ARTIST',
+          sub: artist.subtitle,
+          description: artist.description,
+          songs: artist.topSongs,
+          sections: artist.sections,
+          showAlbumArtInRow: true,
+          sourceRef: DetailRef('artist', artist.id, source: 'youtube'),
+          onRadio: artist.hasRadio
+              ? () => _startArtistRadio(ref, artist)
+              : null,
+        );
+      },
     );
   }
 
-  static String _fmt(String seconds) {
-    final s = int.tryParse(seconds);
-    if (s == null) return '';
-    final m = s ~/ 60;
-    final r = s % 60;
-    return '$m:${r.toString().padLeft(2, '0')}';
+  /// Materialise the artist's endless station and hand it to the player.
+  /// Radio playlists are server-generated, so the queue comes from /next
+  /// rather than a browse.
+  Future<void> _startArtistRadio(WidgetRef ref, YtArtistDetail artist) async {
+    final s = ref.read(appStateProvider);
+    s.flashToast('Starting ${artist.name} radio\u2026');
+    try {
+      final tracks = await ref.read(ytMusicApiProvider).radioQueue(
+            videoId: artist.radioVideoId!,
+            playlistId: artist.radioPlaylistId!,
+          );
+      if (tracks.isEmpty) {
+        s.flashToast('No station available for ${artist.name}');
+        return;
+      }
+      await s.playApiQueue(tracks, 0,
+          sourceLabel: 'RADIO \u00b7 ${artist.name}');
+    } catch (e) {
+      s.flashToast('Couldn\u2019t start that station');
+    }
   }
 }
 

@@ -68,6 +68,42 @@ class YtPlaylistDetail {
   final List<FeedItem> tracks;
 }
 
+/// A YouTube Music artist page.
+class YtArtistDetail {
+  const YtArtistDetail({
+    required this.id,
+    required this.name,
+    required this.topSongs,
+    required this.sections,
+    this.subtitle,
+    this.description,
+    this.artwork,
+    this.radioVideoId,
+    this.radioPlaylistId,
+    this.shuffleVideoId,
+    this.shufflePlaylistId,
+  });
+  final String id;
+  final String name;
+  final String? subtitle;
+  final String? description;
+  final String? artwork;
+  final List<FeedItem> topSongs;
+  final List<HomeSection> sections;
+
+  /// Seed for the artist's endless station (`startRadioButton`). Both halves
+  /// are needed — /next keys the queue off the pair.
+  final String? radioVideoId;
+  final String? radioPlaylistId;
+
+  /// Seed for "play all, shuffled" (`playButton`).
+  final String? shuffleVideoId;
+  final String? shufflePlaylistId;
+
+  bool get hasRadio =>
+      (radioPlaylistId ?? '').isNotEmpty && (radioVideoId ?? '').isNotEmpty;
+}
+
 class YtMusicApi {
   YtMusicApi(this._dio);
   final Dio _dio;
@@ -127,14 +163,173 @@ class YtMusicApi {
     return out;
   }
 
-  /// The YouTube Music home feed as carousel sections.
+  /// The YouTube Music home feed.
+  ///
+  /// `FEmusic_home` alone returns only two or three shelves when
+  /// unauthenticated, and its continuation token yields zero more (verified
+  /// against query-param and body-style continuations, with and without
+  /// visitorData) — the deeper feed is behind sign-in. So we compose the
+  /// other public browse pages instead, which need no auth and carry the
+  /// bulk of the interesting rows.
+  ///
+  /// Fetched concurrently; any page that fails contributes nothing rather
+  /// than failing the feed.
   Future<List<HomeSection>> home({String? country}) async {
+    final pages = await Future.wait([
+      _browseSections('FEmusic_home', country: country),
+      _browseSections('FEmusic_explore', country: country),
+      _browseSections('FEmusic_charts', country: country),
+      _browseSections('FEmusic_new_releases', country: country),
+    ]);
+
+    // Dedupe by heading — `New albums & singles` shows up on both explore
+    // and new-releases, and the charts page repeats some of home's rows.
+    final seen = <String>{};
+    final out = <HomeSection>[];
+    for (final section in pages.expand((p) => p)) {
+      final key = section.heading.trim().toLowerCase();
+      if (key.isEmpty || !seen.add(key)) continue;
+      // Moods & genres arrives as a carousel of chips; we render those as
+      // their own row from `moodsAndGenres()`, so drop the duplicate.
+      if (key.contains('moods') || key.contains('genres')) continue;
+      out.add(section);
+    }
+    return out;
+  }
+
+  Future<List<HomeSection>> _browseSections(
+    String browseId, {
+    String? country,
+  }) async {
+    try {
+      final body = await _post('browse', {
+        ..._context(country: country),
+        'browseId': browseId,
+      });
+      if (body == null) return const [];
+      return _carouselSections(_singleColumnShelves(body));
+    } catch (_) {
+      return const [];
+    }
+  }
+
+  /// An artist page: header, top songs, and the discography carousels.
+  Future<YtArtistDetail?> artist(String browseId, {String? country}) async {
     final body = await _post('browse', {
       ..._context(country: country),
-      'browseId': 'FEmusic_home',
+      'browseId': browseId,
+    });
+    if (body == null) return null;
+
+    final header = _asMap(_dig(body, ['header', 'musicImmersiveHeaderRenderer']));
+    final name = _runsText(_asMap(header?['title']));
+    if (name.isEmpty) return null;
+
+    final thumbs = header == null ? const <ApiImage>[] : _thumbnails(header);
+    final description = _runsText(_asMap(header?['description']));
+    final listeners = _runsText(_asMap(header?['monthlyListenerCount']));
+
+    final radio = _watchSeed(_asMap(header?['startRadioButton']));
+    final play = _watchSeed(_asMap(header?['playButton']));
+
+    // Top songs arrive as a list shelf; everything else as carousels.
+    final topSongs = <FeedItem>[];
+    final sections = <HomeSection>[];
+    for (final shelf in _singleColumnShelves(body)) {
+      final list = _asMap(shelf['musicShelfRenderer']);
+      if (list != null) {
+        for (final raw in _asList(list['contents'])) {
+          final item = _parseResponsiveItem(_asMap(raw));
+          if (item != null) topSongs.add(item);
+        }
+        continue;
+      }
+      sections.addAll(_carouselSections([shelf]));
+    }
+
+    return YtArtistDetail(
+      id: browseId,
+      name: name,
+      subtitle: listeners.isEmpty ? null : listeners,
+      description: description.isEmpty ? null : description,
+      artwork: thumbs.isEmpty ? null : thumbs.last.link,
+      topSongs: topSongs,
+      sections: sections,
+      radioVideoId: radio?.$1,
+      radioPlaylistId: radio?.$2,
+      shuffleVideoId: play?.$1,
+      shufflePlaylistId: play?.$2,
+    );
+  }
+
+  /// Tracks for a station / queue, via `/next`.
+  ///
+  /// Radio playlists are generated server-side and can't be browsed like a
+  /// normal playlist — `/next` with the (videoId, playlistId) seed is the
+  /// only way to materialise one.
+  Future<List<FeedItem>> radioQueue({
+    required String videoId,
+    required String playlistId,
+    String? country,
+  }) async {
+    final body = await _post('next', {
+      ..._context(country: country),
+      'videoId': videoId,
+      'playlistId': playlistId,
+      'isAudioOnly': true,
     });
     if (body == null) return const [];
-    return _carouselSections(_singleColumnShelves(body));
+    final tabs = _asList(_dig(body, [
+      'contents',
+      'singleColumnMusicWatchNextResultsRenderer',
+      'tabbedRenderer',
+      'watchNextTabbedResultsRenderer',
+      'tabs',
+    ]));
+    for (final tab in tabs) {
+      final items = _asList(_dig(_asMap(tab), [
+        'tabRenderer',
+        'content',
+        'musicQueueRenderer',
+        'content',
+        'playlistPanelRenderer',
+        'contents',
+      ]));
+      final out = <FeedItem>[];
+      for (final raw in items) {
+        final r = _asMap(_asMap(raw)?['playlistPanelVideoRenderer']);
+        if (r == null) continue;
+        final id = r['videoId'] as String?;
+        final title = _runsText(_asMap(r['title']));
+        if (id == null || id.isEmpty || title.isEmpty) continue;
+        final byline = _runsText(_asMap(r['longBylineText'])).split(' • ');
+        out.add(FeedItem(
+          id: id,
+          title: title,
+          type: 'song',
+          source: 'youtube',
+          image: _thumbnails(r),
+          subtitle: byline.isEmpty ? null : byline.first,
+          duration: _durationToSeconds(_runsText(_asMap(r['lengthText'])))
+              ?.toString(),
+        ));
+      }
+      if (out.isNotEmpty) return out;
+    }
+    return const [];
+  }
+
+  /// `(videoId, playlistId)` from a header button's watch endpoint.
+  (String, String)? _watchSeed(Map<String, dynamic>? button) {
+    final we = _asMap(_dig(button, [
+      'buttonRenderer',
+      'navigationEndpoint',
+      'watchEndpoint',
+    ]));
+    final v = we?['videoId'] as String?;
+    final p = we?['playlistId'] as String?;
+    if (v == null || p == null || v.isEmpty || p.isEmpty) return null;
+    return (v, p);
   }
 
   /// Mood and genre chip grids (`FEmusic_moods_and_genres`).
@@ -341,12 +536,35 @@ class YtMusicApi {
     final r = _asMap(wrapper?['musicResponsiveListItemRenderer']);
     if (r == null) return null;
 
-    final videoId = _videoIdOf(r);
-    if (videoId == null) return null;
-
     final cols = _asList(r['flexColumns']);
     final title = _flexColumnText(cols, 0);
     if (title.isEmpty) return null;
+
+    final videoId = _videoIdOf(r);
+    if (videoId == null) {
+      // Not a track. List shelves also carry artists and albums (the
+      // "Top artists" chart is 40 of them); without this they'd all be
+      // dropped for lacking a videoId.
+      final nav = _asMap(r['navigationEndpoint']);
+      final browseId = _asMap(nav?['browseEndpoint'])?['browseId'] as String?;
+      if (browseId == null || browseId.isEmpty) return null;
+      final type = switch (_pageTypeOf(nav)) {
+        'MUSIC_PAGE_TYPE_ARTIST' => 'artist',
+        'MUSIC_PAGE_TYPE_ALBUM' => 'album',
+        'MUSIC_PAGE_TYPE_PLAYLIST' => 'playlist',
+        _ => null,
+      };
+      if (type == null) return null;
+      final sub = _flexColumnText(cols, 1).trim();
+      return FeedItem(
+        id: browseId,
+        title: title,
+        type: type,
+        source: 'youtube',
+        image: _thumbnails(r),
+        subtitle: sub.isEmpty ? null : sub,
+      );
+    }
 
     // Column 1 is a runs list joined by " • ": artist • album • duration.
     // Every one of those is navigable, so "has a navigationEndpoint" does

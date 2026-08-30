@@ -55,6 +55,13 @@ final ytMusicCategoryProvider = FutureProvider.autoDispose
   return ref.watch(ytMusicApiProvider).category(key.browseId, key.params);
 });
 
+final ytMusicArtistProvider = FutureProvider.autoDispose
+    .family<YtArtistDetail?, String>((ref, browseId) {
+  final link = ref.keepAlive();
+  Future<void>.delayed(const Duration(minutes: 10)).then((_) => link.close());
+  return ref.watch(ytMusicApiProvider).artist(browseId);
+});
+
 final ytMusicPlaylistProvider = FutureProvider.autoDispose
     .family<YtPlaylistDetail?, String>((ref, browseId) {
   // Held briefly so back-navigation out of a playlist and straight back in

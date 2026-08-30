@@ -258,6 +258,15 @@ List<RouteBase> _detailRoutes() => [
             s),
       ),
       GoRoute(
+        path: 'yt-artist/:id',
+        pageBuilder: (c, s) => _slideRight(
+            YtArtistScreen(
+              browseId: Uri.decodeComponent(s.pathParameters['id']!),
+              name: s.extra is String ? s.extra as String : null,
+            ),
+            s),
+      ),
+      GoRoute(
         path: 'yt-moods',
         pageBuilder: (c, s) => _slideRight(const YtMoodsScreen(), s),
       ),
@@ -457,6 +466,11 @@ extension SunohNav on BuildContext {
       push('$_branchPrefix/yt-playlist/${Uri.encodeComponent(browseId)}',
           extra: name);
 
+  /// Open a YouTube Music artist page.
+  void openYtArtist(String browseId, {String? name}) =>
+      push('$_branchPrefix/yt-artist/${Uri.encodeComponent(browseId)}',
+          extra: name);
+
   /// The moods & genres index.
   void openYtMoods() => push('$_branchPrefix/yt-moods');
 
@@ -476,8 +490,9 @@ extension SunohNav on BuildContext {
       case 'playlist':
       case 'album':
         openYtPlaylist(item.id, name: item.title);
+      case 'artist':
+        openYtArtist(item.id, name: item.title);
       default:
-        // Artists and unknown types have no destination yet.
         break;
     }
   }

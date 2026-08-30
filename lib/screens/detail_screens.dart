@@ -80,6 +80,7 @@ class _HeroActions extends StatelessWidget {
     this.onDownload,
     this.downloadActive = false,
     this.onAddToQueue,
+    this.onRadio,
   });
   final SunohColors colors;
   final Color accent;
@@ -102,6 +103,11 @@ class _HeroActions extends StatelessWidget {
   /// the active playback queue. Hidden when null (e.g. when the detail
   /// has no flat song list).
   final VoidCallback? onAddToQueue;
+
+  /// Start an endless station seeded from this entity. Only sources that
+  /// can generate one supply it (YouTube artists today), so the glyph is
+  /// hidden when null rather than shown disabled.
+  final VoidCallback? onRadio;
 
   @override
   Widget build(BuildContext context) {
@@ -132,6 +138,12 @@ class _HeroActions extends StatelessWidget {
                     color: c.fgDim,
                     size: 20,
                     onTap: onAddToQueue),
+              if (onRadio != null)
+                IconBtn(
+                    icon: SolarIconsOutline.soundwaveCircle,
+                    color: c.fgDim,
+                    size: 20,
+                    onTap: onRadio),
             ],
           ),
           Row(
@@ -817,6 +829,7 @@ class AlbumLikeBody extends ConsumerStatefulWidget {
     this.sub,
     this.secondary,
     this.description,
+    this.onRadio,
   });
 
   final SunohColors colors;
@@ -835,6 +848,10 @@ class AlbumLikeBody extends ConsumerStatefulWidget {
   final List<FeedItem> songs;
   final List<HomeSection> sections;
   final bool showAlbumArtInRow;
+
+  /// Optional "start a station from this" action, surfaced in the hero
+  /// actions row. Null for sources that can't seed one.
+  final VoidCallback? onRadio;
 
   @override
   ConsumerState<AlbumLikeBody> createState() => AlbumLikeBodyState();
@@ -1012,6 +1029,7 @@ class AlbumLikeBodyState extends ConsumerState<AlbumLikeBody> {
                       onAddToQueue: songs.isEmpty
                           ? null
                           : () => live.addApiSongsToQueue(songs),
+                      onRadio: widget.onRadio,
                     );
                   }),
                   for (var i = 0; i < songs.length; i++)
