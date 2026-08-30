@@ -924,29 +924,50 @@ class YtMusicApi {
 
   /// Ask Google's image CDN for a larger rendition.
   ///
-  /// Thumbnail URLs carry their size in a `=w60-h60-...` suffix, and the
-  /// sizes the API volunteers are small — 60px for search rows, badly
-  /// pixelated at our tile sizes. Rewriting the suffix is the documented
-  /// way to request a bigger one.
+  /// The sizes the API volunteers are small — 60px for search rows, 576
+  /// for chart covers — and get upscaled by the client, which is what made
+  /// hero images look blocky however large the display surface was.
   ///
-  /// Height is scaled to preserve aspect rather than forced square. Artist
-  /// images are wide banners (540x225 and up), and asking for `=w544-h544`
-  /// returned a 363x544 portrait crop of one.
+  /// Two suffix forms are in use and BOTH have to be handled. Supporting
+  /// only the first left every chart and playlist cover at its original
+  /// size, since those use the second:
+  ///
+  ///   =w544-h544-l90-rj   sized, with modifiers
+  ///   =s576               square shorthand
+  ///
+  /// The size is rewritten in place so any trailing modifiers survive, and
+  /// the aspect ratio is taken from the URL itself rather than the JSON,
+  /// so wide artist banners don't get squared into a portrait crop.
   ///
   /// Returns the url plus the size it will actually be, so callers can
   /// label it honestly.
   (String, int?, int?) _upscale(String url, int? width, int? height) {
-    if (width == null || width >= _kMaxArtSize) return (url, width, height);
-    final i = url.lastIndexOf('=w');
-    if (i < 0) return (url, width, height);
-    final h = (height != null && height > 0 && width > 0)
-        ? (_kMaxArtSize * height / width).round()
-        : _kMaxArtSize;
-    return (
-      '${url.substring(0, i)}=w$_kMaxArtSize-h$h-l90-rj',
-      _kMaxArtSize,
-      h,
-    );
+    if (width != null && width >= _kMaxArtSize) return (url, width, height);
+
+    final square = RegExp(r'=s(\d+)').firstMatch(url);
+    if (square != null) {
+      return (
+        url.replaceRange(square.start, square.end, '=s$_kMaxArtSize'),
+        _kMaxArtSize,
+        _kMaxArtSize,
+      );
+    }
+
+    final sized = RegExp(r'=w(\d+)-h(\d+)').firstMatch(url);
+    if (sized != null) {
+      final w0 = int.tryParse(sized.group(1)!) ?? 0;
+      final h0 = int.tryParse(sized.group(2)!) ?? 0;
+      final h = (w0 > 0 && h0 > 0)
+          ? (_kMaxArtSize * h0 / w0).round()
+          : _kMaxArtSize;
+      return (
+        url.replaceRange(sized.start, sized.end, '=w$_kMaxArtSize-h$h'),
+        _kMaxArtSize,
+        h,
+      );
+    }
+
+    return (url, width, height);
   }
 
   String _flexColumnText(List<dynamic> cols, int index) =>
