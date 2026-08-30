@@ -135,6 +135,10 @@ dependencies:
   # `lib/services/analytics_service.dart` for the surface.
   firebase_core: ^4.2.0
   firebase_analytics: ^12.1.0
+  # SHA-256 for SponsorBlock's privacy-preserving hash-prefix lookup — we
+  # send only the first 4 chars of sha256(videoId) so the server can't tell
+  # which track is playing. Transitive already; declared because we import it.
+  crypto: ^3.0.6
   open_filex: ^4.7.0
   device_info_plus: ^12.4.0
 

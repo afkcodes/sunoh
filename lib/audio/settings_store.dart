@@ -31,6 +31,7 @@ class SavedPlayback {
     this.repeatMode,
     this.languages,
     this.endlessAutoplay,
+    this.sponsorBlock,
   });
   final String? streamQuality; // 'auto' / 'high' / 'data'
   /// Persisted as the `LoopMode.name` ('off' / 'all' / 'one'). Null on
@@ -43,6 +44,7 @@ class SavedPlayback {
   /// When the queue's last track ends, AppState seeds a radio from that
   /// track and appends the songs. Null on fresh installs (treated as off).
   final bool? endlessAutoplay;
+  final bool? sponsorBlock;
 }
 
 class SettingsStore {
@@ -67,6 +69,9 @@ class SettingsStore {
   static const _kRepeatMode = 'playback.repeat_mode';
   static const _kLanguages = 'playback.languages';
   static const _kEndlessAutoplay = 'playback.endless_autoplay';
+  // Skip non-music segments (sponsor reads, intros/outros) on YouTube
+  // tracks using community SponsorBlock data.
+  static const _kSponsorBlock = 'playback.sponsorblock';
 
   // Search
   static const _kSearchRecents = 'search.recents';
@@ -214,6 +219,7 @@ class SettingsStore {
     String? repeatMode,
     List<String>? languages,
     bool? endlessAutoplay,
+    bool? sponsorBlock,
   }) async {
     final box = await _box();
     final map = <String, dynamic>{};
@@ -224,6 +230,7 @@ class SettingsStore {
     // backend default" not "leave previous value alone."
     if (languages != null) map[_kLanguages] = languages;
     if (endlessAutoplay != null) map[_kEndlessAutoplay] = endlessAutoplay;
+    if (sponsorBlock != null) map[_kSponsorBlock] = sponsorBlock;
     if (map.isEmpty) return;
     await box.putAll(map);
     await box.flush();
@@ -242,6 +249,7 @@ class SettingsStore {
         repeatMode: box.get(_kRepeatMode) as String?,
         languages: langs,
         endlessAutoplay: box.get(_kEndlessAutoplay) as bool?,
+        sponsorBlock: box.get(_kSponsorBlock) as bool?,
       );
     } catch (e) {
       debugPrint('[settings-store] loadPlayback failed: $e');

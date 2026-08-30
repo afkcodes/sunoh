@@ -5,6 +5,7 @@ import 'dart:async';
 import 'dart:math' as math;
 
 import 'package:app_links/app_links.dart';
+import 'package:dio/dio.dart';
 import 'package:audio_service/audio_service.dart';
 import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
@@ -19,7 +20,9 @@ import 'api/client.dart';
 import 'api/ytmusic_channel.dart';
 import 'api/stream_resolver.dart';
 import 'audio/audio_handler.dart';
+import 'api/sponsorblock.dart';
 import 'audio/audio_repo.dart';
+import 'audio/sponsorblock_skipper.dart';
 import 'audio/audio_service_bridge.dart';
 import 'audio/download_manager.dart';
 import 'audio/download_store.dart';
@@ -172,6 +175,14 @@ Future<void> main() async {
     store: PlaybackStateStore(),
     settings: SettingsStore(),
     library: LibraryStore(),
+    // Its own Dio: buildSunohDio carries our base URL and sunoh-api
+    // headers, none of which belong on a request to sponsor.ajay.app.
+    sponsorBlock: SponsorBlockSkipper(
+      client: SponsorBlockClient(Dio(BaseOptions(
+        connectTimeout: const Duration(seconds: 8),
+        receiveTimeout: const Duration(seconds: 12),
+      ))),
+    ),
   );
   // ignore: avoid_print
   print('[audio] AudioRepo ready ✓ (Phase 1 — mpv only)');

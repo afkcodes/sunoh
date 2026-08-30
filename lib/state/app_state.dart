@@ -183,6 +183,11 @@ class AppState extends ChangeNotifier with WidgetsBindingObserver {
           endlessAutoplay = play.endlessAutoplay!;
         }
       }
+      // Outside the `play != null` guard on purpose: a fresh install has no
+      // saved playback block at all, and leaving the skipper untouched there
+      // would keep it off forever despite the default being on.
+      sponsorBlockEnabled = play?.sponsorBlock ?? true;
+      repo.sponsorBlock.enabled = sponsorBlockEnabled;
       final recents = await repo.settings.loadSearchRecents();
       if (recents.isNotEmpty) _searchRecents = recents;
       // Privacy — load the analytics opt-out before notifying. A null
@@ -329,6 +334,10 @@ class AppState extends ChangeNotifier with WidgetsBindingObserver {
   /// player fires a radio_station prime seeded by it and appends the
   /// returned songs. Off by default; persisted in settings.
   bool endlessAutoplay = false;
+
+  /// Skip non-music segments (sponsor reads, intros/outros, talking
+  /// sections) on YouTube tracks using community SponsorBlock data.
+  bool sponsorBlockEnabled = true;
 
   /// User-facing opt-out for Firebase Analytics. On by default; flipping
   /// to false calls `AnalyticsService.setEnabled(false)` which both
@@ -2072,6 +2081,18 @@ class AppState extends ChangeNotifier with WidgetsBindingObserver {
     // immediately so the queue extends without waiting for the next
     // track-change event (which only fires on advance).
     if (enabled) _maybeAutoplayPrime();
+  }
+
+  Future<void> setSponsorBlock(bool enabled) async {
+    if (sponsorBlockEnabled == enabled) return;
+    sponsorBlockEnabled = enabled;
+    final repo = audioRepo;
+    repo?.sponsorBlock.enabled = enabled;
+    // Drop any segments already loaded for the current track so turning it
+    // off takes effect mid-song rather than at the next track.
+    if (!enabled) repo?.sponsorBlock.clear();
+    notifyListeners();
+    await repo?.settings.savePlayback(sponsorBlock: enabled);
   }
 
   /// Privacy: flip Firebase Analytics collection on/off. Disable hits

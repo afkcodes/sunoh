@@ -17,6 +17,7 @@ import '../providers/update_provider.dart';
 import '../widgets/update_dialog.dart';
 import '../theme/tokens.dart';
 import '../widgets/album_art.dart';
+import '../widgets/playing_bars.dart';
 import '../widgets/ui.dart';
 // Tab implementations: Music (the original /music/home feed), Podcasts
 // (backed by /podcasts/home via `podcastHomeProvider`, since v1.5.5),
@@ -280,6 +281,176 @@ class _MoodsRow extends ConsumerWidget {
   }
 }
 
+/// Songs shown in a shelf before it defers to "See all". Three full
+/// columns of four.
+const int _kSongShelfMax = 12;
+
+/// A row of songs, rendered as horizontally-paging columns of compact
+/// track rows instead of cover tiles.
+///
+/// Two reasons this exists rather than reusing the cover carousel:
+///
+///  - A song tile and a playlist tile looked identical, but tapping one
+///    starts playback and the other opens a screen. Same affordance for
+///    two different actions.
+///  - Tapping a song used to start a single-track queue, discarding the
+///    row it came from. Here a tap plays the whole shelf from that point,
+///    so "Trending" behaves like a playlist you dropped into.
+///
+/// The next column deliberately peeks past the right edge — without it
+/// there's nothing to suggest the shelf scrolls.
+class _SongShelf extends ConsumerWidget {
+  const _SongShelf({
+    required this.songs,
+    required this.colors,
+    required this.sectionLabel,
+  });
+  final List<FeedItem> songs;
+  final SunohColors colors;
+  final String sectionLabel;
+
+  static const double _rowHeight = 58;
+  static const double _peek = 30;
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final c = colors;
+    final s = ref.watch(appStateProvider);
+    final rows = songs.length >= 8 ? 4 : 3;
+
+    final columns = <List<FeedItem>>[];
+    for (var i = 0; i < songs.length; i += rows) {
+      columns.add(songs.sublist(i, (i + rows).clamp(0, songs.length)));
+    }
+
+    // Full-bleed column minus the page gutters, leaving a peek of the next
+    // one. Snaps per column so a swipe lands cleanly.
+    final columnWidth =
+        MediaQuery.of(context).size.width - 40 - _peek;
+
+    return SizedBox(
+      height: _rowHeight * rows,
+      child: ListView.separated(
+        scrollDirection: Axis.horizontal,
+        padding: const EdgeInsets.symmetric(horizontal: 20),
+        physics: const PageScrollPhysics(),
+        itemCount: columns.length,
+        separatorBuilder: (_, _) => const SizedBox(width: 10),
+        itemBuilder: (context, col) {
+          final cells = columns[col];
+          return SizedBox(
+            width: columnWidth,
+            child: Column(
+              children: [
+                for (final song in cells)
+                  SizedBox(
+                    height: _rowHeight,
+                    child: _SongShelfRow(
+                      song: song,
+                      colors: c,
+                      playing: s.currentApiSong?.id == song.id,
+                      onTap: () => s.playApiQueue(
+                        songs,
+                        songs.indexOf(song),
+                        sourceLabel: 'HOME · $sectionLabel',
+                      ),
+                    ),
+                  ),
+              ],
+            ),
+          );
+        },
+      ),
+    );
+  }
+}
+
+class _SongShelfRow extends StatelessWidget {
+  const _SongShelfRow({
+    required this.song,
+    required this.colors,
+    required this.playing,
+    required this.onTap,
+  });
+  final FeedItem song;
+  final SunohColors colors;
+  final bool playing;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    final c = colors;
+    final sub = song.subtitle ?? '';
+    return GestureDetector(
+      onTap: onTap,
+      behavior: HitTestBehavior.opaque,
+      child: Padding(
+        padding: const EdgeInsets.symmetric(vertical: 5),
+        child: Row(
+          children: [
+            squircleClip(
+              radius: 8,
+              child: SunohArt(
+                id: song.id,
+                imageUrl: song.artwork,
+                size: 48,
+                radius: 8,
+                shadow: false,
+              ),
+            ),
+            const SizedBox(width: 12),
+            Expanded(
+              child: Column(
+                mainAxisAlignment: MainAxisAlignment.center,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    song.title,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: SunohType.sans(
+                      fontSize: 13.5,
+                      fontWeight: FontWeight.w500,
+                      // The playing track picks up the accent, matching
+                      // how detail-screen rows mark the current song.
+                      color: playing ? c.accent : c.fg,
+                    ),
+                  ),
+                  if (sub.isNotEmpty) ...[
+                    const SizedBox(height: 2),
+                    Text(
+                      sub,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: SunohType.sans(fontSize: 11.5, color: c.fgMute),
+                    ),
+                  ],
+                ],
+              ),
+            ),
+            const SizedBox(width: 10),
+            if (playing)
+              PlayingBars(color: c.accent, size: 16)
+            else if ((song.duration ?? '').isNotEmpty)
+              Text(
+                _fmtDuration(song.duration!),
+                style: SunohType.mono(fontSize: 11, color: c.fgMute),
+              ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  static String _fmtDuration(String seconds) {
+    final total = int.tryParse(seconds);
+    if (total == null || total <= 0) return '';
+    final m = total ~/ 60;
+    final r = total % 60;
+    return '$m:${r.toString().padLeft(2, '0')}';
+  }
+}
+
 /// How many primary-feed sections to show between each interleaved
 /// YouTube Music row. 3 keeps sunoh's own feed dominant while surfacing the
 /// YouTube rows well before the user hits the bottom.
@@ -408,10 +579,37 @@ class _ApiSection extends ConsumerWidget {
     // entirely.
     final isChannelRow = section.items.isNotEmpty &&
         section.items.every((it) => it.type == 'channel');
+    // Song rows get a different shape entirely — see _SongShelf. A cover
+    // tile and a song tile currently look identical even though one opens
+    // a screen and the other starts playback, and a row of 20 tracks reads
+    // as "20 albums" at a glance.
+    final isSongRow = section.items.length >= 4 &&
+        section.items.every((it) => it.type == 'song');
+
     // Cap each row at 10 items; if there are more, show "See all →" linking
-    // to the full section.
-    final visible = section.items.take(10).toList();
-    final hasMore = section.items.length > 10;
+    // to the full section. Song shelves hold more — they're denser, so a
+    // full screen of them is three columns rather than three tiles.
+    final visible =
+        section.items.take(isSongRow ? _kSongShelfMax : 10).toList();
+    final hasMore = section.items.length > (isSongRow ? _kSongShelfMax : 10);
+
+    if (isSongRow) {
+      return Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          SectionHeader(
+            title: section.heading,
+            colors: c,
+            onSeeAll: hasMore ? () => context.openSection(section) : null,
+          ),
+          _SongShelf(
+            songs: visible,
+            colors: c,
+            sectionLabel: section.heading,
+          ),
+        ],
+      );
+    }
 
     if (isChannelRow) {
       return Column(

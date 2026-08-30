@@ -142,6 +142,16 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
                 onChange: (v) => s.setEndlessAutoplay(v),
                 colors: c,
               ),
+              _ToggleRow(
+                label: 'Skip non-music parts',
+                summary:
+                    'Uses SponsorBlock to jump sponsor reads, intros and '
+                    'talking sections on YouTube tracks. Only a hash of the '
+                    'track id is sent, never the id itself.',
+                value: s.sponsorBlockEnabled,
+                onChange: (v) => s.setSponsorBlock(v),
+                colors: c,
+              ),
             ],
           ),
 

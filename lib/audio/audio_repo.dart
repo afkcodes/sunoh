@@ -19,6 +19,7 @@ import 'audio_service_bridge.dart';
 import 'library_store.dart';
 import 'playback_state_store.dart';
 import 'settings_store.dart';
+import 'sponsorblock_skipper.dart';
 
 class AudioRepo {
   AudioRepo({
@@ -27,6 +28,7 @@ class AudioRepo {
     required this.store,
     required this.settings,
     required this.library,
+    required this.sponsorBlock,
   }) {
     // Always-on track-change listener. Wired in the constructor (NOT in
     // attachBridge) so persistence works even when audio_service init fails
@@ -38,6 +40,10 @@ class AudioRepo {
       if (song == null) return;
       _currentIndex = handler.currentIndex;
       _bridge?.onTrackChanged(_mediaItemFor(song));
+      // Look up skip segments for the new track. Fire-and-forget: the
+      // skipper degrades to "no segments" on any failure, and playback
+      // must never wait on a third-party lookup.
+      unawaited(sponsorBlock.onTrackChanged(song));
       // Skip while restoring — `prepareQueue` emits a currentSong event
       // before mpv has actually loaded the file, so handler.position is
       // 0 even though the SAVED state had a non-zero seek target. Writing
@@ -46,6 +52,34 @@ class AudioRepo {
       if (_restoreInProgress) return;
       unawaited(persistAll());
     });
+    // SponsorBlock: jump past a segment as soon as the play head enters
+    // it. Driven off mpv's position stream rather than a timer so it
+    // stays accurate through seeks and track changes.
+    handler.positionStream.listen((position) {
+      final target = sponsorBlock.skipTargetFor(position);
+      if (target != null) unawaited(handler.seek(target));
+    });
+
+    // Feed mpv's real duration back into the OS notification.
+    //
+    // MediaItem.duration is otherwise only ever what the feed told us at
+    // queue time, and Android draws no seekbar at all when it's null.
+    // YouTube carousel cards carry no duration, so those tracks played
+    // with a bare notification. mpv knows the true length once the file
+    // is open, so re-announce the current item with it — which also
+    // corrects any source whose metadata duration is wrong.
+    handler.durationStream.listen((duration) {
+      if (duration <= Duration.zero) return;
+      final bridge = _bridge;
+      final song = handler.currentSong;
+      if (bridge == null || song == null) return;
+      // Only re-announce on a real change; mpv re-emits this while
+      // buffering and every push redraws the notification.
+      if (_announcedDuration[song.id] == duration) return;
+      _announcedDuration[song.id] = duration;
+      bridge.onTrackChanged(_mediaItemFor(song, duration: duration));
+    });
+
     // Mirror handler.queueListenable reactively so repo.queue is always
     // fresh. Without this, repo's `_queue` field was being copied from
     // `handler.queue` synchronously after each mutation — but mpv's
@@ -77,6 +111,10 @@ class AudioRepo {
   final SettingsStore settings;
   final LibraryStore library;
 
+  /// Skips non-music segments on YouTube tracks. Consulted from the
+  /// position stream; a no-op until the user's setting enables it.
+  final SponsorBlockSkipper sponsorBlock;
+
   /// The active queue, mirroring what the handler holds. Cached here so we
   /// can persist it without round-tripping through mpv's internal playlist.
   List<FeedItem> _queue = const [];
@@ -98,6 +136,10 @@ class AudioRepo {
   bool _restoreInProgress = false;
 
   SunohAudioServiceBridge? _bridge;
+
+  /// Durations already pushed to the OS, keyed by song id. Guards against
+  /// re-announcing on mpv's repeated duration events while buffering.
+  final Map<String, Duration> _announcedDuration = <String, Duration>{};
 
   /// Exposed so AppState's cast wiring can push cast-derived playback
   /// state directly into the OS notification (otherwise the bridge
@@ -144,6 +186,12 @@ class AudioRepo {
     _currentIndex = startIndex;
     _sourceLabel = sourceLabel;
     _sourceRef = sourceRef;
+    // Kick the segment lookup here as well as from currentSongStream.
+    // That stream only emits when mpv's playlist INDEX changes, and
+    // starting a fresh single-track queue leaves the index at 0 — so
+    // tapping a search result would otherwise never trigger a lookup.
+    unawaited(sponsorBlock
+        .onTrackChanged(songs[startIndex.clamp(0, songs.length - 1)]));
     await handler.setQueue(songs, startIndex);
 
     // Best-effort OS metadata push: full queue + the starting item.
@@ -176,6 +224,8 @@ class AudioRepo {
       _currentIndex = saved.currentIndex;
       _sourceLabel = saved.sourceLabel;
       _sourceRef = saved.sourceRef;
+      unawaited(sponsorBlock.onTrackChanged(
+          saved.queue[saved.currentIndex.clamp(0, saved.queue.length - 1)]));
       await handler.prepareQueue(
         saved.queue,
         saved.currentIndex,
@@ -273,7 +323,10 @@ class AudioRepo {
     unawaited(store.clear());
   }
 
-  static MediaItem _mediaItemFor(FeedItem song) {
+  /// [duration] overrides the feed's value — used once mpv reports the
+  /// real length, so the notification gets a seekbar even when the source
+  /// metadata had none.
+  static MediaItem _mediaItemFor(FeedItem song, {Duration? duration}) {
     return MediaItem(
       id: song.id,
       title: song.title,
@@ -284,7 +337,7 @@ class AudioRepo {
           .join(', '),
       album: '',
       artUri: (song.artwork ?? '').isEmpty ? null : Uri.tryParse(song.artwork!),
-      duration: _parseDuration(song.duration),
+      duration: duration ?? _parseDuration(song.duration),
       extras: {'source': song.source ?? ''},
     );
   }
