@@ -326,7 +326,13 @@ class AudioRepo {
   /// [duration] overrides the feed's value — used once mpv reports the
   /// real length, so the notification gets a seekbar even when the source
   /// metadata had none.
-  static MediaItem _mediaItemFor(FeedItem song, {Duration? duration}) {
+  ///
+  /// Falls back to a previously corrected duration for the same song.
+  /// Without that, any later `announceQueue` (queue reorder, add, or the
+  /// mirror sync that fires on every playlist change) would rebuild the
+  /// item from feed metadata alone and wipe the seekbar back out — which
+  /// is why it appeared for some tracks and not others.
+  MediaItem _mediaItemFor(FeedItem song, {Duration? duration}) {
     return MediaItem(
       id: song.id,
       title: song.title,
@@ -337,7 +343,8 @@ class AudioRepo {
           .join(', '),
       album: '',
       artUri: (song.artwork ?? '').isEmpty ? null : Uri.tryParse(song.artwork!),
-      duration: duration ?? _parseDuration(song.duration),
+      duration:
+          duration ?? _announcedDuration[song.id] ?? _parseDuration(song.duration),
       extras: {'source': song.source ?? ''},
     );
   }

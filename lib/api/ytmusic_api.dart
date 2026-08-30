@@ -565,16 +565,50 @@ class YtMusicApi {
       }
     }
 
-    if (title.isEmpty && tracks.isEmpty) return null;
+    // Album and playlist track rows carry no thumbnail of their own — the
+    // art is shared and rendered once in the header — so every row would
+    // otherwise fall back to a generated cover. Backfill from the header.
+    final headerArt = artwork;
+    final withArt = headerArt == null
+        ? tracks
+        : [
+            for (final t in tracks)
+              t.image.isNotEmpty
+                  ? t
+                  : _withImages(t, [ApiImage(quality: '', link: headerArt)]),
+          ];
+
+    if (title.isEmpty && withArt.isEmpty) return null;
     return YtPlaylistDetail(
       id: browseId,
       title: title.isEmpty ? 'Playlist' : title,
       subtitle: (subtitle ?? '').isEmpty ? null : subtitle,
       description: (description ?? '').isEmpty ? null : description,
       artwork: artwork,
-      tracks: tracks,
+      tracks: withArt,
     );
   }
+
+  /// FeedItem is immutable and has no copyWith, so rebuild it with the
+  /// supplied artwork and every other field carried across untouched.
+  FeedItem _withImages(FeedItem item, List<ApiImage> image) => FeedItem(
+        id: item.id,
+        title: item.title,
+        type: item.type,
+        image: image,
+        subtitle: item.subtitle,
+        source: item.source,
+        language: item.language,
+        url: item.url,
+        duration: item.duration,
+        songCount: item.songCount,
+        playCount: item.playCount,
+        releaseDate: item.releaseDate,
+        artists: item.artists,
+        token: item.token,
+        stationType: item.stationType,
+        mediaUrls: item.mediaUrls,
+      );
 
   // ── Renderer navigation ───────────────────────────────────────────────
 
