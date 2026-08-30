@@ -18,9 +18,9 @@ import '../widgets/ui.dart';
 Future<void> showYtRegionSheet(BuildContext context) => _show(
       context,
       title: 'YouTube region',
-      blurb: 'Decides which charts and home rows YouTube returns. '
-          'Auto detects it from your connection, falling back to your '
-          "device's region.",
+      blurb: 'Shifts the editorial rows YouTube returns. Charts and Top '
+          'artists ignore this and follow your connection instead, so '
+          'those stay local wherever you set this.',
       options: kYtRegions,
       selectedOf: (s) => s.ytCountryOverride,
       autoLabelOf: (locale) => kYtRegions[locale.country] ?? locale.country,

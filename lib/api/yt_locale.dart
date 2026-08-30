@@ -2,9 +2,13 @@
 //
 // InnerTube takes two locale fields and they do different jobs:
 //
-//   gl  region. Drives charts, "biggest hits", and most of what home
-//       returns. Getting this wrong is the difference between Indian and
-//       American charts.
+//   gl  region. Shifts the editorial rows on home (gl=IN returns "Old
+//       School Romance" where gl=US returns "Easy Evenings"). Measured
+//       caveat: the CHARTS pages ignore it completely. FEmusic_charts
+//       returns identical Indian content for gl=US, because YouTube
+//       geolocates those from the requesting IP. A region picker cannot
+//       override that, and the Settings copy says so rather than
+//       promising something the API won't honour.
 //   hl  interface language. Affects the strings YouTube sends back
 //       (section headings and so on), not which music is returned.
 //
