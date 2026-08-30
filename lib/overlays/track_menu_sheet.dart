@@ -19,6 +19,7 @@ import '../api/dto.dart';
 import '../audio/download_store.dart';
 import '../data/models.dart';
 import '../providers/app_state_provider.dart';
+import '../providers/ytmusic_provider.dart';
 import '../router/router.dart';
 import '../providers/downloads_provider.dart';
 import '../share/share_link.dart';
@@ -56,6 +57,34 @@ Future<void> showTrackMenuSheet(
         fromPlayer: fromPlayer,
         removeFromUserPlaylistId: removeFromUserPlaylistId),
   );
+}
+
+/// Find a YouTube artist page by name and open it.
+///
+/// The byline on a song row usually links the artist channel directly, but
+/// auto-generated "- Topic" uploads sometimes carry a plain text artist,
+/// and queue entries persisted before ids were captured have none either.
+/// Searching by name is a reliable fallback and keeps "View artist" from
+/// dead-ending.
+Future<void> _openYtArtistByName(
+  BuildContext context,
+  WidgetRef ref,
+  String name,
+) async {
+  final state = ref.read(appStateProvider);
+  if (name.trim().isEmpty) {
+    state.flashToast('Artist details unavailable');
+    return;
+  }
+  state.flashToast('Finding $name…');
+  final results =
+      await ref.read(ytMusicApiProvider).searchArtists(name);
+  if (results.isEmpty) {
+    state.flashToast('Couldn\u2019t find $name');
+    return;
+  }
+  if (!context.mounted) return;
+  context.openYtArtist(results.first.id, name: results.first.title);
 }
 
 class _TrackMenuSheet extends ConsumerWidget {
@@ -230,17 +259,29 @@ class _TrackMenuSheet extends ConsumerWidget {
                 label: 'View ${song.artists!.first.name}',
                 onTap: () {
                   final artist = song.artists!.first;
-                  if (artist.id.isEmpty) {
-                    Navigator.of(context).pop();
-                    s.flashToast('Artist details unavailable');
-                    return;
-                  }
+                  // ignore: avoid_print
+                  print('[artist-nav] source=${song.source} '
+                      'name="${artist.name}" id="${artist.id}"');
                   // YouTube artist ids are channel browse ids, which
                   // sunoh-api's artist endpoint can't resolve — they need
                   // the YouTube artist screen.
                   if (song.source == 'youtube') {
                     Navigator.of(context).pop();
-                    context.openYtArtist(artist.id, name: artist.name);
+                    if (artist.id.isNotEmpty) {
+                      context.openYtArtist(artist.id, name: artist.name);
+                    } else {
+                      // No linked channel on this row. Happens for
+                      // auto-generated art tracks whose byline isn't
+                      // navigable, and for queue entries persisted before
+                      // artist ids were captured. Resolve by name instead
+                      // of dead-ending on a toast.
+                      _openYtArtistByName(context, ref, artist.name);
+                    }
+                    return;
+                  }
+                  if (artist.id.isEmpty) {
+                    Navigator.of(context).pop();
+                    s.flashToast('Artist details unavailable');
                     return;
                   }
                   _navigateAfterClose(
