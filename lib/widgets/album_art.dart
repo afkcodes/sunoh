@@ -175,11 +175,19 @@ class SunohArt extends StatelessWidget {
                   ),
                   fit: BoxFit.cover,
                   // medium = trilinear with mipmaps; low = plain bilinear.
-                  // The CDN tops out at 500×500 so the hero (and on hi-DPR
-                  // phones, even mid-size tiles) ends up upscaling slightly
-                  // — bilinear made that read as soft/blocky. Mipmaps are
-                  // worth the small perf cost for product imagery.
-                  filterQuality: FilterQuality.medium,
+                  // The CDN tops out at 500×500 so the HERO upscales
+                  // slightly, and bilinear made that read as soft/blocky —
+                  // so large art keeps mipmaps.
+                  //
+                  // Small tiles don't: they're already resized to their
+                  // cache tier and drawn at roughly 1:1, where trilinear is
+                  // visually indistinguishable from bilinear. Mipmap
+                  // generation is a per-image GPU cost paid as art scrolls
+                  // into view, and it's disproportionately expensive on
+                  // tile-based (Mali) GPUs — so pay it only where it shows.
+                  filterQuality: cacheTier >= 720
+                      ? FilterQuality.medium
+                      : FilterQuality.low,
                   gaplessPlayback: true,
                   frameBuilder: (context, child, frame, wasSyncLoaded) {
                     if (wasSyncLoaded || frame != null) return child;

@@ -95,7 +95,13 @@ class _PlayingBarsState extends State<PlayingBars>
   @override
   Widget build(BuildContext context) {
     final barW = (widget.size - 2 * 2) / _kBars.length;
-    return SizedBox(
+    // RepaintBoundary: these bars animate continuously at display
+    // refresh rate. Without a boundary every tick marks the enclosing
+    // track row dirty, so the row's text + layout repaint 60–120×/s
+    // purely to move three small rects. The boundary confines that to
+    // a ~20×20 layer.
+    return RepaintBoundary(
+        child: SizedBox(
       width: widget.size,
       height: widget.size,
       child: Row(
@@ -123,6 +129,6 @@ class _PlayingBarsState extends State<PlayingBars>
             ),
         ],
       ),
-    );
+    ));
   }
 }
