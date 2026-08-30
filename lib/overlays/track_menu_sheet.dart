@@ -20,7 +20,6 @@ import '../audio/download_store.dart';
 import '../data/models.dart';
 import '../providers/app_state_provider.dart';
 import '../providers/ytmusic_provider.dart';
-import '../router/router.dart';
 import '../providers/downloads_provider.dart';
 import '../share/share_link.dart';
 import '../theme/tokens.dart';
@@ -66,25 +65,46 @@ Future<void> showTrackMenuSheet(
 /// and queue entries persisted before ids were captured have none either.
 /// Searching by name is a reliable fallback and keeps "View artist" from
 /// dead-ending.
+///
+/// The router and branch prefix are captured BEFORE the sheet is popped
+/// and before the `await` — a context is not safe to use across either.
 Future<void> _openYtArtistByName(
   BuildContext context,
   WidgetRef ref,
-  String name,
-) async {
+  String name, {
+  required bool fromPlayer,
+}) async {
   final state = ref.read(appStateProvider);
   if (name.trim().isEmpty) {
+    Navigator.of(context, rootNavigator: true).pop();
     state.flashToast('Artist details unavailable');
     return;
   }
+
+  final root = Navigator.of(context, rootNavigator: true);
+  final goRouter = GoRouter.of(context);
+  final api = ref.read(ytMusicApiProvider);
+  root.pop(); // sheet
+  if (fromPlayer && root.canPop()) {
+    root.pop(); // player
+  }
+  final loc = goRouter.state.matchedLocation;
+  final prefix = loc.startsWith('/search')
+      ? '/search'
+      : loc.startsWith('/library')
+          ? '/library'
+          : '/home';
+
   state.flashToast('Finding $name…');
-  final results =
-      await ref.read(ytMusicApiProvider).searchArtists(name);
+  final results = await api.searchArtists(name);
   if (results.isEmpty) {
     state.flashToast('Couldn\u2019t find $name');
     return;
   }
-  if (!context.mounted) return;
-  context.openYtArtist(results.first.id, name: results.first.title);
+  goRouter.push(
+    '$prefix/yt-artist/${Uri.encodeComponent(results.first.id)}',
+    extra: results.first.title,
+  );
 }
 
 class _TrackMenuSheet extends ConsumerWidget {
@@ -266,16 +286,17 @@ class _TrackMenuSheet extends ConsumerWidget {
                   // sunoh-api's artist endpoint can't resolve — they need
                   // the YouTube artist screen.
                   if (song.source == 'youtube') {
-                    Navigator.of(context).pop();
                     if (artist.id.isNotEmpty) {
-                      context.openYtArtist(artist.id, name: artist.name);
+                      _navigateToYtArtistAfterClose(
+                          context, artist.id, artist.name);
                     } else {
                       // No linked channel on this row. Happens for
                       // auto-generated art tracks whose byline isn't
                       // navigable, and for queue entries persisted before
                       // artist ids were captured. Resolve by name instead
                       // of dead-ending on a toast.
-                      _openYtArtistByName(context, ref, artist.name);
+                      _openYtArtistByName(context, ref, artist.name,
+                          fromPlayer: fromPlayer);
                     }
                     return;
                   }
@@ -337,6 +358,36 @@ class _TrackMenuSheet extends ConsumerWidget {
         ? ''
         : '?source=${Uri.encodeQueryComponent(src)}';
     goRouter.push('$prefix/${ref.kind}/${ref.id}$query');
+  }
+
+  /// Same close-then-navigate dance as [_navigateAfterClose], but for the
+  /// YouTube artist route.
+  ///
+  /// The context must NOT be used after the pop — that's why the router is
+  /// captured first. Popping the sheet and then calling a `context.push`
+  /// extension navigates from a dead route and silently does nothing,
+  /// which is exactly how this row appeared to "close and stay put".
+  void _navigateToYtArtistAfterClose(
+    BuildContext context,
+    String browseId,
+    String name,
+  ) {
+    final root = Navigator.of(context, rootNavigator: true);
+    final goRouter = GoRouter.of(context);
+    root.pop(); // sheet
+    if (fromPlayer && root.canPop()) {
+      root.pop(); // player
+    }
+    final loc = goRouter.state.matchedLocation;
+    final prefix = loc.startsWith('/search')
+        ? '/search'
+        : loc.startsWith('/library')
+            ? '/library'
+            : '/home';
+    goRouter.push(
+      '$prefix/yt-artist/${Uri.encodeComponent(browseId)}',
+      extra: name,
+    );
   }
 }
 

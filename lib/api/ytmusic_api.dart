@@ -815,20 +815,25 @@ class YtMusicApi {
     return null;
   }
 
-  /// Thumbnails, from either renderer shape.
+  /// Thumbnails, from any of the three shapes YouTube uses.
   ///
-  /// The renderers disagree on the key: list rows nest under `thumbnail`,
-  /// carousel cards under `thumbnailRenderer`. Checking only one silently
-  /// yields no art and the UI falls back to generated covers — which looks
-  /// like a styling bug rather than a parsing one. Try both.
+  /// The renderers disagree, and picking only one silently yields no art —
+  /// the UI then falls back to generated covers, which reads as a styling
+  /// bug rather than a parsing one:
+  ///
+  ///   list rows          thumbnail.musicThumbnailRenderer.thumbnail.thumbnails
+  ///   carousel cards     thumbnailRenderer.musicThumbnailRenderer.…
+  ///   queue rows         thumbnail.thumbnails   (no wrapper at all)
+  ///
+  /// The last is what `/next` returns for radio queues.
   List<ApiImage> _thumbnails(Map<String, dynamic> r) {
-    for (final key in const ['thumbnail', 'thumbnailRenderer']) {
-      final thumbs = _asList(_dig(r, [
-        key,
-        'musicThumbnailRenderer',
-        'thumbnail',
-        'thumbnails',
-      ]));
+    final candidates = <List<String>>[
+      ['thumbnail', 'musicThumbnailRenderer', 'thumbnail', 'thumbnails'],
+      ['thumbnailRenderer', 'musicThumbnailRenderer', 'thumbnail', 'thumbnails'],
+      ['thumbnail', 'thumbnails'],
+    ];
+    for (final path in candidates) {
+      final thumbs = _asList(_dig(r, path));
       if (thumbs.isEmpty) continue;
       final out = <ApiImage>[];
       for (final t in thumbs) {
