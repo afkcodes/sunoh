@@ -2,6 +2,10 @@ allprojects {
     repositories {
         google()
         mavenCentral()
+        // JitPack — serves MetrolistGroup/innertubex, the InnerTube
+        // extraction library behind the YouTube Music tier. Not on Maven
+        // Central; built from the GitHub tag by JitPack on first request.
+        maven { url = uri("https://jitpack.io") }
     }
 }
 

@@ -546,6 +546,7 @@ class SunohAudioHandler {
       if (song == null) return;
       final resolved = await _resolveForHook(song);
       if (resolved == null) return;
+      await _applyResolvedHeaders(resolved.httpHeaders);
       await _applyResolvedUrl(resolved.url);
       _mergeEnrichmentIfAny(song.id, resolved.enriched);
       await _applyPendingStartPosition(song.id);
@@ -586,6 +587,34 @@ class SunohAudioHandler {
 
   Future<void> _applyResolvedUrl(String url) =>
       _player.setRawProperty('stream-open-filename', url);
+
+  /// Push per-request HTTP headers into mpv ahead of the open.
+  ///
+  /// Only the YouTube tier needs this: googlevideo URLs are signed against
+  /// the InnerTube client that produced them, so a mismatched User-Agent
+  /// gets a 403 from the CDN. mpv's `http-header-fields` takes a
+  /// comma-separated `Key: Value` list.
+  ///
+  /// ALWAYS written — including the empty case — because the property is
+  /// global to the player, not per-entry. Leaving a previous track's
+  /// headers set would attach a YouTube User-Agent to the next saavn/gaana
+  /// request in the queue.
+  Future<void> _applyResolvedHeaders(Map<String, String>? headers) async {
+    final value = (headers == null || headers.isEmpty)
+        ? ''
+        : headers.entries
+            // mpv splits this list on commas, so a header value containing
+            // one would corrupt every field after it. None of the headers
+            // we get carry commas; drop any that do rather than risk it.
+            .where((e) => !e.key.contains(',') && !e.value.contains(','))
+            .map((e) => '${e.key}: ${e.value}')
+            .join(',');
+    try {
+      await _player.setRawProperty('http-header-fields', value);
+    } catch (e) {
+      debugPrint('[audio] could not set http-header-fields: $e');
+    }
+  }
 
   void _mergeEnrichmentIfAny(String songId, FeedItem? enriched) {
     if (enriched == null) return;

@@ -1,0 +1,65 @@
+// Riverpod wiring for the YouTube Music tier.
+//
+// Search/browse go straight to InnerTube over HTTP (see ytmusic_api.dart);
+// only stream resolution crosses the platform channel.
+
+import 'package:dio/dio.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+
+import '../api/dto.dart';
+import '../api/ytmusic_api.dart';
+
+/// A Dio dedicated to music.youtube.com.
+///
+/// Deliberately NOT the shared sunoh-api client: that one carries our base
+/// URL and API-specific headers, and none of those belong on a request to
+/// Google. Timeouts are generous — InnerTube browse responses run to several
+/// hundred KB.
+final _ytDioProvider = Provider<Dio>((ref) {
+  return Dio(BaseOptions(
+    connectTimeout: const Duration(seconds: 15),
+    receiveTimeout: const Duration(seconds: 30),
+    responseType: ResponseType.json,
+  ));
+});
+
+final ytMusicApiProvider =
+    Provider<YtMusicApi>((ref) => YtMusicApi(ref.watch(_ytDioProvider)));
+
+/// Song results, merged into the Search screen. Failure degrades to an
+/// absent section rather than an error state.
+final ytMusicSearchProvider =
+    FutureProvider.autoDispose.family<List<FeedItem>, String>((ref, query) {
+  if (query.trim().isEmpty) return Future.value(const <FeedItem>[]);
+  return ref.watch(ytMusicApiProvider).searchSongs(query);
+});
+
+/// The YouTube Music home feed, interleaved into the Music tab. Not
+/// autoDispose: it's a large response and the feed doesn't change minute to
+/// minute, so re-fetching on every tab switch would be wasteful.
+final ytMusicHomeProvider = FutureProvider<List<HomeSection>>((ref) {
+  return ref.watch(ytMusicApiProvider).home();
+});
+
+/// Mood and genre chips. Static enough to hold for the session.
+final ytMusicMoodsProvider = FutureProvider<List<YtCategoryGroup>>((ref) {
+  return ref.watch(ytMusicApiProvider).moodsAndGenres();
+});
+
+/// Key for a mood/genre category browse — both halves are opaque and must
+/// travel together.
+typedef YtCategoryKey = ({String browseId, String params});
+
+final ytMusicCategoryProvider = FutureProvider.autoDispose
+    .family<List<HomeSection>, YtCategoryKey>((ref, key) {
+  return ref.watch(ytMusicApiProvider).category(key.browseId, key.params);
+});
+
+final ytMusicPlaylistProvider = FutureProvider.autoDispose
+    .family<YtPlaylistDetail?, String>((ref, browseId) {
+  // Held briefly so back-navigation out of a playlist and straight back in
+  // doesn't re-fetch a 100-track response.
+  final link = ref.keepAlive();
+  Future<void>.delayed(const Duration(minutes: 10)).then((_) => link.close());
+  return ref.watch(ytMusicApiProvider).playlist(browseId);
+});

@@ -9,6 +9,7 @@ import '../api/dto.dart';
 import '../data/models.dart';
 import '../providers/app_state_provider.dart';
 import '../providers/home_provider.dart';
+import '../providers/ytmusic_provider.dart';
 import '../providers/palette_provider.dart';
 import '../audio/radio_actions.dart';
 import '../router/router.dart';
@@ -20,6 +21,8 @@ import '../widgets/ui.dart';
 // Tab implementations: Music (the original /music/home feed), Podcasts
 // (backed by /podcasts/home via `podcastHomeProvider`, since v1.5.5),
 // and Audiobooks (cozyaudiobooks.com, since v1.8.0).
+import '../api/ytmusic_api.dart' show YtCategoryChip;
+import 'ytmusic_screens.dart' show YtCategoryChipTile, kYtChipRowGap;
 import 'audiobooks_tab.dart';
 import 'podcasts_tab.dart';
 
@@ -182,6 +185,132 @@ class _TabLabel extends StatelessWidget {
   }
 }
 
+/// Horizontal strip of YouTube Music mood/genre chips, with a "See all"
+/// into the full index. Renders nothing until the chips load, so a slow or
+/// failed fetch just leaves the feed as it was.
+class _MoodsRow extends ConsumerWidget {
+  const _MoodsRow({required this.colors});
+  final SunohColors colors;
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final c = colors;
+    final groups = ref.watch(ytMusicMoodsProvider).asData?.value;
+    if (groups == null || groups.isEmpty) return const SizedBox.shrink();
+
+    // Flatten across grids ("Moods & moments" then "Genres") and take a
+    // sample — the full 49 chips live behind See all.
+    final chips = [for (final g in groups) ...g.chips].take(21).toList();
+    if (chips.isEmpty) return const SizedBox.shrink();
+
+    // Lay out as a horizontally-scrolling grid of `rows` stacked chips
+    // rather than one long line: three short rows fit far more categories
+    // in the same vertical space and read as a browsable block instead of
+    // an endless strip. Falls back to fewer rows when there aren't enough
+    // chips to fill them.
+    final rows = chips.length >= 9 ? 3 : (chips.length >= 4 ? 2 : 1);
+    final columns = <List<YtCategoryChip>>[];
+    for (var i = 0; i < chips.length; i += rows) {
+      columns.add(chips.sublist(i, (i + rows).clamp(0, chips.length)));
+    }
+    final gridHeight = YtCategoryChipTile.height * rows +
+        kYtChipRowGap * (rows - 1);
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Padding(
+          padding: const EdgeInsets.fromLTRB(20, 0, 20, 14),
+          child: Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              Text('Moods & genres',
+                  style: SunohType.heading(
+                      fontSize: 19, color: c.fg, letterSpacing: -0.2)),
+              GestureDetector(
+                onTap: () => context.openYtMoods(),
+                behavior: HitTestBehavior.opaque,
+                child: Row(
+                  children: [
+                    Text('See all',
+                        style:
+                            SunohType.sans(fontSize: 12.5, color: c.fgMute)),
+                    const SizedBox(width: 4),
+                    Icon(SolarIconsOutline.altArrowRight,
+                        size: 14, color: c.fgMute),
+                  ],
+                ),
+              ),
+            ],
+          ),
+        ),
+        SizedBox(
+          height: gridHeight,
+          child: ListView.separated(
+            scrollDirection: Axis.horizontal,
+            padding: const EdgeInsets.symmetric(horizontal: 20),
+            itemCount: columns.length,
+            separatorBuilder: (_, _) => const SizedBox(width: 10),
+            itemBuilder: (context, col) {
+              final cells = columns[col];
+              return Column(
+                mainAxisAlignment: MainAxisAlignment.start,
+                children: [
+                  for (var r = 0; r < rows; r++) ...[
+                    if (r > 0) const SizedBox(height: kYtChipRowGap),
+                    // Short trailing columns keep their slots so the grid
+                    // stays rectangular instead of ragged at the edge.
+                    if (r < cells.length)
+                      YtCategoryChipTile(
+                        chip: cells[r],
+                        colors: c,
+                        width: 148,
+                      )
+                    else
+                      const SizedBox(
+                          width: 148, height: YtCategoryChipTile.height),
+                  ],
+                ],
+              );
+            },
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+/// How many primary-feed sections to show between each interleaved
+/// YouTube Music row. 3 keeps sunoh's own feed dominant while surfacing the
+/// YouTube rows well before the user hits the bottom.
+const int _kYtInterleaveEvery = 3;
+
+/// Weave [secondary] sections into [primary], one after every [everyN]
+/// primary sections. Leftover secondary sections are appended.
+///
+/// Slot 0 is never taken: the first section gets the featured treatment and
+/// should stay sunoh's own.
+List<HomeSection> _interleave({
+  required List<HomeSection> primary,
+  required List<HomeSection> secondary,
+  required int everyN,
+}) {
+  if (secondary.isEmpty) return primary;
+  if (primary.isEmpty) return secondary;
+
+  final out = <HomeSection>[];
+  final queue = [...secondary];
+  for (var i = 0; i < primary.length; i++) {
+    out.add(primary[i]);
+    final placed = i + 1;
+    if (placed % everyN == 0 && queue.isNotEmpty) {
+      out.add(queue.removeAt(0));
+    }
+  }
+  out.addAll(queue);
+  return out;
+}
+
 // ── Music tab ──────────────────────────────────────────────────────────────
 // Live data: fetches the unified /music/home feed and renders each section
 // (preserves the design system — Gilroy, squircles, 40px inter-section gaps).
@@ -214,14 +343,37 @@ class MusicTab extends ConsumerWidget {
             onRetry: () => ref.invalidate(homeFeedProvider(s.selectedLanguagesCsv)),
           );
         }
+        // YouTube Music rows. Watched separately (not awaited alongside the
+        // main feed) so a slow or failing InnerTube response never holds up
+        // or breaks the home screen — the rows simply aren't there.
+        final ytSections =
+            ref.watch(ytMusicHomeProvider).asData?.value ?? const <HomeSection>[];
+        final ytNonEmpty =
+            ytSections.where((s) => s.items.isNotEmpty).toList();
+
+        // Interleave rather than append. Bolting them on the end buries them
+        // below a long feed, and makes the tail read as a separate app. The
+        // first slot is deliberately left to sunoh's own featured section.
+        final merged = _interleave(
+          primary: nonEmpty,
+          secondary: ytNonEmpty,
+          everyN: _kYtInterleaveEvery,
+        );
+
         return Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            for (var i = 0; i < nonEmpty.length; i++) ...[
+            for (var i = 0; i < merged.length; i++) ...[
               if (i > 0) SizedBox(height: gap),
               // First section gets the big feature-tile treatment (matches the
               // prototype's "Editorial picks" hierarchy).
-              _ApiSection(section: nonEmpty[i], colors: c, featured: i == 0),
+              _ApiSection(section: merged[i], colors: c, featured: i == 0),
+              // Moods & genres sits after the first couple of rows — high
+              // enough to be discoverable, not so high it displaces the feed.
+              if (i == 1) ...[
+                SizedBox(height: gap),
+                _MoodsRow(colors: c),
+              ],
             ],
             const SizedBox(height: 20),
           ],
@@ -314,6 +466,16 @@ class _ApiSection extends ConsumerWidget {
   ) {
     final s = ref.read(appStateProvider);
     final src = item.source ?? sectionSource;
+
+    // YouTube items are routed separately: their ids are YouTube browse ids
+    // (VLRDCLAK5uy_…), which sunoh-api's album/playlist endpoints can't
+    // resolve. Songs still fall through to the shared `song` case below —
+    // those play via the resolver's native YouTube tier.
+    if (src == 'youtube' && item.type != 'song') {
+      context.openYtItem(item);
+      return;
+    }
+
     switch (item.type) {
       case 'album':
         context.openRef(DetailRef('album', item.id, source: src));

@@ -16,6 +16,7 @@ import 'package:mpv_audio_kit/mpv_audio_kit.dart';
 import 'package:permission_handler/permission_handler.dart';
 
 import 'api/client.dart';
+import 'api/ytmusic_channel.dart';
 import 'api/stream_resolver.dart';
 import 'audio/audio_handler.dart';
 import 'audio/audio_repo.dart';
@@ -259,6 +260,11 @@ class _RootState extends ConsumerState<_Root> {
     // route + the rootNavigatorKey context is live. Without this, a cold
     // start from a link races the router and the dispatch is a no-op.
     WidgetsBinding.instance.addPostFrameCallback((_) => _wireDeepLinks());
+    // Warm the YouTube Music PO-token WebView. A cold mint costs a WebView
+    // spin-up plus BotGuard evaluation (~2-5s); doing it now means the first
+    // YouTube track the user taps doesn't pay for it. Fire-and-forget — the
+    // channel swallows its own failures, and a cold resolve still works.
+    unawaited(YtMusicChannel.instance.prewarm());
   }
 
   Future<void> _wireDeepLinks() async {

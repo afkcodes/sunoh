@@ -1,5 +1,6 @@
 import java.util.Properties
 import java.io.FileInputStream
+import org.jetbrains.kotlin.gradle.dsl.JvmTarget
 
 plugins {
     id("com.android.application")
@@ -39,16 +40,15 @@ android {
     // [[sunoh-android-signing]]) means installing this Flutter build over
     // the RN one is treated as an upgrade by Android, not a fresh install.
     namespace = "codes.afk.sunoh"
-    compileSdk = flutter.compileSdkVersion
+    // Pinned (not flutter.compileSdkVersion): innertubex-android requires
+    // consumers to compile against API 37+. Flutter's default trails that,
+    // so it's set explicitly here. targetSdk/minSdk are unaffected.
+    compileSdk = 37
     ndkVersion = flutter.ndkVersion
 
     compileOptions {
         sourceCompatibility = JavaVersion.VERSION_17
         targetCompatibility = JavaVersion.VERSION_17
-    }
-
-    kotlinOptions {
-        jvmTarget = JavaVersion.VERSION_17.toString()
     }
 
     defaultConfig {
@@ -86,6 +86,49 @@ android {
     }
 }
 
+// Kotlin 2.4 removed the `kotlinOptions { jvmTarget = ... }` DSL inside the
+// android block; jvmTarget now lives on the Kotlin extension's compilerOptions.
+kotlin {
+    compilerOptions {
+        jvmTarget.set(JvmTarget.JVM_17)
+    }
+}
+
 flutter {
     source = "../.."
+}
+
+dependencies {
+    // ── YouTube Music tier ───────────────────────────────────────────────
+    // InnerTube extraction (client ladder, cipher/n-transform, format
+    // selection, self-healing remote player configs) from the Metrolist
+    // project. GPL-3.0 — see LICENSE at the repo root; linking this is
+    // why sunoh is GPL-3.0.
+    //
+    // The catalog of playback clients is re-benchmarked upstream as Google
+    // rotates its bot checks, and player configs are fetched at RUNTIME,
+    // so most breakages heal without an APK release.
+    implementation("com.github.MetrolistGroup.innertubex:innertubex-android:v0.2.6")
+
+    // Coroutines — the extractor's public surface is `suspend`, and the
+    // MethodChannel handler bridges those calls onto Flutter's platform
+    // thread.
+    implementation("org.jetbrains.kotlinx:kotlinx-coroutines-android:1.10.2")
+
+    // Ktor + OkHttp — InnerTubeX takes a caller-owned Ktor HttpClient and
+    // we hand it the OkHttp engine (already present transitively, but
+    // declared so the PO-token WebView's direct OkHttp use is explicit).
+    implementation("io.ktor:ktor-client-okhttp:3.0.3")
+    // Required by the InnerTube call shape: every response is read via
+    // `.body<T>()`, which needs a JSON converter installed on the client.
+    implementation("io.ktor:ktor-client-content-negotiation:3.0.3")
+    implementation("io.ktor:ktor-serialization-kotlinx-json:3.0.3")
+    implementation("io.ktor:ktor-client-encoding:3.0.3")
+    implementation("com.squareup.okhttp3:okhttp:4.12.0")
+
+    // The PO-token WebView parses BotGuard challenge payloads as JSON.
+    implementation("org.jetbrains.kotlinx:kotlinx-serialization-json:1.7.3")
+
+    // ArrayMap, used by the ported PO-token WebView.
+    implementation("androidx.collection:collection-ktx:1.4.5")
 }

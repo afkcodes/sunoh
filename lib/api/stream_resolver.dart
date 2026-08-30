@@ -23,6 +23,7 @@
 import 'package:dio/dio.dart';
 
 import '../audio/url_refresh.dart';
+import 'ytmusic_channel.dart';
 import 'dto.dart';
 
 /// User stream-quality preference. `auto` and `high` both prefer the highest
@@ -76,6 +77,14 @@ class StreamResolver {
   /// paths so the URL-refresh flow can't return a stale cached URL.
   void invalidate(String songId) => _cache.remove(songId);
 
+  /// The current quality preference as the string form the native YouTube
+  /// resolver expects.
+  String _qualityParam() => switch (quality) {
+        StreamQuality.high => 'high',
+        StreamQuality.data => 'data',
+        StreamQuality.auto => 'auto',
+      };
+
   /// Convenience setter for the Hive-persisted string form used in the UI.
   /// Unknown values fall back to `auto`.
   void setQualityFromString(String value) {
@@ -117,6 +126,22 @@ class StreamResolver {
       } catch (_) {
         // Local lookup failed — fall through to the network tiers.
       }
+    }
+
+    // 0b) YouTube Music. Resolved natively (see lib/api/ytmusic_channel.dart
+    //     for why it can't be done from Dart) and never cached here — the
+    //     native side owns client selection and PO-token lifetime, and its
+    //     URLs carry their own expiry which we surface to the refresh
+    //     scheduler. Bails after one attempt: no other tier can resolve a
+    //     `youtube` id.
+    if (song.source == 'youtube') {
+      final yt = await YtMusicChannel.instance
+          .resolve(song.id, quality: _qualityParam());
+      if (yt == null) {
+        throw StreamResolveException(
+            'No playable stream for "${song.title}" (${song.id}).');
+      }
+      return ResolvedStream(yt.url, httpHeaders: yt.headers);
     }
 
     if (forceRefresh) {
@@ -295,9 +320,16 @@ class StreamResolveException implements Exception {
 /// lookup hit `/music/song/:id`, the enriched FeedItem with artist /
 /// duration / subtitle data that search responses leave empty.
 class ResolvedStream {
-  ResolvedStream(this.url, {this.enriched});
+  ResolvedStream(this.url, {this.enriched, this.httpHeaders});
   final String url;
   final FeedItem? enriched;
+
+  /// Headers the media fetch must carry, or null when the URL needs none.
+  ///
+  /// Only the YouTube tier sets this: googlevideo URLs are signed against
+  /// the InnerTube client that minted them, so the User-Agent has to match
+  /// or the CDN answers 403. Applied to mpv via `http-header-fields`.
+  final Map<String, String>? httpHeaders;
 }
 
 /// Cache entry — the resolved stream + the parsed signed-URL expiry (if

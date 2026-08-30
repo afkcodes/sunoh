@@ -30,6 +30,7 @@ import '../screens/audiobook_detail_screen.dart';
 import '../screens/podcast_categories_screen.dart';
 import '../screens/podcast_category_screen.dart';
 import '../screens/spotify_import_screen.dart';
+import '../screens/ytmusic_screens.dart';
 import '../screens/podcast_show_screen.dart';
 import '../screens/section_screen.dart';
 import '../screens/settings_screen.dart';
@@ -244,6 +245,37 @@ List<RouteBase> _detailRoutes() => [
         path: 'spotify-import',
         pageBuilder: (c, s) => _slideRight(const SpotifyImportScreen(), s),
       ),
+      // ── YouTube Music ──────────────────────────────────────────────
+      // Separate from the generic detail routes because YouTube browse ids
+      // (VLRDCLAK5uy_…, FEmusic_…) mean nothing to sunoh-api.
+      GoRoute(
+        path: 'yt-playlist/:id',
+        pageBuilder: (c, s) => _slideRight(
+            YtPlaylistScreen(
+              browseId: Uri.decodeComponent(s.pathParameters['id']!),
+              name: s.extra is String ? s.extra as String : null,
+            ),
+            s),
+      ),
+      GoRoute(
+        path: 'yt-moods',
+        pageBuilder: (c, s) => _slideRight(const YtMoodsScreen(), s),
+      ),
+      GoRoute(
+        path: 'yt-category/:id',
+        pageBuilder: (c, s) {
+          // `params` is opaque and travels with the browseId; passed via
+          // extra alongside the display name rather than in the path.
+          final extra = s.extra is Map ? s.extra as Map : const {};
+          return _slideRight(
+              YtCategoryScreen(
+                browseId: Uri.decodeComponent(s.pathParameters['id']!),
+                params: (extra['params'] ?? '').toString(),
+                name: extra['name'] as String?,
+              ),
+              s);
+        },
+      ),
       GoRoute(
         path: 'audiobook-categories',
         pageBuilder: (c, s) =>
@@ -420,6 +452,36 @@ extension SunohNav on BuildContext {
       '$_branchPrefix/podcast-category/${Uri.encodeComponent(slug)}',
       extra: name);
   void openSpotifyImport() => push('$_branchPrefix/spotify-import');
+  /// Open a YouTube Music playlist/album track list.
+  void openYtPlaylist(String browseId, {String? name}) =>
+      push('$_branchPrefix/yt-playlist/${Uri.encodeComponent(browseId)}',
+          extra: name);
+
+  /// The moods & genres index.
+  void openYtMoods() => push('$_branchPrefix/yt-moods');
+
+  /// One mood/genre category.
+  void openYtCategory({
+    required String browseId,
+    required String params,
+    String? name,
+  }) =>
+      push('$_branchPrefix/yt-category/${Uri.encodeComponent(browseId)}',
+          extra: {'params': params, 'name': name});
+
+  /// Dispatch a YouTube feed item by type. Songs play immediately (there's
+  /// no track detail screen); collections open their track list.
+  void openYtItem(FeedItem item) {
+    switch (item.type) {
+      case 'playlist':
+      case 'album':
+        openYtPlaylist(item.id, name: item.title);
+      default:
+        // Artists and unknown types have no destination yet.
+        break;
+    }
+  }
+
   void openAudiobookCategories() =>
       push('$_branchPrefix/audiobook-categories');
   void openAudiobookCategory(int id, {String? name}) =>

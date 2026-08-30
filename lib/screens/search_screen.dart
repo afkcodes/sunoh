@@ -13,6 +13,7 @@ import '../overlays/track_menu_sheet.dart';
 import '../providers/app_state_provider.dart';
 import '../providers/audiobook_provider.dart';
 import '../providers/podcast_provider.dart';
+import '../providers/ytmusic_provider.dart';
 import '../providers/search_provider.dart';
 import '../router/deep_links.dart';
 import '../router/router.dart';
@@ -202,7 +203,7 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
                     decoration: InputDecoration(
                       isCollapsed: true,
                       border: InputBorder.none,
-                      hintText: 'Artists, songs, podcasts, stations…',
+                      hintText: 'Artists, songs, podcasts, audiobooks…',
                       hintStyle:
                           SunohType.sans(fontSize: 15, color: c.fgMute),
                     ),
@@ -332,6 +333,7 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
     final podcastAsync = ref.watch(podcastSearchProvider(_activeQuery));
     final audiobookAsync =
         ref.watch(audiobookSearchProvider(_activeQuery));
+    final ytAsync = ref.watch(ytMusicSearchProvider(_activeQuery));
     return async.when(
       loading: () => const _ResultsSkeleton(),
       error: (e, _) => _SearchHint(
@@ -352,6 +354,17 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
         final audiobooks = audiobookAsync.asData?.value ?? const <FeedItem>[];
         if (audiobooks.isNotEmpty) {
           nonEmpty.add(HomeSection(heading: 'Audiobooks', items: audiobooks));
+        }
+        // YouTube Music songs. These carry source='youtube', which routes
+        // them to the native resolver tier on tap — the rest of the row
+        // rendering and the `song` tap case need no special casing.
+        final ytSongs = ytAsync.asData?.value ?? const <FeedItem>[];
+        if (ytSongs.isNotEmpty) {
+          nonEmpty.add(HomeSection(
+            heading: 'YouTube Music',
+            items: ytSongs,
+            source: 'youtube',
+          ));
         }
         if (nonEmpty.isEmpty) {
           return _SearchHint(
