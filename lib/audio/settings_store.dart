@@ -32,6 +32,8 @@ class SavedPlayback {
     this.languages,
     this.endlessAutoplay,
     this.sponsorBlock,
+    this.ytCountry,
+    this.ytLanguage,
   });
   final String? streamQuality; // 'auto' / 'high' / 'data'
   /// Persisted as the `LoopMode.name` ('off' / 'all' / 'one'). Null on
@@ -45,6 +47,10 @@ class SavedPlayback {
   /// track and appends the songs. Null on fresh installs (treated as off).
   final bool? endlessAutoplay;
   final bool? sponsorBlock;
+
+  /// Explicit YouTube region / interface language. Null means auto-detect.
+  final String? ytCountry;
+  final String? ytLanguage;
 }
 
 class SettingsStore {
@@ -72,6 +78,9 @@ class SettingsStore {
   // Skip non-music segments (sponsor reads, intros/outros) on YouTube
   // tracks using community SponsorBlock data.
   static const _kSponsorBlock = 'playback.sponsorblock';
+  // Explicit YouTube region / interface language. Empty string = auto.
+  static const _kYtCountry = 'playback.yt_country';
+  static const _kYtLanguage = 'playback.yt_language';
 
   // Search
   static const _kSearchRecents = 'search.recents';
@@ -220,6 +229,8 @@ class SettingsStore {
     List<String>? languages,
     bool? endlessAutoplay,
     bool? sponsorBlock,
+    String? ytCountry,
+    String? ytLanguage,
   }) async {
     final box = await _box();
     final map = <String, dynamic>{};
@@ -231,6 +242,10 @@ class SettingsStore {
     if (languages != null) map[_kLanguages] = languages;
     if (endlessAutoplay != null) map[_kEndlessAutoplay] = endlessAutoplay;
     if (sponsorBlock != null) map[_kSponsorBlock] = sponsorBlock;
+    // Empty string is meaningful here: it's how "back to auto" is stored,
+    // since a null would be indistinguishable from "don't change this".
+    if (ytCountry != null) map[_kYtCountry] = ytCountry;
+    if (ytLanguage != null) map[_kYtLanguage] = ytLanguage;
     if (map.isEmpty) return;
     await box.putAll(map);
     await box.flush();
@@ -250,6 +265,8 @@ class SettingsStore {
         languages: langs,
         endlessAutoplay: box.get(_kEndlessAutoplay) as bool?,
         sponsorBlock: box.get(_kSponsorBlock) as bool?,
+        ytCountry: box.get(_kYtCountry) as String?,
+        ytLanguage: box.get(_kYtLanguage) as String?,
       );
     } catch (e) {
       debugPrint('[settings-store] loadPlayback failed: $e');

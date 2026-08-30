@@ -7,7 +7,9 @@ import 'package:dio/dio.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../api/dto.dart';
+import '../api/yt_locale.dart';
 import '../api/ytmusic_api.dart';
+import 'app_state_provider.dart';
 
 /// A Dio dedicated to music.youtube.com.
 ///
@@ -23,8 +25,26 @@ final _ytDioProvider = Provider<Dio>((ref) {
   ));
 });
 
-final ytMusicApiProvider =
-    Provider<YtMusicApi>((ref) => YtMusicApi(ref.watch(_ytDioProvider)));
+final ytLocaleResolverProvider =
+    Provider<YtLocaleResolver>((ref) => YtLocaleResolver(ref.watch(_ytDioProvider)));
+
+/// The region/language every YouTube request is made for.
+///
+/// Watches AppState so flipping the override in Settings rebuilds the API
+/// client, and the autoDispose feed providers below re-fetch against the
+/// new region rather than serving a stale country's charts.
+final ytLocaleProvider = Provider<YtLocale>((ref) {
+  final s = ref.watch(appStateProvider);
+  return ref.watch(ytLocaleResolverProvider).resolve(
+        countryOverride: s.ytCountryOverride,
+        languageOverride: s.ytLanguageOverride,
+      );
+});
+
+final ytMusicApiProvider = Provider<YtMusicApi>((ref) => YtMusicApi(
+      ref.watch(_ytDioProvider),
+      locale: ref.watch(ytLocaleProvider),
+    ));
 
 /// Song results, merged into the Search screen. Failure degrades to an
 /// absent section rather than an error state.

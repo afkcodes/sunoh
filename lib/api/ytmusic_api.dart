@@ -16,6 +16,7 @@
 import 'package:dio/dio.dart';
 
 import 'dto.dart';
+import 'yt_locale.dart';
 
 /// The YouTube Music web client. No API key or auth needed for search/browse.
 const _kClientName = 'WEB_REMIX';
@@ -107,16 +108,21 @@ class YtArtistDetail {
 }
 
 class YtMusicApi {
-  YtMusicApi(this._dio);
+  YtMusicApi(this._dio, {this.locale = YtLocale.fallback});
   final Dio _dio;
 
-  Map<String, dynamic> _context({String? country}) => {
+  /// Region and interface language for every request. `gl` in particular
+  /// decides which charts and home rows come back, so a wrong value is the
+  /// difference between Indian and American content.
+  final YtLocale locale;
+
+  Map<String, dynamic> get _context => {
         'context': {
           'client': {
             'clientName': _kClientName,
             'clientVersion': _kClientVersion,
-            'hl': 'en',
-            'gl': country ?? 'IN',
+            'hl': locale.language,
+            'gl': locale.country,
           },
         },
       };
@@ -147,10 +153,10 @@ class YtMusicApi {
 
   /// Full-text song search. Items carry `source: 'youtube'` and the videoId
   /// as `id`, which routes them to StreamResolver's native YouTube tier.
-  Future<List<FeedItem>> searchSongs(String query, {String? country}) async {
+  Future<List<FeedItem>> searchSongs(String query) async {
     if (query.trim().isEmpty) return const [];
     final body = await _post('search', {
-      ..._context(country: country),
+      ..._context,
       'query': query,
       'params': _kSongsOnlyParams,
     });
@@ -166,22 +172,20 @@ class YtMusicApi {
   }
 
   /// Artist results. Their ids are channel ids that open the artist page.
-  Future<List<FeedItem>> searchArtists(String query, {String? country}) =>
-      _searchFiltered(query, _kArtistsOnlyParams, country: country);
+  Future<List<FeedItem>> searchArtists(String query) =>
+      _searchFiltered(query, _kArtistsOnlyParams);
 
   /// Album results.
-  Future<List<FeedItem>> searchAlbums(String query, {String? country}) =>
-      _searchFiltered(query, _kAlbumsOnlyParams, country: country);
+  Future<List<FeedItem>> searchAlbums(String query) =>
+      _searchFiltered(query, _kAlbumsOnlyParams);
 
   Future<List<FeedItem>> _searchFiltered(
     String query,
-    String params, {
-    String? country,
-  }) async {
+    String params) async {
     if (query.trim().isEmpty) return const [];
     try {
       final body = await _post('search', {
-        ..._context(country: country),
+        ..._context,
         'query': query,
         'params': params,
       });
@@ -210,12 +214,12 @@ class YtMusicApi {
   ///
   /// Fetched concurrently; any page that fails contributes nothing rather
   /// than failing the feed.
-  Future<List<HomeSection>> home({String? country}) async {
+  Future<List<HomeSection>> home() async {
     final pages = await Future.wait([
-      _browseSections('FEmusic_home', country: country),
-      _browseSections('FEmusic_explore', country: country),
-      _browseSections('FEmusic_charts', country: country),
-      _browseSections('FEmusic_new_releases', country: country),
+      _browseSections('FEmusic_home'),
+      _browseSections('FEmusic_explore'),
+      _browseSections('FEmusic_charts'),
+      _browseSections('FEmusic_new_releases'),
     ]);
 
     // Dedupe by heading — `New albums & singles` shows up on both explore
@@ -234,12 +238,10 @@ class YtMusicApi {
   }
 
   Future<List<HomeSection>> _browseSections(
-    String browseId, {
-    String? country,
-  }) async {
+    String browseId) async {
     try {
       final body = await _post('browse', {
-        ..._context(country: country),
+        ..._context,
         'browseId': browseId,
       });
       if (body == null) return const [];
@@ -250,9 +252,9 @@ class YtMusicApi {
   }
 
   /// An artist page: header, top songs, and the discography carousels.
-  Future<YtArtistDetail?> artist(String browseId, {String? country}) async {
+  Future<YtArtistDetail?> artist(String browseId) async {
     final body = await _post('browse', {
-      ..._context(country: country),
+      ..._context,
       'browseId': browseId,
     });
     if (body == null) {
@@ -343,10 +345,9 @@ class YtMusicApi {
   Future<List<FeedItem>> radioQueue({
     required String videoId,
     required String playlistId,
-    String? country,
   }) async {
     final body = await _post('next', {
-      ..._context(country: country),
+      ..._context,
       'videoId': videoId,
       'playlistId': playlistId,
       'isAudioOnly': true,
@@ -453,9 +454,9 @@ class YtMusicApi {
   }
 
   /// Mood and genre chip grids (`FEmusic_moods_and_genres`).
-  Future<List<YtCategoryGroup>> moodsAndGenres({String? country}) async {
+  Future<List<YtCategoryGroup>> moodsAndGenres() async {
     final body = await _post('browse', {
-      ..._context(country: country),
+      ..._context,
       'browseId': 'FEmusic_moods_and_genres',
     });
     if (body == null) return const [];
@@ -495,11 +496,9 @@ class YtMusicApi {
   /// Contents of one mood/genre category — carousels of playlists.
   Future<List<HomeSection>> category(
     String browseId,
-    String params, {
-    String? country,
-  }) async {
+    String params) async {
     final body = await _post('browse', {
-      ..._context(country: country),
+      ..._context,
       'browseId': browseId,
       'params': params,
     });
@@ -512,10 +511,9 @@ class YtMusicApi {
   /// Playlist detail uses a two-column layout: the header (title, art,
   /// description) sits in the primary column and the track list in
   /// `secondaryContents` — unlike home/search, which are single-column.
-  Future<YtPlaylistDetail?> playlist(String browseId,
-      {String? country}) async {
+  Future<YtPlaylistDetail?> playlist(String browseId) async {
     final body = await _post('browse', {
-      ..._context(country: country),
+      ..._context,
       'browseId': browseId,
     });
     if (body == null) return null;

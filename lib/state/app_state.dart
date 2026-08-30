@@ -188,6 +188,8 @@ class AppState extends ChangeNotifier with WidgetsBindingObserver {
       // would keep it off forever despite the default being on.
       sponsorBlockEnabled = play?.sponsorBlock ?? true;
       repo.sponsorBlock.enabled = sponsorBlockEnabled;
+      ytCountryOverride = play?.ytCountry ?? '';
+      ytLanguageOverride = play?.ytLanguage ?? '';
       final recents = await repo.settings.loadSearchRecents();
       if (recents.isNotEmpty) _searchRecents = recents;
       // Privacy — load the analytics opt-out before notifying. A null
@@ -338,6 +340,12 @@ class AppState extends ChangeNotifier with WidgetsBindingObserver {
   /// Skip non-music segments (sponsor reads, intros/outros, talking
   /// sections) on YouTube tracks using community SponsorBlock data.
   bool sponsorBlockEnabled = true;
+
+  /// Explicit YouTube region / interface language, or empty for auto.
+  /// `gl` decides which charts and home rows YouTube returns, so this is
+  /// the difference between Indian and American content.
+  String ytCountryOverride = '';
+  String ytLanguageOverride = '';
 
   /// User-facing opt-out for Firebase Analytics. On by default; flipping
   /// to false calls `AnalyticsService.setEnabled(false)` which both
@@ -2093,6 +2101,22 @@ class AppState extends ChangeNotifier with WidgetsBindingObserver {
     if (!enabled) repo?.sponsorBlock.clear();
     notifyListeners();
     await repo?.settings.savePlayback(sponsorBlock: enabled);
+  }
+
+  /// Set an explicit YouTube region, or '' to go back to auto-detect.
+  Future<void> setYtCountry(String code) async {
+    if (ytCountryOverride == code) return;
+    ytCountryOverride = code;
+    notifyListeners();
+    await audioRepo?.settings.savePlayback(ytCountry: code);
+  }
+
+  /// Set an explicit YouTube interface language, or '' for auto.
+  Future<void> setYtLanguage(String code) async {
+    if (ytLanguageOverride == code) return;
+    ytLanguageOverride = code;
+    notifyListeners();
+    await audioRepo?.settings.savePlayback(ytLanguage: code);
   }
 
   /// Privacy: flip Firebase Analytics collection on/off. Disable hits

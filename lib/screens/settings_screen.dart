@@ -14,7 +14,10 @@ import 'package:solar_icons/solar_icons.dart';
 import 'package:url_launcher/url_launcher.dart';
 
 import '../audio/storage_stats.dart';
+import '../api/yt_locale.dart';
 import '../overlays/language_sheet.dart';
+import '../overlays/yt_locale_sheet.dart';
+import '../providers/ytmusic_provider.dart';
 import '../providers/app_state_provider.dart';
 import '../providers/languages_provider.dart';
 import '../providers/update_provider.dart';
@@ -140,6 +143,18 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
                     'Keep music going by seeding a radio when the queue ends.',
                 value: s.endlessAutoplay,
                 onChange: (v) => s.setEndlessAutoplay(v),
+                colors: c,
+              ),
+              _NavRow(
+                label: 'YouTube region',
+                summary: _ytRegionSummary(ref, s),
+                onTap: () => showYtRegionSheet(context),
+                colors: c,
+              ),
+              _NavRow(
+                label: 'YouTube language',
+                summary: _ytLanguageSummary(ref, s),
+                onTap: () => showYtLanguageSheet(context),
                 colors: c,
               ),
               _ToggleRow(
@@ -857,6 +872,20 @@ class _DonationAction extends StatelessWidget {
 /// kicks in). Reads from the languages provider to map slugs → names —
 /// the provider is autoDispose with 24-h keepAlive, so this read is
 /// cheap and won't bounce a refetch.
+/// "Auto (India)" or "United States" — always says what's in effect, so
+/// the row reads the same whether or not an override is set.
+String _ytRegionSummary(WidgetRef ref, AppState s) {
+  final locale = ref.watch(ytLocaleProvider);
+  final name = kYtRegions[locale.country] ?? locale.country;
+  return locale.countryIsAuto ? 'Auto ($name)' : name;
+}
+
+String _ytLanguageSummary(WidgetRef ref, AppState s) {
+  final locale = ref.watch(ytLocaleProvider);
+  final name = kYtLanguages[locale.language] ?? locale.language;
+  return locale.languageIsAuto ? 'Auto ($name)' : name;
+}
+
 String _languagesSummary(WidgetRef ref, AppState s) {
   final selected = s.selectedLanguages;
   if (selected.isEmpty) return 'All defaults';
