@@ -11,10 +11,8 @@ import '../api/dto.dart';
 import '../data/models.dart';
 import '../overlays/track_menu_sheet.dart';
 import '../providers/app_state_provider.dart';
-import '../audio/audio_handler.dart' show PlayMode;
 import '../providers/audiobook_provider.dart';
 import '../providers/podcast_provider.dart';
-import '../providers/radio_provider.dart';
 import '../providers/search_provider.dart';
 import '../router/deep_links.dart';
 import '../router/router.dart';
@@ -327,12 +325,11 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
       return const _ResultsSkeleton();
     }
     final async = ref.watch(searchProvider(_activeQuery));
-    // Parallel podcast + radio searches. The three providers fire
+    // Parallel podcast + audiobook searches. The providers fire
     // independently; we merge results when the music search resolves.
     // Either side failing degrades gracefully — its section just
     // doesn't appear in the list.
     final podcastAsync = ref.watch(podcastSearchProvider(_activeQuery));
-    final radioAsync = ref.watch(radioSearchProvider(_activeQuery));
     final audiobookAsync =
         ref.watch(audiobookSearchProvider(_activeQuery));
     return async.when(
@@ -344,17 +341,13 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
       ),
       data: (sections) {
         final nonEmpty = sections.where((sec) => sec.items.isNotEmpty).toList();
-        // Merge podcast + radio results in as HomeSection-shaped rows
-        // so the existing _ResultsSection renderer can draw the tiles
-        // unchanged. Both `type` discriminators (`podcast`, `radio_station`)
-        // already route correctly in _ResultsSection's switch.
+        // Merge podcast + audiobook results in as HomeSection-shaped
+        // rows so the existing _ResultsSection renderer can draw the
+        // tiles unchanged. Their `type` discriminators (`podcast`,
+        // `audiobook`) already route correctly in _ResultsSection.
         final podcasts = podcastAsync.asData?.value ?? const <FeedItem>[];
         if (podcasts.isNotEmpty) {
           nonEmpty.add(HomeSection(heading: 'Podcasts', items: podcasts));
-        }
-        final radios = radioAsync.asData?.value ?? const <FeedItem>[];
-        if (radios.isNotEmpty) {
-          nonEmpty.add(HomeSection(heading: 'Radio stations', items: radios));
         }
         final audiobooks = audiobookAsync.asData?.value ?? const <FeedItem>[];
         if (audiobooks.isNotEmpty) {
@@ -398,16 +391,6 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
                   colors: c,
                   onPlay: (song) => s.playApiSong(song,
                       sourceLabel: 'SEARCH · $_activeQuery'),
-                  // Live streams need PlayMode.live so the audio
-                  // handler takes the single-entry path (no playlist
-                  // auto-advance, EOF means stream dropped → URL
-                  // refresh).
-                  onPlayStation: (station) => s.playApiQueue(
-                    [station],
-                    0,
-                    sourceLabel: 'RADIO · ${station.title}',
-                    mode: PlayMode.live,
-                  ),
                 ),
               ),
               if (i < ordered.length - 1) const SizedBox(height: 20),
@@ -527,7 +510,6 @@ class _SectionPills extends StatelessWidget {
     final h = heading.trim();
     final lower = h.toLowerCase();
     if (lower.contains('top result') || lower == 'topquery') return 'Top';
-    if (lower.contains('radio')) return 'Radio';
     if (lower.contains('podcast')) return 'Podcasts';
     return h.isEmpty
         ? '—'
@@ -544,15 +526,10 @@ class _ResultsSection extends StatelessWidget {
     required this.section,
     required this.colors,
     required this.onPlay,
-    required this.onPlayStation,
   });
   final HomeSection section;
   final SunohColors colors;
   final void Function(FeedItem song) onPlay;
-  /// Separate from [onPlay] because radio stations need PlayMode.live —
-  /// the regular playApiSong path uses PlayMode.track which would treat
-  /// the stream as a finite file (no auto-refresh on stream-drop EOF).
-  final void Function(FeedItem station) onPlayStation;
 
   @override
   Widget build(BuildContext context) {
@@ -572,15 +549,10 @@ class _ResultsSection extends StatelessWidget {
               switch (item.type) {
                 case 'song':
                   onPlay(item);
-                case 'radio_station':
-                  // Live streams — tap-to-play. No detail screen for
-                  // radios today; the player owns the now-playing UI
-                  // via the ICY title stream.
-                  onPlayStation(item);
                 case 'audiobook':
                   // Open the book detail screen — chapter list lives
                   // there; tapping a chapter row plays it via the
-                  // standard PlayMode.track queue.
+                  // standard track queue.
                   context.openAudiobook(item.id, item: item);
                 case 'album':
                 case 'playlist':

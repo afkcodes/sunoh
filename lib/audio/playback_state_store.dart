@@ -15,7 +15,6 @@ import 'package:flutter/foundation.dart';
 import 'package:hive_ce_flutter/hive_flutter.dart';
 
 import '../api/dto.dart';
-import '../audio/audio_handler.dart' show PlayMode;
 import '../data/models.dart';
 
 class SavedPlaybackState {
@@ -25,7 +24,6 @@ class SavedPlaybackState {
     required this.positionSec,
     this.sourceLabel,
     this.sourceRef,
-    this.playMode = PlayMode.track,
   });
   final List<FeedItem> queue;
   final int currentIndex;
@@ -36,13 +34,8 @@ class SavedPlaybackState {
   /// DetailRef of the album/playlist this queue was started from. Lets the
   /// player's track-menu sheet surface a "Go to Album/Playlist" row after
   /// restore. Null for restores from older saves OR for queues started
-  /// outside a detail screen (search, radio).
+  /// outside a detail screen (search, library shortcuts).
   final DetailRef? sourceRef;
-  /// Track-mode vs live-stream — restored verbatim so a radio queue
-  /// re-opens with PlayMode.live (single-entry, no auto-advance,
-  /// EOF-→-refresh semantics). Default `track` for backwards-compat
-  /// with saves that predate this field.
-  final PlayMode playMode;
 }
 
 class PlaybackStateStore {
@@ -59,9 +52,6 @@ class PlaybackStateStore {
   static const _kSourceRefKind = 'sourceRefKind';
   static const _kSourceRefId = 'sourceRefId';
   static const _kSourceRefProvider = 'sourceRefProvider';
-  // PlayMode persisted as enum name ('track' / 'live'). Stored separately
-  // so we don't have to bump a schema version when a new mode is added.
-  static const _kPlayMode = 'playMode';
 
   Future<Box> _box() async {
     if (Hive.isBoxOpen(_boxName)) return Hive.box(_boxName);
@@ -105,7 +95,6 @@ class PlaybackStateStore {
     required int positionSec,
     String? sourceLabel,
     DetailRef? sourceRef,
-    PlayMode playMode = PlayMode.track,
   }) async {
     if (queue.isEmpty) {
       await clear();
@@ -120,7 +109,6 @@ class PlaybackStateStore {
       _kSourceRefKind: sourceRef?.kind,
       _kSourceRefId: sourceRef?.id,
       _kSourceRefProvider: sourceRef?.source,
-      _kPlayMode: playMode.name,
     });
     // Force fsync — same reason as library_store / settings_store: without
     // flush, Hive buffers in memory and a process-kill mid-write drops
@@ -144,6 +132,18 @@ class PlaybackStateStore {
           .map((m) => FeedItem.fromJson(m.cast<String, dynamic>()))
           .toList();
       if (queue.isEmpty) return null;
+      // Live internet radio has been removed. A queue saved by an older
+      // build can still hold a `sunoh-radio` station, and nothing
+      // resolves those any more — restoring one would surface an
+      // unplayable entry on first launch after the update. Drop it and
+      // start clean instead.
+      final isRetiredRadio = queue.every((s) =>
+          s.source == 'sunoh-radio' || s.type == 'radio_station');
+      if (isRetiredRadio) {
+        debugPrint('[playback-store] dropping retired live-radio queue');
+        await box.clear();
+        return null;
+      }
       final idx = (box.get(_kIndex) as num?)?.toInt() ?? 0;
       final pos = (box.get(_kPosition) as num?)?.toInt() ?? 0;
       final src = box.get(_kSourceLabel) as String?;
@@ -153,21 +153,8 @@ class PlaybackStateStore {
       final ref = (refKind != null && refId != null && refId.isNotEmpty)
           ? DetailRef(refKind, refId, source: refProvider)
           : null;
-      // playMode: parse the persisted enum name back; default to track
-      // for saves that predate this field. A second-line guard infers
-      // 'live' from a single radio-station queue entry — covers saves
-      // that were written between v1.7.0 (PlayMode.live shipped) and
-      // this fix (where it wasn't yet persisted).
-      final modeRaw = box.get(_kPlayMode) as String?;
-      PlayMode playMode = PlayMode.values.firstWhere(
-        (m) => m.name == modeRaw,
-        orElse: () =>
-            (queue.length == 1 && queue.first.type == 'radio_station')
-                ? PlayMode.live
-                : PlayMode.track,
-      );
       debugPrint('[playback-store] loaded queue=${queue.length} '
-          'idx=$idx pos=${pos}s mode=$playMode '
+          'idx=$idx pos=${pos}s '
           'ref=${ref == null ? '-' : '${ref.kind}:${ref.id}'}');
       return SavedPlaybackState(
         queue: queue,
@@ -175,7 +162,6 @@ class PlaybackStateStore {
         positionSec: pos,
         sourceLabel: src,
         sourceRef: ref,
-        playMode: playMode,
       );
     } catch (e) {
       debugPrint('[playback-store] load failed: $e');

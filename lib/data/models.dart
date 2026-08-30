@@ -71,26 +71,6 @@ class Playlist {
   final String sub;
 }
 
-class Station {
-  const Station({
-    required this.id,
-    required this.name,
-    required this.freq,
-    required this.tag,
-    required this.live,
-    required this.listeners,
-  });
-
-  final String id;
-  final String name;
-  final String freq;
-  final String tag;
-  final String live;
-  final String listeners;
-
-  double get freqValue => double.parse(freq);
-}
-
 class Podcast {
   const Podcast({
     required this.id,

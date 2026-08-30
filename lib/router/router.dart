@@ -9,14 +9,12 @@
 //   root navigator, layered above the shell.
 
 import 'package:flutter/material.dart';
-import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
 import '../data/models.dart';
 import '../overlays/lyrics_screen.dart';
 import '../overlays/queue_screen.dart';
 import '../player/expanded_player.dart';
-import '../providers/app_state_provider.dart';
 import '../api/dto.dart';
 import '../screens/detail_screens.dart';
 import '../screens/downloads_screen.dart';
@@ -31,8 +29,6 @@ import '../screens/audiobook_category_screen.dart';
 import '../screens/audiobook_detail_screen.dart';
 import '../screens/podcast_categories_screen.dart';
 import '../screens/podcast_category_screen.dart';
-import '../screens/radio_genre_screen.dart';
-import '../screens/radio_genres_screen.dart';
 import '../screens/spotify_import_screen.dart';
 import '../screens/podcast_show_screen.dart';
 import '../screens/section_screen.dart';
@@ -249,17 +245,6 @@ List<RouteBase> _detailRoutes() => [
         pageBuilder: (c, s) => _slideRight(const SpotifyImportScreen(), s),
       ),
       GoRoute(
-        path: 'radio-genres',
-        pageBuilder: (c, s) => _slideRight(const RadioGenresScreen(), s),
-      ),
-      GoRoute(
-        path: 'radio-genre/:slug',
-        pageBuilder: (c, s) => _slideRight(
-            RadioGenreScreen(
-                genre: Uri.decodeComponent(s.pathParameters['slug']!)),
-            s),
-      ),
-      GoRoute(
         path: 'audiobook-categories',
         pageBuilder: (c, s) =>
             _slideRight(const AudiobookCategoriesScreen(), s),
@@ -381,15 +366,8 @@ extension SunohNav on BuildContext {
     return '/home';
   }
 
-  /// Navigate to a detail (or, for a station, start playback + open the player).
+  /// Navigate to a detail screen for [ref].
   void openRef(DetailRef ref) {
-    if (ref.kind == 'station') {
-      // Reach the AppState from the nearest ProviderScope (extension is on
-      // BuildContext, so we don't have a WidgetRef here).
-      ProviderScope.containerOf(this).read(appStateProvider).playStation(ref.id);
-      push('/player');
-      return;
-    }
     final src = ref.source;
     final query = (src == null || src.isEmpty)
         ? ''
@@ -442,9 +420,6 @@ extension SunohNav on BuildContext {
       '$_branchPrefix/podcast-category/${Uri.encodeComponent(slug)}',
       extra: name);
   void openSpotifyImport() => push('$_branchPrefix/spotify-import');
-  void openRadioGenres() => push('$_branchPrefix/radio-genres');
-  void openRadioGenre(String genre) =>
-      push('$_branchPrefix/radio-genre/${Uri.encodeComponent(genre)}');
   void openAudiobookCategories() =>
       push('$_branchPrefix/audiobook-categories');
   void openAudiobookCategory(int id, {String? name}) =>

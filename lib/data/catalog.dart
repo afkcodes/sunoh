@@ -53,15 +53,6 @@ const List<Playlist> kPlaylists = [
   Playlist(id: 'p06', title: 'Saturday Bedroom', curator: 'You', tracks: 47, hours: '3h 02m', sub: 'Long, warm, untidy.'),
 ];
 
-const List<Station> kStations = [
-  Station(id: 's01', name: 'KIOSK 92.3', freq: '92.3', tag: 'Late-night jazz', live: 'On air · Coltrane Variations', listeners: '3,402'),
-  Station(id: 's02', name: 'Tideline FM', freq: '88.7', tag: 'Ambient · Drone', live: 'On air · Long Wave Field', listeners: '1,180'),
-  Station(id: 's03', name: 'Chroma Public', freq: '101.9', tag: 'Public radio', live: 'On air · Morning Edition', listeners: '12.4K'),
-  Station(id: 's04', name: 'Mineral Beat', freq: '105.5', tag: 'House · Downtempo', live: 'On air · DJ Phyla', listeners: '6,718'),
-  Station(id: 's05', name: 'Holland Park', freq: '96.1', tag: 'Indie · New releases', live: 'On air · Sundown Mix', listeners: '4,902'),
-  Station(id: 's06', name: 'BBC-ish 4', freq: '94.2', tag: 'Talk · Documentaries', live: 'On air · The Reading Room', listeners: '8,201'),
-];
-
 const List<Podcast> kPodcasts = [
   Podcast(id: 'pd01', title: 'Long Form, Slowly', host: 'Avery Park', cadence: 'Weekly', episodes: 142, sub: 'Two-hour conversations with the people building the small, strange things of the internet.'),
   Podcast(id: 'pd02', title: 'The Reading Room', host: 'Cleo Marsh', cadence: 'Twice weekly', episodes: 88, sub: 'Short essays read aloud — fiction, criticism, a little philosophy.'),
@@ -143,13 +134,6 @@ Artist? artistById(String id) {
 Playlist? playlistOf(String id) {
   for (final p in kPlaylists) {
     if (p.id == id) return p;
-  }
-  return null;
-}
-
-Station? stationOf(String id) {
-  for (final s in kStations) {
-    if (s.id == id) return s;
   }
   return null;
 }

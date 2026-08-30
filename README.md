@@ -1,17 +1,15 @@
 # sunoh.
 
 A quiet, editorial music-streaming app — Flutter implementation of the Claude
-Design prototype (`sunoh.html`). Streams music, radio, and podcasts with a
-premium, dark-editorial feel.
+Design prototype (`sunoh.html`). Streams music, podcasts, and audiobooks
+with a premium, dark-editorial feel.
 
 ## What's built
 
 All screens from the design, reachable from the bottom nav + top tabs:
 
-- **Home** — greeting, `Music / Radio / Podcasts` top tabs, recent grid,
+- **Home** — greeting, `Music / Podcasts / Audiobooks` top tabs, recent grid,
   editorial picks, daily mixes, new releases, artists, and a "Tonight" hero.
-- **Radio** — on-air hero, a draggable FM **dial** (87–108 MHz) with station
-  pins, saved stations, and category tiles.
 - **Podcasts** — continue listening, subscriptions, top-this-week.
 - **Search** — live filtering across songs/artists/albums/podcasts, recent
   queries, and genre tiles.

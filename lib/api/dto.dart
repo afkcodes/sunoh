@@ -792,20 +792,6 @@ class PodcastCategory {
       );
 }
 
-/// `{value, count}` — the facet shape returned by `/radios/genres`,
-/// `/radios/countries`, `/radios/languages`. Sorted desc by count
-/// server-side.
-class RadioFacet {
-  const RadioFacet({required this.value, required this.count});
-  final String value;
-  final int count;
-
-  factory RadioFacet.fromJson(Map<String, dynamic> j) => RadioFacet(
-        value: (j['value'] ?? '').toString(),
-        count: (j['count'] is num) ? (j['count'] as num).toInt() : 0,
-      );
-}
-
 // ── Spotify import ───────────────────────────────────────────────────────
 //
 // Result envelope returned by `GET /spotify/import?url=…`. The backend
@@ -958,113 +944,6 @@ class SpotifyImportResult {
   }
 }
 
-/// Status of a `GET /radios/:slug/now-playing` response.
-///
-///   * `pending` — first poll arrived; worker hasn't fingerprinted yet.
-///   * `matched` — Shazam returned a track; `track` is populated.
-///   * `noMatch` — worker ran but Shazam returned nothing (talk segment,
-///     instrumental break, low signal). UI falls back to ICY title /
-///     station name.
-enum RadioNowPlayingStatus { pending, matched, noMatch }
-
-/// Shazam-identified track currently playing on a live radio station.
-/// All fields nullable because shazamio returns partial responses on
-/// rare occasions (e.g. when the matched track is older and lacks an
-/// ISRC). UI should be tolerant of any single field being null and only
-/// hide the row when `title` AND `artist` are both null.
-class RadioNowPlayingTrack {
-  const RadioNowPlayingTrack({
-    this.title,
-    this.artist,
-    this.album,
-    this.released,
-    this.label,
-    this.image,
-    this.shazamId,
-    this.isrc,
-    this.genres,
-    this.shareUrl,
-  });
-  final String? title;
-  final String? artist;
-  final String? album;
-  final String? released;
-  final String? label;
-  /// Apple Music CDN art (400×400, high quality). Falls back to the
-  /// station logo when null.
-  final String? image;
-  final String? shazamId;
-  final String? isrc;
-  final List<String>? genres;
-  final String? shareUrl;
-
-  factory RadioNowPlayingTrack.fromJson(Map<String, dynamic> j) {
-    final genresRaw = j['genres'];
-    final genres = genresRaw is List
-        ? genresRaw.map((g) => g.toString()).toList()
-        : null;
-    return RadioNowPlayingTrack(
-      title: _decodeNullable(j['title']),
-      artist: _decodeNullable(j['artist']),
-      album: _decodeNullable(j['album']),
-      released: _decodeNullable(j['released']),
-      label: _decodeNullable(j['label']),
-      image: j['image'] as String?,
-      shazamId: j['shazam_id'] as String?,
-      isrc: j['isrc'] as String?,
-      genres: genres,
-      shareUrl: j['share_url'] as String?,
-    );
-  }
-}
-
-/// Now-playing snapshot for a station. Returned by the
-/// `/radios/:slug/now-playing` endpoint each time Flutter polls it
-/// while a station is playing. The polling itself is what keeps the
-/// backend worker fingerprinting that slug.
-class RadioNowPlaying {
-  const RadioNowPlaying({
-    required this.status,
-    required this.checkedAt,
-    required this.nextCheckAt,
-    this.track,
-    this.missCount = 0,
-    this.lastError,
-  });
-  final RadioNowPlayingStatus status;
-  /// Epoch seconds when the worker last fingerprinted. 0 when `pending`.
-  final int checkedAt;
-  /// Epoch seconds the worker plans to recheck. Drives the back-off:
-  /// if `(now - checkedAt)` is small, polling can be relaxed; if
-  /// `nextCheckAt < now`, a new match is imminent on the next poll.
-  final int nextCheckAt;
-  final RadioNowPlayingTrack? track;
-  final int missCount;
-  final String? lastError;
-
-  bool get matched => status == RadioNowPlayingStatus.matched && track != null;
-
-  factory RadioNowPlaying.fromJson(Map<String, dynamic> j) {
-    final raw = (j['status'] as String?)?.toLowerCase();
-    final status = switch (raw) {
-      'matched' => RadioNowPlayingStatus.matched,
-      'no_match' => RadioNowPlayingStatus.noMatch,
-      _ => RadioNowPlayingStatus.pending,
-    };
-    final trackJson = j['track'];
-    return RadioNowPlaying(
-      status: status,
-      checkedAt: (j['checkedAt'] as num?)?.toInt() ?? 0,
-      nextCheckAt: (j['nextCheckAt'] as num?)?.toInt() ?? 0,
-      track: trackJson is Map
-          ? RadioNowPlayingTrack.fromJson(trackJson.cast<String, dynamic>())
-          : null,
-      missCount: (j['missCount'] as num?)?.toInt() ?? 0,
-      lastError: j['lastError'] as String?,
-    );
-  }
-}
-
 /// Audiobook detail = book metadata + chapter playlist. Returned by
 /// `/audiobooks/:slug`. The chapter array is shaped as FeedItem (with
 /// `type: 'song'` so the existing player + queue handle them natively),
@@ -1108,10 +987,9 @@ class AudiobookDetail {
   }
 }
 
-/// One row from `/audiobooks/categories` — same shape the radios /
-/// podcasts facet endpoints use; reusing `RadioFacet` would be a stretch
-/// because audiobooks carry an id (numeric WP cat id) and slug instead
-/// of a free value/count pair.
+/// One row from `/audiobooks/categories` — close to the podcasts facet
+/// shape, but audiobooks carry an id (numeric WP cat id) and slug
+/// instead of a free value/count pair.
 class AudiobookCategory {
   const AudiobookCategory({
     required this.id,

@@ -5,7 +5,7 @@
 //     engine queue via `AppState.apiUpNext` / `audioRepo.queueListenable`,
 //     and `apiHistory`. Drag-reorder, tap-to-jump, ×-remove, clear-all
 //     delegate through AppState → AudioRepo → mpv playlist mutations.
-//   - Dummy mode: keeps the legacy Track-based path (radio stations etc.).
+//   - Dummy mode: keeps the legacy Track-based catalog path.
 
 import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
@@ -387,7 +387,7 @@ String? _fmtDuration(String? raw) {
   return '$m:${s.toString().padLeft(2, '0')}';
 }
 
-// ── Dummy mode (legacy Track-based) — kept for radio stations etc. ──────────
+// ── Dummy mode (legacy Track-based catalog path) ───────────────────────────
 
 class _DummyQueueBody extends StatelessWidget {
   const _DummyQueueBody(

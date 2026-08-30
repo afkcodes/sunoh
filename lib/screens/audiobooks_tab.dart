@@ -1,6 +1,6 @@
 // Audiobooks tab — multi-section feed from /audiobooks/home.
 //
-// Visually shares language with the radio + podcast tabs: a top-of-tab
+// Visually shares language with the podcasts tab: a top-of-tab
 // header strip (eyebrow + "Browse" chip), then a stream of horizontal
 // strips of squircle tiles. Two tile kinds:
 //   - audiobook tile (cover + title + author)
@@ -35,7 +35,7 @@ class AudiobooksTab extends ConsumerWidget {
     // scrolling for this whole branch. Using Expanded + ListView here
     // (as a sibling of the heading row) would force a Flex parent and
     // collapse the list to 0 px height inside the SingleChildScrollView
-    // wrapper → blank tab. PodcastsTab + RadioTab follow the same
+    // wrapper → blank tab. PodcastsTab follows the same
     // straight-children pattern.
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -128,8 +128,8 @@ class AudiobooksTab extends ConsumerWidget {
   }
 }
 
-/// One horizontal strip — SectionHeader (shared with music/podcasts/
-/// radio so the title styling is consistent across tabs) + a scrolling
+/// One horizontal strip — SectionHeader (shared with music + podcasts
+/// so the title styling is consistent across tabs) + a scrolling
 /// row of tiles. The chip strip ("Browse genres") is a special case:
 /// renders short chip rows instead of cover tiles.
 class _AudiobookSection extends StatelessWidget {

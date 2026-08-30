@@ -28,16 +28,7 @@
 //     expiry handling is unchanged. Mid-track refresh now uses
 //     `player.replace(currentIndex, media)` which the docs document as
 //     prefetch-driven (gapless) when index == current.
-//   - `StreamResolver.localSource` (downloads extension seam) and
-//     `PlayMode.track` vs `.live` (internet-radio mode).
-//
-// **PlayMode.live** semantics:
-//   - Single-entry "playlist": just `open(media)` (no `openAll`).
-//   - mpv has no next track to advance to. `endFile` with `reason=eof`
-//     means the live source dropped → URL refresh, same source.
-//   - Repeat / prefetch are irrelevant in live mode.
-//   - `metadata` events carry the ICY `icy-title` for the now-playing
-//     stream, surfaced via `icyTitleStream`.
+//   - `StreamResolver.localSource` (the downloads extension seam).
 
 import 'dart:async';
 
@@ -52,14 +43,6 @@ import 'url_refresh.dart';
 
 /// Placeholder scheme — mpv asks us to resolve this in the on_load hook.
 const _placeholderScheme = 'sunoh-song://';
-
-/// Track-content type. Branches several places in the handler:
-///   - [track]: finite content, mpv's internal playlist drives advance,
-///     pre-resolve fires for the next entry, repeat modes apply.
-///   - [live]: continuous ICY / internet-radio stream. Single-entry mode
-///     (no `openAll`); EOF means the source dropped → URL refresh; no
-///     pre-resolve, no repeat.
-enum PlayMode { track, live }
 
 class SunohAudioHandler {
   SunohAudioHandler({required this.resolver}) {
@@ -163,7 +146,6 @@ class SunohAudioHandler {
           'len=${list.length} '
           'from="${from?.title ?? '?'}" (${from?.id ?? '?'}) '
           '→ to="${to?.title ?? '?'}" (${to?.id ?? '?'})');
-      _icyTitleCtl.add(null); // new track → reset ICY title
       _emitCurrentSong();
     }
   }
@@ -227,8 +209,6 @@ class SunohAudioHandler {
   }
 
   // ── Mode + repeat ──────────────────────────────────────────────────────
-  PlayMode _playMode = PlayMode.track;
-  PlayMode get playMode => _playMode;
 
   /// Pushed from `AppState.cycleRepeat`. Maps directly to mpv's `Loop`
   /// enum: off ↔ off, one ↔ file, all ↔ playlist.
@@ -258,16 +238,12 @@ class SunohAudioHandler {
       StreamController<bool>.broadcast();
   final StreamController<FeedItem?> _currentSongCtl =
       StreamController<FeedItem?>.broadcast();
-  final StreamController<String?> _icyTitleCtl =
-      StreamController<String?>.broadcast();
 
   Stream<Duration> get positionStream => _positionCtl.stream;
   Stream<Duration> get durationStream => _durationCtl.stream;
   Stream<bool> get playingStream => _playingCtl.stream;
   Stream<FeedItem?> get currentSongStream =>
       _currentSongCtl.stream.distinct((a, b) => a?.id == b?.id);
-  Stream<String?> get icyTitleStream => _icyTitleCtl.stream.distinct();
-
   void _emitCurrentSong() {
     if (_currentIndex < 0 || _currentIndex >= queue.length) {
       _currentSongCtl.add(null);
@@ -335,7 +311,6 @@ class SunohAudioHandler {
     _subs.add(_player.stream.error.listen(_onError));
     _subs.add(_player.stream.log.listen(_onLog));
     _subs.add(_player.stream.hook.listen(_onHook));
-    _subs.add(_player.stream.metadata.listen(_onMetadata));
     // URL refresh cancels itself whenever the active track changes.
     _subs.add(currentSongStream.listen((_) => _urlRefresh.cancel()));
   }
@@ -350,12 +325,6 @@ class SunohAudioHandler {
         entry.level == LogLevel.fatal) {
       debugPrint('[mpv/${entry.prefix}] ${entry.level.name}: ${entry.text}');
     }
-  }
-
-  void _onMetadata(Map<String, String> meta) {
-    if (_playMode != PlayMode.live) return;
-    final title = meta['icy-title'] ?? meta['title'];
-    _icyTitleCtl.add(title?.trim().isEmpty == true ? null : title);
   }
 
   /// Wire the platform audio session as a music app + subscribe to
@@ -506,7 +475,6 @@ class SunohAudioHandler {
   // entry. We only react to *abnormal* endings here:
   //   - `endFile reason=eof` mid-stream (position significantly short
   //     of duration) → network drop → URL refresh.
-  //   - `endFile reason=eof` in PlayMode.live → stream dropped → refresh.
   //   - Hard load errors → retry up to 2× per song id.
 
   void _onEndFile(MpvFileEndedEvent event) {
@@ -522,14 +490,7 @@ class SunohAudioHandler {
         'id="${song?.id ?? '?'}" title="${song?.title ?? '?'}"');
     if (event.reason != MpvEndFileReason.eof) return;
 
-    if (_playMode == PlayMode.live) {
-      // ignore: avoid_print
-      print('[audio] live stream EOF — reconnecting');
-      unawaited(_urlRefresh.triggerRefresh(reason: 'live stream EOF'));
-      return;
-    }
-
-    // Track mode: was this a natural end (mpv will auto-advance) or a
+    // Was this a natural end (mpv will auto-advance) or a
     // premature network drop? Compare position vs duration.
     final isPremature = dur > const Duration(seconds: 3) &&
         pos < dur - const Duration(seconds: 15) &&
@@ -677,11 +638,7 @@ class SunohAudioHandler {
     _pendingStartSongId = song.id;
     _forceRefreshNextResolve = true;
     try {
-      if (_playMode == PlayMode.live) {
-        await _player.open(_toMedia(song), play: _userPlaying);
-      } else {
-        await _player.replace(_currentIndex, _toMedia(song));
-      }
+      await _player.replace(_currentIndex, _toMedia(song));
       // ignore: avoid_print
       print('[url-refresh] reload OK ${song.id}');
     } catch (e) {
@@ -695,50 +652,33 @@ class SunohAudioHandler {
 
   // ── Public surface — driven by AudioRepo ──────────────────────────────
 
-  Future<void> setQueue(
-    List<FeedItem> songs,
-    int startIndex, {
-    PlayMode mode = PlayMode.track,
-  }) async {
+  Future<void> setQueue(List<FeedItem> songs, int startIndex) async {
     if (songs.isEmpty) return;
-    debugPrint('[audio] setQueue len=${songs.length} startIndex=$startIndex '
-        'mode=$mode');
-    _playMode = mode;
+    debugPrint('[audio] setQueue len=${songs.length} startIndex=$startIndex');
     for (final s in songs) {
       _byId[s.id] = s;
     }
     _loadFailRetries.clear();
-    _icyTitleCtl.add(null);
     _userPlaying = true;
     _pausedForInterruption = false;
     await _activateSession();
     final medias = songs.map(_toMedia).toList();
-    if (mode == PlayMode.live) {
-      // Single entry — no playlist auto-advance is meaningful for a live
-      // stream. Just open the one source.
-      await _player.open(medias[startIndex.clamp(0, medias.length - 1)],
-          play: true);
-    } else {
-      await _player.openAll(medias,
-          index: startIndex.clamp(0, medias.length - 1), play: true);
-    }
+    await _player.openAll(medias,
+        index: startIndex.clamp(0, medias.length - 1), play: true);
   }
 
   Future<void> prepareQueue(
     List<FeedItem> songs,
     int startIndex, {
     Duration? seekTo,
-    PlayMode mode = PlayMode.track,
   }) async {
     if (songs.isEmpty) return;
     debugPrint('[audio] prepareQueue len=${songs.length} idx=$startIndex '
-        'seek=${seekTo?.inSeconds}s mode=$mode');
-    _playMode = mode;
+        'seek=${seekTo?.inSeconds}s');
     for (final s in songs) {
       _byId[s.id] = s;
     }
     _loadFailRetries.clear();
-    _icyTitleCtl.add(null);
     _userPlaying = false;
     _pendingStartPosition = seekTo;
     // Tag the target song so the load hook only consumes the pending
@@ -749,11 +689,7 @@ class SunohAudioHandler {
     final clampedIdx = startIndex.clamp(0, songs.length - 1);
     _pendingStartSongId = seekTo != null ? songs[clampedIdx].id : null;
     final medias = songs.map(_toMedia).toList();
-    if (mode == PlayMode.live) {
-      await _player.open(medias[clampedIdx], play: false);
-    } else {
-      await _player.openAll(medias, index: clampedIdx, play: false);
-    }
+    await _player.openAll(medias, index: clampedIdx, play: false);
     // NOTE: there used to be an explicit `_player.seek(seekTo)` here as
     // a belt-and-braces companion to file-local-options/start. It made
     // the UI immediately show the saved position on cold restore, BUT
@@ -779,25 +715,14 @@ class SunohAudioHandler {
     // they fire perfectly, a 1-hour-TTL URL inevitably goes stale during
     // a long pause. Hitting `play()` with a stale URL trips mpv's
     // load-error retry → exhaustion → auto-advance, which surfaces as
-    // "wrong song plays" (track mode) or silently no-ops (live mode —
-    // single-entry playlist has nothing to advance to). Refresh
-    // inline before letting mpv resume.
-    //
-    // Live mode is ALWAYS refreshed on play: the live edge has moved
-    // on whether the pause was 10s or 10h, and the previously-buffered
-    // bytes are effectively a stale snapshot of "now". For track mode
-    // we gate on the URL refresh scheduler's safety check so short
+    // "wrong song plays". Refresh inline before letting mpv resume,
+    // gated on the URL refresh scheduler's safety check so short
     // pauses don't waste a round-trip.
     final song = currentSong;
-    if (song != null) {
-      final stale = _playMode == PlayMode.live ||
-          _urlRefresh.isPastSafetyFor(song.id);
-      if (stale) {
-        // ignore: avoid_print
-        print('[audio] play() refreshing ${song.id} ("${song.title}") '
-            'mode=$_playMode');
-        await _refreshCurrentTrack();
-      }
+    if (song != null && _urlRefresh.isPastSafetyFor(song.id)) {
+      // ignore: avoid_print
+      print('[audio] play() refreshing ${song.id} ("${song.title}")');
+      await _refreshCurrentTrack();
     }
 
     await _player.play();
@@ -903,7 +828,6 @@ class SunohAudioHandler {
 
   Future<void> clearQueue() async {
     _loadFailRetries.clear();
-    _icyTitleCtl.add(null);
     await _player.clearPlaylist();
     // Pre-clear our mirrors — the playlist stream will sync them too but
     // we want subsequent reads in the same microtask to see empty.
@@ -954,6 +878,5 @@ class SunohAudioHandler {
     await _playingCtl.close();
     await _currentSongCtl.close();
     await _enrichedCurrentSongCtl.close();
-    await _icyTitleCtl.close();
   }
 }

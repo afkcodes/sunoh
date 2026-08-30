@@ -11,7 +11,6 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:solar_icons/solar_icons.dart';
 
 import '../api/dto.dart';
-import '../audio/audio_handler.dart' show PlayMode;
 import '../data/models.dart';
 import '../data/user_playlist.dart';
 import '../providers/app_state_provider.dart';
@@ -251,10 +250,6 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen> {
         ],
         if (s.subscribedPodcasts.isNotEmpty) ...[
           _SubscribedShowsStrip(shows: s.subscribedPodcasts, colors: c),
-          const SizedBox(height: 18),
-        ],
-        if (s.likedStations.isNotEmpty) ...[
-          _LikedStationsStrip(stations: s.likedStations, colors: c),
           const SizedBox(height: 18),
         ],
         if (items.isEmpty)
@@ -828,91 +823,6 @@ class _SubscribedShowsStrip extends StatelessWidget {
                             overflow: TextOverflow.ellipsis,
                             style: SunohType.sans(
                                 fontSize: 11, color: c.fgMute)),
-                      ],
-                    ],
-                  ),
-                ),
-              );
-            },
-          ),
-        ),
-      ],
-    );
-  }
-}
-
-/// Liked radio stations row — horizontal carousel matching the Radio
-/// tab's tile shape (bare squircle cover + name + subtitle). Tap plays
-/// the station live (PlayMode.live); stations have no detail screen.
-class _LikedStationsStrip extends ConsumerWidget {
-  const _LikedStationsStrip({
-    required this.stations,
-    required this.colors,
-  });
-  final List<FeedItem> stations;
-  final SunohColors colors;
-
-  @override
-  Widget build(BuildContext context, WidgetRef ref) {
-    final c = colors;
-    final s = ref.read(appStateProvider);
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Padding(
-          padding: const EdgeInsets.fromLTRB(20, 0, 20, 10),
-          child: eyebrow('LIKED STATIONS', c.fgMute,
-              size: 10, letterSpacing: 1.4),
-        ),
-        SizedBox(
-          height: 158,
-          child: ListView.separated(
-            scrollDirection: Axis.horizontal,
-            padding: const EdgeInsets.symmetric(horizontal: 20),
-            itemCount: stations.length,
-            separatorBuilder: (_, _) => const SizedBox(width: 12),
-            itemBuilder: (context, i) {
-              final st = stations[i];
-              return GestureDetector(
-                onTap: () => s.playApiQueue(
-                  [st],
-                  0,
-                  sourceLabel: 'LIBRARY · ${st.title}',
-                  mode: PlayMode.live,
-                ),
-                behavior: HitTestBehavior.opaque,
-                child: SizedBox(
-                  width: 116,
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      squircleClip(
-                        radius: 14,
-                        child: SunohArt(
-                          id: st.id,
-                          imageUrl: st.artwork,
-                          size: 116,
-                          radius: 14,
-                        ),
-                      ),
-                      const SizedBox(height: 8),
-                      Text(st.title,
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
-                          style: SunohType.sans(
-                              fontSize: 12.5,
-                              fontWeight: FontWeight.w600,
-                              color: c.fg,
-                              height: 1.2)),
-                      if ((st.subtitle ?? '').isNotEmpty) ...[
-                        const SizedBox(height: 2),
-                        Text(st.subtitle!,
-                            maxLines: 1,
-                            overflow: TextOverflow.ellipsis,
-                            style: SunohType.sans(
-                                fontSize: 11,
-                                color: c.fgMute,
-                                height: 1.2)),
                       ],
                     ],
                   ),

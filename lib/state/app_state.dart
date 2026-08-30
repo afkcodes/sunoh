@@ -4,11 +4,9 @@
 import 'dart:async';
 import 'dart:math' show Random;
 
-import 'package:audio_service/audio_service.dart' show MediaItem;
 import 'package:flutter/material.dart';
 
 import '../api/dto.dart';
-import '../audio/audio_handler.dart' show PlayMode;
 import 'package:flutter_chrome_cast/enums.dart';
 
 import '../api/sunoh_api.dart';
@@ -103,8 +101,6 @@ class AppState extends ChangeNotifier with WidgetsBindingObserver {
         repo.library.loadSubscribedPodcasts(),
         repo.library.loadSubscribedPodcastIds(),
         repo.library.loadEpisodeProgress(),
-        repo.library.loadLikedStations(),
-        repo.library.loadLikedStationIds(),
       ]);
       _likedIds = results[0] as Set<String>;
       _likedSongs = results[1] as List<FeedItem>;
@@ -119,8 +115,6 @@ class AppState extends ChangeNotifier with WidgetsBindingObserver {
       _subscribedPodcasts = results[10] as List<FeedItem>;
       _subscribedPodcastIds = results[11] as Set<String>;
       _episodeProgress = results[12] as Map<String, int>;
-      _likedStations = results[13] as List<FeedItem>;
-      _likedStationIds = results[14] as Set<String>;
       notifyListeners();
       debugPrint('[library] restored liked=${_likedSongs.length} '
           'history=${_playedHistory.length} '
@@ -129,8 +123,7 @@ class AppState extends ChangeNotifier with WidgetsBindingObserver {
           'artists=${_savedArtists.length} '
           'userPlaylists=${_userPlaylists.length} '
           'podcasts=${_subscribedPodcasts.length} '
-          'episodeProgress=${_episodeProgress.length} '
-          'stations=${_likedStations.length}');
+          'episodeProgress=${_episodeProgress.length}');
     } catch (e) {
       debugPrint('[library] restore failed: $e');
     }
@@ -248,11 +241,6 @@ class AppState extends ChangeNotifier with WidgetsBindingObserver {
       apiSourceRef = saved.sourceRef;
       _applySong(song);
       position = saved.positionSec;
-      // Restore the live flag too — without this, a radio-station
-      // queue would re-mount with the track-mode player UI (scrubber,
-      // skip buttons) and tapping play after restore would silently
-      // no-op because the prior session reached EOF on the live entry.
-      _isLive = saved.playMode == PlayMode.live;
       // Engine is loaded but paused — UI shows "ready to play".
       isPlaying = false;
       // Guard against mpv's positionStream clobbering the restored value
@@ -417,7 +405,7 @@ class AppState extends ChangeNotifier with WidgetsBindingObserver {
 
   // ── Navigation ────────────────────────────────────────────────────────
   // Route navigation is owned by go_router now; AppState only keeps the
-  // home top-tab selection (Music | Radio | Podcasts).
+  // home top-tab selection (Music | Podcasts | Audiobooks).
   String topTab = 'Music';
 
   // ── Player ────────────────────────────────────────────────────────────
@@ -444,10 +432,6 @@ class AppState extends ChangeNotifier with WidgetsBindingObserver {
   // toggles a heart or a new track auto-plays.
   Set<String> _likedIds = const <String>{};
   List<FeedItem> _likedSongs = const <FeedItem>[];
-  /// Liked radio stations — own bucket so they don't pollute Liked
-  /// Songs. Newest-first; toggled via [toggleLikedStation].
-  Set<String> _likedStationIds = const <String>{};
-  List<FeedItem> _likedStations = const <FeedItem>[];
   List<FeedItem> _playedHistory = const <FeedItem>[];
 
   // Saved collections — same newest-first ordering as liked_songs,
@@ -954,8 +938,6 @@ class AppState extends ChangeNotifier with WidgetsBindingObserver {
 
   /// Full liked list — newest-first.
   List<FeedItem> get likedSongs => _likedSongs;
-  List<FeedItem> get likedStations => _likedStations;
-  bool isLikedStationId(String id) => _likedStationIds.contains(id);
 
   /// Last-played API songs — newest-first, capped at LibraryStore's max.
   List<FeedItem> get playedHistory => _playedHistory;
@@ -964,64 +946,17 @@ class AppState extends ChangeNotifier with WidgetsBindingObserver {
   bool isLikedId(String id) => _likedIds.contains(id);
 
   /// True when the currently-playing API item is liked. Drives the
-  /// heart in the expanded + mini players. Reads from the **correct**
-  /// bucket — songs go to liked songs, radio stations go to liked
-  /// stations — so a hearted station shows hearted on the player and
-  /// vice versa.
+  /// heart in the expanded + mini players.
   bool get isLikedCurrentApi {
     final song = currentApiSong;
     if (song == null) return likedCurrent; // dummy-path fallback
-    if (song.type == 'radio_station') {
-      return _likedStationIds.contains(song.id);
-    }
     return _likedIds.contains(song.id);
   }
 
-  /// Dispatcher — routes the heart action to the right bucket based on
-  /// the item's `type`. Radio stations go to [toggleLikedStation],
-  /// everything else (songs, episodes-treated-as-songs, …) goes to
-  /// [toggleLikedSong]. Use this from the player UI; surfaces that
-  /// know they're dealing with a song specifically can call
-  /// [toggleLikedSong] directly.
-  Future<void> toggleLikedApi(FeedItem item) =>
-      item.type == 'radio_station'
-          ? toggleLikedStation(item)
-          : toggleLikedSong(item);
-
-  /// Like / unlike a radio station. Independent bucket from
-  /// [toggleLikedSong] so hearting a station doesn't dump it into the
-  /// "Liked songs" list.
-  Future<void> toggleLikedStation(FeedItem station) async {
-    final repo = audioRepo;
-    if (repo == null) return;
-    final wasLiked = _likedStationIds.contains(station.id);
-    final shouldLike = !wasLiked;
-    _likedStationIds = {..._likedStationIds};
-    if (shouldLike) {
-      _likedStationIds.add(station.id);
-      _likedStations = [
-        station,
-        ..._likedStations.where((s) => s.id != station.id),
-      ];
-    } else {
-      _likedStationIds.remove(station.id);
-      _likedStations =
-          _likedStations.where((s) => s.id != station.id).toList();
-    }
-    flashToast(shouldLike ? 'Added to Liked stations' : 'Removed from Liked stations');
-    notifyListeners();
-    AnalyticsService.instance
-        .logLike(station.id, liked: shouldLike, title: station.title);
-    try {
-      final next = await repo.library
-          .setLikedStation(station: station, liked: shouldLike);
-      _likedStations = next;
-      _likedStationIds = next.map((s) => s.id).toSet();
-      notifyListeners();
-    } catch (e) {
-      debugPrint('[library] toggleLikedStation failed for ${station.id}: $e');
-    }
-  }
+  /// Heart action for the currently-playing API item. Kept as its own
+  /// entry point so player surfaces don't need to know which bucket
+  /// the item belongs to.
+  Future<void> toggleLikedApi(FeedItem item) => toggleLikedSong(item);
 
   /// Like / unlike an API song. Updates the in-memory cache, persists,
   /// and notifies listeners. Idempotent (calling twice with the same
@@ -1102,8 +1037,8 @@ class AppState extends ChangeNotifier with WidgetsBindingObserver {
   }
 
   // ── Playback timer ────────────────────────────────────────────────────
-  // The simulated clock only runs for dummy tracks (radio stations, podcasts
-  // — the catalog-backed paths). Real audio (FeedItem songs played through
+  // The simulated clock only runs for dummy tracks (the catalog-backed
+  // paths). Real audio (FeedItem songs played through
   // audioRepo) drives positionTick from the engine's position stream below.
   void _ensureTimer() {
     _tick?.cancel();
@@ -1165,18 +1100,6 @@ class AppState extends ChangeNotifier with WidgetsBindingObserver {
       if (currentApiSong == null) return;
       if (playing != isPlaying) {
         isPlaying = playing;
-        notifyListeners();
-      }
-    }));
-    // ICY title from live streams — "Now Playing: Artist - Song" or
-    // similar metadata embedded in the audio stream. Only meaningful
-    // in PlayMode.live; for track-mode the handler emits null on every
-    // track change (no-op for the UI).
-    _audioSubs.add(handler.icyTitleStream.listen((title) {
-      final clean = (title ?? '').trim();
-      final next = clean.isEmpty ? null : clean;
-      if (next != _icyTitle) {
-        _icyTitle = next;
         notifyListeners();
       }
     }));
@@ -1376,9 +1299,6 @@ class AppState extends ChangeNotifier with WidgetsBindingObserver {
     // restored track now and subsequent 0-reports from mpv (e.g. a new
     // track loading paused) shouldn't be filtered.
     _restoredPositionGuard = 0;
-    // ICY metadata is per-stream; clear so the UI doesn't briefly show
-    // the previous station's "Now Playing" against the new song's title.
-    _icyTitle = null;
     _refreshExtractedAccent(song.artwork);
     // Episode resume: when an episode becomes active and we have a
     // saved position for it, seek there. The seek queues against
@@ -1512,7 +1432,6 @@ class AppState extends ChangeNotifier with WidgetsBindingObserver {
     int startIndex, {
     String? sourceLabel,
     DetailRef? sourceRef,
-    PlayMode mode = PlayMode.track,
   }) async {
     if (songs.isEmpty) return;
     final startSong = songs[startIndex.clamp(0, songs.length - 1)];
@@ -1522,18 +1441,7 @@ class AppState extends ChangeNotifier with WidgetsBindingObserver {
     apiSourceRef = sourceRef;
     _applySong(startSong);
     isPlaying = true;
-    // Surface the live-vs-track distinction so the player UI can adapt
-    // (no scrubber / no skip buttons / no queue UI for radios).
-    _isLive = mode == PlayMode.live;
     _tick?.cancel();
-    // Now-playing Shazam polling — fires ONLY for live mode AND only
-    // when the source is sunoh-radio. Music + podcasts never trigger
-    // this; the source gate is the belt to the live-mode suspenders.
-    if (mode == PlayMode.live && startSong.source == 'sunoh-radio') {
-      _startNowPlayingPoll(startSong.id);
-    } else {
-      _stopNowPlayingPoll();
-    }
     notifyListeners();
 
     final repo = audioRepo;
@@ -1551,7 +1459,7 @@ class AppState extends ChangeNotifier with WidgetsBindingObserver {
       // queue forward to the receiver via the currentSongStream listener
       // in _bindAudio.
       await repo.playQueue(songs, startIndex,
-          sourceLabel: sourceLabel, sourceRef: sourceRef, mode: mode);
+          sourceLabel: sourceLabel, sourceRef: sourceRef);
       // Tap-to-play handoff: `_applySong(startSong)` above already set
       // `currentApiSong = startSong`. By the time mpv's
       // currentSongStream emits `startSong`, the listener at the top of
@@ -1571,129 +1479,6 @@ class AppState extends ChangeNotifier with WidgetsBindingObserver {
     } catch (e) {
       flashToast('Could not play: $e');
       isPlaying = false;
-      notifyListeners();
-    }
-  }
-
-  // ── Radio now-playing (Shazam) polling ────────────────────────────────
-  //
-  // Lifecycle: `_startNowPlayingPoll(slug)` is called by playApiQueue
-  // when entering live mode on a sunoh-radio station. It clears any
-  // existing state, fires an immediate fetch (so the UI gets out of
-  // its `pending` state ASAP), then ticks every 5 s. The polling
-  // itself signals "I'm listening" to the backend — see
-  // /radios/:slug/now-playing in sunoh-api. When the user switches
-  // queues, plays music/podcasts, or AppState disposes, the timer is
-  // cancelled and `_nowPlaying` is reset to null so the UI falls back
-  // to ICY title / station name.
-
-  /// Poll cadence. Worker re-fingerprints on a 30 s match / back-off
-  /// miss cadence on the backend, so anything ≤ ~5 s here is plenty —
-  /// the user-visible lag between a real song change and the dialog
-  /// updating is bounded by the worker, not the client.
-  static const Duration _kNowPlayingPollInterval = Duration(seconds: 5);
-
-  void _startNowPlayingPoll(String slug) {
-    // Already polling this slug → just keep ticking; no need to reset
-    // state (would flicker the player back to "pending").
-    if (_nowPlayingSlug == slug && _nowPlayingTimer?.isActive == true) return;
-    _nowPlayingTimer?.cancel();
-    _nowPlayingSlug = slug;
-    _nowPlaying = null;
-    _notificationShowsShazam = false;
-    // Snapshot the station's MediaItem so we can revert the OS
-    // notification back to it when Shazam returns no-match between
-    // songs. Built from currentApiSong because that's what
-    // audio_repo's _mediaItemFor would have just pushed via the bridge.
-    final song = currentApiSong;
-    _radioStationMediaItem = song != null ? _buildStationMediaItem(song) : null;
-    // Fire immediately so the first response lands ~5 s into playback
-    // rather than 5 s + the poll interval.
-    unawaited(_fetchNowPlayingOnce(slug));
-    _nowPlayingTimer = Timer.periodic(_kNowPlayingPollInterval, (_) {
-      if (_nowPlayingSlug != slug) return;
-      unawaited(_fetchNowPlayingOnce(slug));
-    });
-  }
-
-  Future<void> _fetchNowPlayingOnce(String slug) async {
-    final apiClient = api;
-    if (apiClient == null) return;
-    final res = await apiClient.fetchRadioNowPlaying(slug);
-    // Race-guard: the user may have switched stations / queues between
-    // the fetch starting and resolving. Drop a stale response on the
-    // floor rather than briefly flashing the wrong track.
-    if (_nowPlayingSlug != slug) return;
-    if (res == null) return;
-    _nowPlaying = res;
-    notifyListeners();
-    _pushNowPlayingToNotification(res);
-  }
-
-  /// Mirror the matched Shazam track into the OS media notification so
-  /// the lockscreen / pull-down shade / wearables show the actual track
-  /// (not just the station name). Reverts to the station MediaItem on
-  /// matched → no-match transitions. No-op when the audio engine isn't
-  /// wired yet (early startup) or no bridge attached.
-  void _pushNowPlayingToNotification(RadioNowPlaying res) {
-    final bridge = audioRepo?.bridge;
-    if (bridge == null) return;
-    if (res.matched && res.track != null) {
-      final t = res.track!;
-      bridge.onTrackChanged(MediaItem(
-        // Stable per-match id so the OS doesn't treat every poll as a
-        // brand-new track. `shazam:<id>` keys naturally — `<title|artist>`
-        // fallback covers the rare case shazamId is null.
-        id: 'shazam:${t.shazamId ?? '${t.title}|${t.artist}'}',
-        title: t.title ?? _radioStationMediaItem?.title ?? '',
-        artist: t.artist ?? _radioStationMediaItem?.artist ?? '',
-        album: t.album ?? '',
-        artUri: (t.image != null && t.image!.isNotEmpty)
-            ? Uri.tryParse(t.image!)
-            : _radioStationMediaItem?.artUri,
-        extras: const {'source': 'sunoh-radio'},
-      ));
-      _notificationShowsShazam = true;
-    } else if (_notificationShowsShazam &&
-        _radioStationMediaItem != null) {
-      // Just transitioned matched → no-match. Restore the station's
-      // MediaItem so the notification stops showing the previously-
-      // matched track once it's no longer airing.
-      bridge.onTrackChanged(_radioStationMediaItem!);
-      _notificationShowsShazam = false;
-    }
-  }
-
-  /// Construct a fresh MediaItem from a station FeedItem. Mirrors the
-  /// shape AudioRepo's `_mediaItemFor` produces — kept inline here
-  /// rather than reaching across the layer because (a) AudioRepo's
-  /// helper is private and (b) we only need this for the override-
-  /// revert path, which is a state-presentation concern.
-  MediaItem _buildStationMediaItem(FeedItem song) {
-    return MediaItem(
-      id: song.id,
-      title: song.title,
-      artist: (song.artists ?? const <ApiArtistRef>[])
-          .map((a) => a.name)
-          .where((n) => n.isNotEmpty)
-          .take(2)
-          .join(', '),
-      album: '',
-      artUri: (song.artwork ?? '').isEmpty
-          ? null
-          : Uri.tryParse(song.artwork!),
-      extras: {'source': song.source ?? ''},
-    );
-  }
-
-  void _stopNowPlayingPoll() {
-    _nowPlayingTimer?.cancel();
-    _nowPlayingTimer = null;
-    _nowPlayingSlug = null;
-    _radioStationMediaItem = null;
-    _notificationShowsShazam = false;
-    if (_nowPlaying != null) {
-      _nowPlaying = null;
       notifyListeners();
     }
   }
@@ -1857,55 +1642,6 @@ class AppState extends ChangeNotifier with WidgetsBindingObserver {
   // Only basic transport is wired in v1 (play / pause / disconnect).
   // Mid-track URL refresh on Cast, queue advance while casting, and
   // position sync from the receiver are v2.
-
-  /// True when the currently-playing item is a live stream
-  /// (`PlayMode.live` in the audio handler). Drives player-UI
-  /// adaptations: hide the scrubber, hide skip-prev/skip-next, etc.
-  /// — live streams have no duration / position / next-track. Set by
-  /// `playApiQueue` from its `mode` param; cleared back to false the
-  /// next time a track-mode queue is loaded.
-  bool _isLive = false;
-  bool get isLive => _isLive;
-
-  /// "Now playing" track metadata from the live stream's ICY/Shoutcast
-  /// title field. Format is usually "Artist - Song" but it's free-text
-  /// — anything from "Diverse FM - Tum Hi Ho" to "ad break" can land
-  /// here. Null when not in live mode OR the upstream hasn't emitted
-  /// any metadata yet. UI uses this as the primary text in player
-  /// surfaces (mini + expanded) when set, falling back to the station
-  /// name otherwise.
-  String? _icyTitle;
-  String? get icyTitle => _icyTitle;
-
-  /// Shazam-identified track currently playing on the live radio
-  /// station. Polled from `/radios/:slug/now-playing` every 5 s — the
-  /// polling itself is the "I'm listening" signal that keeps the
-  /// backend worker fingerprinting this slug. Null when:
-  ///   - not playing a radio station (track mode), OR
-  ///   - the backend worker hasn't matched anything yet (pending /
-  ///     no_match status).
-  /// UI consumers should prefer this over `icyTitle` when set —
-  /// shazam metadata is structured (title + artist + image + ISRC)
-  /// where ICY is just free-text. Fallback order in the player:
-  /// `nowPlaying.track → icyTitle → station name`.
-  RadioNowPlaying? _nowPlaying;
-  RadioNowPlaying? get nowPlaying => _nowPlaying;
-  /// Convenience: the matched track if any (i.e. `null` for pending /
-  /// no-match states). Lets UI write `s.nowPlayingTrack?.title` without
-  /// having to thread the status enum into every widget.
-  RadioNowPlayingTrack? get nowPlayingTrack =>
-      _nowPlaying?.matched == true ? _nowPlaying!.track : null;
-  Timer? _nowPlayingTimer;
-  String? _nowPlayingSlug;
-  /// Saved-off MediaItem for the station before we started overriding it
-  /// with Shazam metadata. Used to revert the OS notification back to
-  /// "station name + station logo" when Shazam transitions matched →
-  /// no-match (talk segment, instrumental break, ad).
-  MediaItem? _radioStationMediaItem;
-  /// Whether the notification is currently showing Shazam metadata
-  /// (instead of the station's own MediaItem). Lets us push a revert
-  /// exactly once on a matched → no-match transition.
-  bool _notificationShowsShazam = false;
 
   bool _isCasting = false;
   // Stamp the moment a cast session goes live so logCastDisconnect can
@@ -2321,19 +2057,6 @@ class AppState extends ChangeNotifier with WidgetsBindingObserver {
     notifyListeners();
   }
 
-  // Tune a radio station — synthesizes a "live" track and starts playback.
-  void playStation(String id) {
-    final s = stationOf(id);
-    playTrack(Track(
-      id: id,
-      title: s?.live ?? 'Live',
-      artist: s?.name ?? 'Radio',
-      duration: 6000,
-      plays: 'live',
-      album: id,
-    ));
-  }
-
   void setTopTab(String t) {
     topTab = t;
     notifyListeners();
@@ -2657,7 +2380,6 @@ class AppState extends ChangeNotifier with WidgetsBindingObserver {
     _tick?.cancel();
     _toastTimer?.cancel();
     _sleepTickTimer?.cancel();
-    _nowPlayingTimer?.cancel();
     for (final s in _audioSubs) {
       s.cancel();
     }
