@@ -283,6 +283,7 @@ class YtMusicApi {
     }
 
     final thumbs = header == null ? const <ApiImage>[] : _thumbnails(header);
+    final artistArt = _largestArt(thumbs);
     final description = _runsText(_asMap(header?['description']));
     final listeners = _runsText(_asMap(header?['monthlyListenerCount']));
 
@@ -324,7 +325,7 @@ class YtMusicApi {
       name: name,
       subtitle: listeners.isEmpty ? null : listeners,
       description: description.isEmpty ? null : description,
-      artwork: thumbs.isEmpty ? null : thumbs.last.link,
+      artwork: artistArt,
       topSongs: topSongs,
       sections: sections,
       radioVideoId: radio?.$1,
@@ -543,8 +544,7 @@ class YtMusicApi {
         title = _runsText(_asMap(h['title']));
         subtitle = _runsText(_asMap(h['subtitle']));
         description = _runsText(_asMap(h['description']));
-        final thumbs = _thumbnails(h);
-        if (thumbs.isNotEmpty) artwork = thumbs.last.link;
+        artwork = _largestArt(_thumbnails(h));
       }
     }
 
@@ -575,7 +575,15 @@ class YtMusicApi {
             for (final t in tracks)
               t.image.isNotEmpty
                   ? t
-                  : _withImages(t, [ApiImage(quality: '', link: headerArt)]),
+                  : _withImages(
+                      t,
+                      [
+                        ApiImage(
+                          quality: '${_kMaxArtSize}x$_kMaxArtSize',
+                          link: headerArt,
+                        )
+                      ],
+                    ),
           ];
 
     if (title.isEmpty && withArt.isEmpty) return null;
@@ -888,6 +896,22 @@ class YtMusicApi {
       if (out.isNotEmpty) return out;
     }
     return const [];
+  }
+
+  /// Pick the biggest rendition from a variant list.
+  ///
+  /// Not `.last` — that only works while the API happens to return
+  /// ascending sizes, and a header rendered from the smallest variant is a
+  /// silent, hard-to-spot quality regression.
+  String? _largestArt(List<ApiImage> images) {
+    if (images.isEmpty) return null;
+    int width(ApiImage i) {
+      final m = RegExp(r'(\d+)').firstMatch(i.quality);
+      return m == null ? 0 : (int.tryParse(m.group(1)!) ?? 0);
+    }
+
+    final sorted = [...images]..sort((a, b) => width(b).compareTo(width(a)));
+    return sorted.first.link;
   }
 
   /// Largest square dimension worth requesting.
