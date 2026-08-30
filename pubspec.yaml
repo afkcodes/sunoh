@@ -65,12 +65,22 @@ dependencies:
   # Solar icon set — replaces Material icons everywhere for a consistent
   # outline-style aesthetic. Use SolarIconsOutline by default and
   # SolarIconsBold for active/selected states.
-  solar_icons: ^0.0.5
+  solar_icons: ^0.1.0
   # Phosphor for the playback controls (play/pause/skip/shuffle/repeat).
   # Solar's filled play/pause looked off — Phosphor's Fill weight has
   # better proportions for media buttons. Used ONLY for transport icons;
   # everything else stays on Solar.
-  phosphor_flutter: ^2.1.0
+  #
+  # NOTE: this is `phosphor_icons`, NOT the original `phosphor_flutter`.
+  # Flutter 3.43 marked `IconData` final, and phosphor_flutter 2.1.0
+  # (last released 2024-05, upstream has had doc-only commits since)
+  # subclasses it — so it no longer compiles at all. phosphor_icons is a
+  # maintained fork that ships `typedef PhosphorIconData = IconData` and
+  # the same `PhosphorIconsFill/Bold.*` constants, so the swap was a
+  # one-line import change per file. Revisit if phosphor_flutter ever
+  # ships a fix.
+  # https://docs.flutter.dev/release/breaking-changes/icondata-class-marked-final
+  phosphor_icons: ^3.0.1
   # Used by the Settings → Support sunoh. card for the UPI deep link
   # (upi://pay?pa=…) + the Buy Me A Coffee URL fallback. canLaunchUrl
   # gracefully reports when no UPI app is installed so we can fall back
