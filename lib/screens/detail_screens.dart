@@ -845,18 +845,6 @@ class AlbumLikeBodyState extends ConsumerState<AlbumLikeBody> {
   // Drives the hero shrink + sticky header fade-in. ValueNotifier so the
   // animated bits rebuild independently of the whole tree on each tick.
   late final ValueNotifier<double> _offset;
-  /// In-list filter. Empty = show everything. Non-empty = case-
-  /// insensitive substring match against track title + joined artist
-  /// names. Only surfaced as an input when the list is long enough to
-  /// warrant it (see `_kFilterMinSongs`).
-  final TextEditingController _filterCtl = TextEditingController();
-  String _filter = '';
-
-  /// Threshold below which the in-list search row stays hidden.
-  /// Filtering a 6-track audiobook chapter list isn't useful, so don't
-  /// charge a row of chrome for it.
-  static const int _kFilterMinSongs = 10;
-
   @override
   void initState() {
     super.initState();
@@ -871,24 +859,9 @@ class AlbumLikeBodyState extends ConsumerState<AlbumLikeBody> {
 
   @override
   void dispose() {
-    _filterCtl.dispose();
     _scroll.dispose();
     _offset.dispose();
     super.dispose();
-  }
-
-  /// Lower-cased substring match against `title` + joined artist names.
-  /// Returns the input unchanged when the filter is empty.
-  List<FeedItem> _filterSongs(List<FeedItem> songs) {
-    if (_filter.trim().isEmpty) return songs;
-    final q = _filter.toLowerCase();
-    return songs.where((sg) {
-      if (sg.title.toLowerCase().contains(q)) return true;
-      final artistNames = (sg.artists ?? const <ApiArtistRef>[])
-          .map((a) => a.name.toLowerCase())
-          .join(' ');
-      return artistNames.contains(q);
-    }).toList(growable: false);
   }
 
   @override
@@ -1041,47 +1014,16 @@ class AlbumLikeBodyState extends ConsumerState<AlbumLikeBody> {
                           : () => live.addApiSongsToQueue(songs),
                     );
                   }),
-                  if (songs.length >= _kFilterMinSongs)
-                    _TrackFilterRow(
-                      controller: _filterCtl,
-                      colors: c,
-                      // Localised hint — "tracks" for music, "chapters"
-                      // for audiobooks. Falls back to the generic label.
-                      hint: widget.eyebrowText?.toUpperCase() == 'AUDIOBOOK'
-                          ? 'Find a chapter'
-                          : 'Find a track',
-                      onChanged: (v) => setState(() => _filter = v),
-                      onClear: () => setState(() {
-                        _filter = '';
-                        _filterCtl.clear();
-                      }),
-                    ),
-                  if (_filter.trim().isNotEmpty &&
-                      _filterSongs(songs).isEmpty) ...[
-                    Padding(
-                      padding: const EdgeInsets.fromLTRB(24, 16, 24, 24),
-                      child: Text(
-                        'Nothing matches “$_filter”.',
-                        style: SunohType.sans(fontSize: 13, color: c.fgMute),
-                      ),
-                    ),
-                  ],
-                  // The filtered list drives both rendering AND
-                  // playback ordering — tapping row N in a filtered
-                  // view plays the N-th matching song, not the N-th in
-                  // the full list (otherwise the wrong track plays
-                  // when a filter is active).
-                  for (var i = 0; i < _filterSongs(songs).length; i++)
+                  for (var i = 0; i < songs.length; i++)
                     _ApiTrackRow(
                       n: i + 1,
-                      song: _filterSongs(songs)[i],
+                      song: songs[i],
                       colors: c,
                       accent: accent,
                       showArt: showAlbumArtInRow,
                       sourceRef: widget.sourceRef,
                       onTap: () {
-                        final filtered = _filterSongs(songs);
-                        s.playApiQueue(filtered, i,
+                        s.playApiQueue(songs, i,
                             sourceLabel:
                                 '${showAlbumArtInRow ? 'PLAYLIST' : 'ALBUM'} · $title',
                             sourceRef: widget.sourceRef);
@@ -1817,75 +1759,6 @@ class _OccasionScreenState extends ConsumerState<OccasionScreen> {
                 onBack: () => context.pop(),
               ),
             ),
-          ],
-        ),
-      ),
-    );
-  }
-}
-
-/// In-list track filter — squircle text field with a leading magnifier
-/// + a clear chip when text is present. Slots in between `_HeroActions`
-/// and the track rows on long playlists/albums (≥ `_kFilterMinSongs`).
-/// Padding matches the row gutter (20 px L/R) and the chrome reads as
-/// "part of the list" rather than a separate control.
-class _TrackFilterRow extends StatelessWidget {
-  const _TrackFilterRow({
-    required this.controller,
-    required this.colors,
-    required this.hint,
-    required this.onChanged,
-    required this.onClear,
-  });
-  final TextEditingController controller;
-  final SunohColors colors;
-  final String hint;
-  final ValueChanged<String> onChanged;
-  final VoidCallback onClear;
-
-  @override
-  Widget build(BuildContext context) {
-    final c = colors;
-    return Padding(
-      padding: const EdgeInsets.fromLTRB(20, 4, 20, 14),
-      child: Container(
-        decoration: squircleDecoration(
-          radius: 12,
-          color: c.surface,
-          borderColor: c.line,
-        ),
-        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-        child: Row(
-          children: [
-            Icon(SolarIconsOutline.magnifier, size: 16, color: c.fgMute),
-            const SizedBox(width: 10),
-            Expanded(
-              child: TextField(
-                controller: controller,
-                onChanged: onChanged,
-                style: SunohType.sans(fontSize: 13.5, color: c.fg),
-                decoration: InputDecoration(
-                  hintText: hint,
-                  hintStyle:
-                      SunohType.sans(fontSize: 13.5, color: c.fgMute),
-                  isCollapsed: true,
-                  border: InputBorder.none,
-                  contentPadding:
-                      const EdgeInsets.symmetric(vertical: 10),
-                ),
-                cursorColor: c.fg,
-                textInputAction: TextInputAction.search,
-              ),
-            ),
-            if (controller.text.isNotEmpty) ...[
-              const SizedBox(width: 6),
-              GestureDetector(
-                onTap: onClear,
-                behavior: HitTestBehavior.opaque,
-                child: Icon(SolarIconsOutline.closeCircle,
-                    size: 18, color: c.fgMute),
-              ),
-            ],
           ],
         ),
       ),
