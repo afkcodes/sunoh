@@ -87,6 +87,11 @@ class SectionScreen extends ConsumerWidget {
   void _routeTap(BuildContext context, WidgetRef ref, FeedItem item) {
     final s = ref.read(appStateProvider);
     final src = item.source ?? section.source;
+    // YouTube ids are browse ids sunoh-api can't resolve.
+    if (src == 'youtube' && item.type != 'song') {
+      context.openYtItem(item);
+      return;
+    }
     switch (item.type) {
       case 'album':
         context.openRef(DetailRef('album', item.id, source: src));

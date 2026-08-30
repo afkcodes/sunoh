@@ -334,6 +334,9 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
     final audiobookAsync =
         ref.watch(audiobookSearchProvider(_activeQuery));
     final ytAsync = ref.watch(ytMusicSearchProvider(_activeQuery));
+    final ytArtistsAsync =
+        ref.watch(ytMusicArtistSearchProvider(_activeQuery));
+    final ytAlbumsAsync = ref.watch(ytMusicAlbumSearchProvider(_activeQuery));
     return async.when(
       loading: () => const _ResultsSkeleton(),
       error: (e, _) => _SearchHint(
@@ -363,6 +366,22 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
           nonEmpty.add(HomeSection(
             heading: 'YouTube Music',
             items: ytSongs,
+            source: 'youtube',
+          ));
+        }
+        final ytArtists = ytArtistsAsync.asData?.value ?? const <FeedItem>[];
+        if (ytArtists.isNotEmpty) {
+          nonEmpty.add(HomeSection(
+            heading: 'YouTube artists',
+            items: ytArtists,
+            source: 'youtube',
+          ));
+        }
+        final ytAlbums = ytAlbumsAsync.asData?.value ?? const <FeedItem>[];
+        if (ytAlbums.isNotEmpty) {
+          nonEmpty.add(HomeSection(
+            heading: 'YouTube albums',
+            items: ytAlbums,
             source: 'youtube',
           ));
         }
@@ -559,6 +578,13 @@ class _ResultsSection extends StatelessWidget {
             colors: c,
             item: item,
             onTap: () {
+              // YouTube ids are browse ids that sunoh-api can't resolve —
+              // route them to the YouTube screens instead.
+              if ((item.source ?? section.source) == 'youtube' &&
+                  item.type != 'song') {
+                context.openYtItem(item);
+                return;
+              }
               switch (item.type) {
                 case 'song':
                   onPlay(item);
@@ -700,6 +726,11 @@ class _TrendingRow extends ConsumerWidget {
           width: width,
           gap: gap,
           onTap: (item) {
+            if ((item.source ?? section.source) == 'youtube' &&
+                item.type != 'song') {
+              context.openYtItem(item);
+              return;
+            }
             switch (item.type) {
               case 'song':
                 // Songs play immediately — tapping a song in a "trending"

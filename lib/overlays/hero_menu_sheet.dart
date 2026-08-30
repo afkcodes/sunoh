@@ -159,6 +159,10 @@ class _HeroMenuSheet extends ConsumerWidget {
                 label: 'View ${artist!.name}',
                 onTap: () {
                   Navigator.of(context).pop();
+                  if (entity.source == 'youtube') {
+                    context.openYtArtist(artist!.id, name: artist!.name);
+                    return;
+                  }
                   context.openRef(DetailRef('artist', artist!.id,
                       source: entity.source));
                 },

@@ -34,6 +34,21 @@ final ytMusicSearchProvider =
   return ref.watch(ytMusicApiProvider).searchSongs(query);
 });
 
+/// Artist results, merged into Search so an artist page is reachable by
+/// searching for the artist — the obvious entry point.
+final ytMusicArtistSearchProvider =
+    FutureProvider.autoDispose.family<List<FeedItem>, String>((ref, query) {
+  if (query.trim().isEmpty) return Future.value(const <FeedItem>[]);
+  return ref.watch(ytMusicApiProvider).searchArtists(query);
+});
+
+/// Album results.
+final ytMusicAlbumSearchProvider =
+    FutureProvider.autoDispose.family<List<FeedItem>, String>((ref, query) {
+  if (query.trim().isEmpty) return Future.value(const <FeedItem>[]);
+  return ref.watch(ytMusicApiProvider).searchAlbums(query);
+});
+
 /// The YouTube Music home feed, interleaved into the Music tab. Not
 /// autoDispose: it's a large response and the feed doesn't change minute to
 /// minute, so re-fetching on every tab switch would be wasteful.

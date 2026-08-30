@@ -22,9 +22,11 @@ const _kClientName = 'WEB_REMIX';
 const _kClientVersion = '1.20260101.01.00';
 const _kBase = 'https://music.youtube.com/youtubei/v1';
 
-/// `params` filter pinning search to songs only. Opaque protobuf-derived
-/// value from the web client.
+/// `params` filters pinning search to one result type. Opaque
+/// protobuf-derived values from the web client.
 const _kSongsOnlyParams = 'EgWKAQIIAWoKEAoQAxAEEAkQBQ%3D%3D';
+const _kArtistsOnlyParams = 'EgWKAQIgAWoKEAoQAxAEEAkQBQ%3D%3D';
+const _kAlbumsOnlyParams = 'EgWKAQIYAWoKEAoQAxAEEAkQBQ%3D%3D';
 
 /// A mood/genre chip from `FEmusic_moods_and_genres`.
 class YtCategoryChip {
@@ -161,6 +163,40 @@ class YtMusicApi {
       }
     }
     return out;
+  }
+
+  /// Artist results. Their ids are channel ids that open the artist page.
+  Future<List<FeedItem>> searchArtists(String query, {String? country}) =>
+      _searchFiltered(query, _kArtistsOnlyParams, country: country);
+
+  /// Album results.
+  Future<List<FeedItem>> searchAlbums(String query, {String? country}) =>
+      _searchFiltered(query, _kAlbumsOnlyParams, country: country);
+
+  Future<List<FeedItem>> _searchFiltered(
+    String query,
+    String params, {
+    String? country,
+  }) async {
+    if (query.trim().isEmpty) return const [];
+    try {
+      final body = await _post('search', {
+        ..._context(country: country),
+        'query': query,
+        'params': params,
+      });
+      if (body == null) return const [];
+      final out = <FeedItem>[];
+      for (final shelf in _searchShelves(body)) {
+        for (final raw in _asList(shelf['contents'])) {
+          final item = _parseResponsiveItem(_asMap(raw));
+          if (item != null) out.add(item);
+        }
+      }
+      return out;
+    } catch (_) {
+      return const [];
+    }
   }
 
   /// The YouTube Music home feed.
@@ -654,7 +690,7 @@ class YtMusicApi {
     // NOT mean "is an artist" — that mistake put album names in the artist
     // line. Discriminate on the endpoint's pageType instead.
     final subRuns = _flexColumnRuns(cols, 1);
-    final artistNames = <String>[];
+    final artists = <ApiArtistRef>[];
     String? album;
     String? duration;
     for (final run in subRuns) {
@@ -668,15 +704,23 @@ class YtMusicApi {
         continue;
       }
 
-      switch (_pageTypeOf(_asMap(run['navigationEndpoint']))) {
+      final nav = _asMap(run['navigationEndpoint']);
+      switch (_pageTypeOf(nav)) {
         case 'MUSIC_PAGE_TYPE_ARTIST':
-          artistNames.add(trimmed);
+          // Keep the channel id, not just the name — it's what lets the
+          // player's "View artist" open the artist page.
+          artists.add(ApiArtistRef(
+            id: (_asMap(nav?['browseEndpoint'])?['browseId'] ?? '').toString(),
+            name: trimmed,
+          ));
         case 'MUSIC_PAGE_TYPE_ALBUM':
           album ??= trimmed;
         case _:
           // Un-navigable runs are usually the primary artist on tracks
           // that have no artist channel (common for Art Tracks).
-          if (artistNames.isEmpty && album == null) artistNames.add(trimmed);
+          if (artists.isEmpty && album == null) {
+            artists.add(ApiArtistRef(id: '', name: trimmed));
+          }
       }
     }
 
@@ -690,12 +734,12 @@ class YtMusicApi {
       type: 'song',
       source: 'youtube',
       image: _thumbnails(r),
-      subtitle: artistNames.isEmpty ? album : artistNames.join(', '),
+      subtitle: artists.isEmpty
+          ? album
+          : artists.map((a) => a.name).join(', '),
       duration: duration,
       playCount: plays,
-      artists: artistNames
-          .map((n) => ApiArtistRef(id: '', name: n))
-          .toList(growable: false),
+      artists: List.unmodifiable(artists),
     );
   }
 

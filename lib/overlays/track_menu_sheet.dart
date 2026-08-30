@@ -19,6 +19,7 @@ import '../api/dto.dart';
 import '../audio/download_store.dart';
 import '../data/models.dart';
 import '../providers/app_state_provider.dart';
+import '../router/router.dart';
 import '../providers/downloads_provider.dart';
 import '../share/share_link.dart';
 import '../theme/tokens.dart';
@@ -232,6 +233,14 @@ class _TrackMenuSheet extends ConsumerWidget {
                   if (artist.id.isEmpty) {
                     Navigator.of(context).pop();
                     s.flashToast('Artist details unavailable');
+                    return;
+                  }
+                  // YouTube artist ids are channel browse ids, which
+                  // sunoh-api's artist endpoint can't resolve — they need
+                  // the YouTube artist screen.
+                  if (song.source == 'youtube') {
+                    Navigator.of(context).pop();
+                    context.openYtArtist(artist.id, name: artist.name);
                     return;
                   }
                   _navigateAfterClose(
