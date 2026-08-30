@@ -875,9 +875,14 @@ class YtMusicApi {
         final url = m?['url'] as String?;
         if (url == null || url.isEmpty) continue;
         final w = (m?['width'] as num?)?.toInt();
+        final h = (m?['height'] as num?)?.toInt();
+        final upscaled = _upscale(url, w, h);
+        // Label with the size actually being requested, not the size the
+        // API offered — FeedItem.artwork picks the highest number here, so
+        // a stale label would have it choose a smaller image.
         out.add(ApiImage(
-          quality: w == null ? '' : '${w}x$w',
-          link: _upscale(url, w),
+          quality: upscaled.$2 == null ? '' : '${upscaled.$2}x${upscaled.$3}',
+          link: upscaled.$1,
         ));
       }
       if (out.isNotEmpty) return out;
@@ -885,17 +890,39 @@ class YtMusicApi {
     return const [];
   }
 
+  /// Largest square dimension worth requesting.
+  ///
+  /// Measured against the CDN: cover art tops out at 1200x1200 and any
+  /// larger request returns the identical bytes, so asking for more just
+  /// makes the URL look ambitious. 1200 also covers the expanded player's
+  /// 336pt hero at 3x density with room to spare.
+  static const _kMaxArtSize = 1200;
+
   /// Ask Google's image CDN for a larger rendition.
   ///
   /// Thumbnail URLs carry their size in a `=w60-h60-...` suffix, and the
-  /// sizes the API volunteers are small (60px for search rows) — badly
+  /// sizes the API volunteers are small — 60px for search rows, badly
   /// pixelated at our tile sizes. Rewriting the suffix is the documented
-  /// way to request a bigger one. Left untouched when there's no suffix.
-  String _upscale(String url, int? width) {
-    if (width == null || width >= 544) return url;
+  /// way to request a bigger one.
+  ///
+  /// Height is scaled to preserve aspect rather than forced square. Artist
+  /// images are wide banners (540x225 and up), and asking for `=w544-h544`
+  /// returned a 363x544 portrait crop of one.
+  ///
+  /// Returns the url plus the size it will actually be, so callers can
+  /// label it honestly.
+  (String, int?, int?) _upscale(String url, int? width, int? height) {
+    if (width == null || width >= _kMaxArtSize) return (url, width, height);
     final i = url.lastIndexOf('=w');
-    if (i < 0) return url;
-    return '${url.substring(0, i)}=w544-h544-l90-rj';
+    if (i < 0) return (url, width, height);
+    final h = (height != null && height > 0 && width > 0)
+        ? (_kMaxArtSize * height / width).round()
+        : _kMaxArtSize;
+    return (
+      '${url.substring(0, i)}=w$_kMaxArtSize-h$h-l90-rj',
+      _kMaxArtSize,
+      h,
+    );
   }
 
   String _flexColumnText(List<dynamic> cols, int index) =>

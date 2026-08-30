@@ -129,11 +129,20 @@ class SunohArt extends StatelessWidget {
     // nav — exactly the "image re-renders weird" symptom.
     final dpr = MediaQuery.maybeOf(context)?.devicePixelRatio ?? 2.0;
     final largest = (w.isFinite && h.isFinite ? (w > h ? w : h) : 0) * dpr;
+    // Tiers cap the DECODED bitmap. 720 used to be the ceiling, which left
+    // the expanded player's 336pt hero decoding at 720 on a 3x screen
+    // (~1008px of actual surface) and looking soft no matter how large the
+    // source was. 1200 matches the largest art the CDN serves.
+    //
+    // Only the hero reaches the top tier — home tiles stay at 192/384, so
+    // this doesn't undo the scroll work.
     final cacheTier = largest <= 192
         ? 192
         : largest <= 384
             ? 384
-            : 720;
+            : largest <= 720
+                ? 720
+                : 1200;
 
     return RepaintBoundary(
       child: Container(
