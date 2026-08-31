@@ -1246,6 +1246,16 @@ class _RelatedSection extends ConsumerWidget {
           width: width,
           gap: gap,
           onTap: (item) {
+            final src = item.source ?? section.source;
+            // YouTube ids are browse ids sunoh-api can't resolve. Without
+            // this, a YouTube artist's discography opened the sunoh-api
+            // album screen with a browse id and rendered a placeholder
+            // record — no title, "NULL, NULL", one sample track. Same
+            // guard the search and see-all screens already carry.
+            if (src == 'youtube' && item.type != 'song') {
+              context.openYtItem(item);
+              return;
+            }
             switch (item.type) {
               case 'song':
                 // Songs play immediately. Source label uses the parent
@@ -1257,8 +1267,7 @@ class _RelatedSection extends ConsumerWidget {
               case 'album':
               case 'playlist':
               case 'artist':
-                context.openRef(DetailRef(item.type, item.id,
-                    source: item.source ?? section.source));
+                context.openRef(DetailRef(item.type, item.id, source: src));
                 break;
               case 'channel':
               case 'occasion':
@@ -1269,8 +1278,7 @@ class _RelatedSection extends ConsumerWidget {
                 // Saavn quick-stations in channel responses ship with
                 // an empty id — the featured-station creator falls back
                 // to `name`, so passing the FeedItem through is enough.
-                startRadioStation(ref, item,
-                    provider: item.source ?? section.source);
+                startRadioStation(ref, item, provider: src);
                 break;
             }
           },
