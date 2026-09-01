@@ -8,12 +8,15 @@ interface.**
 YouTube Music, Gaana and Saavn behind a single search — plus the music already
 on your phone, podcasts, and audiobooks.
 
-No ads. No account. No tracking.
+No ads. No account. No sign-in, ever.
 
-[![Release](https://img.shields.io/github/v/release/afkcodes/sunoh?style=flat-square&label=release)](https://github.com/afkcodes/sunoh/releases/latest)
-[![Downloads](https://img.shields.io/github/downloads/afkcodes/sunoh/total?style=flat-square)](https://github.com/afkcodes/sunoh/releases)
-[![Licence](https://img.shields.io/badge/licence-GPL--3.0-blue?style=flat-square)](LICENSE)
-![Android](https://img.shields.io/badge/Android-7.0%2B-3DDC84?style=flat-square&logo=android&logoColor=white)
+[![Release](https://img.shields.io/github/v/release/afkcodes/sunoh?style=for-the-badge&label=release&color=D97757)](https://github.com/afkcodes/sunoh/releases/latest)
+[![Total downloads](https://img.shields.io/github/downloads/afkcodes/sunoh/total?style=for-the-badge&label=downloads&color=82B07B)](https://github.com/afkcodes/sunoh/releases)
+[![Latest downloads](https://img.shields.io/github/downloads/afkcodes/sunoh/latest/total?style=for-the-badge&label=this%20release&color=7FB3D5)](https://github.com/afkcodes/sunoh/releases/latest)
+
+[![Licence](https://img.shields.io/badge/licence-GPL--3.0-A78BD1?style=for-the-badge)](LICENSE)
+[![Android](https://img.shields.io/badge/Android-7.0%2B-3DDC84?style=for-the-badge&logo=android&logoColor=white)](#download)
+[![Stars](https://img.shields.io/github/stars/afkcodes/sunoh?style=for-the-badge&color=CAA66B)](https://github.com/afkcodes/sunoh/stargazers)
 
 </div>
 
@@ -123,14 +126,20 @@ sunoh has no accounts and no user identity, and that is deliberate.
 
 ---
 
+<div align="center">
+
 ## Support
 
-sunoh is free and always will be. If it is useful to you:
+sunoh is free and always will be — if it has earned a place in your rotation,
+you can chip in here:
 
-- **UPI** — `afkcodes@ybl`
-- **[Ko-fi](https://ko-fi.com/afkcodes)**
+[![Ko-fi](https://img.shields.io/badge/Support%20me%20on-Ko--fi-FF5E5B?style=for-the-badge&logo=kofi&logoColor=white)](https://ko-fi.com/afkcodes)
+[![UPI](https://img.shields.io/badge/UPI-afkcodes@ybl-097939?style=for-the-badge&logo=googlepay&logoColor=white)](upi://pay?pa=afkcodes@ybl&pn=Sunoh&cu=INR)
 
-Both are also in the app under Settings → Support sunoh.
+UPI VPA: `afkcodes@ybl` — both are also in the app under
+**Settings → Support sunoh.**
+
+</div>
 
 ---
 
@@ -183,24 +192,23 @@ uses.
 
 ---
 
-## F-Droid
+## F-Droid and IzzyOnDroid
 
-sunoh is not yet in a third-party repository. The
-[fastlane metadata](fastlane/metadata/android/en-US/) needed for both routes is
-in the repo; what remains is a submission neither route lets a maintainer skip.
+Full detail in [`docs/DISTRIBUTION.md`](docs/DISTRIBUTION.md).
 
-**[IzzyOnDroid](https://apt.izzysoft.de/fdroid/)** is the realistic first step.
-It serves the APKs published to GitHub Releases rather than building from
-source, so no build recipe is required — open a request at the
-[IzzyOnDroid repo](https://gitlab.com/IzzyOnDroid/repo/-/issues).
+**[IzzyOnDroid](https://apt.izzysoft.de/fdroid/)** is the realistic next step.
+It mirrors the APKs published to GitHub Releases rather than building from
+source, so no build recipe is needed and the app keeps every feature. The
+[fastlane metadata](fastlane/metadata/android/en-US/) it reads is already in
+the repo; what remains is a request.
 
-**F-Droid proper** builds from source in its own pipeline. Two things would
-need resolving first, and they are worth knowing before starting: the optional
-Firebase Analytics dependency would be flagged as a
-[NonFreeNet / Tracking](https://f-droid.org/docs/Anti-Features/) anti-feature,
-and the build would need to be reproducible without a
-`google-services.json`. A flavour that omits Firebase entirely is the usual
-answer.
+**F-Droid's main repository** builds from source and accepts no proprietary
+dependencies. sunoh currently has two — Firebase Analytics, and the Google Cast
+SDK behind Chromecast — and the objection is to the libraries being in the APK
+at all, not to whether they run. Removing analytics is clean; **removing Cast
+means the F-Droid build could not cast**, and there is no open replacement that
+current Chromecast firmware accepts. That trade-off is unresolved, and
+`docs/DISTRIBUTION.md` lays out the options.
 
 ---
 
@@ -215,18 +223,37 @@ answer.
 
 ---
 
-## Licence
+<div align="center">
 
-GPL-3.0. See [`LICENSE`](LICENSE).
+## Disclaimer & Legal Notice
 
-The licence covers the code only. It grants no rights in any third-party
-media, artwork, or metadata reached through the app.
+</div>
 
-## Disclaimers
+sunoh is an independent, community-driven third-party audio player and client.
+It is **not** affiliated with, endorsed by, or connected to Google LLC, YouTube,
+YouTube Music, Gaana, JioSaavn, Spotify, or any of their parent companies. All
+trademarks belong to their respective owners.
 
-sunoh is an independent client. It is not affiliated with, endorsed by, or
-connected to YouTube, Google, Gaana, Saavn, Spotify, or any other service it
-reaches. All trademarks belong to their respective owners.
+- **No media hosting.** sunoh does not host, upload, or store copyrighted music
+  files. It is an interface: it reads audio already on your device, and streams
+  from public, public-facing APIs.
 
-The app hosts no media of its own. It plays what the public APIs of those
-services return, and what is already stored on your device.
+- **Fair use and API usage.** This software exists for personal, educational
+  and fair-use purposes. You are responsible for ensuring your use fits your
+  local copyright law and the terms of service of the platforms you reach
+  through it.
+
+- **No guarantees.** sunoh has no ads, but it does not promise to keep
+  circumventing anything. Upstream platforms change without notice, and any
+  given source can stop working at any time.
+
+- **Privacy.** No account, no sign-in, and no listening history leaves the
+  phone. Analytics is opt-out and limited to event counts; on-device music
+  never leaves the device at all. See [Privacy](#privacy) above.
+
+- **Copyleft.** sunoh is free software under the **GPL-3.0** — see
+  [`LICENSE`](LICENSE). The licence does not let anyone forbid others from
+  selling or redistributing copies, but any distribution must come with the
+  corresponding source under the same licence. It covers the code only, and
+  grants no rights in any third-party media, artwork, or metadata reached
+  through the app.

@@ -6,6 +6,8 @@
 #   1. Validates the working tree is clean, gh is logged in, the keystore is
 #      wired, and the sibling sunoh_next repo (for the update manifest) is
 #      present + clean.
+#   NOTE: the default build now also attaches the universal APK next to the
+#      per-ABI splits, because IzzyOnDroid mirrors one artifact per version.
 #   2. Reads the current `version: X.Y.Z+N` from pubspec.yaml.
 #   3. Bumps it per the argument (patch / minor / major / explicit version).
 #      The buildNumber is always incremented.
@@ -25,7 +27,7 @@
 #   scripts/release.sh major                 # 1.0.0+1 → 2.0.0+2
 #   scripts/release.sh 1.2.3                 # explicit
 #   scripts/release.sh patch --notes-file release-notes.md
-#   scripts/release.sh patch --fat-apk       # opt back into the single universal APK
+#   scripts/release.sh patch --fat-apk       # ONLY the universal APK, no splits
 #   scripts/release.sh patch --dry-run       # print intended actions, change nothing
 #   scripts/release.sh patch --skip-manifest # don't touch sunoh_next
 #
@@ -250,10 +252,17 @@ fi
 log "running flutter build apk --release$([[ $SPLIT_APKS == 1 ]] && echo ' --split-per-abi')"
 if (( SPLIT_APKS )); then
   run "flutter build apk --release --split-per-abi"
+  # The universal APK ships alongside the splits, not instead of them.
+  # Third-party repositories that mirror GitHub releases (IzzyOnDroid) take one
+  # artifact per version and cannot choose between three ABIs; Obtainium can,
+  # but falls back to this for any ABI we did not split for. Splits stay first
+  # in the list so they remain the obvious download for a human.
+  run "flutter build apk --release"
   APKS=(
     "build/app/outputs/flutter-apk/app-arm64-v8a-release.apk"
     "build/app/outputs/flutter-apk/app-armeabi-v7a-release.apk"
     "build/app/outputs/flutter-apk/app-x86_64-release.apk"
+    "build/app/outputs/flutter-apk/app-release.apk"
   )
 else
   run "flutter build apk --release"

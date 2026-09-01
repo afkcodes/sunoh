@@ -1,7 +1,7 @@
 sunoh plays music from YouTube Music, Gaana and Saavn behind a single search,
 alongside the music already stored on your phone. Podcasts and audiobooks too.
 
-No ads. No account. No tracking.
+No ads. No account. No sign-in, ever.
 
 Sources
 
