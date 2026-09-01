@@ -26,6 +26,7 @@ import '../screens/home_screen.dart';
 import '../screens/library_screen.dart';
 import '../screens/liked_songs_screen.dart';
 import '../screens/local_collection_screen.dart';
+import '../screens/local_folders_screen.dart';
 import '../screens/local_library_screen.dart';
 import '../screens/podcast_categories_screen.dart';
 import '../screens/podcast_category_screen.dart';
@@ -238,6 +239,10 @@ List<RouteBase> _detailRoutes() => [
   GoRoute(
     path: 'local',
     pageBuilder: (c, s) => _slideRight(const LocalLibraryScreen(), s),
+  ),
+  GoRoute(
+    path: 'local-folders',
+    pageBuilder: (c, s) => _slideRight(const LocalFoldersScreen(), s),
   ),
   GoRoute(
     // `kind` is album|artist. The id is the grouping key, which embeds the
@@ -490,6 +495,9 @@ extension SunohNav on BuildContext {
 
   /// The on-device music library.
   void openLocalLibrary() => push('$_branchPrefix/local');
+
+  /// Which device folders count as music.
+  void openLocalFolders() => push('$_branchPrefix/local-folders');
 
   /// Library sync setup and status.
   void openSync() => push('$_branchPrefix/sync');

@@ -241,6 +241,178 @@ void main() {
     });
   });
 
+  group('folders', () {
+    test('every folder is reported with a count, largest first', () async {
+      stub([
+        _row(id: '1', path: '/Music/a.mp3'),
+        _row(id: '2', path: '/Music/b.mp3'),
+        _row(id: '3', path: '/Ringtones/r.mp3'),
+      ]);
+      final scan = await LocalMediaChannel.instance.scan();
+
+      expect(scan.folders.map((f) => f.path), ['/Music', '/Ringtones']);
+      expect(scan.folders.first.trackCount, 2);
+      expect(scan.folders.first.name, 'Music');
+    });
+
+    test('choosing nothing uses the whole device', () async {
+      // The default. A fresh install has to find music without being
+      // configured first, so an empty choice cannot mean an empty library.
+      stub([
+        _row(id: '1', path: '/Music/a.mp3'),
+        _row(id: '2', path: '/WhatsApp/voice.mp3'),
+      ]);
+      final scan = await LocalMediaChannel.instance.scan();
+
+      expect(scan.songs.map((s) => s.id), ['1', '2']);
+    });
+
+    test('choosing a folder leaves everything else out', () async {
+      stub([
+        _row(id: '1', path: '/Music/a.mp3'),
+        _row(id: '2', path: '/WhatsApp/voice.mp3'),
+      ]);
+      final scan = await LocalMediaChannel.instance.scan(
+        includedFolders: {'/Music'},
+      );
+
+      expect(scan.songs.map((s) => s.id), ['1']);
+    });
+
+    test('a chosen folder brings its subfolders with it', () async {
+      // The reason this is an include list and not an exclude list: one
+      // album-per-folder library is a hundred directories under one parent.
+      stub([
+        _row(id: '1', path: '/Music/Rock/Album/a.mp3'),
+        _row(id: '2', path: '/Music/b.mp3'),
+        _row(id: '3', path: '/Podcasts/c.mp3'),
+      ]);
+      final scan = await LocalMediaChannel.instance.scan(
+        includedFolders: {'/Music'},
+      );
+
+      expect(scan.songs.map((s) => s.id), ['1', '2']);
+    });
+
+    test('a folder left out still appears in the folder list', () async {
+      // Otherwise there is no way back: the folder you left out would vanish
+      // from the list that lets you add it.
+      stub([
+        _row(id: '1', path: '/Music/a.mp3'),
+        _row(id: '2', path: '/WhatsApp/voice.mp3'),
+      ]);
+      final scan = await LocalMediaChannel.instance.scan(
+        includedFolders: {'/Music'},
+      );
+
+      expect(scan.folders.map((f) => f.path), contains('/WhatsApp'));
+      expect(
+        scan.folders.firstWhere((f) => f.path == '/WhatsApp').trackCount,
+        1,
+        reason: 'counts cover every row, chosen or not',
+      );
+    });
+
+    test('leaving a folder out removes its albums and artists too', () async {
+      stub([
+        _row(
+          id: '1',
+          path: '/Music/a.mp3',
+          album: 'Real',
+          artist: 'A',
+          albumId: '1',
+        ),
+        _row(
+          id: '2',
+          path: '/Tones/t.mp3',
+          album: 'Tones',
+          artist: 'System',
+          albumId: '2',
+        ),
+      ]);
+      final scan = await LocalMediaChannel.instance.scan(
+        includedFolders: {'/Music'},
+      );
+
+      expect(scan.albums.map((a) => a.name), ['Real']);
+      expect(scan.artists.map((a) => a.name), ['A']);
+    });
+
+    test('a sibling with the same prefix is not swept in', () async {
+      // '/Music' must not silently take '/MusicVideos' with it.
+      stub([
+        _row(id: '1', path: '/Music/a.mp3'),
+        _row(id: '2', path: '/MusicVideos/b.mp3'),
+      ]);
+      final scan = await LocalMediaChannel.instance.scan(
+        includedFolders: {'/Music'},
+      );
+
+      expect(scan.songs.map((s) => s.id), ['1']);
+    });
+
+    test('a path with no directory part is not counted as a folder', () async {
+      stub([_row(id: '1', path: 'bare.mp3')]);
+      final scan = await LocalMediaChannel.instance.scan();
+
+      expect(scan.songs, hasLength(1), reason: 'still playable');
+      expect(scan.folders, isEmpty);
+    });
+  });
+
+  group('isUnderAnyRoot', () {
+    test('no roots means everything', () {
+      expect(isUnderAnyRoot('/anywhere', const {}), isTrue);
+    });
+
+    test('the root itself counts', () {
+      expect(isUnderAnyRoot('/Music', const {'/Music'}), isTrue);
+    });
+
+    test('a descendant counts at any depth', () {
+      expect(isUnderAnyRoot('/Music/a/b/c', const {'/Music'}), isTrue);
+    });
+
+    test('a prefix that is not a path boundary does not count', () {
+      expect(isUnderAnyRoot('/MusicVideos', const {'/Music'}), isFalse);
+    });
+
+    test('any one root is enough', () {
+      expect(
+        isUnderAnyRoot('/Podcasts/x', const {'/Music', '/Podcasts'}),
+        isTrue,
+      );
+    });
+  });
+
+  group('folderLocation', () {
+    test('drops the storage prefix and the folder name itself', () {
+      expect(
+        folderLocation('/storage/emulated/0/Download/Seal/Tere Naam'),
+        'Download/Seal',
+      );
+    });
+
+    test('two same-named folders read differently', () {
+      // The whole reason the subtitle exists.
+      expect(
+        folderLocation('/storage/emulated/0/Download/Seal/Tere Naam'),
+        isNot(folderLocation('/storage/emulated/0/Music/Tere Naam')),
+      );
+    });
+
+    test('a folder at the storage root says where it is', () {
+      expect(folderLocation('/storage/emulated/0/Music'), 'Internal storage');
+    });
+
+    test('a removable volume keeps its path', () {
+      expect(
+        folderLocation('/storage/1A2B-3C4D/Music/Rock'),
+        'storage/1A2B-3C4D/Music',
+      );
+    });
+  });
+
   group('failure', () {
     test('a platform error yields an empty scan, not a throw', () async {
       TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger

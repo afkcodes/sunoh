@@ -15,6 +15,7 @@ import 'package:permission_handler/permission_handler.dart';
 
 import '../api/dto.dart';
 import '../api/local_media_channel.dart';
+import 'settings_store.dart';
 
 /// Why the local library is empty, when it is.
 enum LocalLibraryStatus {
@@ -36,10 +37,40 @@ enum LocalLibraryStatus {
 }
 
 class LocalLibrary extends ChangeNotifier {
-  LocalLibrary({LocalMediaChannel? channel})
-    : _channel = channel ?? LocalMediaChannel.instance;
+  LocalLibrary({LocalMediaChannel? channel, SettingsStore? settings})
+    : _channel = channel ?? LocalMediaChannel.instance,
+      _settings = settings ?? SettingsStore();
 
   final LocalMediaChannel _channel;
+  final SettingsStore _settings;
+
+  Set<String> _included = const {};
+
+  /// Folder roots the library takes music from. Empty means the whole device.
+  Set<String> get includedFolders => _included;
+
+  /// Every folder holding music, including ones left out, largest first.
+  List<LocalFolder> get folders => _scan.folders;
+
+  /// Replace the set of folder roots to scan, then rescan.
+  ///
+  /// Takes the whole set rather than one folder at a time because the screen
+  /// applies a selection: choosing six folders one call at a time would mean
+  /// six rescans, five of them showing a library the user never asked to see.
+  ///
+  /// A rescan rather than filtering in memory: the album and artist groupings
+  /// are built from the raw MediaStore rows, where album and artist are still
+  /// separate columns, and rebuilding them from already-mapped items would
+  /// mean parsing a display string back apart. The scan is cheap on a warm
+  /// album-art cache.
+  Future<void> setIncludedFolders(Set<String> paths) async {
+    final next = Set<String>.unmodifiable(paths);
+    if (next.length == _included.length && next.containsAll(_included)) return;
+    _included = next;
+    await _settings.saveIncludedFolders(next);
+    notifyListeners();
+    await load(force: true);
+  }
 
   LocalLibraryStatus _status = LocalLibraryStatus.idle;
   LocalLibraryStatus get status => _status;
@@ -84,7 +115,8 @@ class LocalLibrary extends ChangeNotifier {
   Future<void> _scanNow() async {
     if (_status == LocalLibraryStatus.scanning) return;
     _set(LocalLibraryStatus.scanning);
-    _scan = await _channel.scan();
+    _included = await _settings.loadIncludedFolders();
+    _scan = await _channel.scan(includedFolders: _included);
     _set(LocalLibraryStatus.ready);
   }
 

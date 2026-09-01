@@ -155,13 +155,20 @@ class _Header extends StatelessWidget {
               height: 16,
               child: CircularProgressIndicator(strokeWidth: 2, color: c.fgMute),
             )
-          else
+          else ...[
+            IconBtn(
+              icon: SolarIconsOutline.folder,
+              color: c.fgDim,
+              size: 18,
+              onTap: () => context.openLocalFolders(),
+            ),
             IconBtn(
               icon: SolarIconsOutline.refresh,
               color: c.fgDim,
               size: 18,
               onTap: () => library.load(force: true),
             ),
+          ],
         ],
       ),
     );

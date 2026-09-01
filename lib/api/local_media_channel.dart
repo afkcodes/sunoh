@@ -42,21 +42,100 @@ class LocalCollection {
   }
 }
 
+/// One folder on the device that holds music, and how much.
+///
+/// Derived from the file paths rather than asked for separately: MediaStore
+/// has no folder table, and the path is already on every row.
+class LocalFolder {
+  const LocalFolder({
+    required this.path,
+    required this.name,
+    required this.trackCount,
+  });
+
+  /// Absolute directory path. This is the identity used by the ignore list,
+  /// so it is stored verbatim and never normalised or prettified.
+  final String path;
+
+  /// Last path segment, for display. Folders are usually recognisable by
+  /// their own name; the full path is long and mostly noise.
+  final String name;
+
+  final int trackCount;
+}
+
 /// Everything one scan produced.
 class LocalScan {
   const LocalScan({
     required this.songs,
     required this.albums,
     required this.artists,
+    this.folders = const [],
   });
   const LocalScan.empty()
     : songs = const [],
       albums = const [],
-      artists = const [];
+      artists = const [],
+      folders = const [];
 
   final List<FeedItem> songs;
   final List<LocalCollection> albums;
   final List<LocalCollection> artists;
+
+  /// Every folder the scan saw, **including ones left out**, largest first.
+  ///
+  /// The excluded ones have to be here or there is no way back: a folder
+  /// missing from the library would vanish from the list that lets you add
+  /// it.
+  final List<LocalFolder> folders;
+}
+
+/// Where a folder sits, written the way a person would read it.
+///
+/// The full path is useless as a subtitle: on a real device every music folder
+/// starts `/storage/emulated/0/Download/...`, so a row that elides the tail
+/// shows the same string for every folder and disambiguates nothing. The
+/// distinguishing part is at the end, and the last segment is already the
+/// row's title — so this drops the storage prefix and the name, leaving the
+/// parent chain that actually tells two same-named folders apart.
+String folderLocation(String path) {
+  var p = path;
+  for (final prefix in const [
+    '/storage/emulated/0',
+    '/sdcard',
+    '/mnt/sdcard',
+  ]) {
+    if (p == prefix) return 'Internal storage';
+    if (p.startsWith('$prefix/')) {
+      p = p.substring(prefix.length);
+      break;
+    }
+  }
+  final i = p.lastIndexOf('/');
+  final parent = i <= 0 ? '' : p.substring(1, i);
+  return parent.isEmpty ? 'Internal storage' : parent;
+}
+
+/// Whether [path] is one of [roots] or sits inside one.
+///
+/// An empty [roots] means everything: no folders chosen is the default, and it
+/// has to mean the whole device rather than nothing at all, or the library
+/// would be empty until the setting was found.
+///
+/// The separator in the prefix test is load-bearing: without it `/Music` would
+/// swallow `/MusicVideos`, hiding music the user never excluded.
+bool isUnderAnyRoot(String path, Set<String> roots) {
+  if (roots.isEmpty) return true;
+  for (final root in roots) {
+    if (path == root || path.startsWith('$root/')) return true;
+  }
+  return false;
+}
+
+/// The directory part of a file path, or empty when there isn't one.
+String folderOf(String path) {
+  final i = path.lastIndexOf('/');
+  return i <= 0 ? '' : path.substring(0, i);
 }
 
 /// The `source` marker carried by every on-device track.
@@ -81,12 +160,23 @@ class LocalMediaChannel {
   /// permission, an unreadable volume, a platform that isn't Android. The
   /// caller distinguishes "no music" from "not allowed" by checking the
   /// permission itself, not by catching from here.
-  Future<LocalScan> scan() async {
+  /// [includedFolders] are absolute directory roots to take music from. Empty
+  /// — the default — means the whole device, so a fresh install finds
+  /// everything without being configured first.
+  ///
+  /// A root covers its subfolders. One album-per-folder library is a hundred
+  /// directories under one parent; asking someone to tick each of them would
+  /// make the setting useless for exactly the libraries that need it.
+  ///
+  /// Filtering happens here rather than in the query because the folder list
+  /// the user picks from has to show every folder on the device, including the
+  /// ones currently left out, and a filtered query could not report those.
+  Future<LocalScan> scan({Set<String> includedFolders = const {}}) async {
     if (!_supported) return const LocalScan.empty();
     try {
       final raw = await _channel.invokeListMethod<Object?>('scan');
       if (raw == null) return const LocalScan.empty();
-      return _group(raw);
+      return _group(raw, includedFolders);
     } on PlatformException catch (e) {
       debugPrint('[local] scan failed: ${e.message}');
       return const LocalScan.empty();
@@ -101,19 +191,30 @@ class LocalMediaChannel {
   /// Insertion order is preserved throughout: the query returns newest-first,
   /// so albums come out most-recently-added first, which is what someone
   /// looking for music they just copied over expects.
-  static LocalScan _group(List<Object?> rows) {
+  static LocalScan _group(List<Object?> rows, Set<String> included) {
     final songs = <FeedItem>[];
     final albums = <String, List<FeedItem>>{};
     final albumNames = <String, String>{};
     final albumArtistSets = <String, Set<String>>{};
     final artists = <String, List<FeedItem>>{};
     final artistNames = <String, String>{};
+    // Counted over every row, included or not — see LocalScan.folders.
+    final folderCounts = <String, int>{};
 
     for (final row in rows) {
       if (row is! Map) continue;
       final r = row.cast<Object?, Object?>();
       final song = _toFeedItem(r);
       if (song == null) continue;
+
+      final folder = folderOf(song.url ?? '');
+      if (folder.isNotEmpty) {
+        folderCounts[folder] = (folderCounts[folder] ?? 0) + 1;
+      }
+      // Left out of the library, but still counted above so the folder can be
+      // found and added.
+      if (!isUnderAnyRoot(folder, included)) continue;
+
       songs.add(song);
 
       final artist = _clean((r['artist'] ?? '').toString());
@@ -156,7 +257,9 @@ class LocalMediaChannel {
 
     debugPrint(
       '[local] scanned ${songs.length} tracks, '
-      '${albums.length} albums, ${artists.length} artists',
+      '${albums.length} albums, ${artists.length} artists, '
+      '${folderCounts.length} folders '
+      '(${included.isEmpty ? 'all' : '${included.length} chosen'})',
     );
     return LocalScan(
       songs: songs,
@@ -178,7 +281,22 @@ class LocalMediaChannel {
             songs: e.value,
           ),
       ],
+      folders: _foldersFrom(folderCounts),
     );
+  }
+
+  /// Folders sorted by size, largest first: the one worth excluding is
+  /// usually the one with three hundred notification tones in it.
+  static List<LocalFolder> _foldersFrom(Map<String, int> counts) {
+    final out = [
+      for (final e in counts.entries)
+        LocalFolder(
+          path: e.key,
+          name: e.key.substring(e.key.lastIndexOf('/') + 1),
+          trackCount: e.value,
+        ),
+    ]..sort((a, b) => b.trackCount.compareTo(a.trackCount));
+    return out;
   }
 
   /// The artist line for an album: the one artist if it has a single one,
