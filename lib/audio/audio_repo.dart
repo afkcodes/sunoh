@@ -349,7 +349,7 @@ class AudioRepo {
           .take(2)
           .join(', '),
       album: '',
-      artUri: (song.artwork ?? '').isEmpty ? null : Uri.tryParse(song.artwork!),
+      artUri: song.artworkUri,
       duration:
           duration ??
           _announcedDuration[song.id] ??

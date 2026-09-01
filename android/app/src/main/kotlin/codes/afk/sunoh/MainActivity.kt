@@ -1,5 +1,6 @@
 package codes.afk.sunoh
 
+import codes.afk.sunoh.localmedia.LocalMediaBridge
 import codes.afk.sunoh.ytmusic.YtMusicBridge
 import com.ryanheise.audioservice.AudioServiceActivity
 import io.flutter.embedding.engine.FlutterEngine
@@ -22,6 +23,13 @@ class MainActivity : AudioServiceActivity() {
      * call can hold a WebView).
      */
     private val ytScope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
+
+    /**
+     * Scope for the on-device library scan. Separate from [ytScope] so a slow
+     * MediaStore query on a large library cannot delay stream resolution, and
+     * so a destroyed activity cancels an in-flight scan.
+     */
+    private val localScope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
 
     override fun configureFlutterEngine(flutterEngine: FlutterEngine) {
         super.configureFlutterEngine(flutterEngine)
@@ -71,9 +79,39 @@ class MainActivity : AudioServiceActivity() {
                     else -> result.notImplemented()
                 }
             }
+
+        // The device's own music library. Off the main thread: a MediaStore
+        // query over a few thousand tracks, resolving album art per album,
+        // takes long enough to drop frames if run inline.
+        MethodChannel(flutterEngine.dartExecutor.binaryMessenger, LOCAL_CHANNEL)
+            .setMethodCallHandler { call, result ->
+                when (call.method) {
+                    "scan" -> {
+                        localScope.launch {
+                            val outcome = runCatching {
+                                LocalMediaBridge.scan(applicationContext)
+                            }
+                            withContext(Dispatchers.Main) {
+                                outcome
+                                    .onSuccess { result.success(it) }
+                                    .onFailure {
+                                        result.error(
+                                            "scan_failed",
+                                            it.message ?: it::class.simpleName,
+                                            null,
+                                        )
+                                    }
+                            }
+                        }
+                    }
+
+                    else -> result.notImplemented()
+                }
+            }
     }
 
     private companion object {
         const val CHANNEL = "codes.afk.sunoh/ytmusic"
+        const val LOCAL_CHANNEL = "codes.afk.sunoh/localmedia"
     }
 }

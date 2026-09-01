@@ -1,0 +1,44 @@
+sunoh plays music from YouTube Music, Gaana and Saavn behind a single search,
+alongside the music already stored on your phone. Podcasts and audiobooks too.
+
+No ads. No account. No tracking.
+
+Sources
+
+* YouTube Music - search, the home feed with its editorial rows, moods and
+  genres, playlists, albums, and artist pages with one-tap radio. It talks to
+  the same InnerTube API the official client does, not a web wrapper.
+* Gaana and Saavn - trending, charts, playlists and albums, with strong
+  Indian-language coverage.
+* On this device - your own music files, browsable by song, album and artist,
+  with the album art embedded in them.
+* Results from every source appear in one search.
+
+Playback
+
+* mpv as the audio engine: gapless queue, shuffle, repeat, reorderable queue.
+* SponsorBlock on YouTube tracks, skipping sponsor reads, intros, outros and
+  non-music segments. Only a short hash prefix of the video id is sent.
+* Equalizer, sleep timer, and Chromecast.
+* Synced lyrics via LRCLIB.
+* Media notification with a working seekbar, and full background playback.
+
+Android Auto
+
+Full browse and playback in the car, including downloads, liked songs, recently
+played, playlists, the music, podcast and audiobook feeds, radio stations, and
+voice search.
+
+Library
+
+Liked songs, user playlists, recently played, offline downloads, and playlist
+import from Spotify.
+
+Privacy
+
+No sign-in anywhere. Analytics is opt-out and limited to event counts; turning
+it off halts collection and resets the local install id. On-device music never
+leaves the phone.
+
+sunoh is an independent client, not affiliated with or endorsed by any of the
+services it reaches, and hosts no media of its own.

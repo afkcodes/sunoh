@@ -25,6 +25,8 @@ import '../screens/episode_detail_screen.dart';
 import '../screens/home_screen.dart';
 import '../screens/library_screen.dart';
 import '../screens/liked_songs_screen.dart';
+import '../screens/local_collection_screen.dart';
+import '../screens/local_library_screen.dart';
 import '../screens/podcast_categories_screen.dart';
 import '../screens/podcast_category_screen.dart';
 import '../screens/podcast_show_screen.dart';
@@ -235,6 +237,23 @@ List<RouteBase> _detailRoutes() => [
   GoRoute(
     path: 'history',
     pageBuilder: (c, s) => _slideRight(const RecentlyPlayedScreen(), s),
+  ),
+  GoRoute(
+    path: 'local',
+    pageBuilder: (c, s) => _slideRight(const LocalLibraryScreen(), s),
+  ),
+  GoRoute(
+    // `kind` is album|artist. The id is the grouping key, which embeds the
+    // album and artist names, so it travels as a query parameter rather than
+    // a path segment — names contain slashes.
+    path: 'local-collection',
+    pageBuilder: (c, s) => _slideRight(
+      LocalCollectionScreen(
+        id: s.uri.queryParameters['id'] ?? '',
+        album: s.uri.queryParameters['kind'] != 'artist',
+      ),
+      s,
+    ),
   ),
   GoRoute(
     path: 'downloads',
@@ -471,6 +490,16 @@ extension SunohNav on BuildContext {
   void openLikedSongs() => push('$_branchPrefix/liked');
   void openRecentlyPlayed() => push('$_branchPrefix/history');
   void openDownloads() => push('$_branchPrefix/downloads');
+
+  /// The on-device music library.
+  void openLocalLibrary() => push('$_branchPrefix/local');
+
+  /// One on-device album or artist.
+  void openLocalCollection(String id, {required bool album}) => push(
+    '$_branchPrefix/local-collection'
+    '?kind=${album ? 'album' : 'artist'}'
+    '&id=${Uri.encodeQueryComponent(id)}',
+  );
   void openUserPlaylist(String id) => push('$_branchPrefix/user-playlist/$id');
   void openPodcastEpisode(String guid) =>
       push('$_branchPrefix/podcast-episode/${Uri.encodeComponent(guid)}');

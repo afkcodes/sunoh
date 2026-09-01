@@ -24,6 +24,7 @@ import 'package:dio/dio.dart';
 
 import '../audio/url_refresh.dart';
 import 'dto.dart';
+import 'local_media_channel.dart';
 import 'ytmusic_channel.dart';
 
 /// User stream-quality preference. `auto` and `high` both prefer the highest
@@ -129,6 +130,25 @@ class StreamResolver {
       } catch (_) {
         // Local lookup failed — fall through to the network tiers.
       }
+    }
+
+    // 0a) On-device music. The path came straight from MediaStore and is
+    //     already what mpv wants, so there is nothing to resolve and nothing
+    //     that can expire. Bails after this: no network tier can answer for a
+    //     file that only exists on this phone.
+    //
+    //     `network: true` (the Cast path) is deliberately NOT honoured — a
+    //     Cast receiver cannot reach the phone's filesystem, so casting a
+    //     local track is a dead end either way, and failing here is clearer
+    //     than handing the receiver a URL it will silently refuse.
+    if (song.source == kLocalSource) {
+      final path = song.url ?? '';
+      if (path.isEmpty) {
+        throw StreamResolveException(
+          'On-device track "${song.title}" has no file path.',
+        );
+      }
+      return ResolvedStream(path);
     }
 
     // 0b) YouTube Music. Resolved natively (see lib/api/ytmusic_channel.dart

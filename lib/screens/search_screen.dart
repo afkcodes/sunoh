@@ -825,12 +825,15 @@ class _TrendingRow extends ConsumerWidget {
                     ),
                     if ((item.displaySubtitle ?? '').isNotEmpty) ...[
                       const SizedBox(height: 3),
+                      // One line, matching the home shelves: a wrapped
+                      // subtitle leaves neighbouring cards at different
+                      // heights down the row.
                       eyebrow(
                         item.displaySubtitle!,
                         c.fgMute,
                         size: 10,
                         letterSpacing: 0.8,
-                        maxLines: 2,
+                        maxLines: 1,
                       ),
                     ],
                   ],

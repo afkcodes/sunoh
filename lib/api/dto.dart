@@ -304,6 +304,23 @@ class FeedItem {
     return sorted.first.link;
   }
 
+  /// Artwork as a URI the OS can actually load.
+  ///
+  /// On-device art is a bare filesystem path — the JPEG the local-library
+  /// scan cached. `Uri.parse` on a path yields a scheme-less URI, which the
+  /// media notification and Android Auto both silently refuse to load, so it
+  /// needs an explicit `file://`. Network art is already absolute.
+  ///
+  /// Anything reaching for `artwork` to hand to the platform wants this
+  /// instead; `artwork` itself stays a plain string for Flutter's own image
+  /// widgets, which take either form.
+  Uri? get artworkUri {
+    final art = artwork;
+    if (art == null || art.isEmpty) return null;
+    if (art.startsWith('/')) return Uri.file(art);
+    return Uri.tryParse(art);
+  }
+
   factory FeedItem.fromJson(Map<String, dynamic> j) => FeedItem(
     id: (j['id'] ?? '').toString(),
     title: _decode((j['title'] ?? j['name'] ?? '').toString()),
