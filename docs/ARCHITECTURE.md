@@ -367,6 +367,7 @@ standards these violate.
 | `.select()` never used | 150 `ref.watch` call sites, 0 selects | Whole screens rebuild on unrelated `AppState` changes. |
 | 90 raw `print(` calls | across `lib/` | Ships log noise in release builds. |
 | Compile-time base URL | `api/client.dart` | No runtime environment switch. |
+| Saavn artist radio 400s server-side | `/music/radio/<stationId>` | The whole "Recommended Artist Stations" shelf. The car falls back to `/music/recommend`; the **phone does not**, so its radio tiles still fail. Fix belongs in sunoh-api. |
 | 3 `onReorder` deprecations | `overlays/queue_screen.dart` (x2), `screens/user_playlist_screen.dart` | The only failing `flutter analyze` issues. Migration is per-site, not mechanical — see below. |
 
 **On the `onReorder` migration.** `onReorderItem` adjusts `newIndex` for the

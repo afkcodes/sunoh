@@ -31,10 +31,11 @@
 // **Fail empty, never throw.** An exception out of a browse callback surfaces
 // as a hard error in the car and can wedge the browse stack.
 //
-// This class holds no Flutter dependency so it can be tested without a widget
-// tree, per docs/ENGINEERING.md section 3.3.
+// The only Flutter import here is `foundation`, for debugPrint — no widgets,
+// so the tree stays testable headlessly, per docs/ENGINEERING.md section 3.3.
 
 import 'package:audio_service/audio_service.dart';
+import 'package:flutter/foundation.dart';
 
 import '../api/dto.dart';
 import '../api/sunoh_api.dart';
@@ -249,7 +250,37 @@ class AutoBrowseTree {
       await getChildren(ref.containerId);
       seed = catalog.seedAt(ref.containerId, ref.index);
     }
-    if (seed == null) return;
+    if (seed == null) {
+      debugPrint(
+        '[auto] station seed missing: ${ref.containerId} #${ref.index}',
+      );
+      return;
+    }
+    // Every failure below is a dead-end the driver just sees as "tapped,
+    // nothing happened" — none of it surfaces in the car — so each one logs
+    // which of them it was.
+    debugPrint(
+      '[auto] station "${seed.title}" id=${seed.id} '
+      'type=${seed.stationType} provider=${seed.source}',
+    );
+    final songs = await _stationSongs(seed);
+    if (songs.isEmpty) {
+      debugPrint('[auto] station "${seed.title}": no songs from either tier');
+      return;
+    }
+    await playQueue(songs, 0, sourceLabel: 'RADIO · ${seed.title}');
+  }
+
+  /// Songs for a station seed, over two tiers.
+  ///
+  /// The radio two-step (session, then songs) is the richer answer but is
+  /// unreliable per station kind: Saavn's *artist* stations currently 400 on
+  /// the songs call — that is the whole "Recommended Artist Stations" shelf —
+  /// while featured and Gaana stations work. `/music/recommend` answers the
+  /// same question from a title, and is what the app's endless-autoplay
+  /// already switched to for the same reason, so it backstops the car rather
+  /// than leaving a tapped tile silent.
+  Future<List<FeedItem>> _stationSongs(FeedItem seed) async {
     try {
       final sessionId = await api.fetchRadioSession(
         id: seed.id,
@@ -258,12 +289,30 @@ class AutoBrowseTree {
         name: seed.title,
         lang: seed.language,
       );
-      if (sessionId == null || sessionId.isEmpty) return;
-      final songs = await api.fetchRadioSongs(sessionId);
-      if (songs.isEmpty) return;
-      await playQueue(songs, 0, sourceLabel: 'RADIO · ${seed.title}');
-    } catch (_) {
-      // Station unavailable — the car keeps the browse screen it was on.
+      if (sessionId != null && sessionId.isNotEmpty) {
+        final songs = await api.fetchRadioSongs(sessionId);
+        if (songs.isNotEmpty) {
+          debugPrint('[auto] station "${seed.title}" → ${songs.length} songs');
+          return songs;
+        }
+      }
+      debugPrint('[auto] station "${seed.title}": radio tier empty');
+    } catch (e) {
+      debugPrint('[auto] station "${seed.title}": radio tier failed — $e');
+    }
+
+    try {
+      final songs = await api.fetchRecommendations(
+        query: seed.title,
+        lang: seed.language,
+      );
+      debugPrint(
+        '[auto] station "${seed.title}" → ${songs.length} via recommend',
+      );
+      return songs;
+    } catch (e) {
+      debugPrint('[auto] station "${seed.title}": recommend failed — $e');
+      return const [];
     }
   }
 
