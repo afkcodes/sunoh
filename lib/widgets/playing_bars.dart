@@ -101,34 +101,36 @@ class _PlayingBarsState extends State<PlayingBars>
     // purely to move three small rects. The boundary confines that to
     // a ~20×20 layer.
     return RepaintBoundary(
-        child: SizedBox(
-      width: widget.size,
-      height: widget.size,
-      child: Row(
-        mainAxisAlignment: MainAxisAlignment.spaceBetween,
-        crossAxisAlignment: CrossAxisAlignment.end,
-        children: [
-          for (var i = 0; i < _kBars.length; i++)
-            AnimatedBuilder(
-              animation: _controllers[i],
-              builder: (context, _) {
-                final spec = _kBars[i];
-                // Each controller goes 0 → 1 → 0 (reverse: true). Lerp
-                // gives min → max → min. Linear easing matches RN; the
-                // motion already feels rhythmic from the period mix.
-                final frac = spec.min + (spec.max - spec.min) * _controllers[i].value;
-                return Container(
-                  width: barW,
-                  height: widget.size * frac,
-                  decoration: BoxDecoration(
-                    color: widget.color,
-                    borderRadius: BorderRadius.circular(barW),
-                  ),
-                );
-              },
-            ),
-        ],
+      child: SizedBox(
+        width: widget.size,
+        height: widget.size,
+        child: Row(
+          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+          crossAxisAlignment: CrossAxisAlignment.end,
+          children: [
+            for (var i = 0; i < _kBars.length; i++)
+              AnimatedBuilder(
+                animation: _controllers[i],
+                builder: (context, _) {
+                  final spec = _kBars[i];
+                  // Each controller goes 0 → 1 → 0 (reverse: true). Lerp
+                  // gives min → max → min. Linear easing matches RN; the
+                  // motion already feels rhythmic from the period mix.
+                  final frac =
+                      spec.min + (spec.max - spec.min) * _controllers[i].value;
+                  return Container(
+                    width: barW,
+                    height: widget.size * frac,
+                    decoration: BoxDecoration(
+                      color: widget.color,
+                      borderRadius: BorderRadius.circular(barW),
+                    ),
+                  );
+                },
+              ),
+          ],
+        ),
       ),
-    ));
+    );
   }
 }

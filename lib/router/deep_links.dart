@@ -46,8 +46,9 @@ class PendingSearchNotifier extends Notifier<String?> {
   }
 }
 
-final pendingSearchProvider =
-    NotifierProvider<PendingSearchNotifier, String?>(PendingSearchNotifier.new);
+final pendingSearchProvider = NotifierProvider<PendingSearchNotifier, String?>(
+  PendingSearchNotifier.new,
+);
 
 class DeepLinkRouter {
   DeepLinkRouter(this._ref);
@@ -159,13 +160,14 @@ class DeepLinkRouter {
   /// The custom scheme parses `album` as the URI host (not a path segment),
   /// so we prepend it manually when the scheme is `sunoh`.
   static List<String> _segmentsFor(Uri uri) {
-    final pathParts =
-        uri.pathSegments.where((s) => s.isNotEmpty).toList(growable: true);
-    if (uri.scheme == 'sunoh' && (uri.host).isNotEmpty) {
+    final pathParts = uri.pathSegments
+        .where((s) => s.isNotEmpty)
+        .toList(growable: true);
+    if (uri.scheme == 'sunoh' && uri.host.isNotEmpty) {
       pathParts.insert(0, uri.host);
     }
     return pathParts;
   }
 }
 
-final deepLinkRouterProvider = Provider((ref) => DeepLinkRouter(ref));
+final deepLinkRouterProvider = Provider(DeepLinkRouter.new);

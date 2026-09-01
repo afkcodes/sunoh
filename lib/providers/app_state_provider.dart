@@ -52,13 +52,16 @@ Future<Color?> _extractAccent(String url) async {
       size: const Size(160, 160),
       maximumColorCount: 12,
     );
-    final accent = pg.vibrantColor?.color ??
+    final accent =
+        pg.vibrantColor?.color ??
         pg.lightVibrantColor?.color ??
         pg.mutedColor?.color ??
         pg.dominantColor?.color;
-    debugPrint('[palette] direct-extracted '
-        '${accent == null ? 'null' : '#${accent.toARGB32().toRadixString(16)}'} '
-        'for $url');
+    debugPrint(
+      '[palette] direct-extracted '
+      '${accent == null ? 'null' : '#${accent.toARGB32().toRadixString(16)}'} '
+      'for $url',
+    );
     return accent;
   } catch (e) {
     debugPrint('[palette] direct extraction failed for $url: $e');

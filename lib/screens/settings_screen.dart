@@ -13,14 +13,14 @@ import 'package:go_router/go_router.dart';
 import 'package:solar_icons/solar_icons.dart';
 import 'package:url_launcher/url_launcher.dart';
 
-import '../audio/storage_stats.dart';
 import '../api/yt_locale.dart';
+import '../audio/storage_stats.dart';
 import '../overlays/language_sheet.dart';
 import '../overlays/yt_locale_sheet.dart';
-import '../providers/ytmusic_provider.dart';
 import '../providers/app_state_provider.dart';
 import '../providers/languages_provider.dart';
 import '../providers/update_provider.dart';
+import '../providers/ytmusic_provider.dart';
 import '../state/app_state.dart';
 import '../theme/tokens.dart';
 import '../widgets/ui.dart';
@@ -28,13 +28,15 @@ import '../widgets/update_banner.dart';
 
 /// Async cache + Hive box footprint, surfaced on the Library section.
 /// Invalidated on "Clear cache" so the row reflects the freed bytes.
-final _storageStatsProvider =
-    FutureProvider.autoDispose<StorageStats>((_) => computeStorageStats());
+final _storageStatsProvider = FutureProvider.autoDispose<StorageStats>(
+  (_) => computeStorageStats(),
+);
 
 /// Where "Support sunoh." money goes. Hardcoded — there's only one user
 /// (the developer), so the values don't need to be configurable.
 const _kUpiVpa = 'afkcodes@ybl';
 const _kUpiName = 'Sunoh';
+
 /// Moved from Buy Me a Coffee → Ko-fi (lower platform fees, instant payouts,
 /// no merchant-of-record middleman). Same handle on both, so the swap was
 /// a one-line URL change.
@@ -67,16 +69,15 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
         _analyticsRevealed = true;
         _versionTaps = next;
       });
-      ref
-          .read(appStateProvider)
-          .flashToast('Analytics setting unlocked');
+      ref.read(appStateProvider).flashToast('Analytics setting unlocked');
     } else {
       setState(() => _versionTaps = next);
       // Quiet feedback after a few taps so the user knows something is
       // happening but the path isn't broadcast on the first poke.
       if (next >= 3 && next < _kAnalyticsUnlockTaps) {
-        ref.read(appStateProvider).flashToast(
-            '${_kAnalyticsUnlockTaps - next} more…');
+        ref
+            .read(appStateProvider)
+            .flashToast('${_kAnalyticsUnlockTaps - next} more…');
       }
     }
   }
@@ -96,7 +97,6 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
       s.flashToast('Couldn’t open Telegram');
     }
   }
-
 
   @override
   Widget build(BuildContext context) {
@@ -142,7 +142,7 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
                 summary:
                     'Keep music going by seeding a radio when the queue ends.',
                 value: s.endlessAutoplay,
-                onChange: (v) => s.setEndlessAutoplay(v),
+                onChange: s.setEndlessAutoplay,
                 colors: c,
               ),
               _NavRow(
@@ -164,7 +164,7 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
                     'talking sections on YouTube tracks. Only a hash of the '
                     'track id is sent, never the id itself.',
                 value: s.sponsorBlockEnabled,
-                onChange: (v) => s.setSponsorBlock(v),
+                onChange: s.setSponsorBlock,
                 colors: c,
               ),
             ],
@@ -207,45 +207,48 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
             ],
           ),
 
-          Consumer(builder: (ctx, innerRef, _) {
-            final async = innerRef.watch(_storageStatsProvider);
-            final stats = async.asData?.value ?? StorageStats.empty;
-            return _Section(
-              label: 'LIBRARY',
-              colors: c,
-              scale: scale,
-              rows: [
-                _Link(
-                  // Total = Hive (queue + library + settings) + cached
-                  // network images. Shown as a single number — the user
-                  // doesn't care about the split, just how much sunoh.
-                  // is sitting on.
-                  label: 'Storage',
-                  trailing:
-                      async.isLoading ? '…' : formatBytes(stats.totalBytes),
-                  icon: SolarIconsOutline.folderWithFiles,
-                  colors: c,
-                  onTap: () => innerRef.invalidate(_storageStatsProvider),
-                ),
-                _Link(
-                  // Wipes the network image cache (and the in-RAM decoded
-                  // image cache, so freshly-cleared art doesn't snap back
-                  // from the previous scroll). Hive data is untouched.
-                  label: 'Clear cache',
-                  trailing: stats.imageBytes > 0
-                      ? formatBytes(stats.imageBytes)
-                      : null,
-                  icon: SolarIconsOutline.trashBinTrash,
-                  colors: c,
-                  onTap: () async {
-                    await clearImageCache();
-                    s.flashToast('Cache cleared');
-                    innerRef.invalidate(_storageStatsProvider);
-                  },
-                ),
-              ],
-            );
-          }),
+          Consumer(
+            builder: (ctx, innerRef, _) {
+              final async = innerRef.watch(_storageStatsProvider);
+              final stats = async.asData?.value ?? StorageStats.empty;
+              return _Section(
+                label: 'LIBRARY',
+                colors: c,
+                scale: scale,
+                rows: [
+                  _Link(
+                    // Total = Hive (queue + library + settings) + cached
+                    // network images. Shown as a single number — the user
+                    // doesn't care about the split, just how much sunoh.
+                    // is sitting on.
+                    label: 'Storage',
+                    trailing: async.isLoading
+                        ? '…'
+                        : formatBytes(stats.totalBytes),
+                    icon: SolarIconsOutline.folderWithFiles,
+                    colors: c,
+                    onTap: () => innerRef.invalidate(_storageStatsProvider),
+                  ),
+                  _Link(
+                    // Wipes the network image cache (and the in-RAM decoded
+                    // image cache, so freshly-cleared art doesn't snap back
+                    // from the previous scroll). Hive data is untouched.
+                    label: 'Clear cache',
+                    trailing: stats.imageBytes > 0
+                        ? formatBytes(stats.imageBytes)
+                        : null,
+                    icon: SolarIconsOutline.trashBinTrash,
+                    colors: c,
+                    onTap: () async {
+                      await clearImageCache();
+                      s.flashToast('Cache cleared');
+                      innerRef.invalidate(_storageStatsProvider);
+                    },
+                  ),
+                ],
+              );
+            },
+          ),
 
           // COMMUNITY — single-row section linking to the Telegram
           // group. Placed above ABOUT because users look for "join the
@@ -269,46 +272,51 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
           // ABOUT — wrapped in a Consumer so we can conditionally
           // include the "Update available" row INSIDE the section (so
           // it lives under the ABOUT eyebrow, not as an orphan above).
-          Consumer(builder: (ctx, innerRef, _) {
-            final updateInfo =
-                innerRef.watch(availableUpdateProvider).asData?.value;
-            return _Section(
-              label: 'ABOUT',
-              colors: c,
-              scale: scale,
-              rows: [
-                if (updateInfo != null) const UpdateAboutCard(),
-                _Link(
-                  label: 'Version',
-                  // Pull the live versionName+versionCode from the running
-                  // APK via package_info_plus (shared with the update
-                  // notifier so the two can't drift). Falls back to a dash
-                  // while loading / on error.
-                  trailing: innerRef
-                          .watch(currentVersionProvider)
-                          .whenOrNull(
-                            data: (v) => v.build == null
-                                ? v.version
-                                : '${v.version} (${v.build})',
-                          ) ??
-                      '—',
-                  icon: SolarIconsOutline.infoCircle,
-                  colors: c,
-                  // Tap 7× to unlock the hidden Share-analytics toggle.
-                  onTap: _onVersionTap,
-                ),
-                if (_analyticsRevealed)
-                  _ToggleRow(
-                    label: 'Share analytics',
-                    summary:
-                        'Anonymous usage events. Off also resets the install id.',
-                    value: s.analyticsEnabled,
-                    onChange: (v) => s.setAnalyticsEnabled(v),
+          Consumer(
+            builder: (ctx, innerRef, _) {
+              final updateInfo = innerRef
+                  .watch(availableUpdateProvider)
+                  .asData
+                  ?.value;
+              return _Section(
+                label: 'ABOUT',
+                colors: c,
+                scale: scale,
+                rows: [
+                  if (updateInfo != null) const UpdateAboutCard(),
+                  _Link(
+                    label: 'Version',
+                    // Pull the live versionName+versionCode from the running
+                    // APK via package_info_plus (shared with the update
+                    // notifier so the two can't drift). Falls back to a dash
+                    // while loading / on error.
+                    trailing:
+                        innerRef
+                            .watch(currentVersionProvider)
+                            .whenOrNull(
+                              data: (v) => v.build == null
+                                  ? v.version
+                                  : '${v.version} (${v.build})',
+                            ) ??
+                        '—',
+                    icon: SolarIconsOutline.infoCircle,
                     colors: c,
+                    // Tap 7× to unlock the hidden Share-analytics toggle.
+                    onTap: _onVersionTap,
                   ),
-              ],
-            );
-          }),
+                  if (_analyticsRevealed)
+                    _ToggleRow(
+                      label: 'Share analytics',
+                      summary:
+                          'Anonymous usage events. Off also resets the install id.',
+                      value: s.analyticsEnabled,
+                      onChange: s.setAnalyticsEnabled,
+                      colors: c,
+                    ),
+                ],
+              );
+            },
+          ),
         ],
       ),
     );
@@ -334,9 +342,14 @@ class _Header extends StatelessWidget {
             onTap: () => context.pop(),
           ),
           const SizedBox(width: 6),
-          Text('Settings',
-              style: SunohType.heading(
-                  fontSize: 22, color: c.fg, letterSpacing: -0.3)),
+          Text(
+            'Settings',
+            style: SunohType.heading(
+              fontSize: 22,
+              color: c.fg,
+              letterSpacing: -0.3,
+            ),
+          ),
         ],
       ),
     );
@@ -408,12 +421,16 @@ class _Link extends StatelessWidget {
           Icon(icon, size: 18, color: c.fgDim),
           const SizedBox(width: 12),
           Expanded(
-            child: Text(label,
-                style: SunohType.sans(fontSize: 14, color: c.fgDim)),
+            child: Text(
+              label,
+              style: SunohType.sans(fontSize: 14, color: c.fgDim),
+            ),
           ),
           if (trailing != null) ...[
-            Text(trailing!,
-                style: SunohType.sans(fontSize: 12.5, color: c.fgMute)),
+            Text(
+              trailing!,
+              style: SunohType.sans(fontSize: 12.5, color: c.fgMute),
+            ),
             const SizedBox(width: 6),
           ],
           Icon(SolarIconsOutline.altArrowRight, size: 16, color: c.fgMute),
@@ -440,8 +457,7 @@ class _AccentRow extends StatelessWidget {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Text('Accent',
-            style: SunohType.sans(fontSize: 14, color: c.fgDim)),
+        Text('Accent', style: SunohType.sans(fontSize: 14, color: c.fgDim)),
         SizedBox(height: 14 * scale),
         Wrap(
           spacing: 14,
@@ -501,9 +517,14 @@ class _SliderRow extends StatelessWidget {
           mainAxisAlignment: MainAxisAlignment.spaceBetween,
           children: [
             Text(label, style: SunohType.sans(fontSize: 14, color: c.fgDim)),
-            Text(suffix,
-                style: SunohType.mono(
-                    fontSize: 11, color: c.fgMute, letterSpacing: 0.4)),
+            Text(
+              suffix,
+              style: SunohType.mono(
+                fontSize: 11,
+                color: c.fgMute,
+                letterSpacing: 0.4,
+              ),
+            ),
           ],
         ),
         // Slider has built-in vertical padding; pull it tight to the label.
@@ -548,10 +569,12 @@ class _RadioRow<T> extends StatelessWidget {
       mainAxisAlignment: MainAxisAlignment.spaceBetween,
       children: [
         Flexible(
-          child: Text(label,
-              maxLines: 1,
-              overflow: TextOverflow.ellipsis,
-              style: SunohType.sans(fontSize: 14, color: c.fgDim)),
+          child: Text(
+            label,
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+            style: SunohType.sans(fontSize: 14, color: c.fgDim),
+          ),
         ),
         const SizedBox(width: 12),
         Container(
@@ -570,17 +593,21 @@ class _RadioRow<T> extends StatelessWidget {
                   child: AnimatedContainer(
                     duration: const Duration(milliseconds: 150),
                     padding: const EdgeInsets.symmetric(
-                        horizontal: 12, vertical: 6),
+                      horizontal: 12,
+                      vertical: 6,
+                    ),
                     decoration: BoxDecoration(
                       color: e.key == value ? c.fg : Colors.transparent,
                       borderRadius: BorderRadius.circular(999),
                     ),
-                    child: Text(e.value,
-                        style: SunohType.sans(
-                            fontSize: 12,
-                            fontWeight: FontWeight.w500,
-                            color:
-                                e.key == value ? c.bg : c.fgMute)),
+                    child: Text(
+                      e.value,
+                      style: SunohType.sans(
+                        fontSize: 12,
+                        fontWeight: FontWeight.w500,
+                        color: e.key == value ? c.bg : c.fgMute,
+                      ),
+                    ),
                   ),
                 ),
             ],
@@ -619,14 +646,15 @@ class _NavRow extends StatelessWidget {
             mainAxisSize: MainAxisSize.min,
             children: [
               Flexible(
-                child: Text(summary,
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                    style: SunohType.sans(fontSize: 13, color: c.fgMute)),
+                child: Text(
+                  summary,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: SunohType.sans(fontSize: 13, color: c.fgMute),
+                ),
               ),
               const SizedBox(width: 6),
-              Icon(SolarIconsOutline.altArrowRight,
-                  size: 16, color: c.fgMute),
+              Icon(SolarIconsOutline.altArrowRight, size: 16, color: c.fgMute),
             ],
           ),
         ],
@@ -659,12 +687,13 @@ class _ToggleRow extends StatelessWidget {
             crossAxisAlignment: CrossAxisAlignment.start,
             mainAxisSize: MainAxisSize.min,
             children: [
-              Text(label,
-                  style: SunohType.sans(fontSize: 14, color: c.fgDim)),
+              Text(label, style: SunohType.sans(fontSize: 14, color: c.fgDim)),
               if (summary != null) ...[
                 const SizedBox(height: 2),
-                Text(summary!,
-                    style: SunohType.sans(fontSize: 11.5, color: c.fgMute)),
+                Text(
+                  summary!,
+                  style: SunohType.sans(fontSize: 11.5, color: c.fgMute),
+                ),
               ],
             ],
           ),
@@ -722,8 +751,11 @@ class _DonationCard extends ConsumerWidget {
                     color: Colors.white.withValues(alpha: 0.18),
                     shape: BoxShape.circle,
                   ),
-                  child: const Icon(SolarIconsBold.heart,
-                      size: 18, color: Colors.white),
+                  child: const Icon(
+                    SolarIconsBold.heart,
+                    size: 18,
+                    color: Colors.white,
+                  ),
                 ),
                 const SizedBox(width: 14),
                 Expanded(
@@ -731,19 +763,25 @@ class _DonationCard extends ConsumerWidget {
                     crossAxisAlignment: CrossAxisAlignment.start,
                     mainAxisSize: MainAxisSize.min,
                     children: [
-                      Text('Support sunoh.',
-                          style: SunohType.sans(
-                              fontSize: 14.5,
-                              fontWeight: FontWeight.w600,
-                              color: Colors.white,
-                              letterSpacing: -0.1)),
+                      Text(
+                        'Support sunoh.',
+                        style: SunohType.sans(
+                          fontSize: 14.5,
+                          fontWeight: FontWeight.w600,
+                          color: Colors.white,
+                          letterSpacing: -0.1,
+                        ),
+                      ),
                       const SizedBox(height: 3),
-                      Text('Keep this little app alive',
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
-                          style: SunohType.sans(
-                              fontSize: 11.5,
-                              color: Colors.white.withValues(alpha: 0.75))),
+                      Text(
+                        'Keep this little app alive',
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: SunohType.sans(
+                          fontSize: 11.5,
+                          color: Colors.white.withValues(alpha: 0.75),
+                        ),
+                      ),
                     ],
                   ),
                 ),
@@ -786,7 +824,8 @@ class _DonationCard extends ConsumerWidget {
     // apps refuse to parse. The raw `upi://pay?…` form is the canonical
     // deep link spec.
     final uri = Uri.parse(
-        'upi://pay?pa=$_kUpiVpa&pn=${Uri.encodeComponent(_kUpiName)}&cu=INR');
+      'upi://pay?pa=$_kUpiVpa&pn=${Uri.encodeComponent(_kUpiName)}&cu=INR',
+    );
     try {
       // Skip canLaunchUrl — it's unreliable for non-HTTP schemes on
       // Android even with the manifest <queries> entry, and returning
@@ -851,13 +890,16 @@ class _DonationAction extends StatelessWidget {
             Icon(icon, size: 14, color: Colors.white),
             const SizedBox(width: 8),
             Flexible(
-              child: Text(label,
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                  style: SunohType.sans(
-                      fontSize: 12.5,
-                      fontWeight: FontWeight.w600,
-                      color: Colors.white)),
+              child: Text(
+                label,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: SunohType.sans(
+                  fontSize: 12.5,
+                  fontWeight: FontWeight.w600,
+                  color: Colors.white,
+                ),
+              ),
             ),
           ],
         ),

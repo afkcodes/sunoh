@@ -111,7 +111,9 @@ class AnalyticsService {
           fa.setUserProperty(name: 'stream_quality', value: streamQuality),
         if (endlessAutoplay != null)
           fa.setUserProperty(
-              name: 'endless_autoplay', value: '$endlessAutoplay'),
+            name: 'endless_autoplay',
+            value: '$endlessAutoplay',
+          ),
       ]);
     } catch (e) {
       _debug('setUserProperties failed: $e');
@@ -122,10 +124,7 @@ class AnalyticsService {
 
   void logScreenView(String name, {String? klass}) =>
       _safe('screen_view', () async {
-        await _fa!.logScreenView(
-          screenName: name,
-          screenClass: klass ?? name,
-        );
+        await _fa!.logScreenView(screenName: name, screenClass: klass ?? name);
       });
 
   void logSongPlay({
@@ -134,21 +133,23 @@ class AnalyticsService {
     String? artist,
     String? provider,
     String? sourceLabel,
-  }) =>
-      _safe('song_play', () async {
-        await _fa!.logEvent(name: 'song_play', parameters: {
-          'item_id': id,
-          'item_name': _truncate(title, 100),
-          'artist_name': _truncate(artist ?? 'Unknown', 100),
-          'provider': provider ?? 'unknown',
-          if (sourceLabel != null && sourceLabel.isNotEmpty)
-            'source_label': _truncate(sourceLabel, 100),
-        });
-      });
+  }) => _safe('song_play', () async {
+    await _fa!.logEvent(
+      name: 'song_play',
+      parameters: {
+        'item_id': id,
+        'item_name': _truncate(title, 100),
+        'artist_name': _truncate(artist ?? 'Unknown', 100),
+        'provider': provider ?? 'unknown',
+        if (sourceLabel != null && sourceLabel.isNotEmpty)
+          'source_label': _truncate(sourceLabel, 100),
+      },
+    );
+  });
 
   void logSearch(String query) => _safe('search', () async {
-        await _fa!.logSearch(searchTerm: _truncate(query, 100));
-      });
+    await _fa!.logSearch(searchTerm: _truncate(query, 100));
+  });
 
   /// Generic escape hatch — prefer the typed helpers below for things
   /// they exist for, since param keys then stay consistent.
@@ -175,30 +176,34 @@ class AnalyticsService {
     required String id,
     required bool saved,
     String? title,
-  }) =>
-      _safe('save_collection', () async {
-        await _fa!.logEvent(name: 'save_collection', parameters: {
-          'kind': kind,
-          'item_id': id,
-          'saved': saved.toString(),
-          if (title != null) 'item_name': _truncate(title, 100),
-        });
-      });
+  }) => _safe('save_collection', () async {
+    await _fa!.logEvent(
+      name: 'save_collection',
+      parameters: {
+        'kind': kind,
+        'item_id': id,
+        'saved': saved.toString(),
+        if (title != null) 'item_name': _truncate(title, 100),
+      },
+    );
+  });
 
   void logRadioStart({
     required String id,
     required String name,
     String? kind,
     String? provider,
-  }) =>
-      _safe('start_radio_station', () async {
-        await _fa!.logEvent(name: 'start_radio_station', parameters: {
-          'item_id': id,
-          'item_name': _truncate(name, 100),
-          'station_kind': ?kind,
-          'provider': ?provider,
-        });
-      });
+  }) => _safe('start_radio_station', () async {
+    await _fa!.logEvent(
+      name: 'start_radio_station',
+      parameters: {
+        'item_id': id,
+        'item_name': _truncate(name, 100),
+        'station_kind': ?kind,
+        'provider': ?provider,
+      },
+    );
+  });
 
   void logShare({required String kind, required String id, String? title}) =>
       _safe('share', () async {
@@ -209,107 +214,122 @@ class AnalyticsService {
         );
         // logShare doesn't carry title — log a sibling event so the title
         // is queryable in BigQuery / Firebase console.
-        await _fa!.logEvent(name: 'share_detail', parameters: {
-          'kind': kind,
-          'item_id': id,
-          if (title != null) 'item_name': _truncate(title, 100),
-        });
+        await _fa!.logEvent(
+          name: 'share_detail',
+          parameters: {
+            'kind': kind,
+            'item_id': id,
+            if (title != null) 'item_name': _truncate(title, 100),
+          },
+        );
       });
 
   void logDownload({
     required String songId,
     required String action, // queued / removed / completed / failed
     String? title,
-  }) =>
-      _safe('download_$action', () async {
-        await _fa!.logEvent(name: 'download_song', parameters: {
-          'item_id': songId,
-          'action': action,
-          if (title != null) 'item_name': _truncate(title, 100),
-        });
-      });
+  }) => _safe('download_$action', () async {
+    await _fa!.logEvent(
+      name: 'download_song',
+      parameters: {
+        'item_id': songId,
+        'action': action,
+        if (title != null) 'item_name': _truncate(title, 100),
+      },
+    );
+  });
 
-  void logCastConnect(String deviceName) =>
-      _safe('cast_connect', () async {
-        await _fa!.logEvent(name: 'cast_connect', parameters: {
-          'device_name': _truncate(deviceName, 100),
-        });
-      });
+  void logCastConnect(String deviceName) => _safe('cast_connect', () async {
+    await _fa!.logEvent(
+      name: 'cast_connect',
+      parameters: {'device_name': _truncate(deviceName, 100)},
+    );
+  });
 
-  void logCastDisconnect({Duration? sessionLength}) =>
-      _safe('cast_disconnect', () async {
-        await _fa!.logEvent(name: 'cast_disconnect', parameters: {
-          if (sessionLength != null)
-            'session_seconds': sessionLength.inSeconds,
-        });
-      });
+  void logCastDisconnect({Duration? sessionLength}) => _safe(
+    'cast_disconnect',
+    () async {
+      await _fa!.logEvent(
+        name: 'cast_disconnect',
+        parameters: {
+          if (sessionLength != null) 'session_seconds': sessionLength.inSeconds,
+        },
+      );
+    },
+  );
 
   void logSleepTimerSet({int? minutes, required bool endOfTrack}) =>
       _safe('sleep_timer_set', () async {
-        await _fa!.logEvent(name: 'sleep_timer_set', parameters: {
-          'mode': endOfTrack ? 'end_of_track' : 'duration',
-          'minutes': ?minutes,
-        });
+        await _fa!.logEvent(
+          name: 'sleep_timer_set',
+          parameters: {
+            'mode': endOfTrack ? 'end_of_track' : 'duration',
+            'minutes': ?minutes,
+          },
+        );
       });
 
   void logSleepTimerCancel() => _safe('sleep_timer_cancel', () async {
-        await _fa!.logEvent(name: 'sleep_timer_cancel');
-      });
+    await _fa!.logEvent(name: 'sleep_timer_cancel');
+  });
 
   void logAutoplayPrime({required int songsAppended, required String seedId}) =>
       _safe('autoplay_prime', () async {
-        await _fa!.logEvent(name: 'autoplay_prime', parameters: {
-          'songs_appended': songsAppended,
-          'seed_id': seedId,
-        });
+        await _fa!.logEvent(
+          name: 'autoplay_prime',
+          parameters: {'songs_appended': songsAppended, 'seed_id': seedId},
+        );
       });
 
-  void logPlaylistCreate({required String id, required String name}) =>
-      _safe('playlist_create', () async {
-        await _fa!.logEvent(name: 'playlist_create', parameters: {
-          'playlist_id': id,
-          'playlist_name': _truncate(name, 100),
-        });
-      });
+  void logPlaylistCreate({required String id, required String name}) => _safe(
+    'playlist_create',
+    () async {
+      await _fa!.logEvent(
+        name: 'playlist_create',
+        parameters: {'playlist_id': id, 'playlist_name': _truncate(name, 100)},
+      );
+    },
+  );
 
   void logPlaylistAddSong({
     required String playlistId,
     required String songId,
-  }) =>
-      _safe('playlist_add_song', () async {
-        await _fa!.logEvent(name: 'playlist_add_song', parameters: {
-          'playlist_id': playlistId,
-          'item_id': songId,
-        });
-      });
+  }) => _safe('playlist_add_song', () async {
+    await _fa!.logEvent(
+      name: 'playlist_add_song',
+      parameters: {'playlist_id': playlistId, 'item_id': songId},
+    );
+  });
 
   void logPlaylistPlay({required String playlistId, required int songCount}) =>
       _safe('playlist_play', () async {
-        await _fa!.logEvent(name: 'playlist_play', parameters: {
-          'playlist_id': playlistId,
-          'song_count': songCount,
-        });
+        await _fa!.logEvent(
+          name: 'playlist_play',
+          parameters: {'playlist_id': playlistId, 'song_count': songCount},
+        );
       });
 
   void logEqPresetApply({required String presetId}) =>
       _safe('eq_preset_apply', () async {
-        await _fa!.logEvent(name: 'eq_preset_apply', parameters: {
-          'preset_id': presetId,
-        });
+        await _fa!.logEvent(
+          name: 'eq_preset_apply',
+          parameters: {'preset_id': presetId},
+        );
       });
 
-  void logLyricsOpen({required String songId}) =>
-      _safe('lyrics_open', () async {
-        await _fa!.logEvent(name: 'lyrics_open', parameters: {
-          'item_id': songId,
-        });
-      });
+  void logLyricsOpen({required String songId}) => _safe(
+    'lyrics_open',
+    () async {
+      await _fa!.logEvent(name: 'lyrics_open', parameters: {'item_id': songId});
+    },
+  );
 
   void logUpdateBannerTap(String version) =>
       _safe('update_banner_tap', () async {
-        await _fa!.logEvent(name: 'update_banner_tap', parameters: {
-          'version': version,
-        });
+        await _fa!.logEvent(
+          name: 'update_banner_tap',
+          parameters: {'version': version},
+        );
       });
 
   // ── Internals ──────────────────────────────────────────────────────────

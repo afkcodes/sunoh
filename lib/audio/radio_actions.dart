@@ -40,8 +40,10 @@ Future<void> startRadioStation(
   //    is empty — name carries the seed).
   final stationKind = kind ?? item.stationType ?? 'featured';
   // ignore: avoid_print
-  print('[radio] starting station id="${item.id}" kind="$stationKind" '
-      'provider="$resolvedProvider" name="${item.title}" lang="${item.language}"');
+  print(
+    '[radio] starting station id="${item.id}" kind="$stationKind" '
+    'provider="$resolvedProvider" name="${item.title}" lang="${item.language}"',
+  );
   s.flashToast('Starting ${item.title}…');
   AnalyticsService.instance.logRadioStart(
     id: item.id,
@@ -58,8 +60,10 @@ Future<void> startRadioStation(
       lang: item.language,
     );
     // ignore: avoid_print
-    print('[radio] session response → '
-        '${sessionId ?? 'NULL (request failed or empty data)'}');
+    print(
+      '[radio] session response → '
+      '${sessionId ?? 'NULL (request failed or empty data)'}',
+    );
     if (sessionId == null) {
       s.flashToast('Couldn’t start ${item.title}');
       return;
@@ -71,8 +75,7 @@ Future<void> startRadioStation(
       s.flashToast('No songs available on this station');
       return;
     }
-    await s.playApiQueue(songs, 0,
-        sourceLabel: 'RADIO · ${item.title}');
+    await s.playApiQueue(songs, 0, sourceLabel: 'RADIO · ${item.title}');
   } catch (e, st) {
     // ignore: avoid_print
     print('[radio] FAILED: $e\n$st');

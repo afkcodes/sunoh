@@ -38,8 +38,8 @@ class PodcastsTab extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final s = ref.watch(appStateProvider);
     final c = colors;
-    final country =
-        PlatformDispatcher.instance.locale.countryCode?.toUpperCase();
+    final country = PlatformDispatcher.instance.locale.countryCode
+        ?.toUpperCase();
     final async = ref.watch(podcastHomeProvider(country));
 
     return Column(
@@ -59,7 +59,9 @@ class PodcastsTab extends ConsumerWidget {
                 behavior: HitTestBehavior.opaque,
                 child: Container(
                   padding: const EdgeInsets.symmetric(
-                      horizontal: 12, vertical: 6),
+                    horizontal: 12,
+                    vertical: 6,
+                  ),
                   decoration: squircleDecoration(
                     radius: 999,
                     color: c.surface,
@@ -68,14 +70,16 @@ class PodcastsTab extends ConsumerWidget {
                   child: Row(
                     mainAxisSize: MainAxisSize.min,
                     children: [
-                      Icon(SolarIconsOutline.widget,
-                          size: 12, color: c.fgDim),
+                      Icon(SolarIconsOutline.widget, size: 12, color: c.fgDim),
                       const SizedBox(width: 6),
-                      Text('Browse',
-                          style: SunohType.sans(
-                              fontSize: 12,
-                              fontWeight: FontWeight.w500,
-                              color: c.fgDim)),
+                      Text(
+                        'Browse',
+                        style: SunohType.sans(
+                          fontSize: 12,
+                          fontWeight: FontWeight.w500,
+                          color: c.fgDim,
+                        ),
+                      ),
                     ],
                   ),
                 ),
@@ -102,9 +106,10 @@ class PodcastsTab extends ConsumerWidget {
                   // first section (typically "Trending in <country>")
                   // gets larger tiles to anchor the page.
                   _PodcastSection(
-                      section: sections[i],
-                      colors: c,
-                      featured: i == 0),
+                    section: sections[i],
+                    colors: c,
+                    featured: i == 0,
+                  ),
                   if (i < sections.length - 1) const SizedBox(height: 32),
                   // Drop the categories preview after the featured
                   // (first) section so it sits between Trending and
@@ -147,8 +152,9 @@ class _SubscribedStrip extends StatelessWidget {
             itemBuilder: (context, i) {
               final show = shows[i];
               return GestureDetector(
-                onTap: () => context.openRef(DetailRef('podcast', show.id,
-                    source: show.source)),
+                onTap: () => context.openRef(
+                  DetailRef('podcast', show.id, source: show.source),
+                ),
                 behavior: HitTestBehavior.opaque,
                 child: SizedBox(
                   width: 108,
@@ -165,13 +171,16 @@ class _SubscribedStrip extends StatelessWidget {
                         ),
                       ),
                       const SizedBox(height: 6),
-                      Text(show.title,
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
-                          style: SunohType.sans(
-                              fontSize: 12,
-                              fontWeight: FontWeight.w500,
-                              color: c.fg)),
+                      Text(
+                        show.title,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: SunohType.sans(
+                          fontSize: 12,
+                          fontWeight: FontWeight.w500,
+                          color: c.fg,
+                        ),
+                      ),
                     ],
                   ),
                 ),
@@ -240,7 +249,7 @@ class _CategoriesPreview extends ConsumerWidget {
     const tileH = 64.0;
     const gap = 10.0;
     const rows = 3;
-    final totalH = rows * tileH + (rows - 1) * gap;
+    const totalH = rows * tileH + (rows - 1) * gap;
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -254,7 +263,7 @@ class _CategoriesPreview extends ConsumerWidget {
           child: GridView.builder(
             scrollDirection: Axis.horizontal,
             padding: const EdgeInsets.symmetric(horizontal: 20),
-            gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
+            gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
               crossAxisCount: rows,
               // In a horizontal GridView, childAspectRatio is
               // cross/main = height/width, not the other way around.
@@ -303,11 +312,8 @@ class _PodcastSection extends StatelessWidget {
             padding: const EdgeInsets.symmetric(horizontal: 20),
             itemCount: items.length,
             separatorBuilder: (_, _) => const SizedBox(width: 14),
-            itemBuilder: (context, i) => _PodcastTile(
-              item: items[i],
-              colors: c,
-              width: width,
-            ),
+            itemBuilder: (context, i) =>
+                _PodcastTile(item: items[i], colors: c, width: width),
           ),
         ),
       ],
@@ -336,8 +342,8 @@ class _PodcastTile extends StatelessWidget {
   Widget build(BuildContext context) {
     final c = colors;
     return GestureDetector(
-      onTap: () => context
-          .openRef(DetailRef('podcast', item.id, source: item.source)),
+      onTap: () =>
+          context.openRef(DetailRef('podcast', item.id, source: item.source)),
       behavior: HitTestBehavior.opaque,
       child: SizedBox(
         width: width,
@@ -388,15 +394,18 @@ class _PodcastTile extends StatelessWidget {
                       left: 10,
                       right: 10,
                       bottom: 10,
-                      child: Text(item.title,
-                          maxLines: 2,
-                          overflow: TextOverflow.ellipsis,
-                          style: SunohType.sans(
-                              fontSize: 12.5,
-                              fontWeight: FontWeight.w700,
-                              color: Colors.white,
-                              height: 1.2,
-                              letterSpacing: -0.1)),
+                      child: Text(
+                        item.title,
+                        maxLines: 2,
+                        overflow: TextOverflow.ellipsis,
+                        style: SunohType.sans(
+                          fontSize: 12.5,
+                          fontWeight: FontWeight.w700,
+                          color: Colors.white,
+                          height: 1.2,
+                          letterSpacing: -0.1,
+                        ),
+                      ),
                     ),
                   ],
                 ),
@@ -404,10 +413,12 @@ class _PodcastTile extends StatelessWidget {
             ),
             if ((item.subtitle ?? '').isNotEmpty) ...[
               const SizedBox(height: 8),
-              Text(item.subtitle!,
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                  style: SunohType.sans(fontSize: 11.5, color: c.fgMute)),
+              Text(
+                item.subtitle!,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: SunohType.sans(fontSize: 11.5, color: c.fgMute),
+              ),
             ],
           ],
         ),
@@ -423,49 +434,46 @@ class _Skeleton extends StatelessWidget {
   Widget build(BuildContext context) {
     final c = colors;
     Widget row(String title) => Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            SectionHeader(title: title, colors: c),
-            SizedBox(
-              height: 192,
-              child: ListView.builder(
-                scrollDirection: Axis.horizontal,
-                padding: const EdgeInsets.symmetric(horizontal: 20),
-                itemCount: 4,
-                itemBuilder: (_, _) => Padding(
-                  padding: const EdgeInsets.only(right: 14),
-                  child: SizedBox(
-                    width: 152,
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Container(
-                          width: 152,
-                          height: 152,
-                          decoration: squircleDecoration(
-                              radius: 14,
-                              color: c.surface,
-                              borderColor: c.line),
-                        ),
-                        const SizedBox(height: 10),
-                        Container(height: 13, width: 130, color: c.surface),
-                        const SizedBox(height: 4),
-                        Container(height: 11, width: 90, color: c.surface),
-                      ],
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        SectionHeader(title: title, colors: c),
+        SizedBox(
+          height: 192,
+          child: ListView.builder(
+            scrollDirection: Axis.horizontal,
+            padding: const EdgeInsets.symmetric(horizontal: 20),
+            itemCount: 4,
+            itemBuilder: (_, _) => Padding(
+              padding: const EdgeInsets.only(right: 14),
+              child: SizedBox(
+                width: 152,
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Container(
+                      width: 152,
+                      height: 152,
+                      decoration: squircleDecoration(
+                        radius: 14,
+                        color: c.surface,
+                        borderColor: c.line,
+                      ),
                     ),
-                  ),
+                    const SizedBox(height: 10),
+                    Container(height: 13, width: 130, color: c.surface),
+                    const SizedBox(height: 4),
+                    Container(height: 11, width: 90, color: c.surface),
+                  ],
                 ),
               ),
             ),
-          ],
-        );
+          ),
+        ),
+      ],
+    );
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        row('Trending'),
-        const SizedBox(height: 28),
-        row('News'),
-      ],
+      children: [row('Trending'), const SizedBox(height: 28), row('News')],
     );
   }
 }
@@ -482,12 +490,15 @@ class _ErrorState extends StatelessWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Text('Couldn’t load podcasts.',
-              style: SunohType.heading(fontSize: 16, color: c.fgDim)),
+          Text(
+            'Couldn’t load podcasts.',
+            style: SunohType.heading(fontSize: 16, color: c.fgDim),
+          ),
           const SizedBox(height: 6),
-          Text(message,
-              style: SunohType.sans(
-                  fontSize: 12, color: c.fgMute, height: 1.4)),
+          Text(
+            message,
+            style: SunohType.sans(fontSize: 12, color: c.fgMute, height: 1.4),
+          ),
         ],
       ),
     );
@@ -502,8 +513,10 @@ class _Empty extends StatelessWidget {
     final c = colors;
     return Padding(
       padding: const EdgeInsets.fromLTRB(20, 24, 20, 24),
-      child: Text('Nothing here yet.',
-          style: SunohType.sans(fontSize: 13, color: c.fgMute)),
+      child: Text(
+        'Nothing here yet.',
+        style: SunohType.sans(fontSize: 13, color: c.fgMute),
+      ),
     );
   }
 }

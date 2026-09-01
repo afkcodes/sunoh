@@ -49,10 +49,7 @@ List<LyricLine> parseLrc(String raw) {
 /// Active-line highlighting will be approximate — only useful when we
 /// have no synced lyrics at all.
 List<LyricLine> plainLyricsAsLines(String raw, {int totalSec = 180}) {
-  final lines = raw
-      .split('\n')
-      .map((l) => l.trim())
-      .toList();
+  final lines = raw.split('\n').map((l) => l.trim()).toList();
   if (lines.isEmpty) return const [];
   // Drop trailing blanks but keep interior ones for verse spacing.
   while (lines.isNotEmpty && lines.last.isEmpty) {

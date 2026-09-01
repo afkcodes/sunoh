@@ -135,17 +135,15 @@ class SunohAudioHandler {
       // Includes positions of both old and new tracks. The endFile +
       // mpv-error log lines right above this in logcat tell us WHY
       // mpv moved on (natural EOF / premature EOF / load error).
-      final from = (oldIdx >= 0 && oldIdx < list.length)
-          ? list[oldIdx]
-          : null;
-      final to = (newIdx >= 0 && newIdx < list.length)
-          ? list[newIdx]
-          : null;
+      final from = (oldIdx >= 0 && oldIdx < list.length) ? list[oldIdx] : null;
+      final to = (newIdx >= 0 && newIdx < list.length) ? list[newIdx] : null;
       // ignore: avoid_print
-      print('[audio] playlist index $oldIdx → $newIdx '
-          'len=${list.length} '
-          'from="${from?.title ?? '?'}" (${from?.id ?? '?'}) '
-          '→ to="${to?.title ?? '?'}" (${to?.id ?? '?'})');
+      print(
+        '[audio] playlist index $oldIdx → $newIdx '
+        'len=${list.length} '
+        'from="${from?.title ?? '?'}" (${from?.id ?? '?'}) '
+        '→ to="${to?.title ?? '?'}" (${to?.id ?? '?'})',
+      );
       _emitCurrentSong();
     }
   }
@@ -191,8 +189,9 @@ class SunohAudioHandler {
           : old.artists,
       token: (enriched.token?.isNotEmpty ?? false) ? enriched.token : old.token,
       stationType: old.stationType,
-      mediaUrls:
-          enriched.mediaUrls.isNotEmpty ? enriched.mediaUrls : old.mediaUrls,
+      mediaUrls: enriched.mediaUrls.isNotEmpty
+          ? enriched.mediaUrls
+          : old.mediaUrls,
     );
     _byId[songId] = merged;
     // Re-emit the mirror so listeners see the enriched data.
@@ -234,8 +233,7 @@ class SunohAudioHandler {
       StreamController<Duration>.broadcast();
   final StreamController<Duration> _durationCtl =
       StreamController<Duration>.broadcast();
-  final StreamController<bool> _playingCtl =
-      StreamController<bool>.broadcast();
+  final StreamController<bool> _playingCtl = StreamController<bool>.broadcast();
   final StreamController<FeedItem?> _currentSongCtl =
       StreamController<FeedItem?>.broadcast();
 
@@ -289,11 +287,13 @@ class SunohAudioHandler {
 
   // ── Audio focus / interruption state ──────────────────────────────────
   AudioSession? _audioSession;
+
   /// True while we're paused specifically because of an interruption
   /// (phone call, alarm, another music app, headphone unplug). Lets the
   /// interruption-end handler decide whether to auto-resume — we only
   /// resume if the pause was OURS, not a user-initiated one.
   bool _pausedForInterruption = false;
+
   /// True while ducked (volume lowered for a transient ducking
   /// interruption like a nav prompt). Original volume restored on end.
   bool _ducked = false;
@@ -358,8 +358,10 @@ class SunohAudioHandler {
 
   void _onInterruption(AudioInterruptionEvent event) {
     // ignore: avoid_print
-    print('[audio-session] interruption '
-        '${event.begin ? 'BEGIN' : 'END'} type=${event.type}');
+    print(
+      '[audio-session] interruption '
+      '${event.begin ? 'BEGIN' : 'END'} type=${event.type}',
+    );
     if (event.begin) {
       switch (event.type) {
         case AudioInterruptionType.duck:
@@ -460,8 +462,10 @@ class SunohAudioHandler {
       await _player.setRawProperty('cache-secs', '240');
       await _player.setRawProperty('demuxer-readahead-secs', '240');
       // ignore: avoid_print
-      print('[audio] tuning applied: gapless=yes prefetch-playlist=yes '
-          'audio-buffer=500ms cache-secs=240 readahead-secs=240');
+      print(
+        '[audio] tuning applied: gapless=yes prefetch-playlist=yes '
+        'audio-buffer=500ms cache-secs=240 readahead-secs=240',
+      );
     } catch (e) {
       // ignore: avoid_print
       print('[audio] tuning failed: $e');
@@ -485,26 +489,33 @@ class SunohAudioHandler {
     final dur = _player.state.duration;
     final song = currentSong;
     // ignore: avoid_print
-    print('[audio] endFile reason=${event.reason} '
-        'pos=${pos.inSeconds}s dur=${dur.inSeconds}s '
-        'id="${song?.id ?? '?'}" title="${song?.title ?? '?'}"');
+    print(
+      '[audio] endFile reason=${event.reason} '
+      'pos=${pos.inSeconds}s dur=${dur.inSeconds}s '
+      'id="${song?.id ?? '?'}" title="${song?.title ?? '?'}"',
+    );
     if (event.reason != MpvEndFileReason.eof) return;
 
     // Was this a natural end (mpv will auto-advance) or a
     // premature network drop? Compare position vs duration.
-    final isPremature = dur > const Duration(seconds: 3) &&
+    final isPremature =
+        dur > const Duration(seconds: 3) &&
         pos < dur - const Duration(seconds: 15) &&
         pos.inMilliseconds < (dur.inMilliseconds * 0.9).round();
 
     if (isPremature) {
       // ignore: avoid_print
-      print('[audio] PREMATURE EOF @ ${pos.inSeconds}/${dur.inSeconds}s '
-          '— url-refresh');
+      print(
+        '[audio] PREMATURE EOF @ ${pos.inSeconds}/${dur.inSeconds}s '
+        '— url-refresh',
+      );
       unawaited(_urlRefresh.triggerRefresh(reason: 'premature EOF'));
     } else {
       // ignore: avoid_print
-      print('[audio] natural EOF @ ${pos.inSeconds}/${dur.inSeconds}s '
-          '(mpv will auto-advance)');
+      print(
+        '[audio] natural EOF @ ${pos.inSeconds}/${dur.inSeconds}s '
+        '(mpv will auto-advance)',
+      );
     }
   }
 
@@ -522,15 +533,19 @@ class SunohAudioHandler {
     final tries = _loadFailRetries[song.id] ?? 0;
     if (tries >= _maxRetries) {
       // ignore: avoid_print
-      print('[audio] giving up on ${song.id} ("${song.title}") '
-          'after $tries retries — mpv will auto-advance to next');
+      print(
+        '[audio] giving up on ${song.id} ("${song.title}") '
+        'after $tries retries — mpv will auto-advance to next',
+      );
       _loadFailRetries.remove(song.id);
       return;
     }
     _loadFailRetries[song.id] = tries + 1;
     // ignore: avoid_print
-    print('[audio] load error for ${song.id} ("${song.title}") '
-        '(try ${tries + 1}/$_maxRetries) — force-refresh');
+    print(
+      '[audio] load error for ${song.id} ("${song.title}") '
+      '(try ${tries + 1}/$_maxRetries) — force-refresh',
+    );
     unawaited(_refreshCurrentTrack());
   }
 
@@ -573,8 +588,10 @@ class SunohAudioHandler {
   Future<ResolvedStream?> _resolveForHook(FeedItem song) async {
     final fresh = _forceRefreshNextResolve;
     _forceRefreshNextResolve = false;
-    debugPrint('[audio] hook resolving ${song.id}'
-        '${fresh ? ' (forceRefresh)' : ''}');
+    debugPrint(
+      '[audio] hook resolving ${song.id}'
+      '${fresh ? ' (forceRefresh)' : ''}',
+    );
     try {
       final resolved = await resolver.resolve(song, forceRefresh: fresh);
       debugPrint('[audio] hook resolved → ${resolved.url}');
@@ -603,12 +620,12 @@ class SunohAudioHandler {
     final value = (headers == null || headers.isEmpty)
         ? ''
         : headers.entries
-            // mpv splits this list on commas, so a header value containing
-            // one would corrupt every field after it. None of the headers
-            // we get carry commas; drop any that do rather than risk it.
-            .where((e) => !e.key.contains(',') && !e.value.contains(','))
-            .map((e) => '${e.key}: ${e.value}')
-            .join(',');
+              // mpv splits this list on commas, so a header value containing
+              // one would corrupt every field after it. None of the headers
+              // we get carry commas; drop any that do rather than risk it.
+              .where((e) => !e.key.contains(',') && !e.value.contains(','))
+              .map((e) => '${e.key}: ${e.value}')
+              .join(',');
     try {
       await _player.setRawProperty('http-header-fields', value);
     } catch (e) {
@@ -630,12 +647,15 @@ class SunohAudioHandler {
     // the real target's hook.
     final target = _pendingStartSongId;
     if (target != null && target != loadingSongId) {
-      debugPrint('[audio] hook skipping start=${start.inSeconds}s for '
-          '$loadingSongId (waiting for target=$target)');
+      debugPrint(
+        '[audio] hook skipping start=${start.inSeconds}s for '
+        '$loadingSongId (waiting for target=$target)',
+      );
       return;
     }
     debugPrint(
-        '[audio] hook applying start=${start.inSeconds}s for $loadingSongId');
+      '[audio] hook applying start=${start.inSeconds}s for $loadingSongId',
+    );
     await _player.setRawProperty(
       'file-local-options/start',
       start.inSeconds.toString(),
@@ -658,8 +678,10 @@ class SunohAudioHandler {
     }
     final pos = _player.state.position;
     // ignore: avoid_print
-    print('[url-refresh] reload ${song.id} ("${song.title}") '
-        '@ ${pos.inSeconds}s');
+    print(
+      '[url-refresh] reload ${song.id} ("${song.title}") '
+      '@ ${pos.inSeconds}s',
+    );
     _pendingStartPosition = pos;
     // URL refresh swaps the current entry in place — the load hook
     // will fire for this same song, so tag the song-id gate so the
@@ -692,8 +714,11 @@ class SunohAudioHandler {
     _pausedForInterruption = false;
     await _activateSession();
     final medias = songs.map(_toMedia).toList();
-    await _player.openAll(medias,
-        index: startIndex.clamp(0, medias.length - 1), play: true);
+    await _player.openAll(
+      medias,
+      index: startIndex.clamp(0, medias.length - 1),
+      play: true,
+    );
   }
 
   Future<void> prepareQueue(
@@ -702,8 +727,10 @@ class SunohAudioHandler {
     Duration? seekTo,
   }) async {
     if (songs.isEmpty) return;
-    debugPrint('[audio] prepareQueue len=${songs.length} idx=$startIndex '
-        'seek=${seekTo?.inSeconds}s');
+    debugPrint(
+      '[audio] prepareQueue len=${songs.length} idx=$startIndex '
+      'seek=${seekTo?.inSeconds}s',
+    );
     for (final s in songs) {
       _byId[s.id] = s;
     }
@@ -868,12 +895,23 @@ class SunohAudioHandler {
 
   // ── 10-band graphic EQ ────────────────────────────────────────────────
   static const eqFrequencies = [
-    31, 63, 125, 250, 500, 1000, 2000, 4000, 8000, 16000,
+    31,
+    63,
+    125,
+    250,
+    500,
+    1000,
+    2000,
+    4000,
+    8000,
+    16000,
   ];
 
   Future<void> setEqBands(List<double> gains) async {
-    assert(gains.length == eqFrequencies.length,
-        'expected ${eqFrequencies.length} bands, got ${gains.length}');
+    assert(
+      gains.length == eqFrequencies.length,
+      'expected ${eqFrequencies.length} bands, got ${gains.length}',
+    );
     final anyNonZero = gains.any((g) => g.abs() > 0.001);
     final filters = <String>[];
     if (anyNonZero) {
@@ -889,10 +927,12 @@ class SunohAudioHandler {
         }
       }
     }
-    await _player.updateAudioEffects((e) => e.copyWith(
-          custom: filters,
-          superequalizer: const SuperequalizerSettings(enabled: false),
-        ));
+    await _player.updateAudioEffects(
+      (e) => e.copyWith(
+        custom: filters,
+        superequalizer: const SuperequalizerSettings(enabled: false),
+      ),
+    );
   }
 
   // ── Cleanup ────────────────────────────────────────────────────────────

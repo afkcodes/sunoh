@@ -39,10 +39,12 @@ class SavedPlayback {
   /// Persisted as the `LoopMode.name` ('off' / 'all' / 'one'). Null on
   /// fresh installs / older saves that predate this field.
   final String? repeatMode;
+
   /// Selected music languages (lowercase slugs like 'hindi', 'english').
   /// Null on fresh installs / older saves; consumers treat null +
   /// empty list as "use backend default".
   final List<String>? languages;
+
   /// When the queue's last track ends, AppState seeds a radio from that
   /// track and appends the songs. Null on fresh installs (treated as off).
   final bool? endlessAutoplay;
@@ -84,6 +86,7 @@ class SettingsStore {
 
   // Search
   static const _kSearchRecents = 'search.recents';
+
   /// Cap on persisted search recents — older queries fall off the list
   /// once we cross this. 10 is plenty for the chips UI without forcing
   /// the user to scroll.
@@ -115,8 +118,10 @@ class SettingsStore {
       box = await Hive.openBox(_boxName);
     } catch (e, st) {
       // ignore: avoid_print
-      print('[settings-store] ⚠ openBox("$_boxName") FAILED: $e\n$st\n'
-          '[settings-store] deleting corrupted box file and retrying…');
+      print(
+        '[settings-store] ⚠ openBox("$_boxName") FAILED: $e\n$st\n'
+        '[settings-store] deleting corrupted box file and retrying…',
+      );
       try {
         await Hive.deleteBoxFromDisk(_boxName);
       } catch (_) {}
@@ -134,14 +139,16 @@ class SettingsStore {
     // mirrors library-store / playback-store cold-start lines for easy
     // diffing when the user reports "settings not preserved".
     // ignore: avoid_print
-    print('[settings-store] opened "$_boxName" at ${box.path} '
-        '(file=${boxBytes}b) — '
-        'accent=${box.get(_kAccent) ?? '-'} '
-        'density=${box.get(_kDensity) ?? '-'} '
-        'tintFromArt=${box.get(_kTintFromArt) ?? '-'} '
-        'streamQ=${box.get(_kStreamQuality) ?? '-'} '
-        'repeat=${box.get(_kRepeatMode) ?? '-'} '
-        'eqPreset=${box.get(_kEqPresetId) ?? '-'}');
+    print(
+      '[settings-store] opened "$_boxName" at ${box.path} '
+      '(file=${boxBytes}b) — '
+      'accent=${box.get(_kAccent) ?? '-'} '
+      'density=${box.get(_kDensity) ?? '-'} '
+      'tintFromArt=${box.get(_kTintFromArt) ?? '-'} '
+      'streamQ=${box.get(_kStreamQuality) ?? '-'} '
+      'repeat=${box.get(_kRepeatMode) ?? '-'} '
+      'eqPreset=${box.get(_kEqPresetId) ?? '-'}',
+    );
     return box;
   }
 
@@ -152,10 +159,7 @@ class SettingsStore {
     required String? presetId,
   }) async {
     final box = await _box();
-    await box.putAll({
-      _kEqBands: bands,
-      _kEqPresetId: presetId,
-    });
+    await box.putAll({_kEqBands: bands, _kEqPresetId: presetId});
     // Force fsync — without flush, Hive buffers writes and a fast process
     // kill (adb install, app swipe, etc.) drops them silently. Settings
     // were lost across upgrades for exactly this reason.
@@ -191,7 +195,8 @@ class SettingsStore {
     if (accent != null) {
       // Pack Color into a single ARGB int. Using floor() to coerce the new
       // double channels in Flutter 3.27+ back to 0–255 ints.
-      final argb = ((accent.a * 255).round() << 24) |
+      final argb =
+          ((accent.a * 255).round() << 24) |
           ((accent.r * 255).round() << 16) |
           ((accent.g * 255).round() << 8) |
           (accent.b * 255).round();
@@ -332,5 +337,4 @@ class SettingsStore {
     await box.put(_kAnalyticsEnabled, enabled);
     await box.flush();
   }
-
 }

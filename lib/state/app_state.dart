@@ -5,10 +5,9 @@ import 'dart:async';
 import 'dart:math' show Random;
 
 import 'package:flutter/material.dart';
-
-import '../api/dto.dart';
 import 'package:flutter_chrome_cast/enums.dart';
 
+import '../api/dto.dart';
 import '../api/sunoh_api.dart';
 import '../audio/audio_repo.dart';
 import '../audio/eq_presets.dart';
@@ -41,27 +40,31 @@ class SpotifyImportState {
     this.startedAt,
   });
   const SpotifyImportState.idle()
-      : status = SpotifyImportStatus.idle,
-        sourceUrl = null,
-        sourceName = null,
-        newPlaylistId = null,
-        totalTracks = null,
-        matchedTracks = null,
-        errorMessage = null,
-        startedAt = null;
+    : status = SpotifyImportStatus.idle,
+      sourceUrl = null,
+      sourceName = null,
+      newPlaylistId = null,
+      totalTracks = null,
+      matchedTracks = null,
+      errorMessage = null,
+      startedAt = null;
   final SpotifyImportStatus status;
+
   /// The original URL the user pasted — kept so the failure banner can
   /// offer a "retry" without re-asking.
   final String? sourceUrl;
+
   /// Playlist name from the Spotify API once it lands. Used for the
   /// completion banner ("Imported X — N songs").
   final String? sourceName;
+
   /// UserPlaylist id created on successful import. Tapping the
   /// completion banner navigates here.
   final String? newPlaylistId;
   final int? totalTracks;
   final int? matchedTracks;
   final String? errorMessage;
+
   /// Used by the banner to render an elapsed-time hint while running.
   final DateTime? startedAt;
 }
@@ -116,14 +119,16 @@ class AppState extends ChangeNotifier with WidgetsBindingObserver {
       _subscribedPodcastIds = results[11] as Set<String>;
       _episodeProgress = results[12] as Map<String, int>;
       notifyListeners();
-      debugPrint('[library] restored liked=${_likedSongs.length} '
-          'history=${_playedHistory.length} '
-          'albums=${_savedAlbums.length} '
-          'playlists=${_savedPlaylists.length} '
-          'artists=${_savedArtists.length} '
-          'userPlaylists=${_userPlaylists.length} '
-          'podcasts=${_subscribedPodcasts.length} '
-          'episodeProgress=${_episodeProgress.length}');
+      debugPrint(
+        '[library] restored liked=${_likedSongs.length} '
+        'history=${_playedHistory.length} '
+        'albums=${_savedAlbums.length} '
+        'playlists=${_savedPlaylists.length} '
+        'artists=${_savedArtists.length} '
+        'userPlaylists=${_userPlaylists.length} '
+        'podcasts=${_subscribedPodcasts.length} '
+        'episodeProgress=${_episodeProgress.length}',
+      );
     } catch (e) {
       debugPrint('[library] restore failed: $e');
     }
@@ -528,10 +533,15 @@ class AppState extends ChangeNotifier with WidgetsBindingObserver {
       _savedPlaylistIds = {..._savedPlaylistIds};
       if (shouldSave) {
         _savedPlaylistIds.add(item.id);
-        _savedPlaylists = [item, ..._savedPlaylists.where((s) => s.id != item.id)];
+        _savedPlaylists = [
+          item,
+          ..._savedPlaylists.where((s) => s.id != item.id),
+        ];
       } else {
         _savedPlaylistIds.remove(item.id);
-        _savedPlaylists = _savedPlaylists.where((s) => s.id != item.id).toList();
+        _savedPlaylists = _savedPlaylists
+            .where((s) => s.id != item.id)
+            .toList();
       }
     } else {
       _savedArtistIds = {..._savedArtistIds};
@@ -543,9 +553,11 @@ class AppState extends ChangeNotifier with WidgetsBindingObserver {
         _savedArtists = _savedArtists.where((s) => s.id != item.id).toList();
       }
     }
-    flashToast(shouldSave
-        ? 'Added ${_kindLabel(kind)} to Library'
-        : 'Removed ${_kindLabel(kind)} from Library');
+    flashToast(
+      shouldSave
+          ? 'Added ${_kindLabel(kind)} to Library'
+          : 'Removed ${_kindLabel(kind)} from Library',
+    );
     notifyListeners();
     AnalyticsService.instance.logSaveCollection(
       kind: kind,
@@ -554,8 +566,7 @@ class AppState extends ChangeNotifier with WidgetsBindingObserver {
       title: item.title,
     );
     try {
-      final next =
-          await repo.library.setSaved(item: item, saved: shouldSave);
+      final next = await repo.library.setSaved(item: item, saved: shouldSave);
       switch (kind) {
         case 'album':
           _savedAlbums = next;
@@ -569,7 +580,9 @@ class AppState extends ChangeNotifier with WidgetsBindingObserver {
       }
       notifyListeners();
     } catch (e) {
-      debugPrint('[library] toggleSaved failed for ${item.type}:${item.id}: $e');
+      debugPrint(
+        '[library] toggleSaved failed for ${item.type}:${item.id}: $e',
+      );
     }
   }
 
@@ -592,7 +605,8 @@ class AppState extends ChangeNotifier with WidgetsBindingObserver {
     final repo = audioRepo;
     final trimmed = name.trim();
     final now = DateTime.now();
-    final id = '${now.microsecondsSinceEpoch.toRadixString(36)}-'
+    final id =
+        '${now.microsecondsSinceEpoch.toRadixString(36)}-'
         '${now.millisecond.toRadixString(36)}';
     final p = UserPlaylist(
       id: id,
@@ -669,7 +683,8 @@ class AppState extends ChangeNotifier with WidgetsBindingObserver {
       // identically to a hand-built playlist (renaming, deleting,
       // reordering, "add to queue", etc. all work without specialcasing).
       final now = DateTime.now();
-      final id = '${now.microsecondsSinceEpoch.toRadixString(36)}-'
+      final id =
+          '${now.microsecondsSinceEpoch.toRadixString(36)}-'
           '${now.millisecond.toRadixString(36)}';
       final playlist = UserPlaylist(
         id: id,
@@ -799,7 +814,9 @@ class AppState extends ChangeNotifier with WidgetsBindingObserver {
   }
 
   Future<void> removeSongFromUserPlaylist(
-      String playlistId, String songId) async {
+    String playlistId,
+    String songId,
+  ) async {
     final repo = audioRepo;
     final current = userPlaylistById(playlistId);
     if (current == null) return;
@@ -822,8 +839,7 @@ class AppState extends ChangeNotifier with WidgetsBindingObserver {
     }
   }
 
-  Future<void> playUserPlaylist(UserPlaylist p,
-      {int startIndex = 0}) async {
+  Future<void> playUserPlaylist(UserPlaylist p, {int startIndex = 0}) async {
     if (p.songs.isEmpty) {
       flashToast('“${p.name}” is empty');
       return;
@@ -832,8 +848,11 @@ class AppState extends ChangeNotifier with WidgetsBindingObserver {
       playlistId: p.id,
       songCount: p.songs.length,
     );
-    await playApiQueue(p.songs, startIndex,
-        sourceLabel: 'PLAYLIST · ${p.name}');
+    await playApiQueue(
+      p.songs,
+      startIndex,
+      sourceLabel: 'PLAYLIST · ${p.name}',
+    );
   }
 
   // ── Podcasts: subscribe + episode progress ────────────────────────────
@@ -856,22 +875,26 @@ class AppState extends ChangeNotifier with WidgetsBindingObserver {
       ];
     } else {
       _subscribedPodcastIds.remove(show.id);
-      _subscribedPodcasts =
-          _subscribedPodcasts.where((s) => s.id != show.id).toList();
+      _subscribedPodcasts = _subscribedPodcasts
+          .where((s) => s.id != show.id)
+          .toList();
     }
-    flashToast(shouldSubscribe
-        ? 'Subscribed to ${show.title}'
-        : 'Unsubscribed from ${show.title}');
+    flashToast(
+      shouldSubscribe
+          ? 'Subscribed to ${show.title}'
+          : 'Unsubscribed from ${show.title}',
+    );
     notifyListeners();
     try {
-      final next = await repo.library
-          .setSubscribedPodcast(show: show, subscribed: shouldSubscribe);
+      final next = await repo.library.setSubscribedPodcast(
+        show: show,
+        subscribed: shouldSubscribe,
+      );
       _subscribedPodcasts = next;
       _subscribedPodcastIds = next.map((s) => s.id).toSet();
       notifyListeners();
     } catch (e) {
-      debugPrint(
-          '[library] toggleSubscribedPodcast(${show.id}) failed: $e');
+      debugPrint('[library] toggleSubscribedPodcast(${show.id}) failed: $e');
     }
   }
 
@@ -902,7 +925,10 @@ class AppState extends ChangeNotifier with WidgetsBindingObserver {
   }
 
   Future<void> moveSongInUserPlaylist(
-      String playlistId, int from, int to) async {
+    String playlistId,
+    int from,
+    int to,
+  ) async {
     final repo = audioRepo;
     final current = userPlaylistById(playlistId);
     if (current == null) return;
@@ -938,13 +964,9 @@ class AppState extends ChangeNotifier with WidgetsBindingObserver {
   /// Shuffle-and-play a song list. Picks a random start index so the user
   /// doesn't always hear the same song first when they hit shuffle on a
   /// playlist, then flips the shuffle flag on so mpv reorders the queue.
-  Future<void> playShuffled(
-    List<FeedItem> songs, {
-    String? sourceLabel,
-  }) async {
+  Future<void> playShuffled(List<FeedItem> songs, {String? sourceLabel}) async {
     if (songs.isEmpty) return;
-    final startIndex =
-        songs.length == 1 ? 0 : Random().nextInt(songs.length);
+    final startIndex = songs.length == 1 ? 0 : Random().nextInt(songs.length);
     await playApiQueue(songs, startIndex, sourceLabel: sourceLabel);
     if (!shuffle) {
       // toggleShuffle pushes to mpv, which rearranges the queue while
@@ -994,8 +1016,11 @@ class AppState extends ChangeNotifier with WidgetsBindingObserver {
     }
     flashToast(shouldLike ? 'Added to Liked' : 'Removed from Liked');
     notifyListeners();
-    AnalyticsService.instance
-        .logLike(song.id, liked: shouldLike, title: song.title);
+    AnalyticsService.instance.logLike(
+      song.id,
+      liked: shouldLike,
+      title: song.title,
+    );
     // Persist + reconcile with disk truth (in case of concurrent writes).
     try {
       final next = await repo.library.setLiked(song: song, liked: shouldLike);
@@ -1025,7 +1050,18 @@ class AppState extends ChangeNotifier with WidgetsBindingObserver {
   // 4k, 8k, 16k Hz. Gains in dB, clamped to -12..+12. Preset id (when one
   // is active) is tracked separately so the UI can highlight it and clear
   // on manual edit.
-  static const eqFrequencies = ['31', '63', '125', '250', '500', '1k', '2k', '4k', '8k', '16k'];
+  static const eqFrequencies = [
+    '31',
+    '63',
+    '125',
+    '250',
+    '500',
+    '1k',
+    '2k',
+    '4k',
+    '8k',
+    '16k',
+  ];
   List<double> eqBands = List<double>.filled(10, 0);
   String? currentEqPresetId = 'flat';
 
@@ -1085,41 +1121,47 @@ class AppState extends ChangeNotifier with WidgetsBindingObserver {
     // mpv is muted but still ticks its own position from 0, which would
     // clobber the cast position if we didn't gate here.
     int lastPersistedSec = 0;
-    _audioSubs.add(handler.positionStream.listen((pos) {
-      if (isCasting) return;
-      if (currentApiSong == null) return; // dummy clock still owns the tick
-      final secs = pos.inSeconds;
-      // Restore guard — see `_restoredPositionGuard` for the why. mpv
-      // reports position 0 while the file is loaded-but-paused (the
-      // `file-local-options/start` only applies once playback begins);
-      // without this gate, that 0 would overwrite the restored value
-      // before the user ever hit play.
-      if (_restoredPositionGuard > 0 && secs == 0) return;
-      if (_restoredPositionGuard > 0 && secs > 0) _restoredPositionGuard = 0;
-      if (secs != position) position = secs;
-      if ((secs - lastPersistedSec).abs() >= 5) {
-        lastPersistedSec = secs;
-        audioRepo?.persistCurrentPosition();
-      }
-    }));
+    _audioSubs.add(
+      handler.positionStream.listen((pos) {
+        if (isCasting) return;
+        if (currentApiSong == null) return; // dummy clock still owns the tick
+        final secs = pos.inSeconds;
+        // Restore guard — see `_restoredPositionGuard` for the why. mpv
+        // reports position 0 while the file is loaded-but-paused (the
+        // `file-local-options/start` only applies once playback begins);
+        // without this gate, that 0 would overwrite the restored value
+        // before the user ever hit play.
+        if (_restoredPositionGuard > 0 && secs == 0) return;
+        if (_restoredPositionGuard > 0 && secs > 0) _restoredPositionGuard = 0;
+        if (secs != position) position = secs;
+        if ((secs - lastPersistedSec).abs() >= 5) {
+          lastPersistedSec = secs;
+          audioRepo?.persistCurrentPosition();
+        }
+      }),
+    );
     // mpv's reported duration → _engineDurationSec. Fires shortly after
     // each track opens. Resets to 0 on track change via _applySong.
-    _audioSubs.add(handler.durationStream.listen((dur) {
-      if (currentApiSong == null) return;
-      final secs = dur.inSeconds;
-      if (secs > 0 && secs != _engineDurationSec) {
-        _engineDurationSec = secs;
-        notifyListeners();
-      }
-    }));
+    _audioSubs.add(
+      handler.durationStream.listen((dur) {
+        if (currentApiSong == null) return;
+        final secs = dur.inSeconds;
+        if (secs > 0 && secs != _engineDurationSec) {
+          _engineDurationSec = secs;
+          notifyListeners();
+        }
+      }),
+    );
     // Playing flag → isPlaying.
-    _audioSubs.add(handler.playingStream.listen((playing) {
-      if (currentApiSong == null) return;
-      if (playing != isPlaying) {
-        isPlaying = playing;
-        notifyListeners();
-      }
-    }));
+    _audioSubs.add(
+      handler.playingStream.listen((playing) {
+        if (currentApiSong == null) return;
+        if (playing != isPlaying) {
+          isPlaying = playing;
+          notifyListeners();
+        }
+      }),
+    );
     // Track change → currentApiSong + Track stub. Fires when mpv advances
     // (next button, queue auto-advance, headset/notification skip).
     // Mid-song metadata enrichment — fires after the on_load hook has
@@ -1127,38 +1169,42 @@ class AppState extends ChangeNotifier with WidgetsBindingObserver {
     // duration, subtitle) into the queue entry. Saavn search responses
     // arrive sparse; this stream is how the player UI gets the real
     // artist names + scrubber max after the user taps a search result.
-    _audioSubs.add(handler.enrichedCurrentSongStream.listen((enriched) {
-      if (currentApiSong?.id != enriched.id) return;
-      _applySong(enriched);
-      notifyListeners();
-    }));
-    _audioSubs.add(handler.currentSongStream.listen((song) {
-      if (song == null) return;
-      if (currentApiSong?.id == song.id) return; // already in sync
-      // Push the previous song onto the persisted history before swapping
-      // (NOT the new one — history is "songs you finished listening to").
-      // The push fires fire-and-forget; on success it'll notifyListeners
-      // again with the updated list. We don't await — UI doesn't wait on
-      // Hive for the track-change animation.
-      final prev = currentApiSong;
-      if (prev != null) {
-        unawaited(_pushPlayedHistory(prev));
-      }
-      _applySong(song);
-      // Cast handoff for queue advances. mpv's playlist drives `next`
-      // even when casting (mpv is muted) so we always know what comes
-      // next — we just need to forward it to the receiver.
-      if (isCasting) {
-        unawaited(_pushCurrentSongToCast(song));
-      }
-      // Sleep-timer end-of-track check fires AFTER the swap so the new
-      // currentApiSong.id is what `_onTrackChangedForSleep` compares to.
-      _onTrackChangedForSleep(song.id);
-      // Extend the queue with a radio prime when this advance lands us on
-      // the last entry and autoplay is enabled. No-op when off.
-      _maybeAutoplayPrime();
-      notifyListeners();
-    }));
+    _audioSubs.add(
+      handler.enrichedCurrentSongStream.listen((enriched) {
+        if (currentApiSong?.id != enriched.id) return;
+        _applySong(enriched);
+        notifyListeners();
+      }),
+    );
+    _audioSubs.add(
+      handler.currentSongStream.listen((song) {
+        if (song == null) return;
+        if (currentApiSong?.id == song.id) return; // already in sync
+        // Push the previous song onto the persisted history before swapping
+        // (NOT the new one — history is "songs you finished listening to").
+        // The push fires fire-and-forget; on success it'll notifyListeners
+        // again with the updated list. We don't await — UI doesn't wait on
+        // Hive for the track-change animation.
+        final prev = currentApiSong;
+        if (prev != null) {
+          unawaited(_pushPlayedHistory(prev));
+        }
+        _applySong(song);
+        // Cast handoff for queue advances. mpv's playlist drives `next`
+        // even when casting (mpv is muted) so we always know what comes
+        // next — we just need to forward it to the receiver.
+        if (isCasting) {
+          unawaited(_pushCurrentSongToCast(song));
+        }
+        // Sleep-timer end-of-track check fires AFTER the swap so the new
+        // currentApiSong.id is what `_onTrackChangedForSleep` compares to.
+        _onTrackChangedForSleep(song.id);
+        // Extend the queue with a radio prime when this advance lands us on
+        // the last entry and autoplay is enabled. No-op when off.
+        _maybeAutoplayPrime();
+        notifyListeners();
+      }),
+    );
   }
 
   /// Resolve [song] to a network URL and load it onto the active Cast
@@ -1173,8 +1219,11 @@ class AppState extends ChangeNotifier with WidgetsBindingObserver {
     final repo = audioRepo;
     if (repo == null) return;
     try {
-      final resolved =
-          await repo.resolver.resolve(song, forceRefresh: true, network: true);
+      final resolved = await repo.resolver.resolve(
+        song,
+        forceRefresh: true,
+        network: true,
+      );
       final ok = await CastService.instance.loadSong(
         song: song,
         url: resolved.url,
@@ -1206,10 +1255,7 @@ class AppState extends ChangeNotifier with WidgetsBindingObserver {
       }
     }
     // Optimistic update so the Library tab sees the entry immediately.
-    _playedHistory = [
-      song,
-      ..._playedHistory.where((s) => s.id != song.id),
-    ];
+    _playedHistory = [song, ..._playedHistory.where((s) => s.id != song.id)];
     if (_playedHistory.length > 50) {
       _playedHistory = _playedHistory.sublist(0, 50);
     }
@@ -1254,7 +1300,8 @@ class AppState extends ChangeNotifier with WidgetsBindingObserver {
       // Persist to disk so a kill+relaunch comes back to the same spot.
       audioRepo!.persistAll();
       debugPrint(
-          '[audio] lifecycle paused — saved $_savedTrackId@${_savedPositionSec}s');
+        '[audio] lifecycle paused — saved $_savedTrackId@${_savedPositionSec}s',
+      );
     } else if (state == AppLifecycleState.resumed) {
       _maybeRestorePosition();
     }
@@ -1269,7 +1316,8 @@ class AppState extends ChangeNotifier with WidgetsBindingObserver {
       final enginePos = audioRepo?.handler.position.inSeconds ?? 0;
       if (enginePos < 2 && _savedPositionSec > 2) {
         debugPrint(
-            '[audio] lifecycle resumed — engine at ${enginePos}s, restoring to ${_savedPositionSec}s');
+          '[audio] lifecycle resumed — engine at ${enginePos}s, restoring to ${_savedPositionSec}s',
+        );
         audioRepo?.seek(Duration(seconds: _savedPositionSec));
       }
       _savedTrackId = null;
@@ -1371,8 +1419,10 @@ class AppState extends ChangeNotifier with WidgetsBindingObserver {
     if (previousAccent != null && tintFromArt) notifyListeners();
 
     if (p == null || url == null || url.isEmpty) {
-      debugPrint('[palette] skip — '
-          'palettize=${p == null ? 'null' : 'set'} url="${url ?? ''}"');
+      debugPrint(
+        '[palette] skip — '
+        'palettize=${p == null ? 'null' : 'set'} url="${url ?? ''}"',
+      );
       return;
     }
 
@@ -1384,8 +1434,10 @@ class AppState extends ChangeNotifier with WidgetsBindingObserver {
         return;
       }
       _extractedAccent = color;
-      debugPrint('[palette] resolved ${color ?? 'null'} for $url '
-          '(tintFromArt=$tintFromArt)');
+      debugPrint(
+        '[palette] resolved ${color ?? 'null'} for $url '
+        '(tintFromArt=$tintFromArt)',
+      );
       if (tintFromArt) notifyListeners();
     } catch (e) {
       debugPrint('[palette] extraction failed for $url: $e');
@@ -1436,7 +1488,8 @@ class AppState extends ChangeNotifier with WidgetsBindingObserver {
       await repo.addToQueue(s);
     }
     flashToast(
-        'Added ${songs.length} ${songs.length == 1 ? 'track' : 'tracks'} to queue');
+      'Added ${songs.length} ${songs.length == 1 ? 'track' : 'tracks'} to queue',
+    );
   }
 
   /// Play a queue of songs starting at [startIndex]. Optimistically updates
@@ -1452,8 +1505,10 @@ class AppState extends ChangeNotifier with WidgetsBindingObserver {
   }) async {
     if (songs.isEmpty) return;
     final startSong = songs[startIndex.clamp(0, songs.length - 1)];
-    debugPrint('[audio] playApiQueue len=${songs.length} idx=$startIndex '
-        '→ "${startSong.title}"');
+    debugPrint(
+      '[audio] playApiQueue len=${songs.length} idx=$startIndex '
+      '→ "${startSong.title}"',
+    );
     apiSourceLabel = sourceLabel;
     apiSourceRef = sourceRef;
     _applySong(startSong);
@@ -1475,8 +1530,12 @@ class AppState extends ChangeNotifier with WidgetsBindingObserver {
       // for skipToNext / repeat / shuffle. AUTO-advances within the
       // queue forward to the receiver via the currentSongStream listener
       // in _bindAudio.
-      await repo.playQueue(songs, startIndex,
-          sourceLabel: sourceLabel, sourceRef: sourceRef);
+      await repo.playQueue(
+        songs,
+        startIndex,
+        sourceLabel: sourceLabel,
+        sourceRef: sourceRef,
+      );
       // Tap-to-play handoff: `_applySong(startSong)` above already set
       // `currentApiSong = startSong`. By the time mpv's
       // currentSongStream emits `startSong`, the listener at the top of
@@ -1684,8 +1743,9 @@ class AppState extends ChangeNotifier with WidgetsBindingObserver {
     _castErrorSub?.cancel();
     _castRefreshSub?.cancel();
 
-    _castSessionSub =
-        CastService.instance.sessionStream.listen((session) async {
+    _castSessionSub = CastService.instance.sessionStream.listen((
+      session,
+    ) async {
       final nowConnected = CastService.instance.isConnected;
       final wasCasting = _isCasting;
       _isCasting = nowConnected;
@@ -1706,8 +1766,7 @@ class AppState extends ChangeNotifier with WidgetsBindingObserver {
           position: Duration(seconds: position),
         );
         _castConnectedAt = DateTime.now();
-        AnalyticsService.instance
-            .logCastConnect(_castDeviceName ?? 'unknown');
+        AnalyticsService.instance.logCastConnect(_castDeviceName ?? 'unknown');
         await _handOffToCast();
       } else if (wasCasting && !nowConnected) {
         // Just disconnected → drop cast-override (bridge resumes
@@ -1720,8 +1779,9 @@ class AppState extends ChangeNotifier with WidgetsBindingObserver {
         final connectedAt = _castConnectedAt;
         _castConnectedAt = null;
         AnalyticsService.instance.logCastDisconnect(
-          sessionLength:
-              connectedAt == null ? null : DateTime.now().difference(connectedAt),
+          sessionLength: connectedAt == null
+              ? null
+              : DateTime.now().difference(connectedAt),
         );
         await _resumeOnPhone();
       }
@@ -1732,8 +1792,7 @@ class AppState extends ChangeNotifier with WidgetsBindingObserver {
     // scrubber to track the cast device's playhead, not mpv's stale 0.
     // Also push to audio_service so the lockscreen notification's
     // scrubber moves in step with the receiver.
-    _castPositionSub =
-        CastService.instance.positionStream.listen((pos) {
+    _castPositionSub = CastService.instance.positionStream.listen((pos) {
       if (!_isCasting) return;
       final secs = pos.inSeconds;
       if (secs != position) position = secs;
@@ -1747,11 +1806,9 @@ class AppState extends ChangeNotifier with WidgetsBindingObserver {
     // (e.g. user paused via Google Home app). Mirror that to isPlaying
     // so the in-app UI + notification stay correct.
     _castStatusSub?.cancel();
-    _castStatusSub =
-        CastService.instance.mediaStatusStream.listen((status) {
+    _castStatusSub = CastService.instance.mediaStatusStream.listen((status) {
       if (!_isCasting || status == null) return;
-      final castPlaying =
-          status.playerState == CastMediaPlayerState.playing;
+      final castPlaying = status.playerState == CastMediaPlayerState.playing;
       if (castPlaying != isPlaying) {
         isPlaying = castPlaying;
         audioRepo?.bridge?.setCastingPlaybackState(
@@ -1772,8 +1829,9 @@ class AppState extends ChangeNotifier with WidgetsBindingObserver {
     //   - LoopMode.off  : at end-of-queue, stop cleanly (isPlaying=
     //                     false, position at song end). Otherwise
     //                     repo.next().
-    _castTrackEndedSub =
-        CastService.instance.trackEndedStream.listen((_) async {
+    _castTrackEndedSub = CastService.instance.trackEndedStream.listen((
+      _,
+    ) async {
       if (!_isCasting) return;
       final repo = audioRepo;
       if (repo == null) return;
@@ -1806,8 +1864,7 @@ class AppState extends ChangeNotifier with WidgetsBindingObserver {
     // Cast media error (network drop, bad URL, segment fetch fail on
     // HLS) → re-resolve + reload at the receiver's last known position
     // so playback can pick back up where it left off.
-    _castErrorSub =
-        CastService.instance.mediaErrorStream.listen((_) async {
+    _castErrorSub = CastService.instance.mediaErrorStream.listen((_) async {
       if (!_isCasting) return;
       final song = currentApiSong;
       if (song == null) return;
@@ -1819,8 +1876,9 @@ class AppState extends ChangeNotifier with WidgetsBindingObserver {
     // Proactive signed-URL refresh ~5 min before expiry. Same defense-
     // in-depth pattern as mpv's url_refresh.dart, mirrored onto the
     // cast receiver so long albums/playlists don't trip 403s mid-track.
-    _castRefreshSub =
-        CastService.instance.refreshNeededStream.listen((_) async {
+    _castRefreshSub = CastService.instance.refreshNeededStream.listen((
+      _,
+    ) async {
       if (!_isCasting) return;
       final song = currentApiSong;
       if (song == null) return;
@@ -1845,8 +1903,11 @@ class AppState extends ChangeNotifier with WidgetsBindingObserver {
     // Skip the local downloads tier — the Cast receiver needs a public
     // network URL it can fetch. forceRefresh also drops the resolver
     // cache so we hand the receiver a fresh signed URL.
-    final resolved = await repo.resolver
-        .resolve(song, forceRefresh: true, network: true);
+    final resolved = await repo.resolver.resolve(
+      song,
+      forceRefresh: true,
+      network: true,
+    );
     final ok = await CastService.instance.loadSong(
       song: song,
       url: resolved.url,
@@ -2007,7 +2068,7 @@ class AppState extends ChangeNotifier with WidgetsBindingObserver {
   void removeFromQueue(int i) {
     queue = [
       for (var k = 0; k < queue.length; k++)
-        if (k != i) queue[k]
+        if (k != i) queue[k],
     ];
     notifyListeners();
   }
@@ -2152,8 +2213,10 @@ class AppState extends ChangeNotifier with WidgetsBindingObserver {
     final apiClient = api;
     if (repo == null || apiClient == null) {
       // ignore: avoid_print
-      print('[autoplay] skip: repo=${repo == null ? 'null' : 'ok'} '
-          'api=${apiClient == null ? 'null' : 'ok'}');
+      print(
+        '[autoplay] skip: repo=${repo == null ? 'null' : 'ok'} '
+        'api=${apiClient == null ? 'null' : 'ok'}',
+      );
       return;
     }
     final seed = currentApiSong;
@@ -2179,9 +2242,11 @@ class AppState extends ChangeNotifier with WidgetsBindingObserver {
     final remaining = q.length - repo.currentIndex - 1;
     if (remaining > _autoplayPrimeThreshold) {
       // ignore: avoid_print
-      print('[autoplay] skip: $remaining tracks ahead '
-          '(idx=${repo.currentIndex}, len=${q.length}, '
-          'threshold=$_autoplayPrimeThreshold)');
+      print(
+        '[autoplay] skip: $remaining tracks ahead '
+        '(idx=${repo.currentIndex}, len=${q.length}, '
+        'threshold=$_autoplayPrimeThreshold)',
+      );
       return;
     }
     _autoplayPriming = true;
@@ -2196,7 +2261,10 @@ class AppState extends ChangeNotifier with WidgetsBindingObserver {
   static const int _autoplayPrimeThreshold = 3;
 
   Future<void> _runAutoplayPrime(
-      FeedItem seed, SunohApi apiClient, AudioRepo repo) async {
+    FeedItem seed,
+    SunohApi apiClient,
+    AudioRepo repo,
+  ) async {
     // Backed by `/music/recommend` — a single call that internally hits
     // Saavn's reco.getreco + the song-detail sections + a derived radio
     // station + the explicit Similar Songs endpoint, merges + dedupes
@@ -2225,9 +2293,11 @@ class AppState extends ChangeNotifier with WidgetsBindingObserver {
     final origQueueLen = repo.queue.length;
     final resumeIndex = repo.currentIndex + 1;
     // ignore: avoid_print
-    print('[autoplay] priming recs from id="${seed.id}" '
-        'title="${seed.title}" source="${seed.source ?? '?'}" '
-        'wasPlaying=$wasPlaying resumeIndex=$resumeIndex');
+    print(
+      '[autoplay] priming recs from id="${seed.id}" '
+      'title="${seed.title}" source="${seed.source ?? '?'}" '
+      'wasPlaying=$wasPlaying resumeIndex=$resumeIndex',
+    );
     try {
       final songs = await apiClient.fetchRecommendations(
         // Only pass songId when we're sure it's a Saavn id; for Gaana
@@ -2273,8 +2343,10 @@ class AppState extends ChangeNotifier with WidgetsBindingObserver {
         filtered.add(s);
       }
       // ignore: avoid_print
-      print('[autoplay] appending ${filtered.length} song(s) to queue '
-          '(api returned ${songs.length}, id-dups=$idDups, title-dups=$titleDups)');
+      print(
+        '[autoplay] appending ${filtered.length} song(s) to queue '
+        '(api returned ${songs.length}, id-dups=$idDups, title-dups=$titleDups)',
+      );
       for (final s in filtered) {
         await repo.addToQueue(s);
       }
@@ -2292,12 +2364,17 @@ class AppState extends ChangeNotifier with WidgetsBindingObserver {
       //     the ORIGINAL last track, so the stop is from running out
       //     of queue (not an intentional pause mid-queue).
       final reachedOriginalEnd = repo.currentIndex >= origQueueLen - 1;
-      if (wasPlaying && !isPlaying && filtered.isNotEmpty && reachedOriginalEnd) {
+      if (wasPlaying &&
+          !isPlaying &&
+          filtered.isNotEmpty &&
+          reachedOriginalEnd) {
         final newLen = repo.queue.length;
         if (resumeIndex >= 0 && resumeIndex < newLen) {
           // ignore: avoid_print
-          print('[autoplay] player died waiting for prime — '
-              'jumping to index $resumeIndex of $newLen');
+          print(
+            '[autoplay] player died waiting for prime — '
+            'jumping to index $resumeIndex of $newLen',
+          );
           try {
             await repo.jumpToIndex(resumeIndex);
           } catch (e) {
@@ -2318,20 +2395,22 @@ class AppState extends ChangeNotifier with WidgetsBindingObserver {
   /// different-title duplicates from Saavn's recommendation set. Strips
   /// `(From "Xyz")` / `(from Xyz)` / `(In "Xyz")` suffixes that Saavn
   /// uses to disambiguate OST releases of the same recording.
-  static final RegExp _autoplayFromSuffix =
-      RegExp(r'\s*\((from|in)\s+["“]?[^)]*["”]?\)\s*',
-          caseSensitive: false);
+  static final RegExp _autoplayFromSuffix = RegExp(
+    r'\s*\((from|in)\s+["“]?[^)]*["”]?\)\s*',
+    caseSensitive: false,
+  );
   String _autoplayDedupKey(FeedItem s) {
     final title = s.title
         .toLowerCase()
         .replaceAll(_autoplayFromSuffix, ' ')
         .replaceAll(RegExp(r'\s+'), ' ')
         .trim();
-    final primaryArtist = ((s.artists ?? const <ApiArtistRef>[]).isNotEmpty
-            ? s.artists!.first.name
-            : '')
-        .toLowerCase()
-        .trim();
+    final primaryArtist =
+        ((s.artists ?? const <ApiArtistRef>[]).isNotEmpty
+                ? s.artists!.first.name
+                : '')
+            .toLowerCase()
+            .trim();
     final dur = int.tryParse(s.duration ?? '') ?? 0;
     return '$title|$primaryArtist|$dur';
   }
@@ -2348,8 +2427,7 @@ class AppState extends ChangeNotifier with WidgetsBindingObserver {
       _sleepCapturedSongId = currentApiSong?.id;
     } else if (duration != null && duration.inSeconds > 0) {
       sleepRemaining = duration;
-      _sleepTickTimer =
-          Timer.periodic(const Duration(seconds: 1), (_) async {
+      _sleepTickTimer = Timer.periodic(const Duration(seconds: 1), (_) async {
         final r = sleepRemaining;
         if (r == null) return;
         final next = r - const Duration(seconds: 1);
@@ -2412,7 +2490,8 @@ class AppState extends ChangeNotifier with WidgetsBindingObserver {
       final vol = (i / steps) * 100.0;
       await repo.handler.setVolume(vol);
       await Future<void>.delayed(
-          const Duration(milliseconds: totalMs ~/ steps));
+        const Duration(milliseconds: totalMs ~/ steps),
+      );
     }
     await repo.pause();
     // Restore so the next manual play isn't silent.

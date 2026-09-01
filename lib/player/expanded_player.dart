@@ -548,8 +548,7 @@ class _PlayButton extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final icon =
-        playing ? PhosphorIconsFill.pause : PhosphorIconsFill.play;
+    final icon = playing ? PhosphorIconsFill.pause : PhosphorIconsFill.play;
     final iconColor = accent.computeLuminance() > 0.55
         ? const Color(0xFF0B0B0D)
         : const Color(0xFFFAFAFA);
@@ -642,8 +641,7 @@ class _StaticCover extends StatelessWidget {
           scale: playing ? 1.0 : 0.92,
           duration: const Duration(milliseconds: 340),
           curve: Curves.easeOutCubic,
-          child:
-              SunohArt(id: id, imageUrl: url, size: coverSize, radius: 16),
+          child: SunohArt(id: id, imageUrl: url, size: coverSize, radius: 16),
         ),
       ),
     );

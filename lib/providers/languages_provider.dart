@@ -7,8 +7,9 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../api/dto.dart';
 import 'api_providers.dart';
 
-final languagesProvider =
-    FutureProvider.autoDispose<List<ApiLanguage>>((ref) async {
+final languagesProvider = FutureProvider.autoDispose<List<ApiLanguage>>((
+  ref,
+) async {
   // Keep the response alive across nav cycles; refetch at most once a day.
   final link = ref.keepAlive();
   Future<void>.delayed(const Duration(hours: 24)).then((_) => link.close());

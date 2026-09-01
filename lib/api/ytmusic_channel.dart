@@ -101,8 +101,9 @@ class YtMusicChannel {
   YtMusicChannel._();
   static final YtMusicChannel instance = YtMusicChannel._();
 
-  static const MethodChannel _channel =
-      MethodChannel('codes.afk.sunoh/ytmusic');
+  static const MethodChannel _channel = MethodChannel(
+    'codes.afk.sunoh/ytmusic',
+  );
 
   bool get _supported => defaultTargetPlatform == TargetPlatform.android;
 
@@ -128,7 +129,10 @@ class YtMusicChannel {
   ///
   /// [quality] mirrors the app's stream-quality setting: `auto` / `high` /
   /// `data`.
-  Future<YtMusicStream?> resolve(String videoId, {String quality = 'auto'}) async {
+  Future<YtMusicStream?> resolve(
+    String videoId, {
+    String quality = 'auto',
+  }) async {
     if (!_supported || videoId.isEmpty) return null;
     try {
       final res = await _channel.invokeMethod<Map<Object?, Object?>>(

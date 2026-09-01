@@ -11,10 +11,7 @@ import 'package:hive_ce_flutter/hive_flutter.dart';
 import 'package:path_provider/path_provider.dart';
 
 class StorageStats {
-  const StorageStats({
-    required this.hiveBytes,
-    required this.imageBytes,
-  });
+  const StorageStats({required this.hiveBytes, required this.imageBytes});
   final int hiveBytes;
   final int imageBytes;
 
@@ -79,12 +76,16 @@ Future<int> _imageCacheSize() async {
     final cacheDir = Directory('${tempDir.path}/libCachedImageData');
     if (!await cacheDir.exists()) return 0;
     var total = 0;
-    await for (final entity
-        in cacheDir.list(recursive: true, followLinks: false)) {
+    await for (final entity in cacheDir.list(
+      recursive: true,
+      followLinks: false,
+    )) {
       if (entity is File) {
         try {
           total += await entity.length();
-        } catch (_) {/* skip transient files */}
+        } catch (_) {
+          /* skip transient files */
+        }
       }
     }
     return total;
@@ -108,7 +109,7 @@ String formatBytes(int bytes) {
   final fmt = value >= 100 || idx == 0
       ? value.toStringAsFixed(0)
       : value >= 10
-          ? value.toStringAsFixed(1)
-          : value.toStringAsFixed(2);
+      ? value.toStringAsFixed(1)
+      : value.toStringAsFixed(2);
   return '$fmt ${units[idx]}';
 }

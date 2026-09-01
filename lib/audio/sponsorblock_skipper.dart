@@ -45,16 +45,17 @@ class SponsorBlockSkipper {
       // Logged so the three ways this stays quiet — switched off, wrong
       // source, or genuinely no segments — are distinguishable.
       // ignore: avoid_print
-      print('[sponsorblock] skip check off for ${song.id} '
-          '(enabled=$enabled source=${song.source})');
+      print(
+        '[sponsorblock] skip check off for ${song.id} '
+        '(enabled=$enabled source=${song.source})',
+      );
       return;
     }
 
     _videoId = song.id;
     // ignore: avoid_print
     print('[sponsorblock] looking up ${song.id}\u2026');
-    final segments =
-        await _client.segmentsFor(song.id, categories: categories);
+    final segments = await _client.segmentsFor(song.id, categories: categories);
 
     // The track may have changed while the request was in flight.
     if (_videoId != song.id) {
@@ -68,8 +69,10 @@ class SponsorBlockSkipper {
     // reported from. Logged even when empty, since "no segments" and "the
     // lookup never ran" look identical otherwise.
     // ignore: avoid_print
-    print('[sponsorblock] ${song.id}: ${segments.length} segment(s)'
-        '${segments.isEmpty ? '' : ' — ${segments.join(', ')}'}');
+    print(
+      '[sponsorblock] ${song.id}: ${segments.length} segment(s)'
+      '${segments.isEmpty ? '' : ' — ${segments.join(', ')}'}',
+    );
   }
 
   /// Where to seek to, or null to keep playing.
@@ -80,8 +83,7 @@ class SponsorBlockSkipper {
     for (final seg in _segments) {
       if (seg.length < _kMinSegment) continue;
       if (_applied.contains(seg.uuid)) continue;
-      if (position >= seg.start &&
-          position < seg.end - _kEnterMargin) {
+      if (position >= seg.start && position < seg.end - _kEnterMargin) {
         _applied.add(seg.uuid);
         // ignore: avoid_print
         print('[sponsorblock] skipping $seg');

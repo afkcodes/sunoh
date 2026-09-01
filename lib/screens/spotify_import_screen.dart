@@ -94,11 +94,14 @@ class _SpotifyImportScreenState extends ConsumerState<SpotifyImportScreen> {
                     onTap: () => context.pop(),
                   ),
                   const SizedBox(width: 6),
-                  Text('Import from Spotify',
-                      style: SunohType.heading(
-                          fontSize: 22,
-                          color: c.fg,
-                          letterSpacing: -0.3)),
+                  Text(
+                    'Import from Spotify',
+                    style: SunohType.heading(
+                      fontSize: 22,
+                      color: c.fg,
+                      letterSpacing: -0.3,
+                    ),
+                  ),
                 ],
               ),
             ),
@@ -107,12 +110,15 @@ class _SpotifyImportScreenState extends ConsumerState<SpotifyImportScreen> {
               child: Text(
                 'Paste a public Spotify playlist URL. We’ll find the best Saavn match for each track and save it as a new playlist in your library.',
                 style: SunohType.sans(
-                    fontSize: 13, color: c.fgMute, height: 1.4),
+                  fontSize: 13,
+                  color: c.fgMute,
+                  height: 1.4,
+                ),
               ),
             ),
             Padding(
               padding: const EdgeInsets.fromLTRB(16, 0, 16, 14),
-              child: Container(
+              child: DecoratedBox(
                 decoration: squircleDecoration(
                   radius: 16,
                   color: c.surface,
@@ -124,11 +130,16 @@ class _SpotifyImportScreenState extends ConsumerState<SpotifyImportScreen> {
                       padding: const EdgeInsets.fromLTRB(14, 12, 12, 0),
                       child: Row(
                         children: [
-                          Icon(SolarIconsOutline.link,
-                              size: 16, color: c.fgDim),
+                          Icon(
+                            SolarIconsOutline.link,
+                            size: 16,
+                            color: c.fgDim,
+                          ),
                           const SizedBox(width: 8),
-                          Text('Playlist URL',
-                              style: eyebrowStyle(c, accent: c.fgMute)),
+                          Text(
+                            'Playlist URL',
+                            style: eyebrowStyle(c, accent: c.fgMute),
+                          ),
                         ],
                       ),
                     ),
@@ -146,10 +157,11 @@ class _SpotifyImportScreenState extends ConsumerState<SpotifyImportScreen> {
                           isDense: true,
                           contentPadding: EdgeInsets.zero,
                           border: InputBorder.none,
-                          hintText:
-                              'https://open.spotify.com/playlist/…',
+                          hintText: 'https://open.spotify.com/playlist/…',
                           hintStyle: SunohType.sans(
-                              fontSize: 14, color: c.fgMute),
+                            fontSize: 14,
+                            color: c.fgMute,
+                          ),
                         ),
                         onChanged: (_) => setState(() {}),
                       ),
@@ -161,39 +173,53 @@ class _SpotifyImportScreenState extends ConsumerState<SpotifyImportScreen> {
                         children: [
                           TextButton.icon(
                             onPressed: inFlight || _busy ? null : _onPaste,
-                            icon: Icon(SolarIconsOutline.clipboardText,
-                                size: 14, color: c.fg),
-                            label: Text('Paste',
-                                style: SunohType.sans(
-                                    fontSize: 12.5,
-                                    fontWeight: FontWeight.w500,
-                                    color: c.fg)),
+                            icon: Icon(
+                              SolarIconsOutline.clipboardText,
+                              size: 14,
+                              color: c.fg,
+                            ),
+                            label: Text(
+                              'Paste',
+                              style: SunohType.sans(
+                                fontSize: 12.5,
+                                fontWeight: FontWeight.w500,
+                                color: c.fg,
+                              ),
+                            ),
                             style: TextButton.styleFrom(
                               padding: const EdgeInsets.symmetric(
-                                  horizontal: 10, vertical: 6),
+                                horizontal: 10,
+                                vertical: 6,
+                              ),
                               minimumSize: Size.zero,
-                              tapTargetSize:
-                                  MaterialTapTargetSize.shrinkWrap,
+                              tapTargetSize: MaterialTapTargetSize.shrinkWrap,
                             ),
                           ),
                           if (_ctl.text.isNotEmpty)
                             TextButton.icon(
                               onPressed: inFlight || _busy
                                   ? null
-                                  : () => setState(() => _ctl.clear()),
-                              icon: Icon(SolarIconsOutline.eraser,
-                                  size: 14, color: c.fgDim),
-                              label: Text('Clear',
-                                  style: SunohType.sans(
-                                      fontSize: 12.5,
-                                      fontWeight: FontWeight.w500,
-                                      color: c.fgDim)),
+                                  : () => setState(_ctl.clear),
+                              icon: Icon(
+                                SolarIconsOutline.eraser,
+                                size: 14,
+                                color: c.fgDim,
+                              ),
+                              label: Text(
+                                'Clear',
+                                style: SunohType.sans(
+                                  fontSize: 12.5,
+                                  fontWeight: FontWeight.w500,
+                                  color: c.fgDim,
+                                ),
+                              ),
                               style: TextButton.styleFrom(
                                 padding: const EdgeInsets.symmetric(
-                                    horizontal: 10, vertical: 6),
+                                  horizontal: 10,
+                                  vertical: 6,
+                                ),
                                 minimumSize: Size.zero,
-                                tapTargetSize:
-                                    MaterialTapTargetSize.shrinkWrap,
+                                tapTargetSize: MaterialTapTargetSize.shrinkWrap,
                               ),
                             ),
                         ],
@@ -208,16 +234,16 @@ class _SpotifyImportScreenState extends ConsumerState<SpotifyImportScreen> {
               child: SizedBox(
                 width: double.infinity,
                 child: GestureDetector(
-                  onTap:
-                      (inFlight || _busy || !_looksLikeSpotifyUrl(_ctl.text))
-                          ? null
-                          : _onImport,
+                  onTap: (inFlight || _busy || !_looksLikeSpotifyUrl(_ctl.text))
+                      ? null
+                      : _onImport,
                   child: Container(
                     height: 48,
                     alignment: Alignment.center,
                     decoration: squircleDecoration(
                       radius: 14,
-                      color: (_looksLikeSpotifyUrl(_ctl.text) &&
+                      color:
+                          (_looksLikeSpotifyUrl(_ctl.text) &&
                               !inFlight &&
                               !_busy)
                           ? accent
@@ -226,9 +252,10 @@ class _SpotifyImportScreenState extends ConsumerState<SpotifyImportScreen> {
                     child: Text(
                       inFlight ? 'Import in progress…' : 'Import',
                       style: SunohType.heading(
-                          fontSize: 15,
-                          color: Colors.white,
-                          letterSpacing: -0.1),
+                        fontSize: 15,
+                        color: Colors.white,
+                        letterSpacing: -0.1,
+                      ),
                     ),
                   ),
                 ),
@@ -260,9 +287,14 @@ class _TipsBlock extends StatelessWidget {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Text('TIPS',
-            style: SunohType.mono(
-                fontSize: 9, color: c.fgMute, letterSpacing: 1.4)),
+        Text(
+          'TIPS',
+          style: SunohType.mono(
+            fontSize: 9,
+            color: c.fgMute,
+            letterSpacing: 1.4,
+          ),
+        ),
         const SizedBox(height: 8),
         for (final t in tips)
           Padding(
@@ -286,7 +318,10 @@ class _TipsBlock extends StatelessWidget {
                   child: Text(
                     t,
                     style: SunohType.sans(
-                        fontSize: 12, color: c.fgMute, height: 1.45),
+                      fontSize: 12,
+                      color: c.fgMute,
+                      height: 1.45,
+                    ),
                   ),
                 ),
               ],
@@ -301,8 +336,4 @@ class _TipsBlock extends StatelessWidget {
 /// renders a Text widget, but here we want just the style for use inside
 /// a Row that has its own widgets.
 TextStyle eyebrowStyle(SunohColors c, {Color? accent}) =>
-    SunohType.mono(
-      fontSize: 9,
-      color: accent ?? c.fgMute,
-      letterSpacing: 1.4,
-    );
+    SunohType.mono(fontSize: 9, color: accent ?? c.fgMute, letterSpacing: 1.4);

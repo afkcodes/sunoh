@@ -51,7 +51,9 @@ class AudiobooksTab extends ConsumerWidget {
                 behavior: HitTestBehavior.opaque,
                 child: Container(
                   padding: const EdgeInsets.symmetric(
-                      horizontal: 12, vertical: 6),
+                    horizontal: 12,
+                    vertical: 6,
+                  ),
                   decoration: squircleDecoration(
                     radius: 999,
                     color: c.surface,
@@ -60,14 +62,16 @@ class AudiobooksTab extends ConsumerWidget {
                   child: Row(
                     mainAxisSize: MainAxisSize.min,
                     children: [
-                      Icon(SolarIconsOutline.widget,
-                          size: 12, color: c.fgDim),
+                      Icon(SolarIconsOutline.widget, size: 12, color: c.fgDim),
                       const SizedBox(width: 6),
-                      Text('Browse',
-                          style: SunohType.sans(
-                              fontSize: 12,
-                              fontWeight: FontWeight.w500,
-                              color: c.fgDim)),
+                      Text(
+                        'Browse',
+                        style: SunohType.sans(
+                          fontSize: 12,
+                          fontWeight: FontWeight.w500,
+                          color: c.fgDim,
+                        ),
+                      ),
                     ],
                   ),
                 ),
@@ -80,10 +84,14 @@ class AudiobooksTab extends ConsumerWidget {
             if (sections.isEmpty) {
               return Padding(
                 padding: const EdgeInsets.symmetric(
-                    horizontal: 24, vertical: 48),
+                  horizontal: 24,
+                  vertical: 48,
+                ),
                 child: Center(
-                  child: Text('No audiobooks yet',
-                      style: SunohType.sans(fontSize: 13, color: c.fgMute)),
+                  child: Text(
+                    'No audiobooks yet',
+                    style: SunohType.sans(fontSize: 13, color: c.fgMute),
+                  ),
                 ),
               );
             }
@@ -101,8 +109,7 @@ class AudiobooksTab extends ConsumerWidget {
                     colors: c,
                     featured: i == 0,
                   ),
-                  if (i < sections.length - 1)
-                    const SizedBox(height: 32),
+                  if (i < sections.length - 1) const SizedBox(height: 32),
                 ],
                 const SizedBox(height: 24),
               ],
@@ -140,6 +147,7 @@ class _AudiobookSection extends StatelessWidget {
   });
   final HomeSection section;
   final SunohColors colors;
+
   /// First section on the tab gets the featured treatment — bigger
   /// covers to anchor the page. Matches music/podcast home.
   final bool featured;
@@ -157,10 +165,7 @@ class _AudiobookSection extends StatelessWidget {
     // up with what the user sees when they tap "See all" into the full
     // genres screen (also gradient cards).
     if (isCategoryStrip) {
-      return _AudiobookCategoryPreview(
-        items: items,
-        colors: c,
-      );
+      return _AudiobookCategoryPreview(items: items, colors: c);
     }
 
     // Book strips: featured 220, standard 160 — same dimensions music +
@@ -199,10 +204,7 @@ class _AudiobookSection extends StatelessWidget {
 /// `AudiobookCategoryCard` the full Genres screen uses, so the visual
 /// continues straight through if the user taps "See all".
 class _AudiobookCategoryPreview extends StatelessWidget {
-  const _AudiobookCategoryPreview({
-    required this.items,
-    required this.colors,
-  });
+  const _AudiobookCategoryPreview({required this.items, required this.colors});
   final List<FeedItem> items;
   final SunohColors colors;
 
@@ -213,7 +215,7 @@ class _AudiobookCategoryPreview extends StatelessWidget {
     const tileH = 64.0;
     const gap = 10.0;
     const rows = 3;
-    final totalH = rows * tileH + (rows - 1) * gap;
+    const totalH = rows * tileH + (rows - 1) * gap;
     // Build lightweight AudiobookCategory shims from the home payload
     // so AudiobookCategoryCard doesn't have to learn a second shape.
     final cats = [
@@ -238,7 +240,7 @@ class _AudiobookCategoryPreview extends StatelessWidget {
           child: GridView.builder(
             scrollDirection: Axis.horizontal,
             padding: const EdgeInsets.symmetric(horizontal: 20),
-            gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
+            gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
               crossAxisCount: rows,
               // Horizontal GridView: childAspectRatio = height/width.
               childAspectRatio: tileH / tileW,
@@ -322,4 +324,3 @@ class _AudiobookTile extends StatelessWidget {
     );
   }
 }
-

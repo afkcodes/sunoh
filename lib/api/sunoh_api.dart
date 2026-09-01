@@ -21,9 +21,9 @@ class SunohApi {
       res.data ?? const {},
       (raw) => (raw is List)
           ? raw
-              .whereType<Map>()
-              .map((m) => HomeSection.fromJson(m.cast<String, dynamic>()))
-              .toList()
+                .whereType<Map>()
+                .map((m) => HomeSection.fromJson(m.cast<String, dynamic>()))
+                .toList()
           : const <HomeSection>[],
     );
     if (!env.isSuccess) {
@@ -85,9 +85,9 @@ class SunohApi {
       res.data ?? const {},
       (raw) => (raw is List)
           ? raw
-              .whereType<Map>()
-              .map((m) => HomeSection.fromJson(m.cast<String, dynamic>()))
-              .toList()
+                .whereType<Map>()
+                .map((m) => HomeSection.fromJson(m.cast<String, dynamic>()))
+                .toList()
           : const <HomeSection>[],
     );
     if (!env.isSuccess) {
@@ -105,17 +105,15 @@ class SunohApi {
   }) async {
     final res = await _dio.get<Map<String, dynamic>>(
       '/music/occasions/$slug',
-      queryParameters: {
-        if (provider.isNotEmpty) 'provider': provider,
-      },
+      queryParameters: {if (provider.isNotEmpty) 'provider': provider},
     );
     final env = ApiEnvelope.from<List<HomeSection>>(
       res.data ?? const {},
       (raw) => (raw is List)
           ? raw
-              .whereType<Map>()
-              .map((m) => HomeSection.fromJson(m.cast<String, dynamic>()))
-              .toList()
+                .whereType<Map>()
+                .map((m) => HomeSection.fromJson(m.cast<String, dynamic>()))
+                .toList()
           : const <HomeSection>[],
     );
     if (!env.isSuccess) {
@@ -131,33 +129,28 @@ class SunohApi {
   Future<List<FeedItem>> fetchOccasions({String provider = 'gaana'}) async {
     final res = await _dio.get<Map<String, dynamic>>(
       '/music/occasions',
-      queryParameters: {
-        if (provider.isNotEmpty) 'provider': provider,
-      },
+      queryParameters: {if (provider.isNotEmpty) 'provider': provider},
     );
-    final env = ApiEnvelope.from<List<FeedItem>>(
-      res.data ?? const {},
-      (raw) {
-        // Backend has shipped occasions both as a flat `data: [...]` array
-        // and as a wrapped `data: { occasions: [...] }`. Handle both.
-        if (raw is List) {
-          return raw
+    final env = ApiEnvelope.from<List<FeedItem>>(res.data ?? const {}, (raw) {
+      // Backend has shipped occasions both as a flat `data: [...]` array
+      // and as a wrapped `data: { occasions: [...] }`. Handle both.
+      if (raw is List) {
+        return raw
+            .whereType<Map>()
+            .map((m) => FeedItem.fromJson(m.cast<String, dynamic>()))
+            .toList();
+      }
+      if (raw is Map) {
+        final inner = raw['occasions'];
+        if (inner is List) {
+          return inner
               .whereType<Map>()
               .map((m) => FeedItem.fromJson(m.cast<String, dynamic>()))
               .toList();
         }
-        if (raw is Map) {
-          final inner = raw['occasions'];
-          if (inner is List) {
-            return inner
-                .whereType<Map>()
-                .map((m) => FeedItem.fromJson(m.cast<String, dynamic>()))
-                .toList();
-          }
-        }
-        return const <FeedItem>[];
-      },
-    );
+      }
+      return const <FeedItem>[];
+    });
     if (!env.isSuccess) {
       throw SunohApiException(env.message, env.error);
     }
@@ -225,29 +218,28 @@ class SunohApi {
       options: Options(validateStatus: (_) => true),
     );
     // ignore: avoid_print
-    print('[recommend] HTTP ${res.statusCode} '
-        'q="${query ?? ''}" songId="${songId ?? ''}"');
-    final env = ApiEnvelope.from<List<FeedItem>>(
-      res.data ?? const {},
-      (raw) {
-        if (raw is Map) {
-          final list = raw['list'];
-          if (list is List) {
-            return list
-                .whereType<Map>()
-                .map((m) => FeedItem.fromJson(m.cast<String, dynamic>()))
-                .toList();
-          }
-        }
-        if (raw is List) {
-          return raw
+    print(
+      '[recommend] HTTP ${res.statusCode} '
+      'q="${query ?? ''}" songId="${songId ?? ''}"',
+    );
+    final env = ApiEnvelope.from<List<FeedItem>>(res.data ?? const {}, (raw) {
+      if (raw is Map) {
+        final list = raw['list'];
+        if (list is List) {
+          return list
               .whereType<Map>()
               .map((m) => FeedItem.fromJson(m.cast<String, dynamic>()))
               .toList();
         }
-        return const <FeedItem>[];
-      },
-    );
+      }
+      if (raw is List) {
+        return raw
+            .whereType<Map>()
+            .map((m) => FeedItem.fromJson(m.cast<String, dynamic>()))
+            .toList();
+      }
+      return const <FeedItem>[];
+    });
     if (!env.isSuccess) {
       throw SunohApiException(env.message, env.error);
     }
@@ -279,28 +271,25 @@ class SunohApi {
     );
     // ignore: avoid_print
     print('[radio] songs HTTP ${res.statusCode} body=${res.data}');
-    final env = ApiEnvelope.from<List<FeedItem>>(
-      res.data ?? const {},
-      (raw) {
-        // `data.list` is the shape this endpoint actually ships.
-        if (raw is Map) {
-          final list = raw['list'];
-          if (list is List) {
-            return list
-                .whereType<Map>()
-                .map((m) => FeedItem.fromJson(m.cast<String, dynamic>()))
-                .toList();
-          }
-        }
-        if (raw is List) {
-          return raw
+    final env = ApiEnvelope.from<List<FeedItem>>(res.data ?? const {}, (raw) {
+      // `data.list` is the shape this endpoint actually ships.
+      if (raw is Map) {
+        final list = raw['list'];
+        if (list is List) {
+          return list
               .whereType<Map>()
               .map((m) => FeedItem.fromJson(m.cast<String, dynamic>()))
               .toList();
         }
-        return const <FeedItem>[];
-      },
-    );
+      }
+      if (raw is List) {
+        return raw
+            .whereType<Map>()
+            .map((m) => FeedItem.fromJson(m.cast<String, dynamic>()))
+            .toList();
+      }
+      return const <FeedItem>[];
+    });
     if (!env.isSuccess) {
       throw SunohApiException(env.message, env.error);
     }
@@ -369,9 +358,9 @@ class SunohApi {
       res.data ?? const {},
       (raw) => (raw is List)
           ? raw
-              .whereType<Map>()
-              .map((m) => HomeSection.fromJson(m.cast<String, dynamic>()))
-              .toList()
+                .whereType<Map>()
+                .map((m) => HomeSection.fromJson(m.cast<String, dynamic>()))
+                .toList()
           : const <HomeSection>[],
     );
     if (!env.isSuccess) {
@@ -390,8 +379,9 @@ class SunohApi {
     );
     final env = ApiEnvelope.from<ArtistDetail?>(
       res.data ?? const {},
-      (raw) =>
-          raw is Map ? ArtistDetail.fromJson(raw.cast<String, dynamic>()) : null,
+      (raw) => raw is Map
+          ? ArtistDetail.fromJson(raw.cast<String, dynamic>())
+          : null,
     );
     if (!env.isSuccess || env.data == null) {
       throw SunohApiException(env.message, env.error);
@@ -406,16 +396,15 @@ class SunohApi {
   /// `/music/radio/*`, etc.
   Future<List<ApiLanguage>> fetchLanguages() async {
     final res = await _dio.get<Map<String, dynamic>>('/music/languages');
-    final env = ApiEnvelope.from<List<ApiLanguage>>(
-      res.data ?? const {},
-      (raw) {
-        if (raw is! List) return const <ApiLanguage>[];
-        return raw
-            .whereType<Map>()
-            .map((m) => ApiLanguage.fromJson(m.cast<String, dynamic>()))
-            .toList();
-      },
-    );
+    final env = ApiEnvelope.from<List<ApiLanguage>>(res.data ?? const {}, (
+      raw,
+    ) {
+      if (raw is! List) return const <ApiLanguage>[];
+      return raw
+          .whereType<Map>()
+          .map((m) => ApiLanguage.fromJson(m.cast<String, dynamic>()))
+          .toList();
+    });
     if (!env.isSuccess) {
       throw SunohApiException(env.message, env.error);
     }
@@ -445,9 +434,9 @@ class SunohApi {
       res.data ?? const {},
       (raw) => raw is List
           ? raw
-              .whereType<Map>()
-              .map((m) => HomeSection.fromJson(m.cast<String, dynamic>()))
-              .toList()
+                .whereType<Map>()
+                .map((m) => HomeSection.fromJson(m.cast<String, dynamic>()))
+                .toList()
           : const <HomeSection>[],
     );
     if (!env.isSuccess) {
@@ -484,26 +473,20 @@ class SunohApi {
   }) async {
     final res = await _dio.get<Map<String, dynamic>>(
       '/podcasts/${Uri.encodeComponent(showId)}/episodes',
-      queryParameters: {
-        'max': max,
-        'since': ?since,
-      },
+      queryParameters: {'max': max, 'since': ?since},
     );
-    final env = ApiEnvelope.from<List<FeedItem>>(
-      res.data ?? const {},
-      (raw) {
-        if (raw is Map) {
-          final list = raw['list'];
-          if (list is List) {
-            return list
-                .whereType<Map>()
-                .map((m) => FeedItem.fromJson(m.cast<String, dynamic>()))
-                .toList();
-          }
+    final env = ApiEnvelope.from<List<FeedItem>>(res.data ?? const {}, (raw) {
+      if (raw is Map) {
+        final list = raw['list'];
+        if (list is List) {
+          return list
+              .whereType<Map>()
+              .map((m) => FeedItem.fromJson(m.cast<String, dynamic>()))
+              .toList();
         }
-        return const <FeedItem>[];
-      },
-    );
+      }
+      return const <FeedItem>[];
+    });
     if (!env.isSuccess) {
       throw SunohApiException(env.message, env.error);
     }
@@ -519,7 +502,8 @@ class SunohApi {
     );
     final env = ApiEnvelope.from<FeedItem?>(
       res.data ?? const {},
-      (raw) => raw is Map ? FeedItem.fromJson(raw.cast<String, dynamic>()) : null,
+      (raw) =>
+          raw is Map ? FeedItem.fromJson(raw.cast<String, dynamic>()) : null,
     );
     if (!env.isSuccess) {
       throw SunohApiException(env.message, env.error);
@@ -537,21 +521,18 @@ class SunohApi {
       '/podcasts/search',
       queryParameters: {'q': query, 'max': max},
     );
-    final env = ApiEnvelope.from<List<FeedItem>>(
-      res.data ?? const {},
-      (raw) {
-        if (raw is Map) {
-          final list = raw['list'];
-          if (list is List) {
-            return list
-                .whereType<Map>()
-                .map((m) => FeedItem.fromJson(m.cast<String, dynamic>()))
-                .toList();
-          }
+    final env = ApiEnvelope.from<List<FeedItem>>(res.data ?? const {}, (raw) {
+      if (raw is Map) {
+        final list = raw['list'];
+        if (list is List) {
+          return list
+              .whereType<Map>()
+              .map((m) => FeedItem.fromJson(m.cast<String, dynamic>()))
+              .toList();
         }
-        return const <FeedItem>[];
-      },
-    );
+      }
+      return const <FeedItem>[];
+    });
     if (!env.isSuccess) {
       throw SunohApiException(env.message, env.error);
     }
@@ -562,23 +543,20 @@ class SunohApi {
   /// (~112 entries). Stable; the categories provider caches for 24h.
   Future<List<PodcastCategory>> fetchPodcastCategories() async {
     final res = await _dio.get<Map<String, dynamic>>('/podcasts/categories');
-    final env = ApiEnvelope.from<List<PodcastCategory>>(
-      res.data ?? const {},
-      (raw) {
-        if (raw is Map) {
-          final list = raw['list'];
-          if (list is List) {
-            return list
-                .whereType<Map>()
-                .map(
-                  (m) => PodcastCategory.fromJson(m.cast<String, dynamic>()),
-                )
-                .toList();
-          }
+    final env = ApiEnvelope.from<List<PodcastCategory>>(res.data ?? const {}, (
+      raw,
+    ) {
+      if (raw is Map) {
+        final list = raw['list'];
+        if (list is List) {
+          return list
+              .whereType<Map>()
+              .map((m) => PodcastCategory.fromJson(m.cast<String, dynamic>()))
+              .toList();
         }
-        return const <PodcastCategory>[];
-      },
-    );
+      }
+      return const <PodcastCategory>[];
+    });
     if (!env.isSuccess) {
       throw SunohApiException(env.message, env.error);
     }
@@ -601,21 +579,18 @@ class SunohApi {
         if (lang != null && lang.isNotEmpty) 'lang': lang,
       },
     );
-    final env = ApiEnvelope.from<List<FeedItem>>(
-      res.data ?? const {},
-      (raw) {
-        if (raw is Map) {
-          final list = raw['list'];
-          if (list is List) {
-            return list
-                .whereType<Map>()
-                .map((m) => FeedItem.fromJson(m.cast<String, dynamic>()))
-                .toList();
-          }
+    final env = ApiEnvelope.from<List<FeedItem>>(res.data ?? const {}, (raw) {
+      if (raw is Map) {
+        final list = raw['list'];
+        if (list is List) {
+          return list
+              .whereType<Map>()
+              .map((m) => FeedItem.fromJson(m.cast<String, dynamic>()))
+              .toList();
         }
-        return const <FeedItem>[];
-      },
-    );
+      }
+      return const <FeedItem>[];
+    });
     if (!env.isSuccess) {
       throw SunohApiException(env.message, env.error);
     }
@@ -656,18 +631,17 @@ class SunohApi {
   /// scrape cost is paid at most ~24 times a day.
   Future<List<HomeSection>> fetchAudiobookHome() async {
     final res = await _dio.get<Map<String, dynamic>>('/audiobooks/home');
-    final env = ApiEnvelope.from<List<HomeSection>>(
-      res.data ?? const {},
-      (raw) {
-        if (raw is List) {
-          return raw
-              .whereType<Map>()
-              .map((m) => HomeSection.fromJson(m.cast<String, dynamic>()))
-              .toList();
-        }
-        return const <HomeSection>[];
-      },
-    );
+    final env = ApiEnvelope.from<List<HomeSection>>(res.data ?? const {}, (
+      raw,
+    ) {
+      if (raw is List) {
+        return raw
+            .whereType<Map>()
+            .map((m) => HomeSection.fromJson(m.cast<String, dynamic>()))
+            .toList();
+      }
+      return const <HomeSection>[];
+    });
     if (!env.isSuccess) throw SunohApiException(env.message, env.error);
     return env.data ?? const [];
   }
@@ -704,21 +678,18 @@ class SunohApi {
       '/audiobooks/by-category',
       queryParameters: {'id': categoryId, 'page': page, 'limit': limit},
     );
-    final env = ApiEnvelope.from<List<FeedItem>>(
-      res.data ?? const {},
-      (raw) {
-        if (raw is Map) {
-          final list = raw['list'];
-          if (list is List) {
-            return list
-                .whereType<Map>()
-                .map((m) => FeedItem.fromJson(m.cast<String, dynamic>()))
-                .toList();
-          }
+    final env = ApiEnvelope.from<List<FeedItem>>(res.data ?? const {}, (raw) {
+      if (raw is Map) {
+        final list = raw['list'];
+        if (list is List) {
+          return list
+              .whereType<Map>()
+              .map((m) => FeedItem.fromJson(m.cast<String, dynamic>()))
+              .toList();
         }
-        return const <FeedItem>[];
-      },
-    );
+      }
+      return const <FeedItem>[];
+    });
     if (!env.isSuccess) throw SunohApiException(env.message, env.error);
     return env.data ?? const [];
   }
@@ -732,21 +703,18 @@ class SunohApi {
       '/audiobooks/search',
       queryParameters: {'q': query},
     );
-    final env = ApiEnvelope.from<List<FeedItem>>(
-      res.data ?? const {},
-      (raw) {
-        if (raw is Map) {
-          final list = raw['list'];
-          if (list is List) {
-            return list
-                .whereType<Map>()
-                .map((m) => FeedItem.fromJson(m.cast<String, dynamic>()))
-                .toList();
-          }
+    final env = ApiEnvelope.from<List<FeedItem>>(res.data ?? const {}, (raw) {
+      if (raw is Map) {
+        final list = raw['list'];
+        if (list is List) {
+          return list
+              .whereType<Map>()
+              .map((m) => FeedItem.fromJson(m.cast<String, dynamic>()))
+              .toList();
         }
-        return const <FeedItem>[];
-      },
-    );
+      }
+      return const <FeedItem>[];
+    });
     if (!env.isSuccess) throw SunohApiException(env.message, env.error);
     return env.data ?? const [];
   }
@@ -760,15 +728,14 @@ class SunohApi {
       final res = await _dio.get<Map<String, dynamic>>(
         '/audiobooks/${Uri.encodeComponent(slug)}',
       );
-      final env = ApiEnvelope.from<AudiobookDetail>(
-        res.data ?? const {},
-        (raw) {
-          if (raw is Map) {
-            return AudiobookDetail.fromJson(raw.cast<String, dynamic>());
-          }
-          throw const FormatException('Expected map payload');
-        },
-      );
+      final env = ApiEnvelope.from<AudiobookDetail>(res.data ?? const {}, (
+        raw,
+      ) {
+        if (raw is Map) {
+          return AudiobookDetail.fromJson(raw.cast<String, dynamic>());
+        }
+        throw const FormatException('Expected map payload');
+      });
       if (!env.isSuccess) return null;
       return env.data;
     } catch (_) {

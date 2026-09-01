@@ -79,14 +79,14 @@ class DownloadEntry {
   }
 
   Map<String, dynamic> toMap() => {
-        'songJson': song.toJson(),
-        'state': state.persistName,
-        'localPath': localPath,
-        'quality': quality,
-        'addedAt': addedAt,
-        'bytesTotal': bytesTotal,
-        'error': error,
-      };
+    'songJson': song.toJson(),
+    'state': state.persistName,
+    'localPath': localPath,
+    'quality': quality,
+    'addedAt': addedAt,
+    'bytesTotal': bytesTotal,
+    'error': error,
+  };
 
   static DownloadEntry? fromMap(Object? raw) {
     if (raw is! Map) return null;
@@ -123,8 +123,10 @@ class DownloadStore {
       box = await Hive.openBox(_boxName);
     } catch (e, st) {
       // ignore: avoid_print
-      print('[downloads-store] ⚠ openBox("$_boxName") FAILED: $e\n$st\n'
-          '[downloads-store] deleting corrupted box and retrying…');
+      print(
+        '[downloads-store] ⚠ openBox("$_boxName") FAILED: $e\n$st\n'
+        '[downloads-store] deleting corrupted box and retrying…',
+      );
       try {
         await Hive.deleteBoxFromDisk(_boxName);
       } catch (_) {}
@@ -139,8 +141,10 @@ class DownloadStore {
       }
     } catch (_) {}
     // ignore: avoid_print
-    print('[downloads-store] opened "$_boxName" at ${box.path} '
-        '(file=${bytes}b) — entries=${box.length}');
+    print(
+      '[downloads-store] opened "$_boxName" at ${box.path} '
+      '(file=${bytes}b) — entries=${box.length}',
+    );
     return box;
   }
 

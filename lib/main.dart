@@ -5,8 +5,8 @@ import 'dart:async';
 import 'dart:math' as math;
 
 import 'package:app_links/app_links.dart';
-import 'package:dio/dio.dart';
 import 'package:audio_service/audio_service.dart';
+import 'package:dio/dio.dart';
 import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
@@ -17,21 +17,24 @@ import 'package:mpv_audio_kit/mpv_audio_kit.dart';
 import 'package:permission_handler/permission_handler.dart';
 
 import 'api/client.dart';
-import 'api/ytmusic_channel.dart';
-import 'providers/ytmusic_provider.dart';
-import 'api/stream_resolver.dart';
-import 'audio/audio_handler.dart';
 import 'api/sponsorblock.dart';
+import 'api/stream_resolver.dart';
+import 'api/sunoh_api.dart';
+import 'api/ytmusic_channel.dart';
+import 'audio/audio_handler.dart';
 import 'audio/audio_repo.dart';
-import 'audio/sponsorblock_skipper.dart';
 import 'audio/audio_service_bridge.dart';
+import 'audio/auto_browse.dart';
+import 'audio/auto_catalog.dart';
 import 'audio/download_manager.dart';
 import 'audio/download_store.dart';
 import 'audio/library_store.dart';
 import 'audio/playback_state_store.dart';
 import 'audio/settings_store.dart';
+import 'audio/sponsorblock_skipper.dart';
 import 'cast/cast_service.dart';
 import 'providers/downloads_provider.dart';
+import 'providers/ytmusic_provider.dart';
 import 'router/deep_links.dart';
 import 'router/router.dart';
 import 'services/analytics_service.dart';
@@ -47,7 +50,9 @@ class SunohScrollBehavior extends MaterialScrollBehavior {
 
   @override
   ScrollPhysics getScrollPhysics(BuildContext context) =>
-      const _LooseClampingScrollPhysics(parent: AlwaysScrollableScrollPhysics());
+      const _LooseClampingScrollPhysics(
+        parent: AlwaysScrollableScrollPhysics(),
+      );
 
   @override
   Widget buildOverscrollIndicator(
@@ -63,11 +68,11 @@ class SunohScrollBehavior extends MaterialScrollBehavior {
 
   @override
   Set<PointerDeviceKind> get dragDevices => {
-        PointerDeviceKind.touch,
-        PointerDeviceKind.mouse,
-        PointerDeviceKind.trackpad,
-        PointerDeviceKind.stylus,
-      };
+    PointerDeviceKind.touch,
+    PointerDeviceKind.mouse,
+    PointerDeviceKind.trackpad,
+    PointerDeviceKind.stylus,
+  };
 }
 
 /// ClampingScrollPhysics with reduced fling friction. The default friction
@@ -86,7 +91,9 @@ class _LooseClampingScrollPhysics extends ClampingScrollPhysics {
 
   @override
   Simulation? createBallisticSimulation(
-      ScrollMetrics position, double velocity) {
+    ScrollMetrics position,
+    double velocity,
+  ) {
     final Tolerance tolerance = toleranceFor(position);
     if (position.outOfRange) {
       double end;
@@ -128,8 +135,10 @@ Future<void> main() async {
   // Local persistence (queue + future library/history/settings boxes).
   await Hive.initFlutter();
   // ignore: avoid_print
-  print('[hive] init complete — boxes will land in '
-      'getApplicationDocumentsDirectory() (/data/data/<pkg>/app_flutter/).');
+  print(
+    '[hive] init complete — boxes will land in '
+    'getApplicationDocumentsDirectory() (/data/data/<pkg>/app_flutter/).',
+  );
 
   // mpv FFI bindings init — synchronous, cheap.
   // Using `print` not `debugPrint` so these always surface in logcat.
@@ -147,8 +156,10 @@ Future<void> main() async {
   // is additive (no downloads → network only), so a broken Hive box
   // shouldn't prevent in-app playback.
   final downloadStore = DownloadStore();
-  final downloadManager =
-      DownloadManager(resolver: resolver, store: downloadStore);
+  final downloadManager = DownloadManager(
+    resolver: resolver,
+    store: downloadStore,
+  );
   try {
     await downloadManager.init();
     resolver.localSource = downloadManager;
@@ -179,42 +190,79 @@ Future<void> main() async {
     // Its own Dio: buildSunohDio carries our base URL and sunoh-api
     // headers, none of which belong on a request to sponsor.ajay.app.
     sponsorBlock: SponsorBlockSkipper(
-      client: SponsorBlockClient(Dio(BaseOptions(
-        connectTimeout: const Duration(seconds: 8),
-        receiveTimeout: const Duration(seconds: 12),
-      ))),
+      client: SponsorBlockClient(
+        Dio(
+          BaseOptions(
+            connectTimeout: const Duration(seconds: 8),
+            receiveTimeout: const Duration(seconds: 12),
+          ),
+        ),
+      ),
     ),
   );
   // ignore: avoid_print
   print('[audio] AudioRepo ready ✓ (Phase 1 — mpv only)');
 
+  // Android Auto browse tree. Reads the same Hive-backed library the phone
+  // UI does and starts playback through the same repo, so the car and the
+  // phone can never disagree about what "Liked Songs" means.
+  // The car's Music tab must match the phone's, so it needs the user's
+  // language selection. Read once here and held in a cell the tree reads
+  // synchronously — the browse callbacks are hot and can't await a box open.
+  String? autoLanguages;
+  unawaited(
+    repo.settings
+        .loadPlayback()
+        .then((s) {
+          final langs = s?.languages;
+          if (langs != null && langs.isNotEmpty) {
+            autoLanguages = langs.join(',');
+          }
+        })
+        .catchError((_) {}),
+  );
+  final autoBrowse = AutoBrowseTree(
+    library: repo.library,
+    api: SunohApi(buildSunohDio()),
+    downloads: downloadManager,
+    playQueue: repo.playQueue,
+    languages: () => autoLanguages,
+  );
+
   // Phase 2 add-on: try to wire audio_service for OS integration. Runs in
   // the background with a hard 5s timeout. If it succeeds, the bridge gets
   // attached to the repo. If it hangs or throws, in-app playback is
-  // unaffected — we just don't get lockscreen/notification controls.
-  unawaited(_tryWireAudioService(handler).then((bridge) {
-    if (bridge != null) {
-      repo.attachBridge(bridge);
-    }
-  }));
+  // unaffected — we just don't get lockscreen/notification controls, and
+  // the car sees no app at all.
+  unawaited(
+    _tryWireAudioService(handler, autoBrowse).then((bridge) {
+      if (bridge != null) {
+        repo.attachBridge(bridge);
+      }
+    }),
+  );
 
-  runApp(ProviderScope(
-    overrides: [
-      audioRepoProvider.overrideWithValue(repo),
-      downloadManagerProvider.overrideWithValue(downloadManager),
-    ],
-    child: const _Root(),
-  ));
+  runApp(
+    ProviderScope(
+      overrides: [
+        audioRepoProvider.overrideWithValue(repo),
+        downloadManagerProvider.overrideWithValue(downloadManager),
+      ],
+      child: const _Root(),
+    ),
+  );
 }
 
 Future<SunohAudioServiceBridge?> _tryWireAudioService(
-    SunohAudioHandler handler) async {
+  SunohAudioHandler handler,
+  AutoBrowseTree autoBrowse,
+) async {
   // Request POST_NOTIFICATIONS first. On Android 13+ this triggers the
   // system permission dialog; on older versions / iOS it's a no-op.
   try {
-    final status = await Permission.notification
-        .request()
-        .timeout(const Duration(seconds: 3));
+    final status = await Permission.notification.request().timeout(
+      const Duration(seconds: 3),
+    );
     // ignore: avoid_print
     print('[audio-svc] notification permission: $status');
   } catch (e) {
@@ -226,7 +274,7 @@ Future<SunohAudioServiceBridge?> _tryWireAudioService(
   print('[audio-svc] AudioService.init starting…');
   try {
     final bridge = await AudioService.init(
-      builder: () => SunohAudioServiceBridge(handler),
+      builder: () => SunohAudioServiceBridge(handler, browse: autoBrowse),
       config: const AudioServiceConfig(
         androidNotificationChannelId: 'com.sunoh.sunoh.audio',
         androidNotificationChannelName: 'sunoh playback',
@@ -241,6 +289,11 @@ Future<SunohAudioServiceBridge?> _tryWireAudioService(
         // ongoing flag would have no effect once the FG service stays alive
         // through pause. So we drop `androidNotificationOngoing: true` too.
         androidStopForegroundOnPause: false,
+        // Returned from onGetRoot. Tells Android Auto how to lay the browse
+        // tree out (collections as a grid, tracks as a list); without it the
+        // car falls back to its own default, which renders track lists as
+        // artwork tiles and makes long lists unreadable at a glance.
+        androidBrowsableRootExtras: kAutoRootExtras,
       ),
     ).timeout(const Duration(seconds: 5));
     // ignore: avoid_print
@@ -329,11 +382,13 @@ class _RootState extends ConsumerState<_Root> {
   @override
   Widget build(BuildContext context) {
     // Dark only — light status-bar icons over the near-black bg.
-    SystemChrome.setSystemUIOverlayStyle(const SystemUiOverlayStyle(
-      statusBarColor: Colors.transparent,
-      statusBarIconBrightness: Brightness.light,
-      statusBarBrightness: Brightness.dark,
-    ));
+    SystemChrome.setSystemUIOverlayStyle(
+      const SystemUiOverlayStyle(
+        statusBarColor: Colors.transparent,
+        statusBarIconBrightness: Brightness.light,
+        statusBarBrightness: Brightness.dark,
+      ),
+    );
     return MaterialApp.router(
       title: 'sunoh.',
       debugShowCheckedModeBanner: false,

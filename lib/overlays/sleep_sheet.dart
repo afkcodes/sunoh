@@ -83,23 +83,25 @@ class _SleepSheet extends ConsumerWidget {
                       mainAxisSize: MainAxisSize.min,
                       children: [
                         eyebrow(
-                            s.sleepArmed ? 'SLEEP IN' : 'SLEEP TIMER',
-                            c.fgMute,
-                            size: 9,
-                            letterSpacing: 1.6),
+                          s.sleepArmed ? 'SLEEP IN' : 'SLEEP TIMER',
+                          c.fgMute,
+                          size: 9,
+                          letterSpacing: 1.6,
+                        ),
                         const SizedBox(height: 4),
                         Text(
                           s.sleepArmed
                               ? (s.sleepAtTrackEnd
-                                  ? 'When this track ends'
-                                  : _fmtHeading(s.sleepRemaining))
+                                    ? 'When this track ends'
+                                    : _fmtHeading(s.sleepRemaining))
                               : 'Pick a duration',
                           maxLines: 1,
                           overflow: TextOverflow.ellipsis,
                           style: SunohType.heading(
-                              fontSize: 18,
-                              color: c.fg,
-                              letterSpacing: -0.3),
+                            fontSize: 18,
+                            color: c.fg,
+                            letterSpacing: -0.3,
+                          ),
                         ),
                       ],
                     ),
@@ -140,8 +142,8 @@ class _SleepSheet extends ConsumerWidget {
                         s.armSleepTimer(endOfTrack: true);
                       } else {
                         s.armSleepTimer(
-                            duration:
-                                Duration(minutes: _options[i].minutes!));
+                          duration: Duration(minutes: _options[i].minutes!),
+                        );
                       }
                       Navigator.of(context).pop();
                     },
@@ -192,7 +194,9 @@ class _SleepMedallion extends StatelessWidget {
               decoration: BoxDecoration(
                 shape: BoxShape.circle,
                 border: Border.all(
-                    color: accent.withValues(alpha: 0.35), width: 1),
+                  color: accent.withValues(alpha: 0.35),
+                  width: 1,
+                ),
               ),
             ),
           Container(
@@ -203,11 +207,10 @@ class _SleepMedallion extends StatelessWidget {
               shape: BoxShape.circle,
             ),
             child: Icon(
-                armed
-                    ? SolarIconsBold.moonSleep
-                    : SolarIconsOutline.moonSleep,
-                color: accent,
-                size: 20),
+              armed ? SolarIconsBold.moonSleep : SolarIconsOutline.moonSleep,
+              color: accent,
+              size: 20,
+            ),
           ),
         ],
       ),
@@ -237,15 +240,12 @@ class _ArmedCard extends StatelessWidget {
     final eyebrowText = atTrackEnd ? 'END OF TRACK' : 'TIME REMAINING';
     final mainText = atTrackEnd
         ? 'Playback fades out when this track ends'
-        : (remaining == null
-            ? ''
-            : _fmt(remaining));
+        : (remaining == null ? '' : _fmt(remaining));
     return Container(
       padding: const EdgeInsets.fromLTRB(14, 12, 12, 12),
       decoration: squircleDecoration(
         radius: 14,
-        color:
-            Color.alphaBlend(accent.withValues(alpha: 0.10), c.surface),
+        color: Color.alphaBlend(accent.withValues(alpha: 0.10), c.surface),
         borderColor: accent.withValues(alpha: 0.35),
       ),
       child: Row(
@@ -257,8 +257,7 @@ class _ArmedCard extends StatelessWidget {
               color: accent.withValues(alpha: 0.20),
               shape: BoxShape.circle,
             ),
-            child: Icon(SolarIconsBold.moonSleep,
-                color: accent, size: 18),
+            child: Icon(SolarIconsBold.moonSleep, color: accent, size: 18),
           ),
           const SizedBox(width: 12),
           Expanded(
@@ -266,19 +265,26 @@ class _ArmedCard extends StatelessWidget {
               crossAxisAlignment: CrossAxisAlignment.start,
               mainAxisSize: MainAxisSize.min,
               children: [
-                eyebrow(eyebrowText, accent.withValues(alpha: 0.85),
-                    size: 9, letterSpacing: 1.4, maxLines: 1),
+                eyebrow(
+                  eyebrowText,
+                  accent.withValues(alpha: 0.85),
+                  size: 9,
+                  letterSpacing: 1.4,
+                  maxLines: 1,
+                ),
                 const SizedBox(height: 3),
-                Text(mainText,
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                    style: atTrackEnd
-                        ? SunohType.sans(
-                            fontSize: 13, color: c.fg, height: 1.3)
-                        : SunohType.heading(
-                            fontSize: 22,
-                            color: c.fg,
-                            letterSpacing: -0.4)),
+                Text(
+                  mainText,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: atTrackEnd
+                      ? SunohType.sans(fontSize: 13, color: c.fg, height: 1.3)
+                      : SunohType.heading(
+                          fontSize: 22,
+                          color: c.fg,
+                          letterSpacing: -0.4,
+                        ),
+                ),
               ],
             ),
           ),
@@ -287,8 +293,7 @@ class _ArmedCard extends StatelessWidget {
             behavior: HitTestBehavior.opaque,
             onTap: onCancel,
             child: Container(
-              padding:
-                  const EdgeInsets.symmetric(horizontal: 14, vertical: 9),
+              padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 9),
               decoration: squircleDecoration(
                 radius: 12,
                 color: c.surface,
@@ -297,14 +302,16 @@ class _ArmedCard extends StatelessWidget {
               child: Row(
                 mainAxisSize: MainAxisSize.min,
                 children: [
-                  Icon(SolarIconsOutline.closeCircle,
-                      size: 14, color: c.fgDim),
+                  Icon(SolarIconsOutline.closeCircle, size: 14, color: c.fgDim),
                   const SizedBox(width: 6),
-                  Text('Cancel',
-                      style: SunohType.sans(
-                          fontSize: 12.5,
-                          fontWeight: FontWeight.w500,
-                          color: c.fg)),
+                  Text(
+                    'Cancel',
+                    style: SunohType.sans(
+                      fontSize: 12.5,
+                      fontWeight: FontWeight.w500,
+                      color: c.fg,
+                    ),
+                  ),
                 ],
               ),
             ),
@@ -350,28 +357,32 @@ class _OptionRow extends StatelessWidget {
         child: Row(
           children: [
             Icon(
-                option.endOfTrack
-                    ? SolarIconsOutline.musicNote
-                    : SolarIconsOutline.clockCircle,
-                size: 18,
-                color: active ? accent : c.fgDim),
+              option.endOfTrack
+                  ? SolarIconsOutline.musicNote
+                  : SolarIconsOutline.clockCircle,
+              size: 18,
+              color: active ? accent : c.fgDim,
+            ),
             const SizedBox(width: 16),
             Expanded(
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 mainAxisSize: MainAxisSize.min,
                 children: [
-                  Text(option.label,
-                      style: SunohType.sans(
-                          fontSize: 14,
-                          fontWeight:
-                              active ? FontWeight.w600 : FontWeight.w400,
-                          color: active ? accent : c.fg)),
+                  Text(
+                    option.label,
+                    style: SunohType.sans(
+                      fontSize: 14,
+                      fontWeight: active ? FontWeight.w600 : FontWeight.w400,
+                      color: active ? accent : c.fg,
+                    ),
+                  ),
                   if (option.subtitle != null) ...[
                     const SizedBox(height: 2),
-                    Text(option.subtitle!,
-                        style: SunohType.sans(
-                            fontSize: 11.5, color: c.fgMute)),
+                    Text(
+                      option.subtitle!,
+                      style: SunohType.sans(fontSize: 11.5, color: c.fgMute),
+                    ),
                   ],
                 ],
               ),
@@ -386,16 +397,14 @@ class _OptionRow extends StatelessWidget {
 }
 
 class _SleepOption {
-  const _SleepOption.duration({
-    required this.label,
-    required int this.minutes,
-  })  : endOfTrack = false,
-        subtitle = null;
+  const _SleepOption.duration({required this.label, required int this.minutes})
+    : endOfTrack = false,
+      subtitle = null;
   const _SleepOption.endOfTrack()
-      : label = 'End of current track',
-        subtitle = 'Pauses the moment this song finishes',
-        minutes = null,
-        endOfTrack = true;
+    : label = 'End of current track',
+      subtitle = 'Pauses the moment this song finishes',
+      minutes = null,
+      endOfTrack = true;
   final String label;
   final String? subtitle;
   final int? minutes;

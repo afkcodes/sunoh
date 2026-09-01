@@ -35,11 +35,13 @@ class UpdateInfo {
   });
   final String version;
   final int? buildNumber;
+
   /// GitHub release page URL — the "Release notes / view all" link.
   /// Still used as the fallback when no matching APK URL is present
   /// for the user's ABI.
   final String url;
   final String? notes;
+
   /// Per-ABI direct-download URLs for the release's APK assets, e.g.
   /// `{"arm64-v8a": "https://github.com/.../app-arm64-v8a-release.apk", ...}`.
   /// Empty when the manifest pre-dates the in-app-download work — the
@@ -94,13 +96,16 @@ class UpdateInfo {
 
 class UpdatesClient {
   UpdatesClient({Dio? dio})
-      : _dio = dio ??
-            Dio(BaseOptions(
+    : _dio =
+          dio ??
+          Dio(
+            BaseOptions(
               connectTimeout: const Duration(seconds: 6),
               receiveTimeout: const Duration(seconds: 8),
               headers: const {'Accept': 'application/json'},
               responseType: ResponseType.json,
-            ));
+            ),
+          );
   final Dio _dio;
 
   /// Returns the published manifest, or `null` when the lookup fails or

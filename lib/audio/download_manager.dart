@@ -93,8 +93,9 @@ class DownloadManager implements LocalSourceProvider {
       var entry = e;
       if (entry.state == DownloadState.downloading) {
         entry = entry.copyWith(
-            state: DownloadState.failed,
-            error: 'Interrupted by app restart');
+          state: DownloadState.failed,
+          error: 'Interrupted by app restart',
+        );
         await store.put(entry);
       }
       _entries[entry.id] = entry;
@@ -129,8 +130,10 @@ class DownloadManager implements LocalSourceProvider {
 
   /// Queue a song for download. Idempotent for `done` / in-flight rows.
   /// Returns the resulting entry (existing or newly created).
-  Future<DownloadEntry> enqueue(FeedItem song,
-      {String quality = 'high'}) async {
+  Future<DownloadEntry> enqueue(
+    FeedItem song, {
+    String quality = 'high',
+  }) async {
     final existing = _entries[song.id];
     if (existing != null) {
       if (existing.state == DownloadState.done ||
@@ -218,8 +221,10 @@ class DownloadManager implements LocalSourceProvider {
   }
 
   /// Re-enable bulk + single API to be discovered ergonomically.
-  Future<void> enqueueAll(Iterable<FeedItem> songs,
-      {String quality = 'high'}) async {
+  Future<void> enqueueAll(
+    Iterable<FeedItem> songs, {
+    String quality = 'high',
+  }) async {
     for (final s in songs) {
       await enqueue(s, quality: quality);
     }
@@ -266,8 +271,7 @@ class DownloadManager implements LocalSourceProvider {
         ext = '.aac';
       } else if (urlForExt.contains('.opus')) {
         ext = '.opus';
-      } else if (urlForExt.contains('.m3u8') ||
-          urlForExt.contains('hls')) {
+      } else if (urlForExt.contains('.m3u8') || urlForExt.contains('hls')) {
         throw const _UnsupportedHlsException();
       }
       final finalPath = '${entry.localPath}$ext';
@@ -283,11 +287,13 @@ class DownloadManager implements LocalSourceProvider {
         options: Options(responseType: ResponseType.bytes),
         onReceiveProgress: (received, total) {
           if (received <= 0) return;
-          _progressEvents.add(DownloadProgress(
-            songId: entry.id,
-            received: received,
-            total: total,
-          ));
+          _progressEvents.add(
+            DownloadProgress(
+              songId: entry.id,
+              received: received,
+              total: total,
+            ),
+          );
         },
       );
 
@@ -317,13 +323,12 @@ class DownloadManager implements LocalSourceProvider {
       // flipped state to paused/removed in those code paths, so don't
       // overwrite with `failed`.
       if (cancel.isCancelled) {
-        debugPrint('[downloads] cancelled ${entry.id} (${cancel.cancelError?.message})');
+        debugPrint(
+          '[downloads] cancelled ${entry.id} (${cancel.cancelError?.message})',
+        );
       } else {
         debugPrint('[downloads] failed ${entry.id}: $e\n$st');
-        entry = entry.copyWith(
-          state: DownloadState.failed,
-          error: '$e',
-        );
+        entry = entry.copyWith(state: DownloadState.failed, error: '$e');
         _entries[entry.id] = entry;
         await store.put(entry);
         _entryEvents.add(entry);

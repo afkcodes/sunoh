@@ -37,28 +37,30 @@ class UserPlaylist {
   }
 
   Map<String, dynamic> toJson() => {
-        'id': id,
-        'name': name,
-        'songs': songs.map((s) => s.toJson()).toList(),
-        'createdAt': createdAt.toIso8601String(),
-        'updatedAt': updatedAt.toIso8601String(),
-      };
+    'id': id,
+    'name': name,
+    'songs': songs.map((s) => s.toJson()).toList(),
+    'createdAt': createdAt.toIso8601String(),
+    'updatedAt': updatedAt.toIso8601String(),
+  };
 
   static UserPlaylist fromJson(Map<String, dynamic> j) {
     final raw = j['songs'];
     final songs = raw is List
         ? raw
-            .whereType<Map>()
-            .map((m) => FeedItem.fromJson(m.cast<String, dynamic>()))
-            .toList()
+              .whereType<Map>()
+              .map((m) => FeedItem.fromJson(m.cast<String, dynamic>()))
+              .toList()
         : <FeedItem>[];
     return UserPlaylist(
       id: (j['id'] ?? '').toString(),
       name: (j['name'] ?? '').toString(),
       songs: songs,
-      createdAt: DateTime.tryParse(j['createdAt']?.toString() ?? '') ??
+      createdAt:
+          DateTime.tryParse(j['createdAt']?.toString() ?? '') ??
           DateTime.fromMillisecondsSinceEpoch(0),
-      updatedAt: DateTime.tryParse(j['updatedAt']?.toString() ?? '') ??
+      updatedAt:
+          DateTime.tryParse(j['updatedAt']?.toString() ?? '') ??
           DateTime.fromMillisecondsSinceEpoch(0),
     );
   }

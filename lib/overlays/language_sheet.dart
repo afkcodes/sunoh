@@ -63,43 +63,53 @@ class _LanguageSheet extends ConsumerWidget {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Text('Music Languages',
-                      style: SunohType.heading(
-                          fontSize: 18, color: c.fg, letterSpacing: -0.2)),
+                  Text(
+                    'Music Languages',
+                    style: SunohType.heading(
+                      fontSize: 18,
+                      color: c.fg,
+                      letterSpacing: -0.2,
+                    ),
+                  ),
                   const SizedBox(height: 4),
                   Text(
-                      'Pick what shows up on Home and feeds back into radios + recommendations.',
-                      style:
-                          SunohType.sans(fontSize: 12, color: c.fgMute)),
+                    'Pick what shows up on Home and feeds back into radios + recommendations.',
+                    style: SunohType.sans(fontSize: 12, color: c.fgMute),
+                  ),
                 ],
               ),
             ),
             Container(
-                height: 0.5,
-                color: c.line,
-                margin: const EdgeInsets.symmetric(horizontal: 12)),
+              height: 0.5,
+              color: c.line,
+              margin: const EdgeInsets.symmetric(horizontal: 12),
+            ),
             Flexible(
               child: async.when(
                 loading: () => const Padding(
                   padding: EdgeInsets.symmetric(vertical: 40),
                   child: Center(
-                      child:
-                          CircularProgressIndicator(strokeWidth: 2)),
+                    child: CircularProgressIndicator(strokeWidth: 2),
+                  ),
                 ),
                 error: (e, _) => Padding(
-                  padding:
-                      const EdgeInsets.symmetric(horizontal: 22, vertical: 24),
-                  child: Text('Couldn’t load languages.\n$e',
-                      style: SunohType.sans(
-                          fontSize: 13, color: c.fgMute)),
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 22,
+                    vertical: 24,
+                  ),
+                  child: Text(
+                    'Couldn’t load languages.\n$e',
+                    style: SunohType.sans(fontSize: 13, color: c.fgMute),
+                  ),
                 ),
                 data: (langs) {
                   if (langs.isEmpty) {
                     return Padding(
                       padding: const EdgeInsets.all(24),
-                      child: Text('No languages available.',
-                          style: SunohType.sans(
-                              fontSize: 13, color: c.fgMute)),
+                      child: Text(
+                        'No languages available.',
+                        style: SunohType.sans(fontSize: 13, color: c.fgMute),
+                      ),
                     );
                   }
                   return ListView.separated(
@@ -108,32 +118,38 @@ class _LanguageSheet extends ConsumerWidget {
                     separatorBuilder: (_, _) => Container(
                       height: 0.5,
                       color: c.line.withValues(alpha: 0.5),
-                      margin:
-                          const EdgeInsets.symmetric(horizontal: 22),
+                      margin: const EdgeInsets.symmetric(horizontal: 22),
                     ),
                     itemBuilder: (context, i) {
                       final lang = langs[i];
-                      final selected =
-                          s.selectedLanguages.contains(lang.value);
+                      final selected = s.selectedLanguages.contains(lang.value);
                       return InkWell(
                         onTap: () => s.toggleLanguage(lang.value),
                         child: Padding(
                           padding: const EdgeInsets.symmetric(
-                              horizontal: 22, vertical: 14),
+                            horizontal: 22,
+                            vertical: 14,
+                          ),
                           child: Row(
                             children: [
                               Expanded(
-                                child: Text(lang.name,
-                                    style: SunohType.sans(
-                                        fontSize: 14,
-                                        fontWeight: selected
-                                            ? FontWeight.w600
-                                            : FontWeight.w400,
-                                        color: selected ? accent : c.fg)),
+                                child: Text(
+                                  lang.name,
+                                  style: SunohType.sans(
+                                    fontSize: 14,
+                                    fontWeight: selected
+                                        ? FontWeight.w600
+                                        : FontWeight.w400,
+                                    color: selected ? accent : c.fg,
+                                  ),
+                                ),
                               ),
                               if (selected)
-                                Icon(SolarIconsBold.checkCircle,
-                                    size: 18, color: accent),
+                                Icon(
+                                  SolarIconsBold.checkCircle,
+                                  size: 18,
+                                  color: accent,
+                                ),
                             ],
                           ),
                         ),

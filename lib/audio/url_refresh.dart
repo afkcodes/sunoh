@@ -126,17 +126,21 @@ class UrlRefreshScheduler {
       _scheduledForSongId = songId;
       _scheduledFor = now.add(deferral);
       _timer = Timer(deferral, _fire);
-      debugPrint('[url-refresh] $songId past safety; '
-          'deferred ${deferral.inSeconds}s '
-          '(expiry=${expiry?.toIso8601String() ?? 'unparsed'})');
+      debugPrint(
+        '[url-refresh] $songId past safety; '
+        'deferred ${deferral.inSeconds}s '
+        '(expiry=${expiry?.toIso8601String() ?? 'unparsed'})',
+      );
       return;
     }
 
     _scheduledForSongId = songId;
     _scheduledFor = refreshAt;
     _timer = Timer(delay, _fire);
-    debugPrint('[url-refresh] $songId scheduled in ${delay.inMinutes} min '
-        '(expiry=${expiry?.toIso8601String() ?? 'unparsed'})');
+    debugPrint(
+      '[url-refresh] $songId scheduled in ${delay.inMinutes} min '
+      '(expiry=${expiry?.toIso8601String() ?? 'unparsed'})',
+    );
   }
 
   /// Cancel any pending refresh. Call when the playing track changes so

@@ -16,7 +16,8 @@ ui.Image _grainImage() {
   if (_grainTile != null) return _grainTile!;
   final recorder = ui.PictureRecorder();
   final canvas = Canvas(recorder);
-  final paint = Paint()..color = const Color(0xFFFFFFFF).withValues(alpha: 0.05);
+  final paint = Paint()
+    ..color = const Color(0xFFFFFFFF).withValues(alpha: 0.05);
   for (double y = 0; y < 96; y += 3) {
     for (double x = 0; x < 96; x += 3) {
       canvas.drawCircle(Offset(x, y), 0.5, paint);
@@ -54,7 +55,14 @@ const List<List<Color>> _palettes = [
 ];
 
 const List<String> _shapes = [
-  'disc', 'split', 'arc', 'bars', 'beam', 'orbit', 'panes', 'wedge',
+  'disc',
+  'split',
+  'arc',
+  'bars',
+  'beam',
+  'orbit',
+  'panes',
+  'wedge',
 ];
 
 class ArtData {
@@ -110,11 +118,11 @@ class SunohArt extends StatelessWidget {
   final String? imageUrl;
 
   Widget _innerArt() => CustomPaint(
-        painter: _ArtPainter(artFor(id), label),
-        isComplex: true,
-        willChange: false,
-        child: const SizedBox.expand(),
-      );
+    painter: _ArtPainter(artFor(id), label),
+    isComplex: true,
+    willChange: false,
+    child: const SizedBox.expand(),
+  );
 
   @override
   Widget build(BuildContext context) {
@@ -139,10 +147,10 @@ class SunohArt extends StatelessWidget {
     final cacheTier = largest <= 192
         ? 192
         : largest <= 384
-            ? 384
-            : largest <= 720
-                ? 720
-                : 1200;
+        ? 384
+        : largest <= 720
+        ? 720
+        : 1200;
 
     return RepaintBoundary(
       child: Container(
@@ -227,7 +235,10 @@ class _ArtPainter extends CustomPainter {
     // base soft gradient wash
     final wash = Paint()
       ..shader = RadialGradient(
-        center: Alignment((20 + d.seed * 60) / 50 - 1, (10 + d.seed * 30) / 50 - 1),
+        center: Alignment(
+          (20 + d.seed * 60) / 50 - 1,
+          (10 + d.seed * 30) / 50 - 1,
+        ),
         radius: 1.0,
         colors: [_a(d.accent, 0x40), _a(d.accent, 0x00)],
         stops: const [0.0, 0.6],
@@ -268,11 +279,17 @@ class _ArtPainter extends CustomPainter {
   void _disc(Canvas c, double w, double h, double s) {
     final center = Offset(0.5 * w, 0.52 * h);
     final rx = 0.32 * w, ry = 0.32 * h;
-    c.drawOval(Rect.fromCenter(center: center, width: rx * 2, height: ry * 2),
-        Paint()..color = d.accent);
+    c.drawOval(
+      Rect.fromCenter(center: center, width: rx * 2, height: ry * 2),
+      Paint()..color = d.accent,
+    );
     final ring = s * 0.012;
     c.drawOval(
-      Rect.fromCenter(center: center, width: rx * 2 - ring, height: ry * 2 - ring),
+      Rect.fromCenter(
+        center: center,
+        width: rx * 2 - ring,
+        height: ry * 2 - ring,
+      ),
       Paint()
         ..style = PaintingStyle.stroke
         ..strokeWidth = ring
@@ -295,7 +312,11 @@ class _ArtPainter extends CustomPainter {
     c.drawRect(rect, paint);
     // centered tint disc, overlay-ish
     c.drawOval(
-      Rect.fromCenter(center: Offset(w / 2, h / 2), width: 0.38 * w, height: 0.38 * h),
+      Rect.fromCenter(
+        center: Offset(w / 2, h / 2),
+        width: 0.38 * w,
+        height: 0.38 * h,
+      ),
       Paint()..color = _a(d.tint, 0x66),
     );
   }
@@ -305,7 +326,11 @@ class _ArtPainter extends CustomPainter {
     final big = Rect.fromLTWH(-0.30 * w, 0.30 * h, 1.60 * w, 1.60 * h);
     c.drawOval(big, Paint()..color = d.accent);
     final small = Rect.fromLTWH(
-        w - 0.12 * w - 0.40 * w, 0.12 * h, 0.40 * w, 0.40 * h);
+      w - 0.12 * w - 0.40 * w,
+      0.12 * h,
+      0.40 * w,
+      0.40 * h,
+    );
     c.drawOval(small, Paint()..color = _a(d.tint, 0xD8));
   }
 
@@ -319,8 +344,7 @@ class _ArtPainter extends CustomPainter {
       final bh = heights[i] * innerH;
       final x = left + i * (barW + gap);
       final y = top + (innerH - bh);
-      final paint = Paint()
-        ..color = i.isOdd ? d.accent : _a(d.tint, 0x99);
+      final paint = Paint()..color = i.isOdd ? d.accent : _a(d.tint, 0x99);
       c.drawRect(Rect.fromLTWH(x, y, barW, bh), paint);
     }
   }
@@ -334,7 +358,12 @@ class _ArtPainter extends CustomPainter {
         ..shader = LinearGradient(
           begin: Alignment(-dx, -dy),
           end: Alignment(dx, dy),
-          colors: [_a(d.accent, 0), _a(d.accent, 0xCC), _a(d.accent, 0xCC), _a(d.accent, 0)],
+          colors: [
+            _a(d.accent, 0),
+            _a(d.accent, 0xCC),
+            _a(d.accent, 0xCC),
+            _a(d.accent, 0),
+          ],
           stops: const [0.0, 0.4, 0.6, 1.0],
         ).createShader(rect),
     );
@@ -374,12 +403,17 @@ class _ArtPainter extends CustomPainter {
   }
 
   void _panes(Canvas c, double w, double h) {
-    final inset = 0.12;
+    const inset = 0.12;
     final gx = inset * w, gy = inset * h;
     final innerW = w - 2 * gx, innerH = h - 2 * gy;
     final gap = 0.04 * innerW;
     final cw = (innerW - gap) / 2, ch = (innerH - gap) / 2;
-    final colors = [d.accent, _a(d.tint, 0x88), _a(d.tint, 0x33), _a(d.accent, 0xAA)];
+    final colors = [
+      d.accent,
+      _a(d.tint, 0x88),
+      _a(d.tint, 0x33),
+      _a(d.accent, 0xAA),
+    ];
     final cells = [
       Rect.fromLTWH(gx, gy, cw, ch),
       Rect.fromLTWH(gx + cw + gap, gy, cw, ch),

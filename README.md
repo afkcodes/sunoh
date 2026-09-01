@@ -63,6 +63,9 @@ Android is the only supported way to exercise it.
 
 ## Architecture
 
+Full detail in [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md); the standards
+new code is held to are in [`docs/ENGINEERING.md`](docs/ENGINEERING.md).
+
 | Path | |
 |---|---|
 | `lib/api/` | source clients — `ytmusic_api`, `sunoh_api`, `sponsorblock`, `lrclib` |

@@ -46,11 +46,12 @@ class MiniPlayer extends ConsumerWidget {
                 Hero(
                   tag: 'sunoh-player-art',
                   child: SunohArt(
-                      id: track.id,
-                      imageUrl: s.currentApiSong?.artwork,
-                      size: 44,
-                      radius: 9,
-                      shadow: false),
+                    id: track.id,
+                    imageUrl: s.currentApiSong?.artwork,
+                    size: 44,
+                    radius: 9,
+                    shadow: false,
+                  ),
                 ),
                 const SizedBox(width: 12),
                 Expanded(
@@ -63,16 +64,16 @@ class MiniPlayer extends ConsumerWidget {
                         maxLines: 1,
                         overflow: TextOverflow.ellipsis,
                         style: SunohType.sans(
-                            fontSize: 13.5,
-                            fontWeight: FontWeight.w500,
-                            color: c.fg),
+                          fontSize: 13.5,
+                          fontWeight: FontWeight.w500,
+                          color: c.fg,
+                        ),
                       ),
                       Text(
                         track.artist,
                         maxLines: 1,
                         overflow: TextOverflow.ellipsis,
-                        style: SunohType.sans(
-                            fontSize: 11.5, color: c.fgMute),
+                        style: SunohType.sans(fontSize: 11.5, color: c.fgMute),
                       ),
                     ],
                   ),
@@ -88,13 +89,14 @@ class MiniPlayer extends ConsumerWidget {
                 // identity — bright enough to spot, soft enough to not
                 // dominate.
                 _miniBtn(
-                    s.isPlaying
-                        ? PhosphorIconsFill.pause
-                        : PhosphorIconsFill.play,
-                    c.fg,
-                    22,
-                    s.playPause,
-                    background: accent.withValues(alpha: 0.20)),
+                  s.isPlaying
+                      ? PhosphorIconsFill.pause
+                      : PhosphorIconsFill.play,
+                  c.fg,
+                  22,
+                  s.playPause,
+                  background: accent.withValues(alpha: 0.20),
+                ),
                 const SizedBox(width: 4),
                 _miniBtn(PhosphorIconsFill.skipForward, c.fg, 22, s.next),
               ],

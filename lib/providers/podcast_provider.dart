@@ -19,41 +19,45 @@ import 'api_providers.dart';
 
 final podcastHomeProvider = FutureProvider.autoDispose
     .family<List<HomeSection>, String?>((ref, country) async {
-  final link = ref.keepAlive();
-  Future<void>.delayed(const Duration(hours: 1)).then((_) => link.close());
-  final api = ref.watch(sunohApiProvider);
-  return api.fetchPodcastHome(country: country);
-});
+      final link = ref.keepAlive();
+      Future<void>.delayed(const Duration(hours: 1)).then((_) => link.close());
+      final api = ref.watch(sunohApiProvider);
+      return api.fetchPodcastHome(country: country);
+    });
 
 final podcastSearchProvider = FutureProvider.autoDispose
     .family<List<FeedItem>, String>((ref, query) async {
-  final link = ref.keepAlive();
-  Future<void>.delayed(const Duration(minutes: 5)).then((_) => link.close());
-  if (query.trim().isEmpty) return const [];
-  final api = ref.watch(sunohApiProvider);
-  return api.fetchPodcastSearch(query);
-});
+      final link = ref.keepAlive();
+      Future<void>.delayed(
+        const Duration(minutes: 5),
+      ).then((_) => link.close());
+      if (query.trim().isEmpty) return const [];
+      final api = ref.watch(sunohApiProvider);
+      return api.fetchPodcastSearch(query);
+    });
 
 final podcastShowProvider = FutureProvider.autoDispose
     .family<PodcastShowDetail, String>((ref, id) async {
-  final link = ref.keepAlive();
-  Future<void>.delayed(const Duration(minutes: 30)).then((_) => link.close());
-  final api = ref.watch(sunohApiProvider);
-  return api.fetchPodcastShow(id);
-});
+      final link = ref.keepAlive();
+      Future<void>.delayed(
+        const Duration(minutes: 30),
+      ).then((_) => link.close());
+      final api = ref.watch(sunohApiProvider);
+      return api.fetchPodcastShow(id);
+    });
 
 final podcastCategoriesProvider =
     FutureProvider.autoDispose<List<PodcastCategory>>((ref) async {
-  final link = ref.keepAlive();
-  Future<void>.delayed(const Duration(hours: 24)).then((_) => link.close());
-  final api = ref.watch(sunohApiProvider);
-  return api.fetchPodcastCategories();
-});
+      final link = ref.keepAlive();
+      Future<void>.delayed(const Duration(hours: 24)).then((_) => link.close());
+      final api = ref.watch(sunohApiProvider);
+      return api.fetchPodcastCategories();
+    });
 
 final podcastsByCategoryProvider = FutureProvider.autoDispose
     .family<List<FeedItem>, String>((ref, slug) async {
-  final link = ref.keepAlive();
-  Future<void>.delayed(const Duration(hours: 1)).then((_) => link.close());
-  final api = ref.watch(sunohApiProvider);
-  return api.fetchPodcastsByCategory(slug);
-});
+      final link = ref.keepAlive();
+      Future<void>.delayed(const Duration(hours: 1)).then((_) => link.close());
+      final api = ref.watch(sunohApiProvider);
+      return api.fetchPodcastsByCategory(slug);
+    });

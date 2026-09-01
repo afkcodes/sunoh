@@ -20,10 +20,18 @@ import '../widgets/ui.dart';
 /// category picks deterministically by `id % 12`, so the same genre
 /// always wears the same color across renders.
 const _genrePalette = <Color>[
-  Color(0xFFE05656), Color(0xFFE07A3C), Color(0xFFD9A93C),
-  Color(0xFF6FBF73), Color(0xFF3FB7C7), Color(0xFF4A8FE0),
-  Color(0xFF8466DC), Color(0xFFCB5BB6), Color(0xFFC36F4F),
-  Color(0xFF4F9F8F), Color(0xFFB36FB9), Color(0xFF6FAB4F),
+  Color(0xFFE05656),
+  Color(0xFFE07A3C),
+  Color(0xFFD9A93C),
+  Color(0xFF6FBF73),
+  Color(0xFF3FB7C7),
+  Color(0xFF4A8FE0),
+  Color(0xFF8466DC),
+  Color(0xFFCB5BB6),
+  Color(0xFFC36F4F),
+  Color(0xFF4F9F8F),
+  Color(0xFFB36FB9),
+  Color(0xFF6FAB4F),
 ];
 
 class AudiobookCategoriesScreen extends ConsumerWidget {
@@ -45,16 +53,20 @@ class AudiobookCategoriesScreen extends ConsumerWidget {
               child: Row(
                 children: [
                   IconBtn(
-                      icon: SolarIconsOutline.altArrowLeft,
-                      color: c.fg,
-                      size: 22,
-                      onTap: () => context.pop()),
+                    icon: SolarIconsOutline.altArrowLeft,
+                    color: c.fg,
+                    size: 22,
+                    onTap: () => context.pop(),
+                  ),
                   const SizedBox(width: 6),
-                  Text('Genres',
-                      style: SunohType.heading(
-                          fontSize: 24,
-                          color: c.fg,
-                          letterSpacing: -0.3)),
+                  Text(
+                    'Genres',
+                    style: SunohType.heading(
+                      fontSize: 24,
+                      color: c.fg,
+                      letterSpacing: -0.3,
+                    ),
+                  ),
                 ],
               ),
             ),
@@ -72,7 +84,9 @@ class AudiobookCategoriesScreen extends ConsumerWidget {
                     width: 24,
                     height: 24,
                     child: CircularProgressIndicator(
-                        strokeWidth: 2, color: c.fgDim),
+                      strokeWidth: 2,
+                      color: c.fgDim,
+                    ),
                   ),
                 ),
                 error: (e, _) => Center(
@@ -81,25 +95,21 @@ class AudiobookCategoriesScreen extends ConsumerWidget {
                     child: Text(
                       'Couldn’t load genres.\n$e',
                       textAlign: TextAlign.center,
-                      style: SunohType.sans(
-                          fontSize: 13, color: c.fgMute),
+                      style: SunohType.sans(fontSize: 13, color: c.fgMute),
                     ),
                   ),
                 ),
                 data: (cats) => GridView.builder(
                   padding: const EdgeInsets.fromLTRB(20, 0, 20, 140),
-                  gridDelegate:
-                      const SliverGridDelegateWithFixedCrossAxisCount(
+                  gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
                     crossAxisCount: 2,
                     mainAxisSpacing: 10,
                     crossAxisSpacing: 10,
                     childAspectRatio: 180 / 64,
                   ),
                   itemCount: cats.length,
-                  itemBuilder: (context, i) => AudiobookCategoryCard(
-                    category: cats[i],
-                    colors: c,
-                  ),
+                  itemBuilder: (context, i) =>
+                      AudiobookCategoryCard(category: cats[i], colors: c),
                 ),
               ),
             ),
@@ -128,14 +138,12 @@ class AudiobookCategoryCard extends StatelessWidget {
     final icon = _iconFor(category.name);
     final seed = _genrePalette[category.id % _genrePalette.length];
     return GestureDetector(
-      onTap: () => context.openAudiobookCategory(
-        category.id,
-        name: category.name,
-      ),
+      onTap: () =>
+          context.openAudiobookCategory(category.id, name: category.name),
       behavior: HitTestBehavior.opaque,
       child: squircleClip(
         radius: 10,
-        child: Container(
+        child: DecoratedBox(
           decoration: BoxDecoration(
             gradient: LinearGradient(
               begin: Alignment.centerLeft,
@@ -178,9 +186,11 @@ class AudiobookCategoryCard extends StatelessWidget {
                       color: Colors.white.withValues(alpha: 0.16),
                       borderRadius: BorderRadius.circular(8),
                     ),
-                    child: Icon(icon,
-                        color: Colors.white.withValues(alpha: 0.92),
-                        size: 30),
+                    child: Icon(
+                      icon,
+                      color: Colors.white.withValues(alpha: 0.92),
+                      size: 30,
+                    ),
                   ),
                 ),
               ),
@@ -197,7 +207,9 @@ class AudiobookCategoryCard extends StatelessWidget {
   /// without us having to source per-genre artwork.
   IconData _iconFor(String name) {
     final n = name.toLowerCase();
-    if (n.contains('mystery') || n.contains('crime') || n.contains('detective')) {
+    if (n.contains('mystery') ||
+        n.contains('crime') ||
+        n.contains('detective')) {
       return SolarIconsOutline.magnifier;
     }
     if (n.contains('thriller') || n.contains('suspense')) {

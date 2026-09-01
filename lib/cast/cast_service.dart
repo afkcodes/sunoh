@@ -51,8 +51,9 @@ class CastService {
     // position from the SDK's streams. We hold these subscriptions
     // for the lifetime of the singleton — they're cheap when no
     // session is active and never need to be torn down.
-    GoogleCastRemoteMediaClient.instance.mediaStatusStream
-        .listen(_onMediaStatus);
+    GoogleCastRemoteMediaClient.instance.mediaStatusStream.listen(
+      _onMediaStatus,
+    );
     GoogleCastRemoteMediaClient.instance.playerPositionStream.listen(
       (pos) => _lastReportedPosition = pos,
     );
@@ -226,8 +227,10 @@ class CastService {
 
   Future<bool> connect(GoogleCastDevice device) async {
     // ignore: avoid_print
-    print('[cast] connect() called, inited=$_inited, '
-        'device="${device.friendlyName}"');
+    print(
+      '[cast] connect() called, inited=$_inited, '
+      'device="${device.friendlyName}"',
+    );
     if (!_inited) {
       // ignore: avoid_print
       print('[cast] BAIL: cast context not initialised');
@@ -238,8 +241,10 @@ class CastService {
       print('[cast] startSessionWithDevice…');
       await GoogleCastSessionManager.instance.startSessionWithDevice(device);
       // ignore: avoid_print
-      print('[cast] startSessionWithDevice returned, '
-          'connectionState=${GoogleCastSessionManager.instance.connectionState}');
+      print(
+        '[cast] startSessionWithDevice returned, '
+        'connectionState=${GoogleCastSessionManager.instance.connectionState}',
+      );
       return true;
     } catch (e, st) {
       // ignore: avoid_print
@@ -305,7 +310,8 @@ class CastService {
       // audio. Title carries the song; subtitle gets the artists line.
       final subtitle = [
         if (artists.isNotEmpty) artists.join(', '),
-        if (song.subtitle != null && song.subtitle!.isNotEmpty &&
+        if (song.subtitle != null &&
+            song.subtitle!.isNotEmpty &&
             (artists.isEmpty || !artists.contains(song.subtitle)))
           song.subtitle!,
       ].join(' · ');

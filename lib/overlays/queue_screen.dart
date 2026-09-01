@@ -17,10 +17,10 @@ import '../api/dto.dart';
 import '../data/catalog.dart';
 import '../providers/app_state_provider.dart';
 import '../theme/tokens.dart';
-import 'queue_menu_sheet.dart';
 import '../widgets/album_art.dart';
 import '../widgets/playing_bars.dart';
 import '../widgets/ui.dart';
+import 'queue_menu_sheet.dart';
 
 class QueueScreen extends ConsumerWidget {
   const QueueScreen({super.key});
@@ -47,16 +47,18 @@ class QueueScreen extends ConsumerWidget {
                 mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 children: [
                   IconBtn(
-                      icon: SolarIconsOutline.altArrowDown,
-                      color: c.fgDim,
-                      size: 22,
-                      onTap: () => context.pop()),
+                    icon: SolarIconsOutline.altArrowDown,
+                    color: c.fgDim,
+                    size: 22,
+                    onTap: () => context.pop(),
+                  ),
                   eyebrow('QUEUE', c.fgMute),
                   IconBtn(
-                      icon: SolarIconsBold.menuDots,
-                      color: c.fgDim,
-                      size: 20,
-                      onTap: () => showQueueMenuSheet(context)),
+                    icon: SolarIconsBold.menuDots,
+                    color: c.fgDim,
+                    size: 20,
+                    onTap: () => showQueueMenuSheet(context),
+                  ),
                 ],
               ),
             ),
@@ -77,9 +79,10 @@ class QueueScreen extends ConsumerWidget {
                       mainAxisAlignment: MainAxisAlignment.center,
                       children: [
                         eyebrow(
-                            '$upNext ${upNext == 1 ? 'TRACK' : 'TRACKS'} REMAINING',
-                            c.fgMute,
-                            size: 10),
+                          '$upNext ${upNext == 1 ? 'TRACK' : 'TRACKS'} REMAINING',
+                          c.fgMute,
+                          size: 10,
+                        ),
                       ],
                     ),
                   );
@@ -95,8 +98,11 @@ class QueueScreen extends ConsumerWidget {
 // ── API mode (real engine queue) ───────────────────────────────────────────
 
 class _ApiQueueBody extends StatelessWidget {
-  const _ApiQueueBody(
-      {required this.accent, required this.colors, required this.ref});
+  const _ApiQueueBody({
+    required this.accent,
+    required this.colors,
+    required this.ref,
+  });
   final Color accent;
   final SunohColors colors;
   final WidgetRef ref;
@@ -134,11 +140,14 @@ class _ApiQueueBody extends StatelessWidget {
                         if (upNext.isNotEmpty)
                           GestureDetector(
                             onTap: s.apiClearUpNext,
-                            child: Text('Clear',
-                                style: SunohType.sans(
-                                    fontSize: 11,
-                                    color: c.fgMute,
-                                    fontWeight: FontWeight.w500)),
+                            child: Text(
+                              'Clear',
+                              style: SunohType.sans(
+                                fontSize: 11,
+                                color: c.fgMute,
+                                fontWeight: FontWeight.w500,
+                              ),
+                            ),
                           ),
                       ],
                     ),
@@ -146,12 +155,16 @@ class _ApiQueueBody extends StatelessWidget {
                   if (upNext.isEmpty)
                     Padding(
                       padding: const EdgeInsets.symmetric(
-                          horizontal: 20, vertical: 32),
+                        horizontal: 20,
+                        vertical: 32,
+                      ),
                       child: Center(
                         child: Text(
                           'Nothing else queued.',
                           style: SunohType.sans(
-                              fontSize: 12.5, color: c.fgMute),
+                            fontSize: 12.5,
+                            color: c.fgMute,
+                          ),
                         ),
                       ),
                     ),
@@ -181,8 +194,7 @@ class _ApiQueueBody extends StatelessWidget {
                   children: [
                     Padding(
                       padding: const EdgeInsets.fromLTRB(20, 18, 20, 8),
-                      child:
-                          eyebrow('RECENTLY PLAYED', c.fgMute),
+                      child: eyebrow('RECENTLY PLAYED', c.fgMute),
                     ),
                     for (final h in s.playedHistory.take(10))
                       Opacity(
@@ -203,8 +215,11 @@ class _ApiQueueBody extends StatelessWidget {
 }
 
 class _ApiNowPlayingRow extends StatelessWidget {
-  const _ApiNowPlayingRow(
-      {required this.song, required this.accent, required this.colors});
+  const _ApiNowPlayingRow({
+    required this.song,
+    required this.accent,
+    required this.colors,
+  });
   final FeedItem song;
   final Color accent;
   final SunohColors colors;
@@ -227,16 +242,23 @@ class _ApiNowPlayingRow extends StatelessWidget {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text(song.title,
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                    style: SunohType.sans(
-                        fontSize: 15, fontWeight: FontWeight.w500, color: accent)),
+                Text(
+                  song.title,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: SunohType.sans(
+                    fontSize: 15,
+                    fontWeight: FontWeight.w500,
+                    color: accent,
+                  ),
+                ),
                 const SizedBox(height: 2),
-                Text(artist.isEmpty ? '—' : artist,
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                    style: SunohType.sans(fontSize: 12.5, color: c.fgMute)),
+                Text(
+                  artist.isEmpty ? '—' : artist,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: SunohType.sans(fontSize: 12.5, color: c.fgMute),
+                ),
               ],
             ),
           ),
@@ -279,58 +301,66 @@ class _ApiQueueRow extends StatelessWidget {
     return _FastReorderListener(
       index: index,
       child: Container(
-      color: c.bg,
-      padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 8),
-      child: Row(
-        children: [
-          ReorderableDragStartListener(
-            index: index,
-            child: Icon(SolarIconsOutline.hamburgerMenu,
-                size: 16, color: c.fgMute.withValues(alpha: 0.6)),
-          ),
-          const SizedBox(width: 8),
-          SunohArt(id: song.id, imageUrl: song.artwork, size: 42, radius: 4),
-          const SizedBox(width: 12),
-          Expanded(
-            child: GestureDetector(
-              onTap: onTap,
-              behavior: HitTestBehavior.opaque,
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(song.title,
+        color: c.bg,
+        padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 8),
+        child: Row(
+          children: [
+            ReorderableDragStartListener(
+              index: index,
+              child: Icon(
+                SolarIconsOutline.hamburgerMenu,
+                size: 16,
+                color: c.fgMute.withValues(alpha: 0.6),
+              ),
+            ),
+            const SizedBox(width: 8),
+            SunohArt(id: song.id, imageUrl: song.artwork, size: 42, radius: 4),
+            const SizedBox(width: 12),
+            Expanded(
+              child: GestureDetector(
+                onTap: onTap,
+                behavior: HitTestBehavior.opaque,
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      song.title,
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,
                       style: SunohType.sans(
-                          fontSize: 13.5,
-                          fontWeight: FontWeight.w500,
-                          color: c.fg)),
-                  if (artist.isNotEmpty) ...[
-                    const SizedBox(height: 1),
-                    Text(artist,
+                        fontSize: 13.5,
+                        fontWeight: FontWeight.w500,
+                        color: c.fg,
+                      ),
+                    ),
+                    if (artist.isNotEmpty) ...[
+                      const SizedBox(height: 1),
+                      Text(
+                        artist,
                         maxLines: 1,
                         overflow: TextOverflow.ellipsis,
-                        style: SunohType.sans(fontSize: 11.5, color: c.fgMute)),
+                        style: SunohType.sans(fontSize: 11.5, color: c.fgMute),
+                      ),
+                    ],
                   ],
-                ],
+                ),
               ),
             ),
-          ),
-          if (dur != null) ...[
-            const SizedBox(width: 8),
-            Text(dur, style: SunohType.mono(fontSize: 10, color: c.fgMute)),
+            if (dur != null) ...[
+              const SizedBox(width: 8),
+              Text(dur, style: SunohType.mono(fontSize: 10, color: c.fgMute)),
+            ],
+            IconBtn(
+              icon: SolarIconsOutline.closeCircle,
+              color: c.fgMute,
+              size: 14,
+              width: 32,
+              height: 32,
+              onTap: onRemove,
+            ),
           ],
-          IconBtn(
-            icon: SolarIconsOutline.closeCircle,
-            color: c.fgMute,
-            size: 14,
-            width: 32,
-            height: 32,
-            onTap: onRemove,
-          ),
-        ],
+        ),
       ),
-    ),
     );
   }
 }
@@ -358,16 +388,20 @@ class _ApiHistoryRow extends StatelessWidget {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text(song.title,
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                    style: SunohType.sans(fontSize: 13, color: c.fgDim)),
+                Text(
+                  song.title,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: SunohType.sans(fontSize: 13, color: c.fgDim),
+                ),
                 if (artist.isNotEmpty) ...[
                   const SizedBox(height: 1),
-                  Text(artist,
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                      style: SunohType.sans(fontSize: 11, color: c.fgMute)),
+                  Text(
+                    artist,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: SunohType.sans(fontSize: 11, color: c.fgMute),
+                  ),
                 ],
               ],
             ),
@@ -390,8 +424,11 @@ String? _fmtDuration(String? raw) {
 // ── Dummy mode (legacy Track-based catalog path) ───────────────────────────
 
 class _DummyQueueBody extends StatelessWidget {
-  const _DummyQueueBody(
-      {required this.s, required this.accent, required this.colors});
+  const _DummyQueueBody({
+    required this.s,
+    required this.accent,
+    required this.colors,
+  });
   final dynamic s;
   final Color accent;
   final SunohColors colors;
@@ -419,15 +456,22 @@ class _DummyQueueBody extends StatelessWidget {
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
-                          Text(s.current.title,
-                              style: SunohType.sans(
-                                  fontSize: 15,
-                                  fontWeight: FontWeight.w500,
-                                  color: accent)),
+                          Text(
+                            s.current.title,
+                            style: SunohType.sans(
+                              fontSize: 15,
+                              fontWeight: FontWeight.w500,
+                              color: accent,
+                            ),
+                          ),
                           const SizedBox(height: 2),
-                          Text(s.current.artist,
-                              style: SunohType.sans(
-                                  fontSize: 12.5, color: c.fgMute)),
+                          Text(
+                            s.current.artist,
+                            style: SunohType.sans(
+                              fontSize: 12.5,
+                              color: c.fgMute,
+                            ),
+                          ),
                         ],
                       ),
                     ),
@@ -443,8 +487,10 @@ class _DummyQueueBody extends StatelessWidget {
                   textBaseline: TextBaseline.alphabetic,
                   children: [
                     eyebrow('NEXT UP · ${s.queue.length} TRACKS', c.fgMute),
-                    Text('Clear',
-                        style: SunohType.sans(fontSize: 11, color: c.fgMute)),
+                    Text(
+                      'Clear',
+                      style: SunohType.sans(fontSize: 11, color: c.fgMute),
+                    ),
                   ],
                 ),
               ),
@@ -464,8 +510,11 @@ class _DummyQueueBody extends StatelessWidget {
                 children: [
                   ReorderableDragStartListener(
                     index: i,
-                    child: Icon(SolarIconsOutline.hamburgerMenu,
-                        size: 16, color: c.fgMute.withValues(alpha: 0.6)),
+                    child: Icon(
+                      SolarIconsOutline.hamburgerMenu,
+                      size: 16,
+                      color: c.fgMute.withValues(alpha: 0.6),
+                    ),
                   ),
                   const SizedBox(width: 8),
                   SunohArt(id: t.id, size: 42, radius: 4),
@@ -477,26 +526,35 @@ class _DummyQueueBody extends StatelessWidget {
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
-                          Text(t.title,
-                              maxLines: 1,
-                              overflow: TextOverflow.ellipsis,
-                              style: SunohType.sans(
-                                  fontSize: 13.5,
-                                  fontWeight: FontWeight.w500,
-                                  color: c.fg)),
+                          Text(
+                            t.title,
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: SunohType.sans(
+                              fontSize: 13.5,
+                              fontWeight: FontWeight.w500,
+                              color: c.fg,
+                            ),
+                          ),
                           const SizedBox(height: 1),
-                          Text(t.artist,
-                              maxLines: 1,
-                              overflow: TextOverflow.ellipsis,
-                              style: SunohType.sans(
-                                  fontSize: 11.5, color: c.fgMute)),
+                          Text(
+                            t.artist,
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: SunohType.sans(
+                              fontSize: 11.5,
+                              color: c.fgMute,
+                            ),
+                          ),
                         ],
                       ),
                     ),
                   ),
                   const SizedBox(width: 8),
-                  Text(fmt(t.duration),
-                      style: SunohType.mono(fontSize: 10, color: c.fgMute)),
+                  Text(
+                    fmt(t.duration),
+                    style: SunohType.mono(fontSize: 10, color: c.fgMute),
+                  ),
                   IconBtn(
                     icon: SolarIconsOutline.closeCircle,
                     color: c.fgMute,
@@ -523,8 +581,10 @@ class _DummyQueueBody extends StatelessWidget {
                   Opacity(
                     opacity: 0.6,
                     child: Padding(
-                      padding:
-                          const EdgeInsets.symmetric(horizontal: 20, vertical: 8),
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 20,
+                        vertical: 8,
+                      ),
                       child: Row(
                         children: [
                           SunohArt(id: t.id, size: 36, radius: 4),
@@ -533,15 +593,23 @@ class _DummyQueueBody extends StatelessWidget {
                             child: Column(
                               crossAxisAlignment: CrossAxisAlignment.start,
                               children: [
-                                Text(t.title,
-                                    maxLines: 1,
-                                    overflow: TextOverflow.ellipsis,
-                                    style: SunohType.sans(
-                                        fontSize: 13, color: c.fgDim)),
+                                Text(
+                                  t.title,
+                                  maxLines: 1,
+                                  overflow: TextOverflow.ellipsis,
+                                  style: SunohType.sans(
+                                    fontSize: 13,
+                                    color: c.fgDim,
+                                  ),
+                                ),
                                 const SizedBox(height: 1),
-                                Text(t.artist,
-                                    style: SunohType.sans(
-                                        fontSize: 11, color: c.fgMute)),
+                                Text(
+                                  t.artist,
+                                  style: SunohType.sans(
+                                    fontSize: 11,
+                                    color: c.fgMute,
+                                  ),
+                                ),
                               ],
                             ),
                           ),
@@ -560,7 +628,6 @@ class _DummyQueueBody extends StatelessWidget {
   }
 }
 
-
 /// `ReorderableDragStartListener` subclass that uses a 200 ms long-press
 /// delay instead of Flutter's built-in ~500 ms. The Material library's
 /// `ReorderableDelayedDragStartListener` doesn't expose the delay, so
@@ -568,10 +635,7 @@ class _DummyQueueBody extends StatelessWidget {
 /// construct. Everything else (drag handling, scroll-while-dragging,
 /// proxyDecorator hookup) is inherited.
 class _FastReorderListener extends ReorderableDragStartListener {
-  const _FastReorderListener({
-    required super.child,
-    required super.index,
-  });
+  const _FastReorderListener({required super.child, required super.index});
 
   @override
   MultiDragGestureRecognizer createRecognizer() {

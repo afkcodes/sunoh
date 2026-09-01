@@ -14,7 +14,8 @@ class Track {
   final String id;
   final String title;
   final String artist;
-  final String album; // album id, or a podcast/station id for synthesized tracks
+  final String
+  album; // album id, or a podcast/station id for synthesized tracks
   final int duration;
   final String plays;
 }
@@ -127,6 +128,7 @@ class DetailRef {
   const DetailRef(this.kind, this.id, {this.source});
   final String kind; // album | playlist | artist | podcast | station
   final String id;
+
   /// Which backend provider this entity belongs to ('saavn' | 'gaana' |
   /// 'spotify'). Required by sunoh-api for album/playlist/song endpoints —
   /// the server defaults to saavn when missing, which 404s for gaana ids.

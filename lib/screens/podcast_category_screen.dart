@@ -37,14 +37,20 @@ class PodcastCategoryScreen extends ConsumerWidget {
               child: Row(
                 children: [
                   IconBtn(
-                      icon: SolarIconsOutline.altArrowLeft,
-                      color: c.fg,
-                      size: 22,
-                      onTap: () => context.pop()),
+                    icon: SolarIconsOutline.altArrowLeft,
+                    color: c.fg,
+                    size: 22,
+                    onTap: () => context.pop(),
+                  ),
                   const SizedBox(width: 6),
-                  Text(name ?? slug,
-                      style: SunohType.heading(
-                          fontSize: 22, color: c.fg, letterSpacing: -0.3)),
+                  Text(
+                    name ?? slug,
+                    style: SunohType.heading(
+                      fontSize: 22,
+                      color: c.fg,
+                      letterSpacing: -0.3,
+                    ),
+                  ),
                 ],
               ),
             ),
@@ -55,33 +61,37 @@ class PodcastCategoryScreen extends ConsumerWidget {
                     width: 24,
                     height: 24,
                     child: CircularProgressIndicator(
-                        strokeWidth: 2, color: c.fgDim),
+                      strokeWidth: 2,
+                      color: c.fgDim,
+                    ),
                   ),
                 ),
                 error: (e, _) => Center(
                   child: Padding(
                     padding: const EdgeInsets.all(24),
-                    child: Text('Couldn’t load this category.\n$e',
-                        textAlign: TextAlign.center,
-                        style: SunohType.sans(
-                            fontSize: 13, color: c.fgMute)),
+                    child: Text(
+                      'Couldn’t load this category.\n$e',
+                      textAlign: TextAlign.center,
+                      style: SunohType.sans(fontSize: 13, color: c.fgMute),
+                    ),
                   ),
                 ),
                 data: (shows) => shows.isEmpty
                     ? Center(
-                        child: Text('No podcasts in this category.',
-                            style: SunohType.sans(
-                                fontSize: 13, color: c.fgMute)),
+                        child: Text(
+                          'No podcasts in this category.',
+                          style: SunohType.sans(fontSize: 13, color: c.fgMute),
+                        ),
                       )
                     : GridView.builder(
                         padding: const EdgeInsets.fromLTRB(20, 0, 20, 140),
                         gridDelegate:
                             const SliverGridDelegateWithFixedCrossAxisCount(
-                          crossAxisCount: 2,
-                          mainAxisSpacing: 14,
-                          crossAxisSpacing: 14,
-                          childAspectRatio: 0.78,
-                        ),
+                              crossAxisCount: 2,
+                              mainAxisSpacing: 14,
+                              crossAxisSpacing: 14,
+                              childAspectRatio: 0.78,
+                            ),
                         itemCount: shows.length,
                         itemBuilder: (context, i) =>
                             _ShowTile(show: shows[i], colors: c),
@@ -122,20 +132,25 @@ class _ShowTile extends StatelessWidget {
             ),
           ),
           const SizedBox(height: 8),
-          Text(show.title,
-              maxLines: 2,
-              overflow: TextOverflow.ellipsis,
-              style: SunohType.sans(
-                  fontSize: 13,
-                  fontWeight: FontWeight.w600,
-                  color: c.fg,
-                  height: 1.2)),
+          Text(
+            show.title,
+            maxLines: 2,
+            overflow: TextOverflow.ellipsis,
+            style: SunohType.sans(
+              fontSize: 13,
+              fontWeight: FontWeight.w600,
+              color: c.fg,
+              height: 1.2,
+            ),
+          ),
           if ((show.subtitle ?? '').isNotEmpty) ...[
             const SizedBox(height: 2),
-            Text(show.subtitle!,
-                maxLines: 1,
-                overflow: TextOverflow.ellipsis,
-                style: SunohType.sans(fontSize: 11.5, color: c.fgMute)),
+            Text(
+              show.subtitle!,
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              style: SunohType.sans(fontSize: 11.5, color: c.fgMute),
+            ),
           ],
         ],
       ),

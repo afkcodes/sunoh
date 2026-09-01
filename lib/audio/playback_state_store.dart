@@ -28,9 +28,11 @@ class SavedPlaybackState {
   final List<FeedItem> queue;
   final int currentIndex;
   final int positionSec;
+
   /// Display label of where playback originated (e.g. "PLAYLIST · Top Charts").
   /// Null for restores from older saves that predate this field.
   final String? sourceLabel;
+
   /// DetailRef of the album/playlist this queue was started from. Lets the
   /// player's track-menu sheet surface a "Go to Album/Playlist" row after
   /// restore. Null for restores from older saves OR for queues started
@@ -60,8 +62,10 @@ class PlaybackStateStore {
       box = await Hive.openBox(_boxName);
     } catch (e, st) {
       // ignore: avoid_print
-      print('[playback-store] ⚠ openBox("$_boxName") FAILED: $e\n$st\n'
-          '[playback-store] deleting corrupted box file and retrying…');
+      print(
+        '[playback-store] ⚠ openBox("$_boxName") FAILED: $e\n$st\n'
+        '[playback-store] deleting corrupted box file and retrying…',
+      );
       try {
         await Hive.deleteBoxFromDisk(_boxName);
       } catch (_) {}
@@ -81,11 +85,13 @@ class PlaybackStateStore {
     // `print` (not debugPrint) so survives release. Pairs with the
     // library-store cold-start log: same dir, same Hive.openBox pattern.
     // ignore: avoid_print
-    print('[playback-store] opened "$_boxName" at ${box.path} '
-        '(file=${boxBytes}b) — '
-        'queue=${(queue is List) ? queue.length : 0} '
-        'idx=${box.get(_kIndex) ?? '-'} '
-        'pos=${box.get(_kPosition) ?? '-'}s');
+    print(
+      '[playback-store] opened "$_boxName" at ${box.path} '
+      '(file=${boxBytes}b) — '
+      'queue=${(queue is List) ? queue.length : 0} '
+      'idx=${box.get(_kIndex) ?? '-'} '
+      'pos=${box.get(_kPosition) ?? '-'}s',
+    );
     return box;
   }
 
@@ -117,9 +123,11 @@ class PlaybackStateStore {
     // so cold-kill restore landed on the last full save's position. Both
     // call sites now flush.)
     await box.flush();
-    debugPrint('[playback-store] saved queue=${queue.length} '
-        'idx=$currentIndex pos=${positionSec}s src=$sourceLabel '
-        'ref=${sourceRef == null ? '-' : '${sourceRef.kind}:${sourceRef.id}'}');
+    debugPrint(
+      '[playback-store] saved queue=${queue.length} '
+      'idx=$currentIndex pos=${positionSec}s src=$sourceLabel '
+      'ref=${sourceRef == null ? '-' : '${sourceRef.kind}:${sourceRef.id}'}',
+    );
   }
 
   Future<SavedPlaybackState?> load() async {
@@ -137,8 +145,9 @@ class PlaybackStateStore {
       // resolves those any more — restoring one would surface an
       // unplayable entry on first launch after the update. Drop it and
       // start clean instead.
-      final isRetiredRadio = queue.every((s) =>
-          s.source == 'sunoh-radio' || s.type == 'radio_station');
+      final isRetiredRadio = queue.every(
+        (s) => s.source == 'sunoh-radio' || s.type == 'radio_station',
+      );
       if (isRetiredRadio) {
         debugPrint('[playback-store] dropping retired live-radio queue');
         await box.clear();
@@ -153,9 +162,11 @@ class PlaybackStateStore {
       final ref = (refKind != null && refId != null && refId.isNotEmpty)
           ? DetailRef(refKind, refId, source: refProvider)
           : null;
-      debugPrint('[playback-store] loaded queue=${queue.length} '
-          'idx=$idx pos=${pos}s '
-          'ref=${ref == null ? '-' : '${ref.kind}:${ref.id}'}');
+      debugPrint(
+        '[playback-store] loaded queue=${queue.length} '
+        'idx=$idx pos=${pos}s '
+        'ref=${ref == null ? '-' : '${ref.kind}:${ref.id}'}',
+      );
       return SavedPlaybackState(
         queue: queue,
         currentIndex: idx.clamp(0, queue.length - 1),

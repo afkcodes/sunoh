@@ -6,26 +6,26 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:solar_icons/solar_icons.dart';
 
 import '../api/dto.dart';
+import '../api/ytmusic_api.dart' show YtCategoryChip;
+import '../audio/radio_actions.dart';
 import '../data/models.dart';
 import '../providers/app_state_provider.dart';
 import '../providers/home_provider.dart';
-import '../providers/ytmusic_provider.dart';
 import '../providers/palette_provider.dart';
-import '../audio/radio_actions.dart';
-import '../router/router.dart';
 import '../providers/update_provider.dart';
-import '../widgets/update_dialog.dart';
+import '../providers/ytmusic_provider.dart';
+import '../router/router.dart';
 import '../theme/tokens.dart';
 import '../widgets/album_art.dart';
 import '../widgets/playing_bars.dart';
 import '../widgets/ui.dart';
+import '../widgets/update_dialog.dart';
 // Tab implementations: Music (the original /music/home feed), Podcasts
 // (backed by /podcasts/home via `podcastHomeProvider`, since v1.5.5),
 // and Audiobooks (cozyaudiobooks.com, since v1.8.0).
-import '../api/ytmusic_api.dart' show YtCategoryChip;
-import 'ytmusic_screens.dart' show YtCategoryChipTile, kYtChipRowGap;
 import 'audiobooks_tab.dart';
 import 'podcasts_tab.dart';
+import 'ytmusic_screens.dart' show YtCategoryChipTile, kYtChipRowGap;
 
 class HomeScreen extends ConsumerStatefulWidget {
   const HomeScreen({super.key});
@@ -50,8 +50,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
     // schedule the dialog for the next frame. (Can't show during
     // build — flutter forbids opening routes synchronously from a
     // widget's build method.)
-    final updateInfo =
-        ref.watch(availableUpdateProvider).asData?.value;
+    final updateInfo = ref.watch(availableUpdateProvider).asData?.value;
     if (updateInfo != null && _promptedVersion != updateInfo.version) {
       _promptedVersion = updateInfo.version;
       WidgetsBinding.instance.addPostFrameCallback((_) {
@@ -214,8 +213,8 @@ class _MoodsRow extends ConsumerWidget {
     for (var i = 0; i < chips.length; i += rows) {
       columns.add(chips.sublist(i, (i + rows).clamp(0, chips.length)));
     }
-    final gridHeight = YtCategoryChipTile.height * rows +
-        kYtChipRowGap * (rows - 1);
+    final gridHeight =
+        YtCategoryChipTile.height * rows + kYtChipRowGap * (rows - 1);
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -225,20 +224,29 @@ class _MoodsRow extends ConsumerWidget {
           child: Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
-              Text('Moods & genres',
-                  style: SunohType.heading(
-                      fontSize: 19, color: c.fg, letterSpacing: -0.2)),
+              Text(
+                'Moods & genres',
+                style: SunohType.heading(
+                  fontSize: 19,
+                  color: c.fg,
+                  letterSpacing: -0.2,
+                ),
+              ),
               GestureDetector(
                 onTap: () => context.openYtMoods(),
                 behavior: HitTestBehavior.opaque,
                 child: Row(
                   children: [
-                    Text('See all',
-                        style:
-                            SunohType.sans(fontSize: 12.5, color: c.fgMute)),
+                    Text(
+                      'See all',
+                      style: SunohType.sans(fontSize: 12.5, color: c.fgMute),
+                    ),
                     const SizedBox(width: 4),
-                    Icon(SolarIconsOutline.altArrowRight,
-                        size: 14, color: c.fgMute),
+                    Icon(
+                      SolarIconsOutline.altArrowRight,
+                      size: 14,
+                      color: c.fgMute,
+                    ),
                   ],
                 ),
               ),
@@ -262,14 +270,12 @@ class _MoodsRow extends ConsumerWidget {
                     // Short trailing columns keep their slots so the grid
                     // stays rectangular instead of ragged at the edge.
                     if (r < cells.length)
-                      YtCategoryChipTile(
-                        chip: cells[r],
-                        colors: c,
-                        width: 148,
-                      )
+                      YtCategoryChipTile(chip: cells[r], colors: c, width: 148)
                     else
                       const SizedBox(
-                          width: 148, height: YtCategoryChipTile.height),
+                        width: 148,
+                        height: YtCategoryChipTile.height,
+                      ),
                   ],
                 ],
               );
@@ -325,8 +331,7 @@ class _SongShelf extends ConsumerWidget {
 
     // Full-bleed column minus the page gutters, leaving a peek of the next
     // one. Snaps per column so a swipe lands cleanly.
-    final columnWidth =
-        MediaQuery.of(context).size.width - 40 - _peek;
+    final columnWidth = MediaQuery.of(context).size.width - 40 - _peek;
 
     return SizedBox(
       height: _rowHeight * rows,
@@ -505,22 +510,22 @@ class MusicTab extends ConsumerWidget {
         colors: c,
       ),
       data: (sections) {
-        final nonEmpty =
-            sections.where((s) => s.items.isNotEmpty).toList();
+        final nonEmpty = sections.where((s) => s.items.isNotEmpty).toList();
         if (nonEmpty.isEmpty) {
           return _ErrorFeed(
             message: 'Nothing in the feed right now.',
             colors: c,
-            onRetry: () => ref.invalidate(homeFeedProvider(s.selectedLanguagesCsv)),
+            onRetry: () =>
+                ref.invalidate(homeFeedProvider(s.selectedLanguagesCsv)),
           );
         }
         // YouTube Music rows. Watched separately (not awaited alongside the
         // main feed) so a slow or failing InnerTube response never holds up
         // or breaks the home screen — the rows simply aren't there.
         final ytSections =
-            ref.watch(ytMusicHomeProvider).asData?.value ?? const <HomeSection>[];
-        final ytNonEmpty =
-            ytSections.where((s) => s.items.isNotEmpty).toList();
+            ref.watch(ytMusicHomeProvider).asData?.value ??
+            const <HomeSection>[];
+        final ytNonEmpty = ytSections.where((s) => s.items.isNotEmpty).toList();
 
         // Interleave rather than append. Bolting them on the end buries them
         // below a long feed, and makes the tail read as a separate app. The
@@ -541,10 +546,7 @@ class MusicTab extends ConsumerWidget {
               _ApiSection(section: merged[i], colors: c, featured: i == 0),
               // Moods & genres sits after the first couple of rows — high
               // enough to be discoverable, not so high it displaces the feed.
-              if (i == 1) ...[
-                SizedBox(height: gap),
-                _MoodsRow(colors: c),
-              ],
+              if (i == 1) ...[SizedBox(height: gap), _MoodsRow(colors: c)],
             ],
             const SizedBox(height: 20),
           ],
@@ -568,29 +570,35 @@ class _ApiSection extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final c = colors;
     // Items that should render as round chips: artists + radio stations.
-    final isCircleRow = section.items.isNotEmpty &&
-        section.items.every((it) =>
-            it.type == 'artist' ||
-            it.type == 'radio_station' ||
-            it.type == 'radio');
+    final isCircleRow =
+        section.items.isNotEmpty &&
+        section.items.every(
+          (it) =>
+              it.type == 'artist' ||
+              it.type == 'radio_station' ||
+              it.type == 'radio',
+        );
     // Channels (the Saavn "Browse" row) are a distinct shape — wide
     // rectangular tiles in a 3-row horizontal-scroll grid. Different
     // enough from regular cards/circles that they get their own renderer
     // entirely.
-    final isChannelRow = section.items.isNotEmpty &&
+    final isChannelRow =
+        section.items.isNotEmpty &&
         section.items.every((it) => it.type == 'channel');
     // Song rows get a different shape entirely — see _SongShelf. A cover
     // tile and a song tile currently look identical even though one opens
     // a screen and the other starts playback, and a row of 20 tracks reads
     // as "20 albums" at a glance.
-    final isSongRow = section.items.length >= 4 &&
+    final isSongRow =
+        section.items.length >= 4 &&
         section.items.every((it) => it.type == 'song');
 
     // Cap each row at 10 items; if there are more, show "See all →" linking
     // to the full section. Song shelves hold more — they're denser, so a
     // full screen of them is three columns rather than three tiles.
-    final visible =
-        section.items.take(isSongRow ? _kSongShelfMax : 10).toList();
+    final visible = section.items
+        .take(isSongRow ? _kSongShelfMax : 10)
+        .toList();
     final hasMore = section.items.length > (isSongRow ? _kSongShelfMax : 10);
 
     if (isSongRow) {
@@ -602,11 +610,7 @@ class _ApiSection extends ConsumerWidget {
             colors: c,
             onSeeAll: hasMore ? () => context.openSection(section) : null,
           ),
-          _SongShelf(
-            songs: visible,
-            colors: c,
-            sectionLabel: section.heading,
-          ),
+          _SongShelf(songs: visible, colors: c, sectionLabel: section.heading),
         ],
       );
     }
@@ -693,8 +697,7 @@ class _ApiSection extends ConsumerWidget {
         // Songs play immediately — home rows full of songs (Trending,
         // Popular, New Releases) should kick playback on tap, not navigate
         // to a non-existent "song detail" screen.
-        s.playApiSong(item,
-            sourceLabel: 'HOME · ${section.heading}');
+        s.playApiSong(item, sourceLabel: 'HOME · ${section.heading}');
         break;
       case 'radio_station':
       case 'radio':
@@ -719,7 +722,6 @@ class _ApiSection extends ConsumerWidget {
         s.flashToast(item.type);
     }
   }
-
 }
 
 class _CoverCard extends StatelessWidget {
@@ -855,8 +857,8 @@ class _SkeletonSection extends StatelessWidget {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Padding(
-          padding: const EdgeInsets.fromLTRB(20, 0, 20, 14),
+        const Padding(
+          padding: EdgeInsets.fromLTRB(20, 0, 20, 14),
           child: SkeletonBar(height: 22, width: 180, radius: 6),
         ),
         SingleChildScrollView(
@@ -982,7 +984,7 @@ class _ChannelGrid extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     // GridView in horizontal mode: `crossAxisCount` is the ROW count.
-    final totalHeight = _rows * _tileH + (_rows - 1) * _gap;
+    const totalHeight = _rows * _tileH + (_rows - 1) * _gap;
     return SizedBox(
       height: totalHeight,
       // No `physics:` override — `SunohScrollBehavior` (app-wide) owns scroll
@@ -991,7 +993,7 @@ class _ChannelGrid extends StatelessWidget {
       child: GridView.builder(
         scrollDirection: Axis.horizontal,
         padding: const EdgeInsets.symmetric(horizontal: 20),
-        gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
+        gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
           crossAxisCount: _rows,
           // In a horizontal GridView, `childAspectRatio` is cross/main —
           // i.e. height/width here, not width/height. Passing _tileW/_tileH
@@ -1001,8 +1003,11 @@ class _ChannelGrid extends StatelessWidget {
           crossAxisSpacing: _gap,
         ),
         itemCount: items.length,
-        itemBuilder: (_, i) =>
-            _ChannelTile(item: items[i], colors: colors, sectionSource: sectionSource),
+        itemBuilder: (_, i) => _ChannelTile(
+          item: items[i],
+          colors: colors,
+          sectionSource: sectionSource,
+        ),
       ),
     );
   }
@@ -1040,7 +1045,7 @@ class _ChannelTile extends ConsumerWidget {
       behavior: HitTestBehavior.opaque,
       child: squircleClip(
         radius: 10,
-        child: Container(
+        child: DecoratedBox(
           decoration: BoxDecoration(
             gradient: LinearGradient(
               begin: Alignment.centerLeft,
@@ -1083,13 +1088,15 @@ class _ChannelTile extends ConsumerWidget {
                       height: 56,
                       child: url.isEmpty
                           ? ColoredBox(
-                              color: Colors.white.withValues(alpha: 0.18))
+                              color: Colors.white.withValues(alpha: 0.18),
+                            )
                           : SunohArt(
                               id: item.id,
                               imageUrl: url,
                               size: 56,
                               radius: 0,
-                              shadow: false),
+                              shadow: false,
+                            ),
                     ),
                   ),
                 ),

@@ -37,7 +37,7 @@ class _EqSheet extends ConsumerWidget {
       minChildSize: 0.6,
       maxChildSize: 1.0,
       expand: false,
-      builder: (_, controller) => Container(
+      builder: (_, controller) => DecoratedBox(
         decoration: BoxDecoration(
           color: c.bgSoft,
           borderRadius: const BorderRadius.vertical(top: Radius.circular(24)),
@@ -62,19 +62,27 @@ class _EqSheet extends ConsumerWidget {
               crossAxisAlignment: CrossAxisAlignment.end,
               children: [
                 Expanded(
-                  child: Text('Equalizer',
-                      style: SunohType.heading(
-                          fontSize: 26, color: c.fg, letterSpacing: -0.3)),
+                  child: Text(
+                    'Equalizer',
+                    style: SunohType.heading(
+                      fontSize: 26,
+                      color: c.fg,
+                      letterSpacing: -0.3,
+                    ),
+                  ),
                 ),
                 GestureDetector(
                   onTap: s.resetEq,
                   child: Padding(
                     padding: const EdgeInsets.only(bottom: 4),
-                    child: Text('Reset',
-                        style: SunohType.sans(
-                            fontSize: 12,
-                            fontWeight: FontWeight.w500,
-                            color: c.fgMute)),
+                    child: Text(
+                      'Reset',
+                      style: SunohType.sans(
+                        fontSize: 12,
+                        fontWeight: FontWeight.w500,
+                        color: c.fgMute,
+                      ),
+                    ),
                   ),
                 ),
               ],
@@ -83,7 +91,12 @@ class _EqSheet extends ConsumerWidget {
             _BandRack(colors: c, accent: accent),
             const SizedBox(height: 24),
             for (final entry in kEqPresetCategories.entries) ...[
-              eyebrow(entry.key.toUpperCase(), c.fgMute, size: 10, letterSpacing: 1.4),
+              eyebrow(
+                entry.key.toUpperCase(),
+                c.fgMute,
+                size: 10,
+                letterSpacing: 1.4,
+              ),
               const SizedBox(height: 10),
               Wrap(
                 spacing: 8,
@@ -144,7 +157,16 @@ class _BandRack extends ConsumerWidget {
 /// the handler implements (lowshelf 31 Hz, peaking 63–8000 Hz, highshelf 16 kHz).
 class SunohState {
   static const eqLabels = [
-    '31', '63', '125', '250', '500', '1k', '2k', '4k', '8k', '16k',
+    '31',
+    '63',
+    '125',
+    '250',
+    '500',
+    '1k',
+    '2k',
+    '4k',
+    '8k',
+    '16k',
   ];
 }
 
@@ -188,18 +210,25 @@ class _BandColumn extends StatelessWidget {
             ),
           ),
         ),
-        Expanded(child: _VerticalSlider(
-          gain: gain,
-          min: _min,
-          max: _max,
-          onChanged: onChanged,
-          colors: c,
-          accent: accent,
-        )),
+        Expanded(
+          child: _VerticalSlider(
+            gain: gain,
+            min: _min,
+            max: _max,
+            onChanged: onChanged,
+            colors: c,
+            accent: accent,
+          ),
+        ),
         const SizedBox(height: 8),
-        Text(label,
-            style: SunohType.mono(
-                fontSize: 9.5, color: c.fgMute, letterSpacing: 0.6)),
+        Text(
+          label,
+          style: SunohType.mono(
+            fontSize: 9.5,
+            color: c.fgMute,
+            letterSpacing: 0.6,
+          ),
+        ),
       ],
     );
   }
@@ -295,9 +324,10 @@ class _VerticalSlider extends StatelessWidget {
                     borderRadius: BorderRadius.circular(3),
                     boxShadow: [
                       BoxShadow(
-                          color: Colors.black.withValues(alpha: 0.35),
-                          blurRadius: 6,
-                          offset: const Offset(0, 2)),
+                        color: Colors.black.withValues(alpha: 0.35),
+                        blurRadius: 6,
+                        offset: const Offset(0, 2),
+                      ),
                     ],
                   ),
                 ),
@@ -335,10 +365,7 @@ class _PresetChip extends StatelessWidget {
         decoration: BoxDecoration(
           color: selected ? accent : c.surface,
           borderRadius: BorderRadius.circular(999),
-          border: Border.all(
-            color: selected ? accent : c.line,
-            width: 0.5,
-          ),
+          border: Border.all(color: selected ? accent : c.line, width: 0.5),
         ),
         child: Text(
           preset.name,

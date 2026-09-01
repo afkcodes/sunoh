@@ -25,8 +25,7 @@ class EpisodeDetailScreen extends ConsumerStatefulWidget {
       _EpisodeDetailScreenState();
 }
 
-class _EpisodeDetailScreenState
-    extends ConsumerState<EpisodeDetailScreen> {
+class _EpisodeDetailScreenState extends ConsumerState<EpisodeDetailScreen> {
   FeedItem? _episode;
   String? _error;
   bool _loading = true;
@@ -70,10 +69,11 @@ class _EpisodeDetailScreenState
               child: Row(
                 children: [
                   IconBtn(
-                      icon: SolarIconsOutline.altArrowLeft,
-                      color: c.fg,
-                      size: 22,
-                      onTap: () => context.pop()),
+                    icon: SolarIconsOutline.altArrowLeft,
+                    color: c.fg,
+                    size: 22,
+                    onTap: () => context.pop(),
+                  ),
                   const SizedBox(width: 6),
                   eyebrow('EPISODE', c.fgMute),
                 ],
@@ -100,9 +100,11 @@ class _EpisodeDetailScreenState
       return Center(
         child: Padding(
           padding: const EdgeInsets.all(24),
-          child: Text('Couldn’t load this episode.\n${_error ?? ''}',
-              textAlign: TextAlign.center,
-              style: SunohType.sans(fontSize: 13, color: c.fgMute)),
+          child: Text(
+            'Couldn’t load this episode.\n${_error ?? ''}',
+            textAlign: TextAlign.center,
+            style: SunohType.sans(fontSize: 13, color: c.fgMute),
+          ),
         ),
       );
     }
@@ -132,29 +134,33 @@ class _EpisodeDetailScreenState
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   if ((ep.subtitle ?? '').isNotEmpty)
-                    Text(ep.subtitle!,
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                        style: SunohType.sans(
-                            fontSize: 12, color: c.fgMute)),
-                  const SizedBox(height: 4),
-                  Text(ep.title,
-                      maxLines: 3,
+                    Text(
+                      ep.subtitle!,
+                      maxLines: 1,
                       overflow: TextOverflow.ellipsis,
-                      style: SunohType.heading(
-                          fontSize: 18,
-                          color: c.fg,
-                          height: 1.2,
-                          letterSpacing: -0.2)),
+                      style: SunohType.sans(fontSize: 12, color: c.fgMute),
+                    ),
+                  const SizedBox(height: 4),
+                  Text(
+                    ep.title,
+                    maxLines: 3,
+                    overflow: TextOverflow.ellipsis,
+                    style: SunohType.heading(
+                      fontSize: 18,
+                      color: c.fg,
+                      height: 1.2,
+                      letterSpacing: -0.2,
+                    ),
+                  ),
                   if (dur > 0) ...[
                     const SizedBox(height: 6),
                     Text(
-                        _fmtDuration(dur) +
-                            (resumeSec != null && resumeSec > 30
-                                ? ' · resume at ${_fmtPos(resumeSec)}'
-                                : ''),
-                        style: SunohType.sans(
-                            fontSize: 12, color: c.fgDim)),
+                      _fmtDuration(dur) +
+                          (resumeSec != null && resumeSec > 30
+                              ? ' · resume at ${_fmtPos(resumeSec)}'
+                              : ''),
+                      style: SunohType.sans(fontSize: 12, color: c.fgDim),
+                    ),
                   ],
                 ],
               ),
@@ -165,62 +171,71 @@ class _EpisodeDetailScreenState
         Row(
           children: [
             GestureDetector(
-              onTap: () => s.playApiSong(ep,
-                  sourceLabel: 'PODCAST · ${ep.subtitle ?? "Episode"}'),
+              onTap: () => s.playApiSong(
+                ep,
+                sourceLabel: 'PODCAST · ${ep.subtitle ?? "Episode"}',
+              ),
               child: Container(
                 padding: const EdgeInsets.symmetric(
-                    horizontal: 22, vertical: 12),
+                  horizontal: 22,
+                  vertical: 12,
+                ),
                 decoration: BoxDecoration(
                   color: accent,
                   borderRadius: BorderRadius.circular(999),
                   boxShadow: [
                     BoxShadow(
-                        color: accent.withValues(alpha: 0.33),
-                        blurRadius: 18,
-                        offset: const Offset(0, 6)),
+                      color: accent.withValues(alpha: 0.33),
+                      blurRadius: 18,
+                      offset: const Offset(0, 6),
+                    ),
                   ],
                 ),
                 child: Row(
                   mainAxisSize: MainAxisSize.min,
                   children: [
-                    Icon(PhosphorIconsFill.play,
-                        size: 18,
-                        color: accent.computeLuminance() > 0.55
-                            ? const Color(0xFF0B0B0D)
-                            : const Color(0xFFFAFAFA)),
+                    Icon(
+                      PhosphorIconsFill.play,
+                      size: 18,
+                      color: accent.computeLuminance() > 0.55
+                          ? const Color(0xFF0B0B0D)
+                          : const Color(0xFFFAFAFA),
+                    ),
                     const SizedBox(width: 8),
                     Text(
-                        resumeSec != null && resumeSec > 30
-                            ? 'Resume'
-                            : 'Play',
-                        style: SunohType.sans(
-                            fontSize: 14,
-                            fontWeight: FontWeight.w600,
-                            color: accent.computeLuminance() > 0.55
-                                ? const Color(0xFF0B0B0D)
-                                : const Color(0xFFFAFAFA))),
+                      resumeSec != null && resumeSec > 30 ? 'Resume' : 'Play',
+                      style: SunohType.sans(
+                        fontSize: 14,
+                        fontWeight: FontWeight.w600,
+                        color: accent.computeLuminance() > 0.55
+                            ? const Color(0xFF0B0B0D)
+                            : const Color(0xFFFAFAFA),
+                      ),
+                    ),
                   ],
                 ),
               ),
             ),
             const SizedBox(width: 10),
             IconBtn(
-                icon: SolarIconsOutline.addCircle,
-                color: c.fgDim,
-                size: 18,
-                width: 40,
-                height: 40,
-                background: c.surface,
-                onTap: () => s.addApiSongToQueue(ep)),
+              icon: SolarIconsOutline.addCircle,
+              color: c.fgDim,
+              size: 18,
+              width: 40,
+              height: 40,
+              background: c.surface,
+              onTap: () => s.addApiSongToQueue(ep),
+            ),
           ],
         ),
         if (notes.isNotEmpty) ...[
           const SizedBox(height: 24),
           eyebrow('SHOW NOTES', c.fgMute),
           const SizedBox(height: 8),
-          Text(notes,
-              style:
-                  SunohType.sans(fontSize: 13, color: c.fgDim, height: 1.5)),
+          Text(
+            notes,
+            style: SunohType.sans(fontSize: 13, color: c.fgDim, height: 1.5),
+          ),
         ],
       ],
     );

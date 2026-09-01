@@ -50,7 +50,9 @@ class AppScaffold extends ConsumerWidget {
             left: 0,
             right: 0,
             bottom: 0,
-            child: RepaintBoundary(child: _BottomBar(shell: shell, colors: c)),
+            child: RepaintBoundary(
+              child: _BottomBar(shell: shell, colors: c),
+            ),
           ),
         ],
       ),
@@ -103,10 +105,12 @@ class _BottomBar extends StatelessWidget {
               // subtree reconciliation, which interfered with the mini
               // player's reactive subscription to appStateProvider (the
               // expanded player updated, the mini didn't).
+              // ignore: prefer_const_constructors
               MiniPlayer(),
               BottomNav(
                 currentIndex: shell.currentIndex,
-                onTap: (i) => shell.goBranch(i, initialLocation: i == shell.currentIndex),
+                onTap: (i) =>
+                    shell.goBranch(i, initialLocation: i == shell.currentIndex),
               ),
             ],
           ),
@@ -133,14 +137,26 @@ class _Toast extends StatelessWidget {
             // visually it's indistinguishable from solid.
             color: const Color(0xFF141418),
             borderRadius: BorderRadius.circular(999),
-            border: Border.all(color: Colors.white.withValues(alpha: 0.1), width: 0.5),
+            border: Border.all(
+              color: Colors.white.withValues(alpha: 0.1),
+              width: 0.5,
+            ),
             boxShadow: [
-              BoxShadow(color: Colors.black.withValues(alpha: 0.4), blurRadius: 24, offset: const Offset(0, 8)),
+              BoxShadow(
+                color: Colors.black.withValues(alpha: 0.4),
+                blurRadius: 24,
+                offset: const Offset(0, 8),
+              ),
             ],
           ),
-          child: Text(message,
-              style: SunohType.sans(
-                  fontSize: 12, fontWeight: FontWeight.w500, color: const Color(0xFFFAFAFA))),
+          child: Text(
+            message,
+            style: SunohType.sans(
+              fontSize: 12,
+              fontWeight: FontWeight.w500,
+              color: const Color(0xFFFAFAFA),
+            ),
+          ),
         ),
       ),
     );

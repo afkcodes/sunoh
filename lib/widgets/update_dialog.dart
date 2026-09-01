@@ -25,8 +25,9 @@ import 'ui.dart';
 /// Riverpod provider for the singleton updater controller — kept
 /// outside the dialog so the download survives the dialog being
 /// dismissed and re-opened (e.g. user hits Later by accident).
-final updaterControllerProvider =
-    ChangeNotifierProvider<UpdaterController>((ref) => UpdaterController());
+final updaterControllerProvider = ChangeNotifierProvider<UpdaterController>(
+  (ref) => UpdaterController(),
+);
 
 /// Show the update dialog. Idempotent — pops at most once per call.
 /// Returns when the user dismisses (Later / Install / × / errored
@@ -76,8 +77,11 @@ class _UpdateDialog extends ConsumerWidget {
                     shape: BoxShape.circle,
                   ),
                   alignment: Alignment.center,
-                  child: Icon(SolarIconsBold.downloadMinimalistic,
-                      size: 20, color: accent),
+                  child: Icon(
+                    SolarIconsBold.downloadMinimalistic,
+                    size: 20,
+                    color: accent,
+                  ),
                 ),
                 const SizedBox(width: 12),
                 Expanded(
@@ -85,15 +89,19 @@ class _UpdateDialog extends ConsumerWidget {
                     crossAxisAlignment: CrossAxisAlignment.start,
                     mainAxisSize: MainAxisSize.min,
                     children: [
-                      Text('Update available',
-                          style: SunohType.heading(
-                              fontSize: 17,
-                              color: c.fg,
-                              letterSpacing: -0.2)),
+                      Text(
+                        'Update available',
+                        style: SunohType.heading(
+                          fontSize: 17,
+                          color: c.fg,
+                          letterSpacing: -0.2,
+                        ),
+                      ),
                       const SizedBox(height: 2),
-                      Text('v${info.version}',
-                          style: SunohType.sans(
-                              fontSize: 12, color: c.fgMute)),
+                      Text(
+                        'v${info.version}',
+                        style: SunohType.sans(fontSize: 12, color: c.fgMute),
+                      ),
                     ],
                   ),
                 ),
@@ -101,8 +109,11 @@ class _UpdateDialog extends ConsumerWidget {
                     updater.stage == UpdateStage.failed)
                   IconButton(
                     onPressed: () => Navigator.of(context).pop(),
-                    icon: Icon(SolarIconsOutline.closeCircle,
-                        size: 20, color: c.fgDim),
+                    icon: Icon(
+                      SolarIconsOutline.closeCircle,
+                      size: 20,
+                      color: c.fgDim,
+                    ),
                     splashRadius: 18,
                     padding: EdgeInsets.zero,
                     constraints: const BoxConstraints(),
@@ -121,7 +132,10 @@ class _UpdateDialog extends ConsumerWidget {
                 child: Text(
                   info.notes!,
                   style: SunohType.sans(
-                      fontSize: 13, color: c.fg, height: 1.45),
+                    fontSize: 13,
+                    color: c.fg,
+                    height: 1.45,
+                  ),
                 ),
               ),
             ],
@@ -155,14 +169,14 @@ class _Body extends ConsumerWidget {
       case UpdateStage.downloading:
         return _ProgressBody(updater: updater, accent: accent, colors: colors);
       case UpdateStage.installing:
-        return _InstallingBody(
-            info: info, accent: accent, colors: colors);
+        return _InstallingBody(info: info, accent: accent, colors: colors);
       case UpdateStage.failed:
         return _FailedBody(
-            info: info,
-            updater: updater,
-            accent: accent,
-            colors: colors);
+          info: info,
+          updater: updater,
+          accent: accent,
+          colors: colors,
+        );
     }
   }
 }
@@ -224,10 +238,12 @@ class _ProgressBody extends StatelessWidget {
   Widget build(BuildContext context) {
     final c = colors;
     final pct = (updater.progress * 100).clamp(0, 100).toStringAsFixed(0);
-    final mbReceived =
-        updater.bytesReceived > 0 ? updater.bytesReceived / 1024 / 1024 : 0.0;
-    final mbTotal =
-        updater.totalBytes > 0 ? updater.totalBytes / 1024 / 1024 : 0.0;
+    final mbReceived = updater.bytesReceived > 0
+        ? updater.bytesReceived / 1024 / 1024
+        : 0.0;
+    final mbTotal = updater.totalBytes > 0
+        ? updater.totalBytes / 1024 / 1024
+        : 0.0;
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -276,9 +292,10 @@ class _InstallingBody extends ConsumerWidget {
               child: Text(
                 'Downloaded. Continue in the system installer.',
                 style: SunohType.sans(
-                    fontSize: 13,
-                    fontWeight: FontWeight.w500,
-                    color: c.fg),
+                  fontSize: 13,
+                  fontWeight: FontWeight.w500,
+                  color: c.fg,
+                ),
               ),
             ),
           ],
@@ -325,14 +342,16 @@ class _FailedBody extends ConsumerWidget {
       children: [
         Row(
           children: [
-            const Icon(SolarIconsBold.dangerCircle,
-                color: Color(0xFFE05656), size: 18),
+            const Icon(
+              SolarIconsBold.dangerCircle,
+              color: Color(0xFFE05656),
+              size: 18,
+            ),
             const SizedBox(width: 8),
             Expanded(
               child: Text(
                 updater.errorMessage ?? 'Update failed.',
-                style: SunohType.sans(
-                    fontSize: 13, color: c.fg, height: 1.4),
+                style: SunohType.sans(fontSize: 13, color: c.fg, height: 1.4),
               ),
             ),
           ],
@@ -402,9 +421,7 @@ class _DialogButton extends StatelessWidget {
           color: isPrimary
               ? accent
               : Color.alphaBlend(accent.withValues(alpha: 0.08), c.surface),
-          borderColor: isPrimary
-              ? Colors.transparent
-              : c.line,
+          borderColor: isPrimary ? Colors.transparent : c.line,
         ),
         child: Text(
           label,

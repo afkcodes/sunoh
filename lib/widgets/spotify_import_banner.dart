@@ -44,19 +44,28 @@ class SpotifyImportBanner extends ConsumerWidget {
         color: Colors.transparent,
         child: ClipRRect(
           borderRadius: BorderRadius.circular(14),
-          child: Container(
+          child: DecoratedBox(
             decoration: BoxDecoration(
               color: const Color(0xFF15151A),
               border: Border.all(color: c.line, width: 0.5),
               borderRadius: BorderRadius.circular(14),
             ),
             child: switch (state.status) {
-              SpotifyImportStatus.fetching =>
-                _Fetching(state: state, accent: accent, colors: c),
-              SpotifyImportStatus.completed =>
-                _Completed(state: state, accent: accent, colors: c),
-              SpotifyImportStatus.failed =>
-                _Failed(state: state, accent: accent, colors: c),
+              SpotifyImportStatus.fetching => _Fetching(
+                state: state,
+                accent: accent,
+                colors: c,
+              ),
+              SpotifyImportStatus.completed => _Completed(
+                state: state,
+                accent: accent,
+                colors: c,
+              ),
+              SpotifyImportStatus.failed => _Failed(
+                state: state,
+                accent: accent,
+                colors: c,
+              ),
               SpotifyImportStatus.idle => const SizedBox.shrink(),
             },
           ),
@@ -172,7 +181,9 @@ class _Completed extends ConsumerWidget {
     final name = state.sourceName ?? 'playlist';
     final matched = state.matchedTracks ?? 0;
     final total = state.totalTracks ?? matched;
-    final tail = (total > 0 && total != matched) ? '$matched of $total' : '$matched';
+    final tail = (total > 0 && total != matched)
+        ? '$matched of $total'
+        : '$matched';
     return InkWell(
       onTap: () {
         final id = state.newPlaylistId;
@@ -204,9 +215,10 @@ class _Completed extends ConsumerWidget {
                     maxLines: 1,
                     overflow: TextOverflow.ellipsis,
                     style: SunohType.sans(
-                        fontSize: 13,
-                        fontWeight: FontWeight.w500,
-                        color: c.fg),
+                      fontSize: 13,
+                      fontWeight: FontWeight.w500,
+                      color: c.fg,
+                    ),
                   ),
                   const SizedBox(height: 2),
                   Text(
@@ -220,8 +232,11 @@ class _Completed extends ConsumerWidget {
             ),
             IconButton(
               onPressed: s.dismissSpotifyImport,
-              icon: Icon(SolarIconsOutline.closeCircle,
-                  size: 18, color: c.fgDim),
+              icon: Icon(
+                SolarIconsOutline.closeCircle,
+                size: 18,
+                color: c.fgDim,
+              ),
               splashRadius: 18,
               padding: const EdgeInsets.all(6),
               constraints: const BoxConstraints(),
@@ -260,8 +275,11 @@ class _Failed extends ConsumerWidget {
               shape: BoxShape.circle,
             ),
             alignment: Alignment.center,
-            child: const Icon(SolarIconsBold.dangerCircle,
-                color: Color(0xFFE05656), size: 16),
+            child: const Icon(
+              SolarIconsBold.dangerCircle,
+              color: Color(0xFFE05656),
+              size: 16,
+            ),
           ),
           const SizedBox(width: 12),
           Expanded(
@@ -274,9 +292,10 @@ class _Failed extends ConsumerWidget {
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
                   style: SunohType.sans(
-                      fontSize: 13,
-                      fontWeight: FontWeight.w500,
-                      color: c.fg),
+                    fontSize: 13,
+                    fontWeight: FontWeight.w500,
+                    color: c.fg,
+                  ),
                 ),
                 const SizedBox(height: 2),
                 Text(
@@ -301,21 +320,20 @@ class _Failed extends ConsumerWidget {
               },
               behavior: HitTestBehavior.opaque,
               child: Padding(
-                padding:
-                    const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
+                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
                 child: Text(
                   'Retry',
                   style: SunohType.sans(
-                      fontSize: 12.5,
-                      fontWeight: FontWeight.w500,
-                      color: accent),
+                    fontSize: 12.5,
+                    fontWeight: FontWeight.w500,
+                    color: accent,
+                  ),
                 ),
               ),
             ),
           IconButton(
             onPressed: s.dismissSpotifyImport,
-            icon: Icon(SolarIconsOutline.closeCircle,
-                size: 18, color: c.fgDim),
+            icon: Icon(SolarIconsOutline.closeCircle, size: 18, color: c.fgDim),
             splashRadius: 18,
             padding: const EdgeInsets.all(6),
             constraints: const BoxConstraints(),

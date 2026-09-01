@@ -30,12 +30,10 @@ String _decodeUnicodeEscapes(String s) {
   if (s.isEmpty) return s;
   var out = s;
   if (out.contains(r'\u')) {
-    out = out.replaceAllMapped(
-        RegExp(r'\\u([0-9a-fA-F]{4})'),
-        (m) {
-          final code = int.tryParse(m.group(1)!, radix: 16);
-          return code == null ? m.group(0)! : String.fromCharCode(code);
-        });
+    out = out.replaceAllMapped(RegExp(r'\\u([0-9a-fA-F]{4})'), (m) {
+      final code = int.tryParse(m.group(1)!, radix: 16);
+      return code == null ? m.group(0)! : String.fromCharCode(code);
+    });
   }
   if (out.contains(r'\n') || out.contains(r'\r') || out.contains(r'\t')) {
     out = out
@@ -87,16 +85,17 @@ String? _normalizeArtistBio(Object? raw) {
 /// order. Drops empty segments and skips the segment title — it's usually
 /// just "Introduction" / "Career" labels that don't read well inline.
 String? _joinBioSegments(List<dynamic> segments) {
-  final entries = segments
-      .whereType<Map>()
-      .map((m) => m.cast<String, dynamic>())
-      .where((m) => (m['text'] ?? '').toString().trim().isNotEmpty)
-      .toList()
-    ..sort((a, b) {
-      final sa = (a['sequence'] as num?)?.toInt() ?? 0;
-      final sb = (b['sequence'] as num?)?.toInt() ?? 0;
-      return sa.compareTo(sb);
-    });
+  final entries =
+      segments
+          .whereType<Map>()
+          .map((m) => m.cast<String, dynamic>())
+          .where((m) => (m['text'] ?? '').toString().trim().isNotEmpty)
+          .toList()
+        ..sort((a, b) {
+          final sa = (a['sequence'] as num?)?.toInt() ?? 0;
+          final sb = (b['sequence'] as num?)?.toInt() ?? 0;
+          return sa.compareTo(sb);
+        });
   if (entries.isEmpty) return null;
   return entries
       .map((m) => _decodeUnicodeEscapes(_decode(m['text'].toString().trim())))
@@ -142,9 +141,9 @@ class ApiImage {
   final String link;
 
   factory ApiImage.fromJson(Map<String, dynamic> j) => ApiImage(
-        quality: j['quality'] as String? ?? '',
-        link: j['link'] as String? ?? '',
-      );
+    quality: j['quality'] as String? ?? '',
+    link: j['link'] as String? ?? '',
+  );
 
   static List<ApiImage> listFrom(Object? raw) {
     if (raw is List) {
@@ -168,10 +167,10 @@ class ApiArtistRef {
   final List<ApiImage>? image;
 
   factory ApiArtistRef.fromJson(Map<String, dynamic> j) => ApiArtistRef(
-        id: (j['id'] ?? '').toString(),
-        name: _decode((j['name'] ?? '').toString()),
-        image: j['image'] == null ? null : ApiImage.listFrom(j['image']),
-      );
+    id: (j['id'] ?? '').toString(),
+    name: _decode((j['name'] ?? '').toString()),
+    image: j['image'] == null ? null : ApiImage.listFrom(j['image']),
+  );
 
   static List<ApiArtistRef> listFrom(Object? raw) {
     if (raw is! List) return const [];
@@ -191,9 +190,9 @@ class ApiLanguage {
   final String value;
 
   factory ApiLanguage.fromJson(Map<String, dynamic> j) => ApiLanguage(
-        name: _decode((j['name'] ?? '').toString()),
-        value: (j['value'] ?? '').toString(),
-      );
+    name: _decode((j['name'] ?? '').toString()),
+    value: (j['value'] ?? '').toString(),
+  );
 }
 
 /// A single item inside a `HomeSection.data` (or search-result section).
@@ -235,11 +234,13 @@ class FeedItem {
   final String? releaseDate;
   final List<ApiArtistRef>? artists;
   final String? token;
+
   /// For `type == 'radio_station'` / `'radio'`: the upstream station kind
   /// (`featured` / `artist` / `radio_station`). Required as the `type`
   /// param when initializing a radio session — the backend routes to a
   /// different station creator per kind on the source side.
   final String? stationType;
+
   /// Stream URLs shipped inline on song entities. Saavn labels: `12kbps` /
   /// `48kbps` / `96kbps` / `160kbps` / `320kbps`. Gaana labels: `low` /
   /// `medium` / `high` (and the URLs are signed HLS playlists that expire).
@@ -298,92 +299,93 @@ class FeedItem {
       return m == null ? 0 : int.tryParse(m.group(1)!) ?? 0;
     }
 
-    final sorted = [...image]..sort((a, b) => score(b.quality).compareTo(score(a.quality)));
+    final sorted = [...image]
+      ..sort((a, b) => score(b.quality).compareTo(score(a.quality)));
     return sorted.first.link;
   }
 
   factory FeedItem.fromJson(Map<String, dynamic> j) => FeedItem(
-        id: (j['id'] ?? '').toString(),
-        title: _decode((j['title'] ?? j['name'] ?? '').toString()),
-        subtitle: _decodeNullable(j['subtitle']),
-        type: (j['type'] ?? 'unknown').toString(),
-        image: ApiImage.listFrom(j['image']),
-        // Some endpoints emit `provider` instead of `source`; treat them as
-        // equivalents (RN mirrors this).
-        source: (j['source'] ?? j['provider'])?.toString(),
-        language: _decodeNullable(j['language']),
-        url: j['url']?.toString(),
-        duration: j['duration']?.toString(),
-        songCount: j['songCount']?.toString(),
-        playCount: j['playCount']?.toString(),
-        releaseDate: j['releaseDate']?.toString(),
-        artists: j['artists'] == null ? null : ApiArtistRef.listFrom(j['artists']),
-        token: j['token']?.toString(),
-        stationType: j['stationType']?.toString(),
-        mediaUrls: ApiImage.listFrom(j['mediaUrls']),
-      );
+    id: (j['id'] ?? '').toString(),
+    title: _decode((j['title'] ?? j['name'] ?? '').toString()),
+    subtitle: _decodeNullable(j['subtitle']),
+    type: (j['type'] ?? 'unknown').toString(),
+    image: ApiImage.listFrom(j['image']),
+    // Some endpoints emit `provider` instead of `source`; treat them as
+    // equivalents (RN mirrors this).
+    source: (j['source'] ?? j['provider'])?.toString(),
+    language: _decodeNullable(j['language']),
+    url: j['url']?.toString(),
+    duration: j['duration']?.toString(),
+    songCount: j['songCount']?.toString(),
+    playCount: j['playCount']?.toString(),
+    releaseDate: j['releaseDate']?.toString(),
+    artists: j['artists'] == null ? null : ApiArtistRef.listFrom(j['artists']),
+    token: j['token']?.toString(),
+    stationType: j['stationType']?.toString(),
+    mediaUrls: ApiImage.listFrom(j['mediaUrls']),
+  );
 
   /// Serialize for local persistence. Used by `PlaybackStateStore` to save
   /// the last queue + current track across sessions.
   Map<String, dynamic> toJson() => {
-        'id': id,
-        'title': title,
-        if (subtitle != null) 'subtitle': subtitle,
-        'type': type,
-        'image': image.map((i) => {'quality': i.quality, 'link': i.link}).toList(),
-        if (source != null) 'source': source,
-        if (language != null) 'language': language,
-        if (url != null) 'url': url,
-        if (duration != null) 'duration': duration,
-        if (songCount != null) 'songCount': songCount,
-        if (playCount != null) 'playCount': playCount,
-        if (releaseDate != null) 'releaseDate': releaseDate,
-        if (artists != null)
-          'artists': artists!.map((a) => {
-                'id': a.id,
-                'name': a.name,
-                if (a.image != null)
-                  'image': a.image!
-                      .map((i) => {'quality': i.quality, 'link': i.link})
-                      .toList(),
-              }).toList(),
-        if (token != null) 'token': token,
-        if (stationType != null) 'stationType': stationType,
-        // mediaUrls are persisted ONLY for podcasts. Gaana/saavn URLs are
-        // signed and expire, so persisting them just costs bytes (resolver
-        // re-resolves on play). Podcast enclosures are static — and the
-        // resolver has no recovery path that doesn't first need an inline
-        // URL or a separate /podcasts/episode round-trip, so saving them
-        // avoids an unnecessary fetch on every restore.
-        if (source == 'podcastindex' && mediaUrls.isNotEmpty)
-          'mediaUrls': mediaUrls
-              .map((i) => {'quality': i.quality, 'link': i.link})
-              .toList(),
-      };
+    'id': id,
+    'title': title,
+    if (subtitle != null) 'subtitle': subtitle,
+    'type': type,
+    'image': image.map((i) => {'quality': i.quality, 'link': i.link}).toList(),
+    if (source != null) 'source': source,
+    if (language != null) 'language': language,
+    if (url != null) 'url': url,
+    if (duration != null) 'duration': duration,
+    if (songCount != null) 'songCount': songCount,
+    if (playCount != null) 'playCount': playCount,
+    if (releaseDate != null) 'releaseDate': releaseDate,
+    if (artists != null)
+      'artists': artists!
+          .map(
+            (a) => {
+              'id': a.id,
+              'name': a.name,
+              if (a.image != null)
+                'image': a.image!
+                    .map((i) => {'quality': i.quality, 'link': i.link})
+                    .toList(),
+            },
+          )
+          .toList(),
+    if (token != null) 'token': token,
+    if (stationType != null) 'stationType': stationType,
+    // mediaUrls are persisted ONLY for podcasts. Gaana/saavn URLs are
+    // signed and expire, so persisting them just costs bytes (resolver
+    // re-resolves on play). Podcast enclosures are static — and the
+    // resolver has no recovery path that doesn't first need an inline
+    // URL or a separate /podcasts/episode round-trip, so saving them
+    // avoids an unnecessary fetch on every restore.
+    if (source == 'podcastindex' && mediaUrls.isNotEmpty)
+      'mediaUrls': mediaUrls
+          .map((i) => {'quality': i.quality, 'link': i.link})
+          .toList(),
+  };
 }
 
 /// One section in the home feed.
 class HomeSection {
-  const HomeSection({
-    required this.heading,
-    required this.items,
-    this.source,
-  });
+  const HomeSection({required this.heading, required this.items, this.source});
 
   final String heading;
   final List<FeedItem> items;
   final String? source;
 
   factory HomeSection.fromJson(Map<String, dynamic> j) => HomeSection(
-        heading: _decode((j['heading'] ?? '').toString()),
-        source: j['source']?.toString(),
-        items: (j['data'] is List)
-            ? (j['data'] as List)
-                .whereType<Map>()
-                .map((m) => FeedItem.fromJson(m.cast<String, dynamic>()))
-                .toList()
-            : const [],
-      );
+    heading: _decode((j['heading'] ?? '').toString()),
+    source: j['source']?.toString(),
+    items: (j['data'] is List)
+        ? (j['data'] as List)
+              .whereType<Map>()
+              .map((m) => FeedItem.fromJson(m.cast<String, dynamic>()))
+              .toList()
+        : const [],
+  );
 }
 
 // ── Detail DTOs ─────────────────────────────────────────────────────────────
@@ -422,6 +424,7 @@ class AlbumDetail {
   final List<ApiImage> image;
   final List<ApiArtistRef> artists;
   final List<ApiSong> songs;
+
   /// Related/recommended sections the API ships alongside an album (other
   /// albums by the same artist, "Listeners also enjoyed", etc.).
   final List<HomeSection> sections;
@@ -433,6 +436,7 @@ class AlbumDetail {
       final m = RegExp(r'(\d+)').firstMatch(q);
       return m == null ? 0 : int.tryParse(m.group(1)!) ?? 0;
     }
+
     sorted.sort((a, b) => score(b.quality).compareTo(score(a.quality)));
     return sorted.first.link;
   }
@@ -441,7 +445,13 @@ class AlbumDetail {
   String get metaLine {
     final parts = <String>[];
     if (artists.isNotEmpty) {
-      parts.add(artists.take(2).map((a) => a.name).where((n) => n.isNotEmpty).join(', '));
+      parts.add(
+        artists
+            .take(2)
+            .map((a) => a.name)
+            .where((n) => n.isNotEmpty)
+            .join(', '),
+      );
     }
     if ((year ?? '').isNotEmpty) {
       parts.add(year!);
@@ -460,8 +470,8 @@ class AlbumDetail {
     final inner = (j['album'] is Map)
         ? (j['album'] as Map).cast<String, dynamic>()
         : (j['playlist'] is Map)
-            ? (j['playlist'] as Map).cast<String, dynamic>()
-            : j;
+        ? (j['playlist'] as Map).cast<String, dynamic>()
+        : j;
     // Sections can live either alongside the wrapper (gaana albums) or
     // inside the inner object (saavn).
     final sectionsRaw = j['sections'] ?? inner['sections'];
@@ -523,6 +533,7 @@ class PlaylistDetail {
   final String? source;
   final List<ApiImage> image;
   final List<ApiSong> songs;
+
   /// Related/recommended sections shipped alongside a playlist.
   final List<HomeSection> sections;
 
@@ -533,6 +544,7 @@ class PlaylistDetail {
       final m = RegExp(r'(\d+)').firstMatch(q);
       return m == null ? 0 : int.tryParse(m.group(1)!) ?? 0;
     }
+
     sorted.sort((a, b) => score(b.quality).compareTo(score(a.quality)));
     return sorted.first.link;
   }
@@ -550,8 +562,8 @@ class PlaylistDetail {
     final inner = (j['playlist'] is Map)
         ? (j['playlist'] as Map).cast<String, dynamic>()
         : (j['album'] is Map)
-            ? (j['album'] as Map).cast<String, dynamic>()
-            : j;
+        ? (j['album'] as Map).cast<String, dynamic>()
+        : j;
     final sectionsRaw = j['sections'] ?? inner['sections'];
     return PlaylistDetail(
       id: (inner['id'] ?? '').toString(),
@@ -609,6 +621,7 @@ class ArtistDetail {
       final m = RegExp(r'(\d+)').firstMatch(q);
       return m == null ? 0 : int.tryParse(m.group(1)!) ?? 0;
     }
+
     sorted.sort((a, b) => score(b.quality).compareTo(score(a.quality)));
     return sorted.first.link;
   }
@@ -635,7 +648,7 @@ class ArtistDetail {
     // by heading so naming differences across providers don't break us.
     bool matchesHeading(String h, List<String> needles) {
       final low = h.toLowerCase();
-      return needles.any((n) => low.contains(n));
+      return needles.any(low.contains);
     }
 
     HomeSection? findFirst(bool Function(HomeSection) test) {
@@ -645,12 +658,16 @@ class ArtistDetail {
       return null;
     }
 
-    final songsSection = findFirst((s) =>
-        matchesHeading(s.heading, ['top song', 'popular', 'hit song']) &&
-        s.items.any((it) => it.type == 'song'));
-    final albumsSection = findFirst((s) =>
-        matchesHeading(s.heading, ['album', 'discography']) &&
-        s.items.any((it) => it.type == 'album'));
+    final songsSection = findFirst(
+      (s) =>
+          matchesHeading(s.heading, ['top song', 'popular', 'hit song']) &&
+          s.items.any((it) => it.type == 'song'),
+    );
+    final albumsSection = findFirst(
+      (s) =>
+          matchesHeading(s.heading, ['album', 'discography']) &&
+          s.items.any((it) => it.type == 'album'),
+    );
 
     // Anything left over (related artists, featured-in, etc.) renders as
     // related rows below the artist's content.
@@ -662,8 +679,7 @@ class ArtistDetail {
 
     // Top-level fallbacks for providers that still emit topSongs/topAlbums
     // directly (legacy / non-unified paths).
-    final topRaw =
-        inner['topSongs'] ?? inner['top_songs'] ?? inner['songs'];
+    final topRaw = inner['topSongs'] ?? inner['top_songs'] ?? inner['songs'];
     final albumsRaw =
         inner['topAlbums'] ?? inner['top_albums'] ?? inner['albums'];
 
@@ -727,6 +743,7 @@ class PodcastShowDetail {
   final List<String> categories;
   final String? url;
   final int? itunesId;
+
   /// Number of episodes the backend returned in `episodes` — usually 30
   /// for the first page; the rest fetched via `/podcasts/:id/episodes`
   /// pagination. Treated as a server-side hint, not an exact count.
@@ -741,6 +758,7 @@ class PodcastShowDetail {
       final m = RegExp(r'(\d+)').firstMatch(q);
       return m == null ? 0 : int.tryParse(m.group(1)!) ?? 0;
     }
+
     sorted.sort((a, b) => score(b.quality).compareTo(score(a.quality)));
     return sorted.first.link;
   }
@@ -749,9 +767,9 @@ class PodcastShowDetail {
     final epRaw = j['episodes'];
     final episodes = epRaw is List
         ? epRaw
-            .whereType<Map>()
-            .map((m) => FeedItem.fromJson(m.cast<String, dynamic>()))
-            .toList()
+              .whereType<Map>()
+              .map((m) => FeedItem.fromJson(m.cast<String, dynamic>()))
+              .toList()
         : const <FeedItem>[];
     final catsRaw = j['categories'];
     final cats = catsRaw is List
@@ -785,11 +803,10 @@ class PodcastCategory {
   final int id;
   final String name;
 
-  factory PodcastCategory.fromJson(Map<String, dynamic> j) =>
-      PodcastCategory(
-        id: (j['id'] is num) ? (j['id'] as num).toInt() : 0,
-        name: (j['name'] ?? '').toString(),
-      );
+  factory PodcastCategory.fromJson(Map<String, dynamic> j) => PodcastCategory(
+    id: (j['id'] is num) ? (j['id'] as num).toInt() : 0,
+    name: (j['name'] ?? '').toString(),
+  );
 }
 
 // ── Spotify import ───────────────────────────────────────────────────────
@@ -848,18 +865,22 @@ class SpotifyImportItem {
     required this.score,
     this.saavn,
   });
+
   /// Original Spotify track title — kept so the UI can show
   /// "Couldn't match X" rows in a missed-tracks section.
   final String spotifyTitle;
   final List<String> spotifyArtists;
+
   /// The Saavn match parsed as a regular FeedItem. Null when the
   /// matcher found no candidates above [SpotifyImportItem.score]
   /// threshold (whatever the backend's MIN_ACCEPT_SCORE is — currently
   /// 0.55). Even when [matched] is true, `saavn` may still be null in
   /// edge cases; check both.
   final FeedItem? saavn;
+
   /// True iff the matcher accepted [saavn] as a confident match.
   final bool matched;
+
   /// 0..1 confidence score (title + artist + duration). Mostly for
   /// debugging; the UI doesn't surface it.
   final double score;
@@ -899,7 +920,9 @@ class SpotifyImportSummary {
       SpotifyImportSummary(
         total: (j['total'] is num) ? (j['total'] as num).toInt() : 0,
         matched: (j['matched'] is num) ? (j['matched'] as num).toInt() : 0,
-        unmatched: (j['unmatched'] is num) ? (j['unmatched'] as num).toInt() : 0,
+        unmatched: (j['unmatched'] is num)
+            ? (j['unmatched'] as num).toInt()
+            : 0,
       );
 }
 
@@ -924,9 +947,9 @@ class SpotifyImportResult {
     final itemsRaw = j['items'];
     final items = itemsRaw is List
         ? itemsRaw
-            .whereType<Map>()
-            .map((m) => SpotifyImportItem.fromJson(m.cast<String, dynamic>()))
-            .toList()
+              .whereType<Map>()
+              .map((m) => SpotifyImportItem.fromJson(m.cast<String, dynamic>()))
+              .toList()
         : const <SpotifyImportItem>[];
     return SpotifyImportResult(
       source: SpotifyImportSource.fromJson(
@@ -971,9 +994,9 @@ class AudiobookDetail {
     final chRaw = j['chapters'];
     final chapters = chRaw is List
         ? chRaw
-            .whereType<Map>()
-            .map((m) => FeedItem.fromJson(m.cast<String, dynamic>()))
-            .toList()
+              .whereType<Map>()
+              .map((m) => FeedItem.fromJson(m.cast<String, dynamic>()))
+              .toList()
         : const <FeedItem>[];
     return AudiobookDetail(
       id: (j['id'] ?? '').toString(),
