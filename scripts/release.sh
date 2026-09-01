@@ -183,19 +183,65 @@ EOF
   fi
 fi
 
-# Compact summary for the manifest. Strategy:
-#   1. First markdown BULLET ("- foo") — typical release notes lead
-#      with a section header ("New", "Fix") and then bullets; the
-#      first bullet is the actual headline change.
-#   2. Fall back to the first non-empty line (legacy single-line notes).
-# Strip inline `**bold**` / `*italic*` markdown so the in-app dialog
-# (plain Text widget) doesn't render literal asterisks.
-NOTES_SUMMARY="$(printf '%s\n' "$NOTES" | awk '/^- /{sub(/^- /, ""); print; exit}')"
-if [[ -z "$NOTES_SUMMARY" ]]; then
-  NOTES_SUMMARY="$(printf '%s\n' "$NOTES" | awk 'NF{print; exit}')"
-fi
-# Strip `**bold**` and `*italic*` and `__bold__` markdown.
-NOTES_SUMMARY="$(printf '%s' "$NOTES_SUMMARY" | sed -E 's/\*\*([^*]+)\*\*/\1/g; s/\*([^*]+)\*/\1/g; s/__([^_]+)__/\1/g')"
+# Compact summary for the in-app update dialog, which shows this and not the
+# full notes. Strategy, in order:
+#
+#   1. An explicit `<!-- summary: ... -->` line. Deterministic, and the only
+#      way an author can be sure what users will read.
+#   2. The lead PROSE line — first non-empty line that is not a heading, a
+#      bullet, a code fence or a badge. Well-written notes open with exactly
+#      the one-sentence summary this field wants.
+#   3. The first bullet, for notes that go straight into a list.
+#   4. The first non-empty line.
+#
+# It used to try (3) first, which broke the moment notes carried a prose intro
+# and section headings: v1.10.0 shipped advertising the first bullet of its
+# Android Auto section, a fragment that read as nonsense out of context.
+#
+# Inline markdown is stripped because the dialog renders a plain Text widget
+# and would otherwise show literal asterisks.
+NOTES_SUMMARY="$(printf '%s' "$NOTES" | python3 -c '
+import re, sys
+
+text = sys.stdin.read()
+
+m = re.search(r"<!--\s*summary:\s*(.+?)\s*-->", text, re.S)
+if m:
+    summary = " ".join(m.group(1).split())
+else:
+    summary = ""
+    for raw in text.splitlines():
+        line = raw.strip()
+        if not line:
+            continue
+        if line.startswith(("#", "-", "*", "+", ">", "```", "|", "[!")):
+            continue
+        summary = line
+        break
+    if not summary:
+        for raw in text.splitlines():
+            line = raw.strip()
+            if line.startswith("- "):
+                summary = line[2:].strip()
+                break
+    if not summary:
+        for raw in text.splitlines():
+            if raw.strip():
+                summary = raw.strip()
+                break
+
+# **bold**, *italic*, __bold__, `code`, and [text](url) -> text
+summary = re.sub(r"\*\*([^*]+)\*\*", r"\1", summary)
+summary = re.sub(r"\*([^*]+)\*", r"\1", summary)
+summary = re.sub(r"__([^_]+)__", r"\1", summary)
+summary = re.sub(r"`([^`]+)`", r"\1", summary)
+summary = re.sub(r"\[([^\]]+)\]\([^)]+\)", r"\1", summary)
+
+# The manifest documents this as plain text of about 280 characters.
+if len(summary) > 280:
+    summary = summary[:277].rstrip() + "..."
+print(summary)
+')"
 
 # Trim release URL ahead of time so we can put it in the manifest.
 ORIGIN_URL="$(git remote get-url origin)"
