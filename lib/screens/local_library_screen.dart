@@ -1,5 +1,9 @@
 // On-device music — Songs / Albums / Artists.
 //
+// Tabs use the app's shared `SunohTabs`, and the three lists sit in a PageView
+// so they swipe as well as tap. The tab strip and the pager drive each other:
+// a tap animates the page, a swipe settles the strip.
+//
 // The device library is the one source that can be empty for reasons the user
 // has to act on, so the empty states carry most of the weight here: a refused
 // permission needs a prompt, a permanently refused one needs Settings, and a
@@ -20,10 +24,11 @@ import '../router/router.dart';
 import '../state/app_state.dart';
 import '../theme/tokens.dart';
 import '../widgets/album_art.dart';
+import '../widgets/top_tabs.dart';
 import '../widgets/ui.dart';
 import 'local_track_row.dart';
 
-enum _Tab { songs, albums, artists }
+const List<String> _kTabs = ['Songs', 'Albums', 'Artists'];
 
 class LocalLibraryScreen extends ConsumerStatefulWidget {
   const LocalLibraryScreen({super.key});
@@ -32,16 +37,35 @@ class LocalLibraryScreen extends ConsumerStatefulWidget {
 }
 
 class _LocalLibraryScreenState extends ConsumerState<LocalLibraryScreen> {
-  _Tab _tab = _Tab.songs;
+  final PageController _pages = PageController();
+  int _index = 0;
 
   @override
   void initState() {
     super.initState();
     // Re-scan on entry so files added since the last visit appear. `load`
-    // reuses a completed scan, so this is free after the first time.
+    // reuses a completed scan, so this is free after the first time — and it
+    // is the point at which asking for permission is something the user has
+    // actually asked for.
     WidgetsBinding.instance.addPostFrameCallback((_) {
       ref.read(localLibraryProvider).load();
     });
+  }
+
+  @override
+  void dispose() {
+    _pages.dispose();
+    super.dispose();
+  }
+
+  void _select(int i) {
+    if (i == _index) return;
+    setState(() => _index = i);
+    _pages.animateToPage(
+      i,
+      duration: const Duration(milliseconds: 260),
+      curve: Curves.easeOutCubic,
+    );
   }
 
   @override
@@ -52,82 +76,92 @@ class _LocalLibraryScreenState extends ConsumerState<LocalLibraryScreen> {
 
     return ColoredBox(
       color: c.bg,
-      child: CustomScrollView(
-        slivers: [
-          SliverToBoxAdapter(
-            child: Padding(
-              padding: EdgeInsets.fromLTRB(
-                20,
-                MediaQuery.of(context).padding.top + 20,
-                20,
-                16,
-              ),
-              child: Row(
-                children: [
-                  IconBtn(
-                    icon: SolarIconsOutline.altArrowLeft,
-                    color: c.fgDim,
-                    size: 18,
-                    onTap: () => context.pop(),
-                  ),
-                  const SizedBox(width: 4),
-                  Expanded(
-                    child: Text(
-                      'On this device',
-                      style: SunohType.heading(
-                        fontSize: 24,
-                        color: c.fg,
-                        letterSpacing: -0.4,
+      child: Column(
+        children: [
+          _Header(library: lib, colors: c),
+          if (lib.hasMusic)
+            SunohTabs(
+              tabs: _kTabs,
+              active: _kTabs[_index],
+              colors: c,
+              onChange: (t) => _select(_kTabs.indexOf(t)),
+            ),
+          Expanded(
+            child: !lib.hasMusic
+                ? SingleChildScrollView(
+                    child: _EmptyState(library: lib, colors: c),
+                  )
+                : PageView(
+                    controller: _pages,
+                    onPageChanged: (i) => setState(() => _index = i),
+                    children: [
+                      _SongList(songs: lib.songs, state: s, colors: c),
+                      _CollectionList(
+                        collections: lib.albums,
+                        album: true,
+                        colors: c,
                       ),
-                    ),
-                  ),
-                  if (lib.isScanning)
-                    SizedBox(
-                      width: 16,
-                      height: 16,
-                      child: CircularProgressIndicator(
-                        strokeWidth: 2,
-                        color: c.fgMute,
+                      _CollectionList(
+                        collections: lib.artists,
+                        album: false,
+                        colors: c,
                       ),
-                    )
-                  else
-                    IconBtn(
-                      icon: SolarIconsOutline.refresh,
-                      color: c.fgDim,
-                      size: 18,
-                      onTap: () => lib.load(force: true),
-                    ),
-                ],
+                    ],
+                  ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _Header extends StatelessWidget {
+  const _Header({required this.library, required this.colors});
+  final LocalLibrary library;
+  final SunohColors colors;
+
+  @override
+  Widget build(BuildContext context) {
+    final c = colors;
+    return Padding(
+      padding: EdgeInsets.fromLTRB(
+        20,
+        MediaQuery.of(context).padding.top + 20,
+        20,
+        6,
+      ),
+      child: Row(
+        children: [
+          IconBtn(
+            icon: SolarIconsOutline.altArrowLeft,
+            color: c.fgDim,
+            size: 18,
+            onTap: () => context.pop(),
+          ),
+          const SizedBox(width: 4),
+          Expanded(
+            child: Text(
+              'On this device',
+              style: SunohType.heading(
+                fontSize: 24,
+                color: c.fg,
+                letterSpacing: -0.4,
               ),
             ),
           ),
-          if (lib.hasMusic)
-            SliverToBoxAdapter(
-              child: _Tabs(
-                tab: _tab,
-                colors: c,
-                counts: {
-                  _Tab.songs: lib.songs.length,
-                  _Tab.albums: lib.albums.length,
-                  _Tab.artists: lib.artists.length,
-                },
-                onChange: (t) => setState(() => _tab = t),
-              ),
-            ),
-          if (!lib.hasMusic)
-            SliverFillRemaining(
-              hasScrollBody: false,
-              child: _EmptyState(library: lib, colors: c),
+          if (library.isScanning)
+            SizedBox(
+              width: 16,
+              height: 16,
+              child: CircularProgressIndicator(strokeWidth: 2, color: c.fgMute),
             )
-          else if (_tab == _Tab.songs)
-            _SongList(songs: lib.songs, state: s, colors: c)
           else
-            _CollectionList(
-              collections: _tab == _Tab.albums ? lib.albums : lib.artists,
-              album: _tab == _Tab.albums,
-              colors: c,
+            IconBtn(
+              icon: SolarIconsOutline.refresh,
+              color: c.fgDim,
+              size: 18,
+              onTap: () => library.load(force: true),
             ),
-          const SliverToBoxAdapter(child: SizedBox(height: 140)),
         ],
       ),
     );
@@ -146,18 +180,16 @@ class _SongList extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    // Lazy: a device library runs to thousands of tracks, and an eager
-    // Column would build and lay out every one of them.
-    return SliverList.builder(
+    // Lazy: a device library runs to thousands of tracks, and an eager Column
+    // would build and lay out every one of them.
+    return ListView.builder(
+      padding: const EdgeInsets.only(top: 8, bottom: 140),
       itemCount: songs.length,
       itemBuilder: (context, i) => LocalTrackRow(
         song: songs[i],
         colors: colors,
-        onTap: () => state.playApiQueue(
-          songs,
-          i,
-          sourceLabel: 'ON THIS DEVICE',
-        ),
+        onTap: () =>
+            state.playApiQueue(songs, i, sourceLabel: 'ON THIS DEVICE'),
       ),
     );
   }
@@ -175,7 +207,8 @@ class _CollectionList extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return SliverList.builder(
+    return ListView.builder(
+      padding: const EdgeInsets.only(top: 8, bottom: 140),
       itemCount: collections.length,
       itemBuilder: (context, i) {
         final col = collections[i];
@@ -232,68 +265,7 @@ class _CollectionList extends StatelessWidget {
   }
 }
 
-class _Tabs extends StatelessWidget {
-  const _Tabs({
-    required this.tab,
-    required this.counts,
-    required this.colors,
-    required this.onChange,
-  });
-  final _Tab tab;
-  final Map<_Tab, int> counts;
-  final SunohColors colors;
-  final ValueChanged<_Tab> onChange;
-
-  static const _labels = {
-    _Tab.songs: 'Songs',
-    _Tab.albums: 'Albums',
-    _Tab.artists: 'Artists',
-  };
-
-  @override
-  Widget build(BuildContext context) {
-    return Padding(
-      padding: const EdgeInsets.fromLTRB(20, 0, 20, 12),
-      child: Row(
-        children: [
-          for (final t in _Tab.values) ...[
-            GestureDetector(
-              onTap: () => onChange(t),
-              behavior: HitTestBehavior.opaque,
-              child: Padding(
-                padding: const EdgeInsets.only(right: 18, top: 4, bottom: 8),
-                child: Column(
-                  mainAxisSize: MainAxisSize.min,
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      '${_labels[t]}  ${counts[t] ?? 0}',
-                      style: SunohType.sans(
-                        fontSize: 13,
-                        fontWeight: t == tab
-                            ? FontWeight.w600
-                            : FontWeight.w500,
-                        color: t == tab ? colors.fg : colors.fgMute,
-                      ),
-                    ),
-                    const SizedBox(height: 4),
-                    Container(
-                      height: 2,
-                      width: 18,
-                      color: t == tab ? colors.accent : Colors.transparent,
-                    ),
-                  ],
-                ),
-              ),
-            ),
-          ],
-        ],
-      ),
-    );
-  }
-}
-
-/// The three ways this screen can be empty, each with the action that fixes it.
+/// The ways this screen can be empty, each with the action that fixes it.
 class _EmptyState extends StatelessWidget {
   const _EmptyState({required this.library, required this.colors});
   final LocalLibrary library;
@@ -330,9 +302,8 @@ class _EmptyState extends StatelessWidget {
     };
 
     return Padding(
-      padding: const EdgeInsets.fromLTRB(32, 60, 32, 40),
+      padding: const EdgeInsets.fromLTRB(32, 80, 32, 40),
       child: Column(
-        mainAxisAlignment: MainAxisAlignment.center,
         children: [
           Icon(SolarIconsOutline.smartphone, size: 34, color: colors.fgMute),
           const SizedBox(height: 16),

@@ -184,10 +184,10 @@ class AutoCatalog {
     extras: childStyle,
   );
 
-  static Uri? artOf(FeedItem? item) {
-    final url = item?.artwork ?? '';
-    return url.isEmpty ? null : Uri.tryParse(url);
-  }
+  /// Artwork for a car row. Delegates to [FeedItem.artworkUri] so on-device
+  /// art — a bare filesystem path — gets the `file://` scheme Android Auto
+  /// needs, exactly as the media notification does.
+  static Uri? artOf(FeedItem? item) => item?.artworkUri;
 
   static Duration? parseDuration(String? raw) {
     if (raw == null || raw.isEmpty) return null;

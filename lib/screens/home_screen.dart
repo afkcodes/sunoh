@@ -18,6 +18,7 @@ import '../router/router.dart';
 import '../theme/tokens.dart';
 import '../widgets/album_art.dart';
 import '../widgets/playing_bars.dart';
+import '../widgets/top_tabs.dart';
 import '../widgets/ui.dart';
 import '../widgets/update_dialog.dart';
 // Tab implementations: Music (the original /music/home feed), Podcasts
@@ -85,7 +86,12 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
             ],
           ),
         ),
-        _TopTabs(tab: s.topTab, onChange: s.setTopTab, colors: c),
+        SunohTabs(
+          tabs: const ['Music', 'Podcasts', 'Audiobooks'],
+          active: s.topTab,
+          onChange: s.setTopTab,
+          colors: c,
+        ),
         const SizedBox(height: 22),
         TweenAnimationBuilder<double>(
           key: ValueKey('tab-${s.topTab}'),
@@ -104,81 +110,6 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
             'Audiobooks' => AudiobooksTab(colors: c),
             _ => MusicTab(colors: c),
           },
-        ),
-      ],
-    );
-  }
-}
-
-class _TopTabs extends StatelessWidget {
-  const _TopTabs({
-    required this.tab,
-    required this.onChange,
-    required this.colors,
-  });
-  final String tab;
-  final ValueChanged<String> onChange;
-  final SunohColors colors;
-
-  @override
-  Widget build(BuildContext context) {
-    // Music + Podcasts + Audiobooks (cozyaudiobooks.com, v1.8.0).
-    const opts = ['Music', 'Podcasts', 'Audiobooks'];
-    return Container(
-      padding: const EdgeInsets.fromLTRB(20, 8, 20, 14),
-      decoration: BoxDecoration(
-        border: Border(bottom: BorderSide(color: colors.line, width: 0.5)),
-      ),
-      child: Row(
-        children: [
-          for (final t in opts)
-            Padding(
-              padding: const EdgeInsets.only(right: 22),
-              child: GestureDetector(
-                onTap: () => onChange(t),
-                child: _TabLabel(label: t, active: t == tab, colors: colors),
-              ),
-            ),
-        ],
-      ),
-    );
-  }
-}
-
-class _TabLabel extends StatelessWidget {
-  const _TabLabel({
-    required this.label,
-    required this.active,
-    required this.colors,
-  });
-  final String label;
-  final bool active;
-  final SunohColors colors;
-
-  @override
-  Widget build(BuildContext context) {
-    return Column(
-      mainAxisSize: MainAxisSize.min,
-      children: [
-        Text(
-          label,
-          style: active
-              ? SunohType.heading(
-                  fontSize: 22,
-                  color: colors.fg,
-                  letterSpacing: -0.2,
-                )
-              : SunohType.sans(
-                  fontSize: 15,
-                  fontWeight: FontWeight.w500,
-                  color: colors.fgMute,
-                ),
-        ),
-        const SizedBox(height: 4),
-        Container(
-          height: 1.5,
-          width: 28,
-          color: active ? colors.accent : Colors.transparent,
         ),
       ],
     );

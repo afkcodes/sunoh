@@ -10,6 +10,7 @@
 
 import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:sunoh/api/dto.dart';
 import 'package:sunoh/api/local_media_channel.dart';
 
 const _channel = MethodChannel('codes.afk.sunoh/localmedia');
@@ -57,9 +58,7 @@ void main() {
 
   group('mapping', () {
     test('a row becomes a playable local FeedItem', () async {
-      stub([
-        _row(id: '1', title: 'Velour Sky', path: '/music/velour.mp3'),
-      ]);
+      stub([_row(id: '1', title: 'Velour Sky', path: '/music/velour.mp3')]);
       final scan = await LocalMediaChannel.instance.scan();
 
       expect(scan.songs, hasLength(1));
@@ -74,18 +73,13 @@ void main() {
     });
 
     test('a row with no file path is dropped', () async {
-      stub([
-        _row(id: '1', path: ''),
-        _row(id: '2', path: '/music/ok.mp3'),
-      ]);
+      stub([_row(id: '1', path: ''), _row(id: '2', path: '/music/ok.mp3')]);
       final scan = await LocalMediaChannel.instance.scan();
       expect(scan.songs.map((s) => s.id), ['2']);
     });
 
     test('MediaStore\'s "<unknown>" is not shown as a real artist', () async {
-      stub([
-        _row(id: '1', artist: '<unknown>', album: '<unknown>'),
-      ]);
+      stub([_row(id: '1', artist: '<unknown>', album: '<unknown>')]);
       final scan = await LocalMediaChannel.instance.scan();
 
       expect(scan.songs.single.subtitle, isNull);
@@ -106,6 +100,37 @@ void main() {
         isNull,
         reason: 'falls back to generated art',
       );
+    });
+  });
+
+  group('artwork for the OS', () {
+    // The media notification and Android Auto both take a Uri, and both
+    // silently show nothing for a scheme-less one. Local art is a bare
+    // filesystem path, so it needs file:// added; network art must not be
+    // touched.
+    test('a local art path becomes a file:// uri', () async {
+      stub([_row(id: '1', artPath: '/data/cache/local_album_art/7.jpg')]);
+      final scan = await LocalMediaChannel.instance.scan();
+      final uri = scan.songs.single.artworkUri;
+
+      expect(uri, isNotNull);
+      expect(uri!.scheme, 'file');
+      expect(uri.toFilePath(), '/data/cache/local_album_art/7.jpg');
+    });
+
+    test('a network art url is left alone', () {
+      const song = FeedItem(
+        id: 'x',
+        title: 'x',
+        type: 'song',
+        image: [ApiImage(quality: 'high', link: 'https://cdn/art.jpg')],
+      );
+      expect(song.artworkUri.toString(), 'https://cdn/art.jpg');
+    });
+
+    test('no artwork yields no uri', () {
+      const song = FeedItem(id: 'x', title: 'x', type: 'song', image: []);
+      expect(song.artworkUri, isNull);
     });
   });
 
@@ -160,17 +185,20 @@ void main() {
       expect(scan.artists.single.name, 'OKO');
     });
 
-    test('a title containing the subtitle separator does not misgroup', () async {
-      // The subtitle renders as "artist · album", so anything deriving the
-      // album back out of that string would split this row in the wrong place.
-      stub([
-        _row(id: '1', title: 'A · B', artist: 'X · Y', album: 'Real Album'),
-      ]);
-      final scan = await LocalMediaChannel.instance.scan();
+    test(
+      'a title containing the subtitle separator does not misgroup',
+      () async {
+        // The subtitle renders as "artist · album", so anything deriving the
+        // album back out of that string would split this row in the wrong place.
+        stub([
+          _row(id: '1', title: 'A · B', artist: 'X · Y', album: 'Real Album'),
+        ]);
+        final scan = await LocalMediaChannel.instance.scan();
 
-      expect(scan.albums.single.name, 'Real Album');
-      expect(scan.artists.single.name, 'X · Y');
-    });
+        expect(scan.albums.single.name, 'Real Album');
+        expect(scan.artists.single.name, 'X · Y');
+      },
+    );
 
     test('album collections expose the first available artwork', () async {
       // A compilation's first track often has no art while later ones do.

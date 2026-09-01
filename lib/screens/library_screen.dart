@@ -21,7 +21,7 @@ import '../state/app_state.dart';
 import '../theme/tokens.dart';
 import '../widgets/album_art.dart';
 import '../widgets/ui.dart';
-import 'library_device_tile.dart';
+import 'library_device_section.dart';
 import 'library_playlists.dart';
 import 'user_playlist_screen.dart';
 
@@ -259,29 +259,12 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen> {
             ],
           ),
         ),
-        // On-device music. Full width rather than a fourth pinned tile: the
-        // row above is already three-up and a fourth would squeeze every
-        // label, and this is a different kind of thing — a whole other
-        // library, not a shortcut into this one.
-        Padding(
-          padding: const EdgeInsets.fromLTRB(20, 0, 20, 22),
-          child: Consumer(
-            builder: (ctx, innerRef, _) {
-              final local = innerRef.watch(localLibraryProvider);
-              final n = local.songs.length;
-              return DeviceTile(
-                colors: c,
-                subtitle: switch (local.status) {
-                  LocalLibraryStatus.scanning => 'Scanning…',
-                  LocalLibraryStatus.denied ||
-                  LocalLibraryStatus.permanentlyDenied => 'Tap to grant access',
-                  _ when n > 0 =>
-                    '$n ${n == 1 ? 'song' : 'songs'} on this phone',
-                  _ => 'Music stored on this phone',
-                },
-                onTap: () => ctx.openLocalLibrary(),
-              );
-            },
+        // On-device music, previewed rather than linked — see
+        // LibraryDeviceSection for why covers earn their space here.
+        Consumer(
+          builder: (ctx, innerRef, _) => LibraryDeviceSection(
+            library: innerRef.watch(localLibraryProvider),
+            colors: c,
           ),
         ),
         if (s.userPlaylists.isNotEmpty) ...[
