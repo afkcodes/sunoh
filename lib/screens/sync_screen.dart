@@ -165,6 +165,8 @@ class _Setup extends StatelessWidget {
             body:
                 'Enter the recovery code from the phone you set up first, '
                 'then pick the same folder.',
+            action: busy ? 'Working…' : 'Pick folder and join',
+            onTap: busy ? null : onJoin,
             child: TextField(
               controller: controller,
               autocorrect: false,
@@ -178,8 +180,6 @@ class _Setup extends StatelessWidget {
                 contentPadding: const EdgeInsets.symmetric(vertical: 8),
               ),
             ),
-            action: busy ? 'Working…' : 'Pick folder and join',
-            onTap: busy ? null : onJoin,
           ),
         ),
       ],
@@ -218,7 +218,7 @@ class _Configured extends StatelessWidget {
                 'The last sync did not finish. It will try again.',
               SyncStatus.syncing => 'Syncing…',
               _ when last == null => 'Not synced yet.',
-              _ => 'Last synced ${_ago(last!)}.',
+              _ => 'Last synced ${_ago(last)}.',
             },
             action: busy ? 'Syncing…' : 'Sync now',
             onTap: busy
