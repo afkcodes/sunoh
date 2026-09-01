@@ -142,7 +142,7 @@ class _UserPlaylistScreenState extends ConsumerState<UserPlaylistScreen> {
     );
   }
 
-  void _showOverflowMenu(
+  Future<void> _showOverflowMenu(
       BuildContext context, WidgetRef ref, UserPlaylist p) async {
     final action = await showModalBottomSheet<String>(
       context: context,

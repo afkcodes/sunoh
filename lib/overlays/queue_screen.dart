@@ -17,10 +17,10 @@ import '../api/dto.dart';
 import '../data/catalog.dart';
 import '../providers/app_state_provider.dart';
 import '../theme/tokens.dart';
-import 'queue_menu_sheet.dart';
 import '../widgets/album_art.dart';
 import '../widgets/playing_bars.dart';
 import '../widgets/ui.dart';
+import 'queue_menu_sheet.dart';
 
 class QueueScreen extends ConsumerWidget {
   const QueueScreen({super.key});

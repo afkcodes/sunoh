@@ -13,14 +13,14 @@ import 'package:go_router/go_router.dart';
 import 'package:solar_icons/solar_icons.dart';
 import 'package:url_launcher/url_launcher.dart';
 
-import '../audio/storage_stats.dart';
 import '../api/yt_locale.dart';
+import '../audio/storage_stats.dart';
 import '../overlays/language_sheet.dart';
 import '../overlays/yt_locale_sheet.dart';
-import '../providers/ytmusic_provider.dart';
 import '../providers/app_state_provider.dart';
 import '../providers/languages_provider.dart';
 import '../providers/update_provider.dart';
+import '../providers/ytmusic_provider.dart';
 import '../state/app_state.dart';
 import '../theme/tokens.dart';
 import '../widgets/ui.dart';
@@ -142,7 +142,7 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
                 summary:
                     'Keep music going by seeding a radio when the queue ends.',
                 value: s.endlessAutoplay,
-                onChange: (v) => s.setEndlessAutoplay(v),
+                onChange: s.setEndlessAutoplay,
                 colors: c,
               ),
               _NavRow(
@@ -164,7 +164,7 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
                     'talking sections on YouTube tracks. Only a hash of the '
                     'track id is sent, never the id itself.',
                 value: s.sponsorBlockEnabled,
-                onChange: (v) => s.setSponsorBlock(v),
+                onChange: s.setSponsorBlock,
                 colors: c,
               ),
             ],
@@ -303,7 +303,7 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
                     summary:
                         'Anonymous usage events. Off also resets the install id.',
                     value: s.analyticsEnabled,
-                    onChange: (v) => s.setAnalyticsEnabled(v),
+                    onChange: s.setAnalyticsEnabled,
                     colors: c,
                   ),
               ],

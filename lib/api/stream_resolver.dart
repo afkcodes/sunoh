@@ -23,8 +23,8 @@
 import 'package:dio/dio.dart';
 
 import '../audio/url_refresh.dart';
-import 'ytmusic_channel.dart';
 import 'dto.dart';
+import 'ytmusic_channel.dart';
 
 /// User stream-quality preference. `auto` and `high` both prefer the highest
 /// available variant; the distinction is reserved for the future (e.g. `auto`
@@ -230,7 +230,7 @@ class StreamResolver {
       );
       final env = ApiEnvelope.from<List<ApiImage>>(
         res.data ?? const {},
-        (raw) => ApiImage.listFrom(raw),
+        ApiImage.listFrom,
       );
       if (env.isSuccess) {
         final picked = _pick(env.data ?? const []);

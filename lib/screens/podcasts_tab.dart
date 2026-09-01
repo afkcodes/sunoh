@@ -240,7 +240,7 @@ class _CategoriesPreview extends ConsumerWidget {
     const tileH = 64.0;
     const gap = 10.0;
     const rows = 3;
-    final totalH = rows * tileH + (rows - 1) * gap;
+    const totalH = rows * tileH + (rows - 1) * gap;
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -254,7 +254,7 @@ class _CategoriesPreview extends ConsumerWidget {
           child: GridView.builder(
             scrollDirection: Axis.horizontal,
             padding: const EdgeInsets.symmetric(horizontal: 20),
-            gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
+            gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
               crossAxisCount: rows,
               // In a horizontal GridView, childAspectRatio is
               // cross/main = height/width, not the other way around.

@@ -374,7 +374,7 @@ class _ArtPainter extends CustomPainter {
   }
 
   void _panes(Canvas c, double w, double h) {
-    final inset = 0.12;
+    const inset = 0.12;
     final gx = inset * w, gy = inset * h;
     final innerW = w - 2 * gx, innerH = h - 2 * gy;
     final gap = 0.04 * innerW;

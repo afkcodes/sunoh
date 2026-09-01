@@ -10,6 +10,8 @@ import 'package:phosphor_icons/phosphor_icons.dart';
 import 'package:solar_icons/solar_icons.dart';
 
 import '../api/dto.dart';
+import '../audio/download_store.dart';
+import '../audio/radio_actions.dart';
 // catalog.dart was the dummy data source for the now-removed podcast
 // screen — the file is still used by other screens but not here.
 import '../data/models.dart';
@@ -17,10 +19,8 @@ import '../overlays/hero_menu_sheet.dart';
 import '../overlays/track_menu_sheet.dart';
 import '../providers/app_state_provider.dart';
 import '../providers/detail_providers.dart';
-import '../providers/palette_provider.dart';
-import '../audio/download_store.dart';
-import '../audio/radio_actions.dart';
 import '../providers/downloads_provider.dart';
+import '../providers/palette_provider.dart';
 import '../providers/search_provider.dart';
 import '../router/router.dart';
 import '../share/share_link.dart';

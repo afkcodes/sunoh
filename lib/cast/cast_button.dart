@@ -319,8 +319,8 @@ class _ScanningStateState extends State<_ScanningState>
                 child: Row(
                   mainAxisAlignment: MainAxisAlignment.center,
                   children: List.generate(3, (i) {
-                    final offset = (i * 0.2);
-                    final phase = ((_t.value + offset) % 1.0);
+                    final offset = i * 0.2;
+                    final phase = (_t.value + offset) % 1.0;
                     final scale = 0.6 + 0.4 * (1 - (phase - 0.5).abs() * 2);
                     return Padding(
                       padding: const EdgeInsets.symmetric(horizontal: 3),

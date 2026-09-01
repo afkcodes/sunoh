@@ -213,7 +213,7 @@ class _AudiobookCategoryPreview extends StatelessWidget {
     const tileH = 64.0;
     const gap = 10.0;
     const rows = 3;
-    final totalH = rows * tileH + (rows - 1) * gap;
+    const totalH = rows * tileH + (rows - 1) * gap;
     // Build lightweight AudiobookCategory shims from the home payload
     // so AudiobookCategoryCard doesn't have to learn a second shape.
     final cats = [
@@ -238,7 +238,7 @@ class _AudiobookCategoryPreview extends StatelessWidget {
           child: GridView.builder(
             scrollDirection: Axis.horizontal,
             padding: const EdgeInsets.symmetric(horizontal: 20),
-            gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
+            gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
               crossAxisCount: rows,
               // Horizontal GridView: childAspectRatio = height/width.
               childAspectRatio: tileH / tileW,

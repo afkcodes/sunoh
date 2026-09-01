@@ -67,7 +67,7 @@ class _LyricsScreenState extends ConsumerState<LyricsScreen> {
     // gradient leaned on the route's transparent background, so the
     // expanded player bled through and the sheet read as smoky. Layer
     // the tint over an opaque c.bg so the page is its own thing.
-    return Container(
+    return ColoredBox(
       color: c.bg,
       child: DecoratedBox(
         decoration: BoxDecoration(

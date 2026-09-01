@@ -13,12 +13,12 @@ import 'package:solar_icons/solar_icons.dart';
 import '../api/ytmusic_api.dart';
 import '../data/models.dart';
 import '../providers/app_state_provider.dart';
-import 'detail_screens.dart' show AlbumLikeBody;
 import '../providers/ytmusic_provider.dart';
 import '../router/router.dart';
 import '../theme/tokens.dart';
 import '../widgets/album_art.dart';
 import '../widgets/ui.dart';
+import 'detail_screens.dart' show AlbumLikeBody;
 
 /// Shared chrome: back chip + big title, matching SectionScreen.
 class _YtScaffold extends StatelessWidget {

@@ -161,11 +161,11 @@ class DeepLinkRouter {
   static List<String> _segmentsFor(Uri uri) {
     final pathParts =
         uri.pathSegments.where((s) => s.isNotEmpty).toList(growable: true);
-    if (uri.scheme == 'sunoh' && (uri.host).isNotEmpty) {
+    if (uri.scheme == 'sunoh' && uri.host.isNotEmpty) {
       pathParts.insert(0, uri.host);
     }
     return pathParts;
   }
 }
 
-final deepLinkRouterProvider = Provider((ref) => DeepLinkRouter(ref));
+final deepLinkRouterProvider = Provider(DeepLinkRouter.new);

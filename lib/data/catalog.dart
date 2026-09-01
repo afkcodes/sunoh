@@ -102,7 +102,7 @@ const Map<String, List<LyricLine>> kLyrics = {
 // ── Helpers ───────────────────────────────────────────────────────────────
 
 String fmt(num sec) {
-  final m = (sec ~/ 60);
+  final m = sec ~/ 60;
   final s = (sec % 60).floor();
   return '$m:${s.toString().padLeft(2, '0')}';
 }

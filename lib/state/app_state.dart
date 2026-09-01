@@ -5,10 +5,9 @@ import 'dart:async';
 import 'dart:math' show Random;
 
 import 'package:flutter/material.dart';
-
-import '../api/dto.dart';
 import 'package:flutter_chrome_cast/enums.dart';
 
+import '../api/dto.dart';
 import '../api/sunoh_api.dart';
 import '../audio/audio_repo.dart';
 import '../audio/eq_presets.dart';

@@ -635,7 +635,7 @@ class ArtistDetail {
     // by heading so naming differences across providers don't break us.
     bool matchesHeading(String h, List<String> needles) {
       final low = h.toLowerCase();
-      return needles.any((n) => low.contains(n));
+      return needles.any(low.contains);
     }
 
     HomeSection? findFirst(bool Function(HomeSection) test) {

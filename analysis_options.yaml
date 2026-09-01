@@ -1,28 +1,66 @@
-# This file configures the analyzer, which statically analyzes Dart code to
-# check for errors, warnings, and lints.
+# Static analysis configuration.
 #
-# The issues identified by the analyzer are surfaced in the UI of Dart-enabled
-# IDEs (https://dart.dev/tools#ides-and-editors). The analyzer can also be
-# invoked from the command line by running `flutter analyze`.
+# The rules below encode `docs/ENGINEERING.md`. A standard that is not
+# enforced is a suggestion, so anything mechanically checkable lives here
+# rather than in prose.
+#
+# `flutter analyze` MUST be clean before every commit — not "clean except the
+# pre-existing ones". If a rule below is wrong for this codebase, remove it
+# here in a commit that says why; do not leave it failing.
 
-# The following line activates a set of recommended lints for Flutter apps,
-# packages, and plugins designed to encourage good coding practices.
 include: package:flutter_lints/flutter.yaml
 
-linter:
-  # The lint rules applied to this project can be customized in the
-  # section below to disable rules from the `package:flutter_lints/flutter.yaml`
-  # included above or to enable additional rules. A list of all available lints
-  # and their documentation is published at https://dart.dev/lints.
-  #
-  # Instead of disabling a lint rule for the entire project in the
-  # section below, it can also be suppressed for a single line of code
-  # or a specific dart file by using the `// ignore: name_of_lint` and
-  # `// ignore_for_file: name_of_lint` syntax on the line or in the file
-  # producing the lint.
-  rules:
-    # avoid_print: false  # Uncomment to disable the `avoid_print` rule
-    # prefer_single_quotes: true  # Uncomment to enable the `prefer_single_quotes` rule
+analyzer:
+  errors:
+    # Deprecations are a maintenance debt with a deadline, not background
+    # noise. Three exist today, all `ReorderableListView.onReorder` ->
+    # `onReorderItem`; they are the ONLY known-failing issues and are tracked
+    # in ARCHITECTURE.md section 9. Do not migrate them casually: the three
+    # call sites do NOT share index semantics (see the trap note in
+    # CLAUDE.md), and there are no tests to catch a wrong conversion.
+    deprecated_member_use: warning
+  exclude:
+    - build/**
+    - "**/*.g.dart"
 
-# Additional information about this file can be found at
-# https://dart.dev/guides/language/analysis-options
+linter:
+  rules:
+    # ── Correctness ──────────────────────────────────────────────────────
+    - always_declare_return_types
+    - avoid_void_async
+    - cancel_subscriptions          # every StreamSubscription gets disposed
+    - close_sinks                   # every StreamController gets closed
+    - use_super_parameters
+
+    # ── Performance ──────────────────────────────────────────────────────
+    # const widgets skip rebuild + reconciliation. NOTE the deliberate
+    # exception at lib/shell/app_scaffold.dart (MiniPlayer) — a const widget
+    # there short-circuits subtree reconciliation and breaks its notifier
+    # subscription. That site carries an explicit ignore + comment.
+    - prefer_const_constructors
+    - prefer_const_declarations
+    - prefer_const_literals_to_create_immutables
+    - avoid_unnecessary_containers
+    - sized_box_for_whitespace
+    - use_colored_box               # cheaper than a Container with a colour
+    - use_decorated_box
+
+    # ── Consistency ──────────────────────────────────────────────────────
+    - directives_ordering
+    - prefer_final_locals
+    - prefer_single_quotes
+    - unnecessary_lambdas
+    - unnecessary_parenthesis
+
+# ── Staged, not yet enforced ───────────────────────────────────────────────
+# Both are wanted; both need a cleanup pass first, so they are recorded here
+# rather than switched on to fail from day one.
+#
+#   unawaited_futures   (24 sites) — fires on the deliberate
+#     `ref.keepAlive()` + `Future.delayed(...).then(close)` TTL idiom across
+#     providers/. Enable once those are wrapped in `unawaited(...)`, which is
+#     what ENGINEERING.md section 6 asks for anyway.
+#
+#   avoid_dynamic_calls (38 sites) — concentrated in queue_screen.dart's
+#     dummy-catalog rendering path, which is slated for deletion (see
+#     ARCHITECTURE.md section 9). Enable after that path is removed.

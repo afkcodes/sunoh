@@ -6,26 +6,26 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:solar_icons/solar_icons.dart';
 
 import '../api/dto.dart';
+import '../api/ytmusic_api.dart' show YtCategoryChip;
+import '../audio/radio_actions.dart';
 import '../data/models.dart';
 import '../providers/app_state_provider.dart';
 import '../providers/home_provider.dart';
-import '../providers/ytmusic_provider.dart';
 import '../providers/palette_provider.dart';
-import '../audio/radio_actions.dart';
-import '../router/router.dart';
 import '../providers/update_provider.dart';
-import '../widgets/update_dialog.dart';
+import '../providers/ytmusic_provider.dart';
+import '../router/router.dart';
 import '../theme/tokens.dart';
 import '../widgets/album_art.dart';
 import '../widgets/playing_bars.dart';
 import '../widgets/ui.dart';
+import '../widgets/update_dialog.dart';
 // Tab implementations: Music (the original /music/home feed), Podcasts
 // (backed by /podcasts/home via `podcastHomeProvider`, since v1.5.5),
 // and Audiobooks (cozyaudiobooks.com, since v1.8.0).
-import '../api/ytmusic_api.dart' show YtCategoryChip;
-import 'ytmusic_screens.dart' show YtCategoryChipTile, kYtChipRowGap;
 import 'audiobooks_tab.dart';
 import 'podcasts_tab.dart';
+import 'ytmusic_screens.dart' show YtCategoryChipTile, kYtChipRowGap;
 
 class HomeScreen extends ConsumerStatefulWidget {
   const HomeScreen({super.key});
@@ -855,8 +855,8 @@ class _SkeletonSection extends StatelessWidget {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Padding(
-          padding: const EdgeInsets.fromLTRB(20, 0, 20, 14),
+        const Padding(
+          padding: EdgeInsets.fromLTRB(20, 0, 20, 14),
           child: SkeletonBar(height: 22, width: 180, radius: 6),
         ),
         SingleChildScrollView(
@@ -982,7 +982,7 @@ class _ChannelGrid extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     // GridView in horizontal mode: `crossAxisCount` is the ROW count.
-    final totalHeight = _rows * _tileH + (_rows - 1) * _gap;
+    const totalHeight = _rows * _tileH + (_rows - 1) * _gap;
     return SizedBox(
       height: totalHeight,
       // No `physics:` override — `SunohScrollBehavior` (app-wide) owns scroll
@@ -991,7 +991,7 @@ class _ChannelGrid extends StatelessWidget {
       child: GridView.builder(
         scrollDirection: Axis.horizontal,
         padding: const EdgeInsets.symmetric(horizontal: 20),
-        gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
+        gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
           crossAxisCount: _rows,
           // In a horizontal GridView, `childAspectRatio` is cross/main —
           // i.e. height/width here, not width/height. Passing _tileW/_tileH
@@ -1040,7 +1040,7 @@ class _ChannelTile extends ConsumerWidget {
       behavior: HitTestBehavior.opaque,
       child: squircleClip(
         radius: 10,
-        child: Container(
+        child: DecoratedBox(
           decoration: BoxDecoration(
             gradient: LinearGradient(
               begin: Alignment.centerLeft,

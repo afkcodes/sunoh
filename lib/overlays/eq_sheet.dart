@@ -37,7 +37,7 @@ class _EqSheet extends ConsumerWidget {
       minChildSize: 0.6,
       maxChildSize: 1.0,
       expand: false,
-      builder: (_, controller) => Container(
+      builder: (_, controller) => DecoratedBox(
         decoration: BoxDecoration(
           color: c.bgSoft,
           borderRadius: const BorderRadius.vertical(top: Radius.circular(24)),

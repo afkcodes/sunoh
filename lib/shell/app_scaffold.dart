@@ -103,6 +103,7 @@ class _BottomBar extends StatelessWidget {
               // subtree reconciliation, which interfered with the mini
               // player's reactive subscription to appStateProvider (the
               // expanded player updated, the mini didn't).
+              // ignore: prefer_const_constructors
               MiniPlayer(),
               BottomNav(
                 currentIndex: shell.currentIndex,

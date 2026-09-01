@@ -49,7 +49,7 @@ final artPaletteProvider =
       dominant;
 
   // Cheap luminance-ish check (avoid going through HSL for speed).
-  final luma = (0.299 * dominant.r + 0.587 * dominant.g + 0.114 * dominant.b);
+  final luma = 0.299 * dominant.r + 0.587 * dominant.g + 0.114 * dominant.b;
   final isDark = luma < 0.5;
 
   // Keep warm for 30 min so re-opening the same screen is instant.

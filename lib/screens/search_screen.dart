@@ -13,8 +13,8 @@ import '../overlays/track_menu_sheet.dart';
 import '../providers/app_state_provider.dart';
 import '../providers/audiobook_provider.dart';
 import '../providers/podcast_provider.dart';
-import '../providers/ytmusic_provider.dart';
 import '../providers/search_provider.dart';
+import '../providers/ytmusic_provider.dart';
 import '../router/deep_links.dart';
 import '../router/router.dart';
 import '../state/app_state.dart';
@@ -50,7 +50,7 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
   // `_clear()` to release keys for headings that no longer appear.
   final Map<String, GlobalKey> _sectionKeys = {};
   GlobalKey _keyForSection(String heading) =>
-      _sectionKeys.putIfAbsent(heading, () => GlobalKey());
+      _sectionKeys.putIfAbsent(heading, GlobalKey.new);
 
   @override
   void initState() {
@@ -651,7 +651,7 @@ class _ResultRow extends StatelessWidget {
                           fontSize: 14,
                           fontWeight: FontWeight.w500,
                           color: c.fg)),
-                  if ((_subFor(item)).isNotEmpty) ...[
+                  if (_subFor(item).isNotEmpty) ...[
                     const SizedBox(height: 1),
                     Text(_subFor(item),
                         maxLines: 1,
@@ -815,8 +815,8 @@ class _TrendingSkeleton extends StatelessWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Padding(
-            padding: const EdgeInsets.fromLTRB(20, 0, 20, 14),
+          const Padding(
+            padding: EdgeInsets.fromLTRB(20, 0, 20, 14),
             child: SkeletonBar(height: 22, width: 160, radius: 6),
           ),
           SingleChildScrollView(
@@ -828,15 +828,15 @@ class _TrendingSkeleton extends StatelessWidget {
               children: [
                 for (var i = 0; i < 4; i++) ...[
                   if (i > 0) const SizedBox(width: 12),
-                  SizedBox(
+                  const SizedBox(
                     width: tile,
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
                         SkeletonBar(height: tile, width: tile, radius: 10),
-                        const SizedBox(height: 8),
+                        SizedBox(height: 8),
                         SkeletonBar(height: 13, width: tile * 0.85, radius: 4),
-                        const SizedBox(height: 3),
+                        SizedBox(height: 3),
                         SkeletonBar(height: 11, width: tile * 0.55, radius: 4),
                       ],
                     ),
@@ -891,24 +891,24 @@ class _ResultsSkeleton extends StatelessWidget {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Padding(
-              padding: const EdgeInsets.fromLTRB(20, 0, 20, 8),
+            const Padding(
+              padding: EdgeInsets.fromLTRB(20, 0, 20, 8),
               child: SkeletonBar(height: 11, width: 90, radius: 4),
             ),
             for (var i = 0; i < 6; i++)
-              Padding(
+              const Padding(
                 padding:
-                    const EdgeInsets.symmetric(horizontal: 20, vertical: 8),
+                    EdgeInsets.symmetric(horizontal: 20, vertical: 8),
                 child: Row(
                   children: [
-                    const SkeletonBar(height: 42, width: 42, radius: 4),
-                    const SizedBox(width: 12),
+                    SkeletonBar(height: 42, width: 42, radius: 4),
+                    SizedBox(width: 12),
                     Expanded(
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
                           SkeletonBar(height: 13, width: 180, radius: 4),
-                          const SizedBox(height: 6),
+                          SizedBox(height: 6),
                           SkeletonBar(height: 11, width: 120, radius: 4),
                         ],
                       ),

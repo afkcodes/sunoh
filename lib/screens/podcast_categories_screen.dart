@@ -161,7 +161,7 @@ class PodcastCategoryCard extends StatelessWidget {
       behavior: HitTestBehavior.opaque,
       child: squircleClip(
         radius: 10,
-        child: Container(
+        child: DecoratedBox(
           decoration: BoxDecoration(
             gradient: LinearGradient(
               begin: Alignment.centerLeft,

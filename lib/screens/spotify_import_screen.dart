@@ -112,7 +112,7 @@ class _SpotifyImportScreenState extends ConsumerState<SpotifyImportScreen> {
             ),
             Padding(
               padding: const EdgeInsets.fromLTRB(16, 0, 16, 14),
-              child: Container(
+              child: DecoratedBox(
                 decoration: squircleDecoration(
                   radius: 16,
                   color: c.surface,
@@ -180,7 +180,7 @@ class _SpotifyImportScreenState extends ConsumerState<SpotifyImportScreen> {
                             TextButton.icon(
                               onPressed: inFlight || _busy
                                   ? null
-                                  : () => setState(() => _ctl.clear()),
+                                  : () => setState(_ctl.clear),
                               icon: Icon(SolarIconsOutline.eraser,
                                   size: 14, color: c.fgDim),
                               label: Text('Clear',
