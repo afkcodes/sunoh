@@ -175,6 +175,13 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
             colors: c,
             scale: scale,
             rows: [
+              _RadioRow<SunohTheme>(
+                label: 'Theme',
+                value: s.theme,
+                options: {for (final t in SunohTheme.values) t: t.label},
+                onChange: s.setTheme,
+                colors: c,
+              ),
               _AccentRow(s: s, colors: c, scale: scale),
               _ToggleRow(
                 label: 'Tint from artwork',

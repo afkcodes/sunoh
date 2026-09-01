@@ -155,26 +155,18 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
+          // No voice button: it was wired to an empty onTap and had never done
+          // anything. An affordance that does nothing when tapped is worse
+          // than an absent one.
           Padding(
             padding: const EdgeInsets.fromLTRB(20, 12, 20, 0),
-            child: Row(
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-              children: [
-                Text(
-                  'Search',
-                  style: SunohType.heading(
-                    fontSize: 28,
-                    color: c.fg,
-                    letterSpacing: -0.4,
-                  ),
-                ),
-                IconBtn(
-                  icon: SolarIconsOutline.microphone,
-                  color: c.fgDim,
-                  size: 20,
-                  onTap: () {},
-                ),
-              ],
+            child: Text(
+              'Search',
+              style: SunohType.heading(
+                fontSize: 28,
+                color: c.fg,
+                letterSpacing: -0.4,
+              ),
             ),
           ),
           Padding(

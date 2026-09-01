@@ -443,6 +443,7 @@ class _MenuRow extends StatelessWidget {
           line: Color(0xFF2A2A30),
           fg: Color(0xFFFAFAFA),
           fgDim: Color(0xB3FAFAFA),
+          onAccent: Color(0xFF000000),
           fgMute: Color(0x73FAFAFA),
           accent: Color(0xFFD97757),
         );

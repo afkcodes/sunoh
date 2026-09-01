@@ -31,7 +31,7 @@ class MiniPlayer extends ConsumerWidget {
     final palette = url.isEmpty
         ? null
         : ref.watch(artPaletteProvider(url)).value;
-    final accent = palette?.accent ?? s.resolvedAccent;
+    final accent = s.themedAccent(palette?.accent ?? s.resolvedAccent);
 
     return GestureDetector(
       onTap: () => context.openPlayer(),

@@ -18,11 +18,16 @@ class SavedAppearance {
     this.density,
     this.tintFromArt,
     this.tintIntensity,
+    this.theme,
   });
   final int? accentValue; // ARGB int (Color.value)
   final String? density; // 'compact' / 'regular' / 'comfy'
   final bool? tintFromArt;
   final double? tintIntensity; // 0.0..1.0
+  /// `SunohTheme.name` — 'system' / 'light' / 'dark'. Null on saves that
+  /// predate light mode, which resolve to dark: the app shipped dark-only, so
+  /// that is what an existing user already has on screen.
+  final String? theme;
 }
 
 class SavedPlayback {
@@ -68,6 +73,7 @@ class SettingsStore {
   static const _kAccent = 'appearance.accent';
   static const _kDensity = 'appearance.density';
   static const _kTintFromArt = 'appearance.tint_from_art';
+  static const _kTheme = 'appearance.theme';
   static const _kTintIntensity = 'appearance.tint_intensity';
 
   // Playback
@@ -189,6 +195,7 @@ class SettingsStore {
     Object? density, // accept any enum (caller passes .name)
     bool? tintFromArt,
     double? tintIntensity,
+    Object? theme, // SunohTheme; caller passes the enum
   }) async {
     final box = await _box();
     final map = <String, dynamic>{};
@@ -205,6 +212,7 @@ class SettingsStore {
     if (density != null) map[_kDensity] = density.toString().split('.').last;
     if (tintFromArt != null) map[_kTintFromArt] = tintFromArt;
     if (tintIntensity != null) map[_kTintIntensity] = tintIntensity;
+    if (theme != null) map[_kTheme] = theme.toString().split('.').last;
     if (map.isEmpty) return;
     await box.putAll(map);
     await box.flush();
@@ -216,6 +224,7 @@ class SettingsStore {
       final box = await _box();
       return SavedAppearance(
         accentValue: box.get(_kAccent) as int?,
+        theme: box.get(_kTheme) as String?,
         density: box.get(_kDensity) as String?,
         tintFromArt: box.get(_kTintFromArt) as bool?,
         tintIntensity: (box.get(_kTintIntensity) as num?)?.toDouble(),

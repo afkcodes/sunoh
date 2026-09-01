@@ -164,6 +164,15 @@ class AppState extends ChangeNotifier with WidgetsBindingObserver {
           );
         }
         if (app.tintFromArt != null) tintFromArt = app.tintFromArt!;
+        final savedTheme = app.theme;
+        if (savedTheme != null) {
+          for (final t in SunohTheme.values) {
+            if (t.name == savedTheme) {
+              theme = t;
+              break;
+            }
+          }
+        }
         if (app.tintIntensity != null) {
           tintIntensity = app.tintIntensity!.clamp(0.0, 1.0);
         }
@@ -326,6 +335,57 @@ class AppState extends ChangeNotifier with WidgetsBindingObserver {
   Color accent = kAccentOptions[0];
   Density density = Density.regular;
   bool tintFromArt = false;
+
+  /// Which palette to paint. Defaults to dark rather than system: the app
+  /// shipped dark-only, so an existing user updating into light mode would
+  /// otherwise find their app had changed colour on its own.
+  SunohTheme theme = SunohTheme.dark;
+
+  /// The OS brightness, mirrored here so `colors` can resolve `system`
+  /// without a BuildContext. Kept current by [didChangePlatformBrightness].
+  Brightness _platformBrightness =
+      WidgetsBinding.instance.platformDispatcher.platformBrightness;
+
+  /// The brightness actually being painted.
+  Brightness get brightness => switch (theme) {
+    SunohTheme.light => Brightness.light,
+    SunohTheme.dark => Brightness.dark,
+    SunohTheme.system => _platformBrightness,
+  };
+
+  bool get isLight => brightness == Brightness.light;
+
+  /// Adapt a raw accent — usually one just extracted from album art — to the
+  /// palette in force.
+  ///
+  /// The players read the artwork palette directly rather than through
+  /// `colors`, because AppState's cached accent lags a track change by a
+  /// frame. That bypass also skipped light mode's darkening, which left the
+  /// play button a pale pastel on white. This is the narrow fix: keep the
+  /// direct read, put the colour through the same rule.
+  Color themedAccent(Color raw) => isLight ? lightAccentFor(raw) : raw;
+
+  /// What to draw on top of [themedAccent].
+  Color get onAccent => isLight ? Colors.white : Colors.black;
+
+  @override
+  void didChangePlatformBrightness() {
+    final next = WidgetsBinding.instance.platformDispatcher.platformBrightness;
+    if (next == _platformBrightness) return;
+    _platformBrightness = next;
+    // Only repaints when we are actually following the system.
+    if (theme == SunohTheme.system) notifyListeners();
+  }
+
+  void setTheme(SunohTheme value) {
+    if (value == theme) return;
+    theme = value;
+    notifyListeners();
+    audioRepo?.settings.saveAppearance(theme: value);
+    AnalyticsService.instance.logCustomEvent('set_theme', {
+      'theme': value.name,
+    });
+  }
 
   /// How strongly the extracted artwork color overrides the user's accent
   /// when `tintFromArt` is on. 0.0 = always user accent, 1.0 = pure
@@ -1086,7 +1146,11 @@ class AppState extends ChangeNotifier with WidgetsBindingObserver {
 
   SunohColors get colors {
     final tint = tintFromArt ? resolvedAccent : null;
-    return SunohColors.resolve(accent: resolvedAccent, tintAccent: tint);
+    return SunohColors.resolve(
+      accent: resolvedAccent,
+      tintAccent: tint,
+      brightness: brightness,
+    );
   }
 
   // ── Playback timer ────────────────────────────────────────────────────

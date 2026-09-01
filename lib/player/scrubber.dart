@@ -41,6 +41,7 @@ class _ScrubberState extends State<Scrubber> {
     final trackH = widget.compact ? 2.0 : (_dragging ? 6.0 : 4.0);
     final interactive = widget.onChanged != null;
 
+    final isLight = Theme.of(context).brightness == Brightness.light;
     return LayoutBuilder(
       builder: (context, box) {
         final w = box.maxWidth;
@@ -54,7 +55,12 @@ class _ScrubberState extends State<Scrubber> {
                 duration: const Duration(milliseconds: 150),
                 height: trackH,
                 decoration: BoxDecoration(
-                  color: Colors.white.withValues(alpha: 0.14),
+                  // Derived from fg rather than hardcoded white: on dark that
+                  // is the same near-white it always was, and on light it
+                  // becomes a faint dark line instead of white-on-white, which
+                  // is invisible. A touch stronger on light, where a low alpha
+                  // washes out faster.
+                  color: widget.fg.withValues(alpha: isLight ? 0.20 : 0.14),
                   borderRadius: BorderRadius.circular(999),
                 ),
               ),
@@ -75,11 +81,16 @@ class _ScrubberState extends State<Scrubber> {
                     width: 12,
                     height: 12,
                     decoration: BoxDecoration(
-                      color: Colors.white,
+                      // Same reasoning as the track: white on dark, ink on
+                      // light. A white thumb on a light page was visible only
+                      // by its shadow.
+                      color: widget.fg,
                       shape: BoxShape.circle,
                       boxShadow: [
                         BoxShadow(
-                          color: Colors.black.withValues(alpha: 0.4),
+                          color: Colors.black.withValues(
+                            alpha: isLight ? 0.18 : 0.4,
+                          ),
                           blurRadius: 4,
                           offset: const Offset(0, 1),
                         ),

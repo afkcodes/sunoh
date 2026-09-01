@@ -83,7 +83,7 @@ class _ExpandedPlayerState extends ConsumerState<ExpandedPlayer>
         ? null
         : ref.watch(artPaletteProvider(url)).value;
     final fallbackAccent = s.resolvedAccent;
-    final accent = palette?.accent ?? fallbackAccent;
+    final accent = s.themedAccent(palette?.accent ?? fallbackAccent);
     final tint = palette?.dominant ?? fallbackAccent;
     final lyricLine = _currentLyric(s);
 

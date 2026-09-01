@@ -12,6 +12,7 @@
 // repaints along with the feed scrolling beneath it.
 
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
@@ -31,30 +32,45 @@ class AppScaffold extends ConsumerWidget {
     final s = ref.watch(appStateProvider);
     final c = s.colors;
 
-    return Material(
-      color: c.bg,
-      child: Stack(
-        children: [
-          Positioned.fill(child: shell),
+    // Status-bar icons have to invert with the palette: light icons over a
+    // light page are invisible. Applied here rather than once at startup
+    // because the theme can change while the app is running, including on
+    // its own when following the system.
+    return AnnotatedRegion<SystemUiOverlayStyle>(
+      value: SystemUiOverlayStyle(
+        statusBarColor: Colors.transparent,
+        statusBarIconBrightness: s.isLight ? Brightness.dark : Brightness.light,
+        statusBarBrightness: s.isLight ? Brightness.light : Brightness.dark,
+        systemNavigationBarColor: c.bg,
+        systemNavigationBarIconBrightness: s.isLight
+            ? Brightness.dark
+            : Brightness.light,
+      ),
+      child: Material(
+        color: c.bg,
+        child: Stack(
+          children: [
+            Positioned.fill(child: shell),
 
-          if (s.toast.isNotEmpty)
+            if (s.toast.isNotEmpty)
+              Positioned(
+                left: 0,
+                right: 0,
+                bottom: 150 + MediaQuery.of(context).padding.bottom,
+                child: _Toast(message: s.toast, colors: c),
+              ),
+
+            // Full-width, edge-to-edge bottom bar (mini player + nav).
             Positioned(
               left: 0,
               right: 0,
-              bottom: 150 + MediaQuery.of(context).padding.bottom,
-              child: _Toast(message: s.toast, colors: c),
+              bottom: 0,
+              child: RepaintBoundary(
+                child: _BottomBar(shell: shell, colors: c),
+              ),
             ),
-
-          // Full-width, edge-to-edge bottom bar (mini player + nav).
-          Positioned(
-            left: 0,
-            right: 0,
-            bottom: 0,
-            child: RepaintBoundary(
-              child: _BottomBar(shell: shell, colors: c),
-            ),
-          ),
-        ],
+          ],
+        ),
       ),
     );
   }

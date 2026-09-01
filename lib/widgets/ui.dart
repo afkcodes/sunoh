@@ -262,12 +262,18 @@ class SkeletonBar extends StatelessWidget {
   final double radius;
   @override
   Widget build(BuildContext context) {
+    // White at 6% is a visible placeholder on a near-black page and nothing at
+    // all on a light one, which would leave every loading state blank. Take
+    // the ink from the theme instead.
+    final isLight = Theme.of(context).brightness == Brightness.light;
     return Container(
       width: width,
       height: height,
       decoration: squircleDecoration(
         radius: radius,
-        color: Colors.white.withValues(alpha: 0.06),
+        color: isLight
+            ? Colors.black.withValues(alpha: 0.07)
+            : Colors.white.withValues(alpha: 0.06),
       ),
     );
   }

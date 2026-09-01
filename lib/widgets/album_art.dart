@@ -173,13 +173,23 @@ class SunohArt extends StatelessWidget {
         height: h,
         decoration: squircleDecoration(
           radius: radius,
+          // A 35%-black drop shadow is right against a near-black page,
+          // where it reads as depth. On a light one the same shadow is a
+          // grey smear under every card — which is what the horizontal
+          // shelves looked like. Light mode gets a much softer, tighter one.
           shadows: shadow
               ? [
-                  BoxShadow(
-                    color: Colors.black.withValues(alpha: 0.35),
-                    blurRadius: 24,
-                    offset: const Offset(0, 8),
-                  ),
+                  Theme.of(context).brightness == Brightness.light
+                      ? BoxShadow(
+                          color: Colors.black.withValues(alpha: 0.10),
+                          blurRadius: 10,
+                          offset: const Offset(0, 3),
+                        )
+                      : BoxShadow(
+                          color: Colors.black.withValues(alpha: 0.35),
+                          blurRadius: 24,
+                          offset: const Offset(0, 8),
+                        ),
                 ]
               : null,
         ),
