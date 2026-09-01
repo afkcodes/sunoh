@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Shown in the task switcher while Google's sign-in page is open. The
+         app's own UI is Flutter, so this is one of the few strings Android
+         itself needs. -->
+    <string name="yt_login_title">Sign in to YouTube Music</string>
+</resources>

@@ -100,7 +100,7 @@ class _YtLocaleSheet extends ConsumerWidget {
         ),
         decoration: squircleDecoration(
           radius: 20,
-          color: const Color(0xFF15151A),
+          color: c.bgSoft,
           borderColor: c.line,
         ),
         padding: EdgeInsets.fromLTRB(0, 10, 0, 8 + bottomInset),

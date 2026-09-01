@@ -20,7 +20,7 @@ import '../widgets/album_art.dart';
 import '../widgets/playing_bars.dart';
 import '../widgets/top_tabs.dart';
 import '../widgets/ui.dart';
-import '../widgets/update_dialog.dart';
+import '../widgets/update_sheet.dart';
 // Tab implementations: Music (the original /music/home feed), Podcasts
 // (backed by /podcasts/home via `podcastHomeProvider`, since v1.5.5),
 // and Audiobooks (cozyaudiobooks.com, since v1.8.0).
@@ -55,7 +55,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
     if (updateInfo != null && _promptedVersion != updateInfo.version) {
       _promptedVersion = updateInfo.version;
       WidgetsBinding.instance.addPostFrameCallback((_) {
-        if (mounted) showUpdateDialog(context, updateInfo);
+        if (mounted) showUpdateSheet(context, updateInfo);
       });
     }
 

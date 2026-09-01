@@ -17,9 +17,11 @@ import '../api/yt_locale.dart';
 import '../audio/storage_stats.dart';
 import '../overlays/language_sheet.dart';
 import '../overlays/yt_locale_sheet.dart';
+import '../overlays/yt_sign_out_sheet.dart';
 import '../providers/app_state_provider.dart';
 import '../providers/languages_provider.dart';
 import '../providers/update_provider.dart';
+import '../providers/yt_auth_provider.dart';
 import '../providers/ytmusic_provider.dart';
 import '../router/router.dart';
 import '../state/app_state.dart';
@@ -112,6 +114,12 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
                     'Keep music going by seeding a radio when the queue ends.',
                 value: s.endlessAutoplay,
                 onChange: s.setEndlessAutoplay,
+                colors: c,
+              ),
+              _NavRow(
+                label: 'YouTube account',
+                summary: _ytAccountSummary(ref),
+                onTap: () => _toggleYtAccount(context, ref),
                 colors: c,
               ),
               _NavRow(
@@ -618,20 +626,31 @@ class _NavRow extends StatelessWidget {
         mainAxisAlignment: MainAxisAlignment.spaceBetween,
         children: [
           Text(label, style: SunohType.sans(fontSize: 14, color: c.fgDim)),
-          Row(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Flexible(
-                child: Text(
-                  summary,
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                  style: SunohType.sans(fontSize: 13, color: c.fgMute),
+          // A floor under the gap. The summary is Flexible, so without this it
+          // shrinks until it touches the label rather than ellipsising, and a
+          // long value renders as one run-on string.
+          const SizedBox(width: 16),
+          Flexible(
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Flexible(
+                  child: Text(
+                    summary,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    textAlign: TextAlign.end,
+                    style: SunohType.sans(fontSize: 13, color: c.fgMute),
+                  ),
                 ),
-              ),
-              const SizedBox(width: 6),
-              Icon(SolarIconsOutline.altArrowRight, size: 16, color: c.fgMute),
-            ],
+                const SizedBox(width: 6),
+                Icon(
+                  SolarIconsOutline.altArrowRight,
+                  size: 16,
+                  color: c.fgMute,
+                ),
+              ],
+            ),
           ),
         ],
       ),
@@ -890,6 +909,36 @@ class _DonationAction extends StatelessWidget {
 /// kicks in). Reads from the languages provider to map slugs → names —
 /// the provider is autoDispose with 24-h keepAlive, so this read is
 /// cheap and won't bounce a refetch.
+/// Who the YouTube feed belongs to. Names the account when there is one, so
+/// there is never any doubt whose recommendations are on the home screen.
+String _ytAccountSummary(WidgetRef ref) {
+  final auth = ref.watch(ytAuthProvider);
+  if (auth.isBusy) return 'Working…';
+  if (!auth.isSignedIn) return 'Sign in';
+  return auth.account.name.isEmpty ? 'Signed in' : auth.account.name;
+}
+
+/// One row, both directions. Signing out is the destructive half, so it asks
+/// first; signing in is not, so it does not.
+Future<void> _toggleYtAccount(BuildContext context, WidgetRef ref) async {
+  final auth = ref.read(ytAuthProvider);
+  final state = ref.read(appStateProvider);
+  if (auth.isBusy) return;
+
+  if (!auth.isSignedIn) {
+    final ok = await auth.signIn();
+    if (!context.mounted) return;
+    state.flashToast(ok ? 'Signed in to YouTube Music' : 'Not signed in');
+    return;
+  }
+
+  final confirmed = await showYtSignOutSheet(context, auth.account.name);
+  if (!confirmed || !context.mounted) return;
+  await auth.signOut();
+  if (!context.mounted) return;
+  state.flashToast('Signed out');
+}
+
 /// "Auto (India)" or "United States" — always says what's in effect, so
 /// the row reads the same whether or not an override is set.
 String _ytRegionSummary(WidgetRef ref, AppState s) {

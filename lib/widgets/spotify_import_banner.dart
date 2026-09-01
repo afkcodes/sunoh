@@ -46,7 +46,7 @@ class SpotifyImportBanner extends ConsumerWidget {
           borderRadius: BorderRadius.circular(14),
           child: DecoratedBox(
             decoration: BoxDecoration(
-              color: const Color(0xFF15151A),
+              color: c.bgSoft,
               border: Border.all(color: c.line, width: 0.5),
               borderRadius: BorderRadius.circular(14),
             ),

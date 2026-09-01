@@ -47,6 +47,16 @@
         android:name="${applicationName}"
         android:icon="@mipmap/ic_launcher"
         android:usesCleartextTraffic="true">
+        <!-- Google's own sign-in page, in a WebView. Not exported: nothing
+             outside the app may start it, because what it hands back is a
+             session cookie. See auth/YtLoginActivity.kt for why a WebView is
+             the only option Google leaves a third-party client. -->
+        <activity
+            android:name=".auth.YtLoginActivity"
+            android:exported="false"
+            android:label="@string/yt_login_title"
+            android:configChanges="orientation|keyboardHidden|keyboard|screenSize|smallestScreenSize|locale|layoutDirection|fontScale|screenLayout|density|uiMode" />
+
         <activity
             android:name=".MainActivity"
             android:exported="true"

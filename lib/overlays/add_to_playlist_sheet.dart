@@ -50,7 +50,7 @@ class _AddToPlaylistSheet extends ConsumerWidget {
         constraints: BoxConstraints(maxHeight: maxH),
         decoration: squircleDecoration(
           radius: 20,
-          color: const Color(0xFF15151A),
+          color: c.bgSoft,
           borderColor: c.line,
         ),
         padding: EdgeInsets.fromLTRB(0, 8, 0, 8 + topInset),

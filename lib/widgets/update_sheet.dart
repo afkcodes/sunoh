@@ -1,8 +1,8 @@
-// "Update available" dialog — replaces the inline UpdateBanner on Home.
+// "Update available" sheet — replaces the inline UpdateBanner on Home.
 //
 // Auto-shown by HomeScreen on the first build where
 // `availableUpdateProvider` yields a non-null UpdateInfo AND the user
-// hasn't dismissed-this-session. The dialog drives a [UpdaterController]
+// hasn't dismissed-this-session. The sheet drives a [UpdaterController]
 // through prepare → downloading → installing, surfacing progress and
 // final hand-off to the OS installer.
 
@@ -16,6 +16,7 @@ import 'package:flutter_riverpod/legacy.dart';
 import 'package:solar_icons/solar_icons.dart';
 
 import '../api/updates.dart';
+import '../overlays/sheet.dart';
 import '../providers/app_state_provider.dart';
 import '../providers/update_provider.dart';
 import '../services/updater.dart';
@@ -23,27 +24,31 @@ import '../theme/tokens.dart';
 import 'ui.dart';
 
 /// Riverpod provider for the singleton updater controller — kept
-/// outside the dialog so the download survives the dialog being
+/// outside the sheet so the download survives the sheet being
 /// dismissed and re-opened (e.g. user hits Later by accident).
 final updaterControllerProvider = ChangeNotifierProvider<UpdaterController>(
   (ref) => UpdaterController(),
 );
 
-/// Show the update dialog. Idempotent — pops at most once per call.
-/// Returns when the user dismisses (Later / Install / × / errored
-/// fallback). Doesn't block any subsequent code; the actual update
-/// progress lives on the controller and the dialog re-attaches if
-/// re-shown.
-Future<void> showUpdateDialog(BuildContext context, UpdateInfo info) {
-  return showDialog<void>(
-    context: context,
-    barrierDismissible: true,
-    builder: (_) => _UpdateDialog(info: info),
+/// Show the update sheet. Idempotent — pops at most once per call.
+///
+/// A sheet rather than the dialog this used to be: the buttons land under the
+/// thumb instead of at the top of a tall phone, a long changelog scrolls
+/// inside it rather than turning the whole thing into a floating scroll box,
+/// and it shares its chrome with every other sheet in the app instead of
+/// carrying its own radius, padding and hardcoded background.
+///
+/// Returns when the user dismisses it. The download lives on the controller,
+/// so dismissing mid-download does not cancel it and re-opening re-attaches.
+Future<void> showUpdateSheet(BuildContext context, UpdateInfo info) {
+  return showSunohSheet<void>(
+    context,
+    builder: (_) => _UpdateSheet(info: info),
   );
 }
 
-class _UpdateDialog extends ConsumerWidget {
-  const _UpdateDialog({required this.info});
+class _UpdateSheet extends ConsumerWidget {
+  const _UpdateSheet({required this.info});
   final UpdateInfo info;
 
   @override
@@ -52,98 +57,60 @@ class _UpdateDialog extends ConsumerWidget {
     final c = s.colors;
     final accent = s.resolvedAccent;
     final updater = ref.watch(updaterControllerProvider);
-    return Dialog(
-      backgroundColor: Colors.transparent,
-      insetPadding: const EdgeInsets.symmetric(horizontal: 24),
-      child: Container(
-        decoration: squircleDecoration(
-          radius: 20,
-          color: const Color(0xFF15151A),
-          borderColor: c.line,
-        ),
-        padding: const EdgeInsets.fromLTRB(20, 22, 20, 18),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: [
-            // Header — accent medallion + title + version pill.
-            Row(
-              children: [
-                Container(
-                  width: 40,
-                  height: 40,
-                  decoration: BoxDecoration(
-                    color: accent.withValues(alpha: 0.18),
-                    shape: BoxShape.circle,
-                  ),
-                  alignment: Alignment.center,
-                  child: Icon(
-                    SolarIconsBold.downloadMinimalistic,
-                    size: 20,
-                    color: accent,
-                  ),
-                ),
-                const SizedBox(width: 12),
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      Text(
-                        'Update available',
-                        style: SunohType.heading(
-                          fontSize: 17,
-                          color: c.fg,
-                          letterSpacing: -0.2,
-                        ),
-                      ),
-                      const SizedBox(height: 2),
-                      Text(
-                        'v${info.version}',
-                        style: SunohType.sans(fontSize: 12, color: c.fgMute),
-                      ),
-                    ],
-                  ),
-                ),
-                if (updater.stage == UpdateStage.idle ||
-                    updater.stage == UpdateStage.failed)
-                  IconButton(
-                    onPressed: () => Navigator.of(context).pop(),
-                    icon: Icon(
-                      SolarIconsOutline.closeCircle,
-                      size: 20,
-                      color: c.fgDim,
-                    ),
-                    splashRadius: 18,
-                    padding: EdgeInsets.zero,
-                    constraints: const BoxConstraints(),
-                  ),
-              ],
-            ),
-            if ((info.notes ?? '').isNotEmpty) ...[
-              const SizedBox(height: 14),
-              Container(
+    final notes = info.notes ?? '';
+    // Closing mid-download would strand a running job behind a sheet with no
+    // way back to it, so the way out is only offered when nothing is running.
+    final canClose =
+        updater.stage == UpdateStage.idle ||
+        updater.stage == UpdateStage.failed;
+
+    return SunohSheet(
+      icon: SolarIconsBold.downloadMinimalistic,
+      title: 'Update available',
+      subtitle: 'Version ${info.version}',
+      trailing: canClose
+          ? IconButton(
+              onPressed: () => Navigator.of(context).pop(),
+              icon: Icon(
+                SolarIconsOutline.closeCircle,
+                size: 20,
+                color: c.fgDim,
+              ),
+              splashRadius: 18,
+              padding: EdgeInsets.zero,
+              constraints: const BoxConstraints(),
+            )
+          : null,
+      actions: _Body(info: info, updater: updater, accent: accent, colors: c),
+      child: notes.isEmpty
+          ? const SizedBox.shrink()
+          : Padding(
+              padding: const EdgeInsets.fromLTRB(16, 0, 16, 4),
+              child: Container(
+                width: double.infinity,
                 padding: const EdgeInsets.fromLTRB(14, 12, 14, 12),
                 decoration: squircleDecoration(
-                  radius: 12,
+                  radius: 14,
                   color: c.surface,
                   borderColor: c.line,
                 ),
-                child: Text(
-                  info.notes!,
-                  style: SunohType.sans(
-                    fontSize: 13,
-                    color: c.fg,
-                    height: 1.45,
-                  ),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    eyebrow("WHAT'S NEW", c.fgMute),
+                    const SizedBox(height: 8),
+                    Text(
+                      notes,
+                      style: SunohType.sans(
+                        fontSize: 13,
+                        color: c.fgDim,
+                        height: 1.5,
+                      ),
+                    ),
+                  ],
                 ),
               ),
-            ],
-            const SizedBox(height: 16),
-            _Body(info: info, updater: updater, accent: accent, colors: c),
-          ],
-        ),
-      ),
+            ),
     );
   }
 }
