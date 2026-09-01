@@ -2,6 +2,7 @@
 // art.jsx. Each id hashes into a palette + shape arrangement, drawn on a canvas.
 // No external images.
 
+import 'dart:io' show File;
 import 'dart:math' as math;
 import 'dart:ui' as ui;
 import 'package:cached_network_image/cached_network_image.dart';
@@ -82,6 +83,20 @@ ArtData artFor(String id) {
   final angle = (h >> 8) % 360;
   final seed = ((h >> 12) % 1000) / 1000.0;
   return ArtData(palette[0], palette[1], palette[2], shape, angle, seed);
+}
+
+/// Artwork can come from the network or, for on-device music, from a JPEG the
+/// local-library scan cached on disk. Everything downstream treats artwork as
+/// a single string, so the distinction is made here rather than threaded
+/// through every call site.
+bool _isLocalArt(String url) =>
+    url.startsWith('/') || url.startsWith('file://');
+
+ImageProvider _providerFor(String url) {
+  if (!_isLocalArt(url)) return CachedNetworkImageProvider(url);
+  return FileImage(
+    File(url.startsWith('file://') ? Uri.parse(url).toFilePath() : url),
+  );
 }
 
 /// Accent color of an artwork — used for the album-tinted theme.
@@ -185,7 +200,7 @@ class SunohArt extends StatelessWidget {
               // cached and "loads naturally" when cold.
               : Image(
                   image: ResizeImage(
-                    CachedNetworkImageProvider(url),
+                    _providerFor(url),
                     width: cacheTier,
                     height: cacheTier,
                     policy: ResizeImagePolicy.fit,

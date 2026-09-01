@@ -25,6 +25,16 @@
     <uses-permission android:name="android.permission.NEARBY_WIFI_DEVICES"
         android:usesPermissionFlags="neverForLocation"
         tools:targetApi="33"/>
+    <!-- On-device music library. Android split the storage permission at 13:
+         READ_MEDIA_AUDIO is the scoped replacement, and READ_EXTERNAL_STORAGE
+         is capped at 32 so Play doesn't flag the app for requesting broad
+         storage access it no longer needs. Both are requested at runtime the
+         first time the user opens the device library — never at startup, since
+         the rest of the app works without them. -->
+    <uses-permission android:name="android.permission.READ_MEDIA_AUDIO"
+        tools:targetApi="33"/>
+    <uses-permission android:name="android.permission.READ_EXTERNAL_STORAGE"
+        android:maxSdkVersion="32"/>
     <!-- In-app updater (v1.7.2+): downloads the next release APK to
          this app's external cache, then hands it to the system
          package installer via open_filex. Android 8+ guards this
