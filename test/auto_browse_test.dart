@@ -18,6 +18,8 @@ import 'package:hive_ce/hive.dart';
 import 'package:sunoh/api/dto.dart';
 import 'package:sunoh/api/sunoh_api.dart';
 import 'package:sunoh/audio/auto_browse.dart';
+import 'package:sunoh/audio/auto_catalog.dart';
+import 'package:sunoh/audio/auto_feeds.dart';
 import 'package:sunoh/audio/library_store.dart';
 import 'package:sunoh/data/user_playlist.dart';
 
@@ -47,8 +49,9 @@ void main() {
 
   /// A Dio that fails every request, so the network-backed branches take their
   /// error path. Tests that need a real response install their own adapter.
-  Dio offlineDio() => Dio(BaseOptions(baseUrl: 'http://127.0.0.1:1'))
-    ..options.connectTimeout = const Duration(milliseconds: 50);
+  Dio offlineDio() =>
+      Dio(BaseOptions(baseUrl: 'http://127.0.0.1:1'))
+        ..options.connectTimeout = const Duration(milliseconds: 50);
 
   setUp(() async {
     tmp = await Directory.systemTemp.createTemp('sunoh_auto_test');
@@ -70,15 +73,31 @@ void main() {
   });
 
   group('root', () {
-    test('exposes exactly the four car tabs, none of them playable', () async {
+    test('exposes the library tabs then the home feeds', () async {
       final tabs = await tree.getChildren(AudioService.browsableRootId);
       expect(tabs.map((t) => t.title), [
+        // Library first — what a driver reaches for by reflex.
         'Downloads',
         'Liked Songs',
         'Recently Played',
         'Playlists',
+        // Then the three home feeds, mirroring the phone's Home tabs.
+        'Music',
+        'Podcasts',
+        'Audiobooks',
       ]);
       expect(tabs.every((t) => t.playable == false), isTrue);
+      expect(
+        tabs.map((t) => t.id).toSet(),
+        hasLength(tabs.length),
+        reason: 'ids must be unique or the car collapses rows',
+      );
+    });
+
+    test('declares search support so the car offers a search button', () {
+      // Without this key Android Auto never surfaces search, and playFromSearch
+      // is unreachable however correctly it is implemented.
+      expect(kAutoRootExtras['android.media.browse.SEARCH_SUPPORTED'], isTrue);
     });
 
     test('unknown parent yields empty rather than throwing', () async {
@@ -214,12 +233,15 @@ void main() {
   group('voice search', () {
     // Android Auto certification exercises "just play something" — an empty
     // query. Answering with silence is a fail.
-    test('empty query falls back to liked when nothing is downloaded', () async {
-      await library.setLiked(song: _song('a'), liked: true);
-      await tree.playFromSearch('');
-      expect(plays, hasLength(1));
-      expect(plays.single.songs.single.id, 'a');
-    });
+    test(
+      'empty query falls back to liked when nothing is downloaded',
+      () async {
+        await library.setLiked(song: _song('a'), liked: true);
+        await tree.playFromSearch('');
+        expect(plays, hasLength(1));
+        expect(plays.single.songs.single.id, 'a');
+      },
+    );
 
     test('empty query falls back to history when nothing is liked', () async {
       await library.pushHistory(_song('h'));
@@ -239,6 +261,40 @@ void main() {
 
     test('search returns empty on failure rather than throwing', () async {
       expect(await tree.search('anything'), isEmpty);
+    });
+  });
+
+  group('home feeds', () {
+    test('each feed is reachable from the root', () async {
+      final tabs = await tree.getChildren(AudioService.browsableRootId);
+      final feedIds = tabs.map((t) => t.id).where(AutoFeeds.isFeed).toList();
+      expect(feedIds, hasLength(3));
+      expect(feedIds, [
+        'sunoh:f:music',
+        'sunoh:f:podcasts',
+        'sunoh:f:audiobooks',
+      ]);
+    });
+
+    test('a feed whose fetch fails renders empty, not broken', () async {
+      // Offline Dio — the car must get an empty tab it can back out of.
+      expect(await tree.getChildren('sunoh:f:music'), isEmpty);
+      expect(await tree.getChildren('sunoh:f:podcasts'), isEmpty);
+      expect(await tree.getChildren('sunoh:f:audiobooks'), isEmpty);
+    });
+
+    test('an unknown feed or section id yields empty', () async {
+      expect(await tree.getChildren('sunoh:f:nope'), isEmpty);
+      expect(await tree.getChildren('sunoh:g:music#0'), isEmpty);
+      expect(await tree.getChildren('sunoh:g:nope#0'), isEmpty);
+      expect(await tree.getChildren('sunoh:g:music#notanumber'), isEmpty);
+      expect(await tree.getChildren('sunoh:g:no-hash'), isEmpty);
+    });
+
+    test('playing an empty feed does nothing rather than throwing', () async {
+      await tree.playFromMediaId('sunoh:f:music');
+      await tree.playFromMediaId('sunoh:g:music#0');
+      expect(plays, isEmpty);
     });
   });
 

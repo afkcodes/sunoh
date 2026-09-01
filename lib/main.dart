@@ -25,6 +25,7 @@ import 'audio/audio_handler.dart';
 import 'audio/audio_repo.dart';
 import 'audio/audio_service_bridge.dart';
 import 'audio/auto_browse.dart';
+import 'audio/auto_catalog.dart';
 import 'audio/download_manager.dart';
 import 'audio/download_store.dart';
 import 'audio/library_store.dart';
@@ -205,11 +206,27 @@ Future<void> main() async {
   // Android Auto browse tree. Reads the same Hive-backed library the phone
   // UI does and starts playback through the same repo, so the car and the
   // phone can never disagree about what "Liked Songs" means.
+  // The car's Music tab must match the phone's, so it needs the user's
+  // language selection. Read once here and held in a cell the tree reads
+  // synchronously — the browse callbacks are hot and can't await a box open.
+  String? autoLanguages;
+  unawaited(
+    repo.settings
+        .loadPlayback()
+        .then((s) {
+          final langs = s?.languages;
+          if (langs != null && langs.isNotEmpty) {
+            autoLanguages = langs.join(',');
+          }
+        })
+        .catchError((_) {}),
+  );
   final autoBrowse = AutoBrowseTree(
     library: repo.library,
     api: SunohApi(buildSunohDio()),
     downloads: downloadManager,
     playQueue: repo.playQueue,
+    languages: () => autoLanguages,
   );
 
   // Phase 2 add-on: try to wire audio_service for OS integration. Runs in

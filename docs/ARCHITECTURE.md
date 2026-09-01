@@ -260,9 +260,25 @@ Three things are required, and all three are load-bearing:
 3. `playFromMediaId` / `playFromSearch` in the session's `systemActions`.
    Without them the car draws the tree but tapping a row does nothing.
 
-**Root tabs**: Downloads, Liked Songs, Recently Played, Playlists. Downloads
-leads deliberately — a car is where the network drops mid-song, and downloaded
-tracks are the only tier that survives it.
+**Root**: the library first — Downloads, Liked Songs, Recently Played,
+Playlists — then the three home feeds, Music, Podcasts and Audiobooks, mirroring
+the phone's Home tabs. Downloads leads deliberately: a car is where the network
+drops mid-song, and downloaded tracks are the only tier that survives it.
+
+**Feeds** (`audio/auto_feeds.dart`) address sections by position, not heading:
+headings are server-supplied free text, unstable between requests, and routinely
+contain the colons and hashes the id format uses as separators.
+
+**Layout is uniform list, everywhere.** Home sections interleave collections and
+songs; hinting browsable content as a grid makes the car render collections as
+full-width artwork tiles between compact song rows, and the list visibly
+stutters between two row heights. Nodes opt into a grid only where their
+children are all one kind.
+
+**A row that cannot be routed is dropped, and a section of only such rows is
+not listed at all.** Upstream adds item types without notice — an unhandled one
+renders as blank space in the car, which reads as a network failure with no way
+to tell. `audiobook_category` was exactly this case.
 
 **Media ids** are the whole contract, defined once in `audio/auto_media_id.dart`
 and never built by hand. `playFromMediaId` arrives with an id and nothing else,

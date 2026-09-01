@@ -5,18 +5,31 @@
 // driver-distraction-compliant screens from them. So everything the car can
 // reach has to be expressed here, as MediaItems.
 //
-// ## Media id scheme
+// ## Layout
 //
-// Ids are opaque strings to the car, so routing is encoded into them. The
-// format and every encode/decode of it live in `auto_media_id.dart` — build
-// and parse ids only through `AutoMediaId`, never by hand, or encoding and
-// decoding drift apart.
+//   Downloads · Liked Songs · Recently Played · Playlists   the library
+//   Music · Podcasts · Audiobooks                           the home feeds
 //
-// ## Offline first
+// Downloads leads on purpose. A car is the one place where the network
+// reliably drops mid-song, and downloaded tracks are the only tier that
+// survives it — `StreamResolver` answers them without a round trip.
 //
-// Downloads is the first tab on purpose. A car is the one place where the
-// network reliably drops mid-song, and downloaded tracks are the only tier
-// that survives it — `StreamResolver` answers them without a round trip.
+// ## Media ids
+//
+// Ids are opaque to the car, so routing is encoded into them. The format and
+// every encode/decode of it live in `auto_media_id.dart` — build and parse ids
+// only through `AutoMediaId`, or encoding and decoding drift apart.
+//
+// ## Two rules everything here obeys
+//
+// **Resolve cold.** The MediaBrowserService is a foreground service Android
+// restarts independently of the Flutter UI, and the car remembers where the
+// user was browsing across reconnects. So any node may be requested without
+// its parent having been served this process. A node that only works from a
+// warm cache renders as empty in the car and nowhere else.
+//
+// **Fail empty, never throw.** An exception out of a browse callback surfaces
+// as a hard error in the car and can wedge the browse stack.
 //
 // This class holds no Flutter dependency so it can be tested without a widget
 // tree, per docs/ENGINEERING.md section 3.3.
@@ -25,29 +38,14 @@ import 'package:audio_service/audio_service.dart';
 
 import '../api/dto.dart';
 import '../api/sunoh_api.dart';
+import 'auto_catalog.dart';
+import 'auto_feeds.dart';
 import 'auto_media_id.dart';
 import 'download_manager.dart';
 import 'download_store.dart';
 import 'library_store.dart';
 
-/// Content-style keys Android Auto reads to decide grid vs list. The values
-/// are the framework's own constants: 1 = list, 2 = grid.
-const _kStyleSupported = 'android.media.browse.CONTENT_STYLE_SUPPORTED';
-const _kStyleBrowsable = 'android.media.browse.CONTENT_STYLE_BROWSABLE_HINT';
-const _kStylePlayable = 'android.media.browse.CONTENT_STYLE_PLAYABLE_HINT';
-const _kStyleList = 1;
-const _kStyleGrid = 2;
-
-/// Extras handed back from `onGetRoot`. Declaring list style for playable
-/// items keeps long track lists readable at a glance; collections render as
-/// a grid so artwork does the identifying work.
-const Map<String, dynamic> kAutoRootExtras = {
-  _kStyleSupported: true,
-  _kStyleBrowsable: _kStyleGrid,
-  _kStylePlayable: _kStyleList,
-};
-
-/// Root-level tabs, in car-priority order.
+/// Library tabs, in car-priority order.
 enum _Tab { downloads, liked, recent, playlists }
 
 extension on _Tab {
@@ -66,11 +64,18 @@ class AutoBrowseTree {
     required this.api,
     required this.playQueue,
     this.downloads,
-  });
+    String? Function()? languages,
+  }) : catalog = AutoCatalog() {
+    // One shared catalog: a track tapped inside a feed section has to resolve
+    // against the same cache the library tabs write to.
+    _feeds = AutoFeeds(api: api, catalog: catalog, languages: languages);
+  }
 
   final LibraryStore library;
   final SunohApi api;
   final DownloadManager? downloads;
+  final AutoCatalog catalog;
+  late final AutoFeeds _feeds;
 
   /// Starts playback. Wired to `AudioRepo.playQueue` in main.dart rather than
   /// taking the repo itself, so this class stays testable with a closure.
@@ -81,67 +86,67 @@ class AutoBrowseTree {
   })
   playQueue;
 
-  /// Last-resolved contents per container id.
-  ///
-  /// `playFromMediaId` arrives as a *separate* call from the `getChildren`
-  /// that produced the row the user tapped, with nothing but an id. Without
-  /// this the play path would have to re-read Hive or re-hit the network
-  /// before the first note — the exact latency a car user feels most.
-  final Map<String, List<FeedItem>> _contents = {};
-
-  /// Human label per container, for the player's "playing from" line.
-  final Map<String, String> _labels = {};
-
   // ── Browsing ─────────────────────────────────────────────────────────────
 
   Future<List<MediaItem>> getChildren(String parentMediaId) async {
-    if (parentMediaId == AudioService.browsableRootId) return _rootTabs();
+    if (parentMediaId == AudioService.browsableRootId) return _root();
 
     // The `recent` root is what Android Auto asks for when it wants to offer
     // "resume what you were playing" without the user browsing at all.
     if (parentMediaId == AudioService.recentRootId) {
-      return _tracksOf(
+      return catalog.tracks(
         _Tab.recent.id,
-        await _historySongs(),
+        await library.loadHistory(),
         'Recently played',
       );
     }
 
     if (parentMediaId == _Tab.downloads.id) {
-      return _tracksOf(parentMediaId, _downloadedSongs(), 'Downloads');
+      return catalog.tracks(parentMediaId, _downloadedSongs(), 'Downloads');
     }
     if (parentMediaId == _Tab.liked.id) {
-      return _tracksOf(
+      return catalog.tracks(
         parentMediaId,
         await library.loadLikedSongs(),
         'Liked songs',
       );
     }
     if (parentMediaId == _Tab.recent.id) {
-      return _tracksOf(parentMediaId, await _historySongs(), 'Recently played');
+      return catalog.tracks(
+        parentMediaId,
+        await library.loadHistory(),
+        'Recently played',
+      );
     }
     if (parentMediaId == _Tab.playlists.id) return _collections();
 
+    if (AutoFeeds.isFeed(parentMediaId)) return _feeds.sections(parentMediaId);
+    if (AutoFeeds.isSection(parentMediaId)) {
+      return _feeds.sectionItems(parentMediaId);
+    }
     if (AutoMediaId.isCollection(parentMediaId)) {
       return _collectionTracks(parentMediaId);
     }
     return const [];
   }
 
-  List<MediaItem> _rootTabs() => [
+  /// Library tabs first, then the three home feeds. The library is what a
+  /// driver reaches for by reflex; the feeds are for browsing.
+  List<MediaItem> _root() => [
     for (final t in _Tab.values)
       MediaItem(
         id: t.id,
         title: t.title,
         playable: false,
-        // Tabs are labels, not artwork — force list style so the car doesn't
-        // render four empty grid squares.
-        extras: const {_kStyleBrowsable: _kStyleList},
+        // Tabs are labels, not artwork — list style so the car doesn't render
+        // a row of empty grid squares.
+        extras: kChildrenList,
       ),
+    ..._feeds.feedTabs(),
   ];
 
-  /// Downloaded songs, newest first. Only `done` entries: a partial file
-  /// would fail to open and strand the car on a silent track.
+  /// Downloaded songs, newest first. Only `done` entries: a partial file would
+  /// fail to open and strand the car on a silent track.
   List<FeedItem> _downloadedSongs() {
     final mgr = downloads;
     if (mgr == null) return const [];
@@ -151,8 +156,6 @@ class AutoBrowseTree {
     return [for (final e in done) e.song];
   }
 
-  Future<List<FeedItem>> _historySongs() async => library.loadHistory();
-
   /// User-created playlists first, then saved playlists, then saved albums.
   /// Own-made content ranks above saved content because it is what a driver
   /// reaches for by name.
@@ -161,15 +164,15 @@ class AutoBrowseTree {
 
     for (final p in await library.loadUserPlaylists()) {
       final id = AutoMediaId.collection(kind: 'user', id: p.id);
-      _contents[id] = p.songs;
-      _labels[id] = 'PLAYLIST · ${p.name}';
+      catalog.remember(id, p.songs, 'PLAYLIST · ${p.name}');
       items.add(
         MediaItem(
           id: id,
           title: p.name,
           artist: '${p.songs.length} songs',
           playable: false,
-          artUri: _artOf(p.songs.isEmpty ? null : p.songs.first),
+          extras: kChildrenList,
+          artUri: AutoCatalog.artOf(p.songs.isEmpty ? null : p.songs.first),
         ),
       );
     }
@@ -181,89 +184,84 @@ class AutoBrowseTree {
           id: c.id,
           source: c.source ?? '',
         );
-        _labels[id] = '${kind.toUpperCase()} · ${c.title}';
-        items.add(
-          MediaItem(
-            id: id,
-            title: c.title,
-            artist: c.displaySubtitle,
-            playable: false,
-            artUri: _artOf(c),
-          ),
-        );
+        catalog.label(id, '${kind.toUpperCase()} · ${c.title}');
+        items.add(catalog.browsable(c, id: id));
       }
     }
     return items;
   }
 
-  /// Tracks of one collection, resolved from the id alone.
-  ///
-  /// This must work with a COLD cache. The MediaBrowserService is a
-  /// foreground service Android restarts independently of the Flutter UI, and
-  /// Android Auto remembers where the user was browsing across reconnects —
-  /// so the car routinely asks for a collection whose `getChildren` we never
-  /// served this process. Relying on `_contents` being warm here silently
-  /// renders the user's own playlists as empty.
+  /// Tracks of one collection, resolved from the id alone — see the cold-start
+  /// rule in the file header.
   Future<List<MediaItem>> _collectionTracks(String id) async {
-    final cached = _contents[id];
-    if (cached != null) return _tracksOf(id, cached, _labels[id]);
+    final cached = catalog.songsFor(id);
+    if (cached != null) return catalog.tracks(id, cached, catalog.labelFor(id));
 
     final ref = AutoMediaId.parseCollection(id);
     if (ref == null) return const [];
-    final kind = ref.kind;
-    final collectionId = ref.id;
     final provider = ref.source.isEmpty ? null : ref.source;
 
     // Local, and the only kind needing no network — read it back rather than
-    // trusting the cache. Resolving it here (not in the switch below) also
-    // recovers the playlist's real name for the "playing from" label.
-    if (kind == 'user') {
+    // trusting the cache. Resolving it here also recovers the playlist's real
+    // name for the "playing from" label.
+    if (ref.kind == 'user') {
       for (final p in await library.loadUserPlaylists()) {
-        if (p.id == collectionId) {
-          return _tracksOf(id, p.songs, 'PLAYLIST · ${p.name}');
+        if (p.id == ref.id) {
+          return catalog.tracks(id, p.songs, 'PLAYLIST · ${p.name}');
         }
       }
       return const [];
     }
 
+    // An audiobook genre shelf: its children are books, which are themselves
+    // browsable. Handled before the track switch below because everything
+    // there returns a queue, and a shelf is not one.
+    if (ref.kind == 'cat') return _categoryBooks(ref.id);
+
     try {
-      final songs = switch (kind) {
-        'album' => (await api.fetchAlbum(
-          collectionId,
-          provider: provider,
-        )).songs,
+      final songs = switch (ref.kind) {
+        'album' => (await api.fetchAlbum(ref.id, provider: provider)).songs,
         'playlist' => (await api.fetchPlaylist(
-          collectionId,
+          ref.id,
           provider: provider,
         )).songs,
+        'artist' => (await api.fetchArtist(
+          ref.id,
+          provider: provider,
+        )).topSongs,
+        'show' => (await api.fetchPodcastShow(ref.id)).episodes,
+        'book' =>
+          (await api.fetchAudiobookDetail(ref.id))?.chapters ??
+              const <FeedItem>[],
         _ => const <FeedItem>[],
       };
-      return _tracksOf(id, songs, _labels[id] ?? _labelFor(kind, collectionId));
+      return catalog.tracks(
+        id,
+        songs,
+        catalog.labelFor(id) ?? ref.kind.toUpperCase(),
+      );
     } catch (_) {
-      // A dead collection must not take the car UI down with it — an empty
-      // list renders as "nothing here", which is recoverable by backing out.
       return const [];
     }
   }
 
-  /// Fallback "playing from" label when the collection was reached cold and
-  /// we never rendered its parent row.
-  static String _labelFor(String kind, String collectionId) =>
-      kind == 'user' ? 'PLAYLIST' : '${kind.toUpperCase()} · $collectionId';
-
-  /// Turn a song list into playable MediaItems and remember it, so a later
-  /// `playFromMediaId` on any of them can rebuild the queue instantly.
-  List<MediaItem> _tracksOf(
-    String containerId,
-    List<FeedItem> songs, [
-    String? label,
-  ]) {
-    _contents[containerId] = songs;
-    if (label != null) _labels[containerId] = label;
-    return [
-      for (var i = 0; i < songs.length; i++)
-        _mediaItem(songs[i], id: AutoMediaId.track(containerId, i)),
-    ];
+  /// Books in one audiobook genre, as browsable rows.
+  Future<List<MediaItem>> _categoryBooks(String categoryId) async {
+    final id = int.tryParse(categoryId);
+    if (id == null) return const [];
+    try {
+      final books = await api.fetchAudiobooksByCategory(categoryId: id);
+      final rows = <MediaItem>[];
+      for (final b in books) {
+        final bookId = AutoCatalog.collectionIdFor(b);
+        if (bookId == null) continue;
+        catalog.label(bookId, 'AUDIOBOOK · ${b.title}');
+        rows.add(catalog.browsable(b, id: bookId));
+      }
+      return rows;
+    } catch (_) {
+      return const [];
+    }
   }
 
   // ── Playback ─────────────────────────────────────────────────────────────
@@ -272,33 +270,31 @@ class AutoBrowseTree {
   Future<void> playFromMediaId(String mediaId) async {
     final track = AutoMediaId.parseTrack(mediaId);
     if (track != null) {
-      final containerId = track.containerId;
-      final index = track.index;
-
-      var songs = _contents[containerId];
+      var songs = catalog.songsFor(track.containerId);
       if (songs == null || songs.isEmpty) {
         // Cold path: the car restored a browse position across a service
-        // restart, so our cache is empty. Rebuilding the container costs one
-        // read but is the difference between playing and doing nothing.
-        await getChildren(containerId);
-        songs = _contents[containerId];
+        // restart. Rebuilding the container costs one read but is the
+        // difference between playing and doing nothing.
+        await getChildren(track.containerId);
+        songs = catalog.songsFor(track.containerId);
       }
       if (songs == null || songs.isEmpty) return;
       await playQueue(
         songs,
-        index.clamp(0, songs.length - 1),
-        sourceLabel: _labels[containerId],
+        track.index.clamp(0, songs.length - 1),
+        sourceLabel: catalog.labelFor(track.containerId),
       );
       return;
     }
 
-    // A container was handed to us directly ("play my Liked Songs") — start
-    // it from the top.
-    if (AutoMediaId.isContainer(mediaId)) {
+    // A container handed to us directly ("play my Liked Songs") — from the top.
+    if (AutoMediaId.isContainer(mediaId) ||
+        AutoFeeds.isSection(mediaId) ||
+        AutoFeeds.isFeed(mediaId)) {
       await getChildren(mediaId);
-      final songs = _contents[mediaId];
+      final songs = catalog.songsFor(mediaId);
       if (songs == null || songs.isEmpty) return;
-      await playQueue(songs, 0, sourceLabel: _labels[mediaId]);
+      await playQueue(songs, 0, sourceLabel: catalog.labelFor(mediaId));
     }
   }
 
@@ -306,17 +302,16 @@ class AutoBrowseTree {
   ///
   /// An empty query is the assistant's way of saying "just play something",
   /// which Android Auto's certification explicitly exercises. Answering it
-  /// with silence is a fail, so we fall back through the offline-first order.
+  /// with silence is a fail, so we fall through the offline-first order.
   Future<void> playFromSearch(String query) async {
     final q = query.trim();
     if (q.isEmpty) {
       for (final songs in [
         _downloadedSongs(),
         await library.loadLikedSongs(),
-        await _historySongs(),
+        await library.loadHistory(),
       ]) {
         if (songs.isNotEmpty) {
-          _contents['${kAutoTabPrefix}auto'] = songs;
           await playQueue(songs, 0, sourceLabel: 'sunoh.');
           return;
         }
@@ -327,21 +322,22 @@ class AutoBrowseTree {
     final results = await _searchSongs(q);
     if (results.isEmpty) return;
     const id = '${kAutoTabPrefix}search';
-    _contents[id] = results;
-    _labels[id] = 'SEARCH · $q';
-    await playQueue(results, 0, sourceLabel: _labels[id]);
+    catalog.remember(id, results, 'SEARCH · $q');
+    await playQueue(results, 0, sourceLabel: 'SEARCH · $q');
   }
 
-  /// Browsable search results, for head units that show a search screen.
+  /// Browsable search results, for the car's own search screen.
   Future<List<MediaItem>> search(String query) async {
-    final results = await _searchSongs(query.trim());
     const id = '${kAutoTabPrefix}search';
-    _labels[id] = 'SEARCH · $query';
-    return _tracksOf(id, results, _labels[id]);
+    return catalog.tracks(
+      id,
+      await _searchSongs(query.trim()),
+      'SEARCH · $query',
+    );
   }
 
-  /// Songs across every section the search endpoint returns. Failure yields
-  /// an empty list — the car shows "no results" rather than an error state.
+  /// Songs across every section the search endpoint returns. Failure yields an
+  /// empty list — the car shows "no results" rather than an error state.
   Future<List<FeedItem>> _searchSongs(String query) async {
     if (query.isEmpty) return const [];
     try {
@@ -360,31 +356,8 @@ class AutoBrowseTree {
   Future<MediaItem?> getMediaItem(String mediaId) async {
     final track = AutoMediaId.parseTrack(mediaId);
     if (track == null) return null;
-    final songs = _contents[track.containerId];
+    final songs = catalog.songsFor(track.containerId);
     if (songs == null || track.index >= songs.length) return null;
-    return _mediaItem(songs[track.index], id: mediaId);
-  }
-
-  // ── Mapping ──────────────────────────────────────────────────────────────
-
-  static Uri? _artOf(FeedItem? song) {
-    final url = song?.artwork ?? '';
-    return url.isEmpty ? null : Uri.tryParse(url);
-  }
-
-  MediaItem _mediaItem(FeedItem song, {required String id}) => MediaItem(
-    id: id,
-    title: song.title,
-    artist: song.displaySubtitle,
-    artUri: _artOf(song),
-    playable: true,
-    duration: _duration(song.duration),
-    extras: {'songId': song.id, 'source': song.source ?? ''},
-  );
-
-  static Duration? _duration(String? raw) {
-    if (raw == null || raw.isEmpty) return null;
-    final secs = int.tryParse(raw);
-    return secs == null ? null : Duration(seconds: secs);
+    return catalog.mediaItem(songs[track.index], id: mediaId);
   }
 }
