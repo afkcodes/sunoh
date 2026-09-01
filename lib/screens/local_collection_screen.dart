@@ -131,8 +131,7 @@ class LocalCollectionScreen extends ConsumerWidget {
                     filled: true,
                     colors: c,
                     accent: s.resolvedAccent,
-                    onTap: () =>
-                        s.playApiQueue(songs, 0, sourceLabel: label),
+                    onTap: () => s.playApiQueue(songs, 0, sourceLabel: label),
                   ),
                   const SizedBox(width: 10),
                   _Action(
@@ -203,18 +202,14 @@ class _Action extends StatelessWidget {
         child: Row(
           mainAxisSize: MainAxisSize.min,
           children: [
-            Icon(
-              icon,
-              size: 15,
-              color: filled ? Colors.black : colors.fg,
-            ),
+            Icon(icon, size: 15, color: filled ? colors.onAccent : colors.fg),
             const SizedBox(width: 7),
             Text(
               label,
               style: SunohType.sans(
                 fontSize: 13,
                 fontWeight: FontWeight.w600,
-                color: filled ? Colors.black : colors.fg,
+                color: filled ? colors.onAccent : colors.fg,
               ),
             ),
           ],

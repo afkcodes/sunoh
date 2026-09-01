@@ -340,7 +340,7 @@ class _EmptyState extends StatelessWidget {
                   style: SunohType.sans(
                     fontSize: 13,
                     fontWeight: FontWeight.w600,
-                    color: Colors.black,
+                    color: colors.onAccent,
                   ),
                 ),
               ),

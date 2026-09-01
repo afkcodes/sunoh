@@ -33,6 +33,7 @@ import 'audio/playback_state_store.dart';
 import 'audio/settings_store.dart';
 import 'audio/sponsorblock_skipper.dart';
 import 'cast/cast_service.dart';
+import 'providers/app_state_provider.dart';
 import 'providers/downloads_provider.dart';
 import 'providers/ytmusic_provider.dart';
 import 'router/deep_links.dart';
@@ -381,22 +382,21 @@ class _RootState extends ConsumerState<_Root> {
 
   @override
   Widget build(BuildContext context) {
-    // Dark only — light status-bar icons over the near-black bg.
-    SystemChrome.setSystemUIOverlayStyle(
-      const SystemUiOverlayStyle(
-        statusBarColor: Colors.transparent,
-        statusBarIconBrightness: Brightness.light,
-        statusBarBrightness: Brightness.dark,
-      ),
-    );
+    // The overlay style is set per-frame by AppScaffold, which knows the
+    // palette. All that is needed here is the brightness for ThemeData.
+    final brightness = ref.watch(appStateProvider).brightness;
     return MaterialApp.router(
       title: 'sunoh.',
       debugShowCheckedModeBanner: false,
       scrollBehavior: const SunohScrollBehavior(),
       routerConfig: _router,
+      // Brightness tracks the app's own theme so descendants can ask
+      // `Theme.of(context).brightness` — which is how SunohArt decides how
+      // heavy a shadow to cast — without every one of them threading the
+      // palette down.
       theme: ThemeData(
         useMaterial3: true,
-        brightness: Brightness.dark,
+        brightness: brightness,
         splashFactory: NoSplash.splashFactory,
         highlightColor: Colors.transparent,
       ),

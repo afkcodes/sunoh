@@ -177,6 +177,28 @@ only).
 Density-aware padding multiplies by `density.scale`. It applies to vertical
 padding and gaps only — never to font size or card dimensions.
 
+**Both palettes, and contrast is checked, not eyeballed.** Every token resolves
+for light and dark; a screen never asks which one it is in. `test/contrast_test.dart`
+asserts WCAG AA — 4.5:1 for text, 3:1 for non-text UI — over every token and
+every accent in both palettes, and it earns its keep: it caught `fgMute`
+shipping at 4.40:1 on dark, and a light-mode value tuned against the wrong one
+of two backgrounds.
+
+Two rules follow from that:
+
+- **Never draw a raw accent.** An accent picked against near-black fails on
+  white — eleven of the twelve did, and ivory measured 1.00:1. Colours reaching
+  the screen go through `SunohColors.accent` or `AppState.themedAccent`, which
+  darken for light mode. Artwork-derived accents included; they are the common
+  case when "tint from artwork" is on.
+- **Text on an accent is `onAccent`**, never a literal `Colors.black` or
+  `Colors.white`. It flips with the palette, and getting it wrong is the
+  commonest way an accent becomes unreadable.
+
+Anything else that reads the theme — a shadow that needs to be heavier on dark
+than light, say — takes it from `Theme.of(context).brightness`, which tracks the
+app's own setting.
+
 ---
 
 ## 4. Failure handling

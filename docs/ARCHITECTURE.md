@@ -48,7 +48,7 @@ Companion documents:
 | `lib/screens/` `lib/overlays/` `lib/player/` `lib/shell/` | UI. |
 | `lib/services/` | Analytics, update checker. |
 | `lib/state/` | `AppState` — the player and library state machine. |
-| `lib/theme/` | Design tokens. The only place raw colours are defined. |
+| `lib/theme/` | Design tokens, light and dark. The only place raw colours are defined. |
 | `lib/widgets/` | Shared, screen-agnostic widgets. |
 | `android/.../ytmusic/` | Kotlin InnerTube stream resolution. |
 | `android/.../potoken/` | BotGuard PO-token minting in a WebView. |
