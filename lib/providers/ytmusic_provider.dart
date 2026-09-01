@@ -10,6 +10,7 @@ import '../api/dto.dart';
 import '../api/yt_locale.dart';
 import '../api/ytmusic_api.dart';
 import 'app_state_provider.dart';
+import 'yt_auth_provider.dart';
 
 /// A Dio dedicated to music.youtube.com.
 ///
@@ -79,6 +80,17 @@ final ytMusicAlbumSearchProvider = FutureProvider.autoDispose
 /// The YouTube Music home feed, interleaved into the Music tab. Not
 /// autoDispose: it's a large response and the feed doesn't change minute to
 /// minute, so re-fetching on every tab switch would be wasteful.
+/// Your own YouTube library — liked songs, playlists, albums, artists.
+///
+/// Empty when signed out, rather than an error: the Library screen renders
+/// whatever sections it gets, and "no account" is simply no sections.
+final ytMusicLibraryProvider = FutureProvider<List<HomeSection>>((ref) {
+  if (!ref.watch(ytAuthProvider).isSignedIn) {
+    return Future.value(const <HomeSection>[]);
+  }
+  return ref.watch(ytMusicApiProvider).library();
+});
+
 final ytMusicHomeProvider = FutureProvider<List<HomeSection>>((ref) {
   return ref.watch(ytMusicApiProvider).home();
 });

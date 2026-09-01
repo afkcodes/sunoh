@@ -8,7 +8,7 @@ interface.**
 YouTube Music, Gaana and Saavn behind a single search — plus the music already
 on your phone, podcasts, and audiobooks.
 
-No ads. No account. No analytics. No sign-in, ever.
+No ads. No analytics. No account of ours. Optional YouTube sign-in, kept on your phone.
 
 [![Release](https://img.shields.io/github/v/release/afkcodes/sunoh?style=for-the-badge&label=release&color=D97757)](https://github.com/afkcodes/sunoh/releases/latest)
 [![Total downloads](https://img.shields.io/github/downloads/afkcodes/sunoh/total?style=for-the-badge&label=downloads&color=82B07B)](https://github.com/afkcodes/sunoh/releases)
@@ -113,9 +113,16 @@ drops, and downloaded tracks are the only tier that survives it.
 
 ## Privacy
 
-sunoh has no accounts and no user identity, and that is deliberate.
+sunoh has no account of its own and no user identity, and that is deliberate.
 
-- No sign-in, anywhere.
+- **No sunoh account, ever.** There is nothing to register for, and no server
+  of ours that knows who you are.
+- **YouTube sign-in is optional and local.** You can sign in to YouTube Music
+  to get your own recommendations and library. It uses Google's own sign-in
+  page in a web view, so your password is never seen by this app. The session
+  it produces is encrypted with a key held in the Android Keystore, stays on
+  the phone, is never sent to us, and is never included in library sync. Sign
+  out and it is deleted. Everything works without it.
 - **No analytics of any kind.** There is no telemetry SDK in the app — Firebase
   was removed outright rather than left switchable, so there is nothing to opt
   out of and nothing to take on trust.
@@ -247,8 +254,9 @@ trademarks belong to their respective owners.
   circumventing anything. Upstream platforms change without notice, and any
   given source can stop working at any time.
 
-- **Privacy.** No account, no sign-in, no analytics, and no listening history
-  leaving the phone. On-device music never leaves the device at all. See
+- **Privacy.** No account of ours, no analytics, and no listening history
+  leaving the phone. YouTube sign-in is optional, and its session never leaves
+  the device. On-device music never leaves the device at all. See
   [Privacy](#privacy) above.
 
 - **Copyleft.** sunoh is free software under the **GPL-3.0** — see

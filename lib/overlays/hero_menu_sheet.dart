@@ -83,7 +83,7 @@ class _HeroMenuSheet extends ConsumerWidget {
         margin: const EdgeInsets.fromLTRB(8, 0, 8, 8),
         decoration: squircleDecoration(
           radius: 20,
-          color: const Color(0xFF15151A),
+          color: c.bgSoft,
           borderColor: c.line,
         ),
         padding: EdgeInsets.fromLTRB(0, 8, 0, 8 + topInset),

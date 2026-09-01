@@ -16,6 +16,7 @@ import '../data/models.dart';
 import '../providers/app_state_provider.dart';
 import '../providers/downloads_provider.dart';
 import '../providers/local_library_provider.dart';
+import '../providers/ytmusic_provider.dart';
 import '../router/router.dart';
 import '../state/app_state.dart';
 import '../theme/tokens.dart';
@@ -23,6 +24,7 @@ import '../widgets/album_art.dart';
 import '../widgets/ui.dart';
 import 'library_device_section.dart';
 import 'library_playlists.dart';
+import 'library_youtube_section.dart';
 import 'user_playlist_screen.dart';
 
 enum _LibFilter { all, playlists, albums, artists, songs }
@@ -264,6 +266,15 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen> {
         Consumer(
           builder: (ctx, innerRef, _) => LibraryDeviceSection(
             library: innerRef.watch(localLibraryProvider),
+            colors: c,
+          ),
+        ),
+        // A signed-in YouTube account's own shelves. Absent when signed out.
+        Consumer(
+          builder: (ctx, innerRef, _) => LibraryYouTubeSection(
+            sections:
+                innerRef.watch(ytMusicLibraryProvider).asData?.value ??
+                const <HomeSection>[],
             colors: c,
           ),
         ),

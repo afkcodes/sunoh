@@ -1,6 +1,9 @@
 package codes.afk.sunoh
 
 import android.content.Intent
+import codes.afk.sunoh.auth.YtAuthBridge
+import codes.afk.sunoh.auth.YtAuthStore
+import codes.afk.sunoh.auth.YtLoginActivity
 import codes.afk.sunoh.localmedia.LocalMediaBridge
 import codes.afk.sunoh.sync.SyncBridge
 import codes.afk.sunoh.ytmusic.YtMusicBridge
@@ -49,10 +52,19 @@ class MainActivity : AudioServiceActivity() {
      */
     private var pendingFolderResult: Result? = null
 
+    /**
+     * Held across the sign-in WebView, for the same reason as the folder
+     * picker: the answer arrives through onActivityResult. Backing out of a
+     * sign-in returns false rather than an error — changing your mind about
+     * signing in is a normal thing to do.
+     */
+    private var pendingLoginResult: Result? = null
+
     override fun configureFlutterEngine(flutterEngine: FlutterEngine) {
         super.configureFlutterEngine(flutterEngine)
 
         YtMusicBridge.initialize(applicationContext)
+        YtAuthBridge.restore(applicationContext)
 
         // Stream resolution for the YouTube Music tier. Lives natively because
         // the required BotGuard PO token can only be minted by running
@@ -232,6 +244,51 @@ class MainActivity : AudioServiceActivity() {
                     else -> result.notImplemented()
                 }
             }
+
+        // The signed-in YouTube session. Native because the cookie is a
+        // credential held in the Keystore-backed store: Dart asks for headers
+        // and never holds the cookie itself. See YtAuthBridge.
+        MethodChannel(flutterEngine.dartExecutor.binaryMessenger, AUTH_CHANNEL)
+            .setMethodCallHandler { call, result ->
+                when (call.method) {
+                    "state" -> result.success(
+                        mapOf(
+                            "signedIn" to YtAuthBridge.isSignedIn(),
+                            "accountName" to YtAuthBridge.accountName(),
+                            "visitorData" to YtAuthBridge.visitorData(),
+                        ),
+                    )
+
+                    "signIn" -> {
+                        if (pendingLoginResult != null) {
+                            result.error("busy", "sign-in already open", null)
+                        } else {
+                            pendingLoginResult = result
+                            startActivityForResult(
+                                Intent(this, YtLoginActivity::class.java),
+                                LOGIN_REQUEST,
+                            )
+                        }
+                    }
+
+                    "signOut" -> {
+                        YtAuthBridge.signOut(applicationContext)
+                        result.success(null)
+                    }
+
+                    // Recomputed per call: the SAPISIDHASH covers a timestamp,
+                    // so a cached header goes stale.
+                    "headers" -> result.success(YtAuthBridge.headers())
+
+                    "setAccountName" -> {
+                        val name = call.argument<String>("name").orEmpty()
+                        YtAuthBridge.rename(applicationContext, name)
+                        result.success(null)
+                    }
+
+                    else -> result.notImplemented()
+                }
+            }
     }
 
     override fun onActivityResult(requestCode: Int, resultCode: Int, data: Intent?) {
@@ -247,6 +304,34 @@ class MainActivity : AudioServiceActivity() {
             }
             return
         }
+        if (requestCode == LOGIN_REQUEST) {
+            val pending = pendingLoginResult
+            pendingLoginResult = null
+            val cookie = data?.getStringExtra(YtLoginActivity.EXTRA_COOKIE)
+            if (resultCode != RESULT_OK || cookie.isNullOrBlank()) {
+                pending?.success(false)
+            } else {
+                YtAuthBridge.save(
+                    applicationContext,
+                    YtAuthStore.Session(
+                        cookie = cookie,
+                        visitorData = data.getStringExtra(
+                            YtLoginActivity.EXTRA_VISITOR_DATA,
+                        ).orEmpty(),
+                        dataSyncId = data.getStringExtra(
+                            YtLoginActivity.EXTRA_DATA_SYNC_ID,
+                        ).orEmpty(),
+                        authUser = "0",
+                        // Filled in by Dart once it has asked YouTube who this
+                        // is — the name lives in a browse response, and the
+                        // renderer parsing for those is all on that side.
+                        accountName = "",
+                    ),
+                )
+                pending?.success(true)
+            }
+            return
+        }
         super.onActivityResult(requestCode, resultCode, data)
     }
 
@@ -254,5 +339,7 @@ class MainActivity : AudioServiceActivity() {
         const val CHANNEL = "codes.afk.sunoh/ytmusic"
         const val LOCAL_CHANNEL = "codes.afk.sunoh/localmedia"
         const val SYNC_CHANNEL = "codes.afk.sunoh/sync"
+        const val AUTH_CHANNEL = "codes.afk.sunoh/ytauth"
+        const val LOGIN_REQUEST = 4711
     }
 }

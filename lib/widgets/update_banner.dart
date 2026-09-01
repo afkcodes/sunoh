@@ -16,7 +16,7 @@ import '../providers/app_state_provider.dart';
 import '../providers/update_provider.dart';
 import '../theme/tokens.dart';
 import 'ui.dart';
-import 'update_dialog.dart';
+import 'update_sheet.dart';
 
 /// Card variant — used inside Settings → About so the same info has a
 /// home if the user dismissed the auto-shown dialog on Home. Designed
@@ -59,7 +59,7 @@ class _UpdateRow extends ConsumerWidget {
       // Re-open the auto-show dialog — keeps Settings as a backstop
       // for the user who dismissed the home dialog with "Later" and
       // came back later to actually update.
-      onTap: () => showUpdateDialog(context, info),
+      onTap: () => showUpdateSheet(context, info),
       child: Container(
         padding: EdgeInsets.symmetric(horizontal: 14, vertical: slim ? 12 : 16),
         decoration: squircleDecoration(
