@@ -1,0 +1,14 @@
+Three big additions: your car, your own music files, and a light theme.
+
+Android Auto - browse, search and play without touching the phone. Radio
+stations play in one tap; voice search works.
+
+On this device - your own audio files in the Library, by song, album and
+artist, with their embedded art.
+
+Light theme - Settings, Appearance, Theme.
+
+No analytics of any kind; the SDK was removed outright.
+
+Fixed: radio stations that did nothing, and missing album art in
+notifications for local tracks.
