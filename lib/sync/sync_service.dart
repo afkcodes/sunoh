@@ -22,7 +22,6 @@ import 'package:flutter/foundation.dart';
 import '../audio/library_store.dart';
 import '../audio/settings_store.dart';
 import 'sync_channel.dart';
-import 'sync_merge.dart';
 import 'sync_payload.dart';
 
 enum SyncStatus { off, idle, syncing, ok, noAccess, failed }
