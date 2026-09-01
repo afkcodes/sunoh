@@ -7,9 +7,9 @@ is the short version and the trap list.
 ## What this is
 
 `sunoh.` — a Flutter/Dart Android music app fronting YouTube Music, Gaana and
-Saavn behind one interface, plus podcasts and audiobooks. No accounts, no ads,
-no tracking beyond opt-out analytics. GPL-3.0 (it links MetrolistGroup's
-`innertubex`).
+Saavn behind one interface, plus the music already on the phone, podcasts and
+audiobooks. No accounts, no ads, no analytics of any kind. GPL-3.0 (it links
+MetrolistGroup's `innertubex`).
 
 Android is the only supported target. The YouTube path is native Kotlin, so
 `flutter run` on a real Android device is the only way to exercise it —
@@ -123,6 +123,10 @@ and 90 raw `print` calls.
   `privacy.*`, `updates.*`.
 - Never log or transmit a token, a signed URL, or a full video id. The
   SponsorBlock 4-character hash prefix is the privacy standard to hold.
+- **Do not add analytics or telemetry.** Firebase was removed deliberately, and
+  the README, the store listing and `docs/DISTRIBUTION.md` all now state there
+  is none. Adding any back makes those claims false and re-earns a Tracking
+  anti-feature on IzzyOnDroid.
 - Never write the section-sign character. Write "section 3.5".
 
 ## Commits

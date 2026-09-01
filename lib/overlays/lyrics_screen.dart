@@ -17,7 +17,6 @@ import '../data/catalog.dart';
 import '../data/models.dart';
 import '../providers/app_state_provider.dart';
 import '../providers/lyrics_provider.dart';
-import '../services/analytics_service.dart';
 import '../share/share_link.dart';
 import '../theme/tokens.dart';
 import '../widgets/album_art.dart';
@@ -41,8 +40,6 @@ class _LyricsScreenState extends ConsumerState<LyricsScreen> {
     // there's no API song so the analytics still group meaningfully.
     final s = ref.read(appStateProvider);
     final id = s.currentApiSong?.id ?? s.current.id;
-    AnalyticsService.instance.logLyricsOpen(songId: id);
-    AnalyticsService.instance.logScreenView('lyrics', klass: 'LyricsScreen');
   }
 
   @override

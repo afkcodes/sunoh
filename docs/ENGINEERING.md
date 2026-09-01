@@ -209,8 +209,8 @@ and Google Play Services. Everything is allowed to fail.
 - **Degrade, do not crash.** A failed section renders as absent, not as an
   error screen. A failed optional subsystem logs one line and disables one
   feature.
-- **Never let a third party block playback.** SponsorBlock, lyrics, analytics,
-  and artwork palette extraction are all fire-and-forget. If a lookup could
+- **Never let a third party block playback.** SponsorBlock, lyrics, and artwork
+  palette extraction are all fire-and-forget. If a lookup could
   make the user wait for audio, it is wired wrong.
 - **Parse defensively.** Every upstream accessor tolerates a missing or
   reshaped key. This is not optional for InnerTube, whose renderer tree changes
@@ -292,9 +292,8 @@ The app has no accounts and no user identity, and that is a feature. Protect it.
 - Do not add a network call that transmits anything identifying. SponsorBlock's
   4-character hash prefix is the standard to hold: send the minimum that makes
   the feature work.
-- Analytics is opt-out and must stay that way. Events carry no free-text user
-  content beyond the existing search-term event, and no ids that could
-  reconstruct a listening history off-device.
+- There is no analytics, and that is now a documented promise rather than a
+  default. Firebase was removed outright; do not reintroduce telemetry.
 - New third-party SDKs need a stated justification. Each one is a tracking
   surface and an APK-size cost.
 

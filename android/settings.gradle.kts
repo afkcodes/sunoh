@@ -22,11 +22,6 @@ plugins {
     id("com.android.application") version "8.13.2" apply false
     id("org.jetbrains.kotlin.android") version "2.4.10" apply false
     // Firebase Analytics — applied per-module in app/build.gradle.kts.
-    // Reads `google-services.json` from android/app/ at build time; the
-    // file is gitignored (see android/.gitignore) and must be dropped in
-    // from the Firebase Console (Project settings → Android app for
-    // `codes.afk.sunoh`).
-    id("com.google.gms.google-services") version "4.4.2" apply false
 }
 
 include(":app")

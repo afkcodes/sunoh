@@ -1,7 +1,7 @@
 sunoh plays music from YouTube Music, Gaana and Saavn behind a single search,
 alongside the music already stored on your phone. Podcasts and audiobooks too.
 
-No ads. No account. No tracking.
+No ads. No account. No analytics. No sign-in, ever.
 
 Sources
 
@@ -36,9 +36,8 @@ import from Spotify.
 
 Privacy
 
-No sign-in anywhere. Analytics is opt-out and limited to event counts; turning
-it off halts collection and resets the local install id. On-device music never
-leaves the phone.
+No sign-in anywhere, and no analytics of any kind - there is no telemetry SDK
+in the app. On-device music never leaves the phone.
 
 sunoh is an independent client, not affiliated with or endorsed by any of the
 services it reaches, and hosts no media of its own.

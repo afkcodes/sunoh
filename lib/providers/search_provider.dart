@@ -15,7 +15,6 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../api/dto.dart';
-import '../services/analytics_service.dart';
 import 'api_providers.dart';
 
 final searchProvider = FutureProvider.autoDispose
@@ -28,7 +27,6 @@ final searchProvider = FutureProvider.autoDispose
       // dedupes naturally because the same query gets the same cached
       // FutureProvider instance.
       if (query.trim().isNotEmpty) {
-        AnalyticsService.instance.logSearch(query);
       }
       final api = ref.watch(sunohApiProvider);
       return api.fetchSearch(query);
