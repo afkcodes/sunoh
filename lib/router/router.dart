@@ -26,6 +26,7 @@ import '../screens/home_screen.dart';
 import '../screens/library_screen.dart';
 import '../screens/liked_songs_screen.dart';
 import '../screens/local_collection_screen.dart';
+import '../screens/local_folders_screen.dart';
 import '../screens/local_library_screen.dart';
 import '../screens/podcast_categories_screen.dart';
 import '../screens/podcast_category_screen.dart';
@@ -35,6 +36,7 @@ import '../screens/search_screen.dart';
 import '../screens/section_screen.dart';
 import '../screens/settings_screen.dart';
 import '../screens/spotify_import_screen.dart';
+import '../screens/sync_screen.dart';
 import '../screens/user_playlist_screen.dart';
 import '../screens/ytmusic_screens.dart';
 import '../shell/app_scaffold.dart';
@@ -48,7 +50,7 @@ GoRouter buildRouter() {
   return GoRouter(
     navigatorKey: rootNavigatorKey,
     initialLocation: '/home',
-        // Safety net for inbound Android Intents. The platform forwards the
+    // Safety net for inbound Android Intents. The platform forwards the
     // URI's path component to go_router *before* DeepLinkRouter (which
     // lives on top of app_links) gets a chance. Custom-scheme deep links
     // like `sunoh://playlist/abc` get parsed by Flutter as path `/abc`
@@ -231,8 +233,16 @@ List<RouteBase> _detailRoutes() => [
     pageBuilder: (c, s) => _slideRight(const RecentlyPlayedScreen(), s),
   ),
   GoRoute(
+    path: 'sync',
+    pageBuilder: (c, s) => _slideRight(const SyncScreen(), s),
+  ),
+  GoRoute(
     path: 'local',
     pageBuilder: (c, s) => _slideRight(const LocalLibraryScreen(), s),
+  ),
+  GoRoute(
+    path: 'local-folders',
+    pageBuilder: (c, s) => _slideRight(const LocalFoldersScreen(), s),
   ),
   GoRoute(
     // `kind` is album|artist. The id is the grouping key, which embeds the
@@ -485,6 +495,12 @@ extension SunohNav on BuildContext {
 
   /// The on-device music library.
   void openLocalLibrary() => push('$_branchPrefix/local');
+
+  /// Which device folders count as music.
+  void openLocalFolders() => push('$_branchPrefix/local-folders');
+
+  /// Library sync setup and status.
+  void openSync() => push('$_branchPrefix/sync');
 
   /// One on-device album or artist.
   void openLocalCollection(String id, {required bool album}) => push(

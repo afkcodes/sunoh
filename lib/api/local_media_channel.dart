@@ -42,21 +42,207 @@ class LocalCollection {
   }
 }
 
+/// One folder on the device that holds music, and how much.
+///
+/// Derived from the file paths rather than asked for separately: MediaStore
+/// has no folder table, and the path is already on every row.
+class LocalFolder {
+  const LocalFolder({
+    required this.path,
+    required this.name,
+    required this.trackCount,
+  });
+
+  /// Absolute directory path. This is the identity used by the ignore list,
+  /// so it is stored verbatim and never normalised or prettified.
+  final String path;
+
+  /// Last path segment, for display. Folders are usually recognisable by
+  /// their own name; the full path is long and mostly noise.
+  final String name;
+
+  final int trackCount;
+}
+
 /// Everything one scan produced.
 class LocalScan {
   const LocalScan({
     required this.songs,
     required this.albums,
     required this.artists,
+    this.folders = const [],
   });
   const LocalScan.empty()
     : songs = const [],
       albums = const [],
-      artists = const [];
+      artists = const [],
+      folders = const [];
 
   final List<FeedItem> songs;
   final List<LocalCollection> albums;
   final List<LocalCollection> artists;
+
+  /// Every folder the scan saw, **including ones left out**, largest first.
+  ///
+  /// The excluded ones have to be here or there is no way back: a folder
+  /// missing from the library would vanish from the list that lets you add
+  /// it.
+  final List<LocalFolder> folders;
+}
+
+/// Where a folder sits, written the way a person would read it.
+///
+/// The full path is useless as a subtitle: on a real device every music folder
+/// starts `/storage/emulated/0/Download/...`, so a row that elides the tail
+/// shows the same string for every folder and disambiguates nothing. The
+/// distinguishing part is at the end, and the last segment is already the
+/// row's title — so this drops the storage prefix and the name, leaving the
+/// parent chain that actually tells two same-named folders apart.
+String folderLocation(String path) {
+  var p = path;
+  for (final prefix in const [
+    '/storage/emulated/0',
+    '/sdcard',
+    '/mnt/sdcard',
+  ]) {
+    if (p == prefix) return 'Internal storage';
+    if (p.startsWith('$prefix/')) {
+      p = p.substring(prefix.length);
+      break;
+    }
+  }
+  final i = p.lastIndexOf('/');
+  final parent = i <= 0 ? '' : p.substring(1, i);
+  return parent.isEmpty ? 'Internal storage' : parent;
+}
+
+/// Which folders the on-device library takes music from.
+///
+/// One rule beats two lists. An include-only list cannot express "everything
+/// except the ringtones", and — worse — it silently drops music added later,
+/// because a folder that did not exist when the list was made is not on it. An
+/// exclude-only list cannot express "just this one folder" without naming
+/// every sibling. Both failures are silent, which is the worst kind.
+///
+/// So: a default for the device, plus per-folder overrides, resolved by taking
+/// the nearest rule up the path. A folder with no rule of its own follows its
+/// parent, and a folder whose parents have no rule follows the default — which
+/// is how a folder created tomorrow gets the behaviour its parent has today.
+class FolderRules {
+  const FolderRules({
+    this.defaultIncluded = true,
+    this.overrides = const <String, bool>{},
+  });
+
+  /// What a folder does when nothing above it says otherwise. True — take
+  /// everything — is the default so a fresh install finds all the music on the
+  /// phone without this screen ever being opened.
+  final bool defaultIncluded;
+
+  /// Absolute folder path to whether it, and everything under it, is taken.
+  /// Only folders that differ from what they would inherit appear here, so the
+  /// map stays the shortest description of the choice.
+  final Map<String, bool> overrides;
+
+  bool get isDefault => defaultIncluded && overrides.isEmpty;
+
+  /// Whether music in [folder] belongs in the library.
+  bool allows(String folder) => _resolve(folder);
+
+  /// What [folder] would be with no rule of its own — what a tick on it would
+  /// have to disagree with to be worth storing.
+  bool inherited(String folder) => _resolve(_parent(folder));
+
+  bool _resolve(String? from) {
+    var p = from;
+    while (p != null && p.isNotEmpty) {
+      final rule = overrides[p];
+      if (rule != null) return rule;
+      p = _parent(p);
+    }
+    return defaultIncluded;
+  }
+
+  /// The nearest enclosing directory, or null at the top of a volume.
+  ///
+  /// Stopping at index 0 rather than returning '/' keeps the walk off a root
+  /// that no rule can name: every path here is absolute, so a '/' rule would
+  /// be a second way to say [defaultIncluded].
+  static String? _parent(String path) {
+    final i = path.lastIndexOf('/');
+    return i <= 0 ? null : path.substring(0, i);
+  }
+
+  /// Set [folder] and everything under it.
+  ///
+  /// Only this folder's own rule changes. A rule that agrees with what the
+  /// folder already inherits is dropped rather than stored, because setting
+  /// something to what it already was is not a decision worth recording.
+  FolderRules set(String folder, {required bool included}) {
+    final next = {...overrides};
+    if (included == inherited(folder)) {
+      next.remove(folder);
+    } else {
+      next[folder] = included;
+    }
+    return FolderRules(defaultIncluded: defaultIncluded, overrides: next);
+  }
+
+  /// Change the device-wide default — what folders with nothing above them
+  /// follow, including folders that do not exist yet.
+  FolderRules withDefault({required bool included}) =>
+      FolderRules(defaultIncluded: included, overrides: overrides);
+
+  // Rules are never tidied away for being redundant, and that is deliberate.
+  //
+  // A rule can be redundant now and load-bearing after one tap somewhere else:
+  // "leave this album out" says nothing while the whole device is off, and is
+  // the only thing keeping it out the moment its folder is turned back on.
+  // Dropping it in between silently resurrects music the user removed, and the
+  // resurrection happens far from the tap that caused it.
+  //
+  // The cost is a rule set that can hold entries changing nothing today. They
+  // cannot change an answer — resolution takes the nearest rule, and a
+  // redundant one gives what would have been inherited anyway — and there are
+  // only ever as many as the user has touched folders.
+
+  bool sameAs(FolderRules other) {
+    if (defaultIncluded != other.defaultIncluded) return false;
+    if (overrides.length != other.overrides.length) return false;
+    for (final e in overrides.entries) {
+      if (other.overrides[e.key] != e.value) return false;
+    }
+    return true;
+  }
+
+  /// Stored as one list of strings so a Hive dump stays readable and a
+  /// half-written value degrades to "take everything" rather than to nothing.
+  /// Paths are absolute, so they cannot collide with the default marker.
+  List<String> encode() => [
+    defaultIncluded ? 'default+' : 'default-',
+    for (final e in overrides.entries) '${e.value ? '+' : '-'}${e.key}',
+  ];
+
+  static FolderRules decode(Iterable<String> raw) {
+    var byDefault = true;
+    final overrides = <String, bool>{};
+    for (final line in raw) {
+      if (line == 'default+') {
+        byDefault = true;
+      } else if (line == 'default-') {
+        byDefault = false;
+      } else if (line.length > 2 && (line[0] == '+' || line[0] == '-')) {
+        overrides[line.substring(1)] = line[0] == '+';
+      }
+    }
+    return FolderRules(defaultIncluded: byDefault, overrides: overrides);
+  }
+}
+
+/// The directory part of a file path, or empty when there isn't one.
+String folderOf(String path) {
+  final i = path.lastIndexOf('/');
+  return i <= 0 ? '' : path.substring(0, i);
 }
 
 /// The `source` marker carried by every on-device track.
@@ -81,12 +267,19 @@ class LocalMediaChannel {
   /// permission, an unreadable volume, a platform that isn't Android. The
   /// caller distinguishes "no music" from "not allowed" by checking the
   /// permission itself, not by catching from here.
-  Future<LocalScan> scan() async {
+  /// [rules] decide which folders count — see [FolderRules]. The default takes
+  /// the whole device, so a fresh install finds everything without being
+  /// configured first.
+  ///
+  /// Filtering happens here rather than in the query because the folder list
+  /// the user picks from has to show every folder on the device, including the
+  /// ones currently left out, and a filtered query could not report those.
+  Future<LocalScan> scan({FolderRules rules = const FolderRules()}) async {
     if (!_supported) return const LocalScan.empty();
     try {
       final raw = await _channel.invokeListMethod<Object?>('scan');
       if (raw == null) return const LocalScan.empty();
-      return _group(raw);
+      return _group(raw, rules);
     } on PlatformException catch (e) {
       debugPrint('[local] scan failed: ${e.message}');
       return const LocalScan.empty();
@@ -101,19 +294,30 @@ class LocalMediaChannel {
   /// Insertion order is preserved throughout: the query returns newest-first,
   /// so albums come out most-recently-added first, which is what someone
   /// looking for music they just copied over expects.
-  static LocalScan _group(List<Object?> rows) {
+  static LocalScan _group(List<Object?> rows, FolderRules rules) {
     final songs = <FeedItem>[];
     final albums = <String, List<FeedItem>>{};
     final albumNames = <String, String>{};
     final albumArtistSets = <String, Set<String>>{};
     final artists = <String, List<FeedItem>>{};
     final artistNames = <String, String>{};
+    // Counted over every row, included or not — see LocalScan.folders.
+    final folderCounts = <String, int>{};
 
     for (final row in rows) {
       if (row is! Map) continue;
       final r = row.cast<Object?, Object?>();
       final song = _toFeedItem(r);
       if (song == null) continue;
+
+      final folder = folderOf(song.url ?? '');
+      if (folder.isNotEmpty) {
+        folderCounts[folder] = (folderCounts[folder] ?? 0) + 1;
+      }
+      // Left out of the library, but still counted above so the folder can be
+      // found and put back.
+      if (!rules.allows(folder)) continue;
+
       songs.add(song);
 
       final artist = _clean((r['artist'] ?? '').toString());
@@ -156,7 +360,10 @@ class LocalMediaChannel {
 
     debugPrint(
       '[local] scanned ${songs.length} tracks, '
-      '${albums.length} albums, ${artists.length} artists',
+      '${albums.length} albums, ${artists.length} artists, '
+      '${folderCounts.length} folders '
+      '(${rules.isDefault ? 'all' : '${rules.overrides.length} rule(s), '
+                'default ${rules.defaultIncluded ? 'in' : 'out'}'})',
     );
     return LocalScan(
       songs: songs,
@@ -178,7 +385,22 @@ class LocalMediaChannel {
             songs: e.value,
           ),
       ],
+      folders: _foldersFrom(folderCounts),
     );
+  }
+
+  /// Folders sorted by size, largest first: the one worth excluding is
+  /// usually the one with three hundred notification tones in it.
+  static List<LocalFolder> _foldersFrom(Map<String, int> counts) {
+    final out = [
+      for (final e in counts.entries)
+        LocalFolder(
+          path: e.key,
+          name: e.key.substring(e.key.lastIndexOf('/') + 1),
+          trackCount: e.value,
+        ),
+    ]..sort((a, b) => b.trackCount.compareTo(a.trackCount));
+    return out;
   }
 
   /// The artist line for an album: the one artist if it has a single one,

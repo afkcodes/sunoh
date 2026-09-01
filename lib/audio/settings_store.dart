@@ -6,6 +6,8 @@ import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:hive_ce_flutter/hive_flutter.dart';
 
+import '../api/local_media_channel.dart';
+
 class SavedEqState {
   const SavedEqState({required this.bands, this.presetId});
   final List<double> bands;
@@ -93,6 +95,25 @@ class SettingsStore {
   // Search
   static const _kSearchRecents = 'search.recents';
 
+  // ── Library sync ─────────────────────────────────────────────────────
+  // The tree URI is a persisted SAF grant, the key is the base64 AES key
+  // shown to the user once as a recovery code, and the device id names this
+  // device's file in the folder. All three live here rather than in the
+  // library box because they configure sync, they are not synced by it.
+  /// Which folders the on-device library takes music from, encoded by
+  /// [FolderRules]. Absent means the whole device.
+  ///
+  /// Not synced between devices: the same music sits under different paths on
+  /// different phones, so one device's folder choice is meaningless on another
+  /// and would silently hide the wrong music.
+  static const _kFolderRules = 'local.folder_rules';
+
+  static const _kSyncTree = 'sync.tree_uri';
+  static const _kSyncKey = 'sync.key';
+  static const _kSyncDevice = 'sync.device_id';
+  static const _kSyncLastAt = 'sync.last_at';
+  static const _kSyncSettingsAt = 'sync.settings_at';
+
   /// Cap on persisted search recents — older queries fall off the list
   /// once we cross this. 10 is plenty for the chips UI without forcing
   /// the user to scroll.
@@ -102,7 +123,6 @@ class SettingsStore {
   // user dismissed. When the published version equals this, we stay quiet;
   // when it surpasses it (next release), the banner returns.
   static const _kDismissedUpdate = 'updates.dismissed_version';
-
 
   /// Cached in-flight open so concurrent loaders share one openBox call
   /// — same race-avoidance idiom as library_store.
@@ -322,6 +342,163 @@ class SettingsStore {
   }
 
   // ── Privacy ─────────────────────────────────────────────────────────────
+}
 
+/// Sync configuration as stored.
+class SavedSync {
+  const SavedSync({this.treeUri, this.key, this.deviceId, this.lastSyncAt});
+  final String? treeUri;
+  final String? key;
+  final String? deviceId;
+  final int? lastSyncAt;
+}
 
+/// The settings that travel between devices, with the time they last changed.
+class SyncableSettings {
+  const SyncableSettings({required this.values, required this.updatedAt});
+  final Map<String, dynamic> values;
+  final int updatedAt;
+}
+
+extension SyncSettings on SettingsStore {
+  /// Keys that sync.
+  ///
+  /// Appearance and playback preferences travel; anything describing *this*
+  /// device or its history does not. Search recents are deliberately excluded:
+  /// they are a local convenience and carry what you typed, which is the last
+  /// thing that should be copied into a shared folder.
+  static const syncableKeys = [
+    'appearance.accent',
+    'appearance.density',
+    'appearance.tint_from_art',
+    'appearance.tint_intensity',
+    'appearance.theme',
+    'playback.stream_quality',
+    'playback.repeat_mode',
+    'playback.languages',
+    'playback.endless_autoplay',
+    'playback.sponsorblock',
+    'playback.yt_country',
+    'playback.yt_language',
+  ];
+
+  Future<FolderRules> loadFolderRules() async {
+    try {
+      final box = await _box();
+      final raw = box.get(SettingsStore._kFolderRules);
+      if (raw is! List) return const FolderRules();
+      return FolderRules.decode(raw.whereType<String>());
+    } catch (e) {
+      debugPrint('[settings-store] loadFolderRules failed: $e');
+      return const FolderRules();
+    }
+  }
+
+  Future<void> saveFolderRules(FolderRules rules) async {
+    try {
+      final box = await _box();
+      await box.put(SettingsStore._kFolderRules, rules.encode());
+      await box.flush();
+    } catch (e) {
+      debugPrint('[settings-store] saveFolderRules failed: $e');
+    }
+  }
+
+  Future<SavedSync> loadSync() async {
+    try {
+      final box = await _box();
+      String? nonEmpty(Object? v) {
+        final s = v?.toString();
+        return (s == null || s.isEmpty) ? null : s;
+      }
+
+      return SavedSync(
+        treeUri: nonEmpty(box.get(SettingsStore._kSyncTree)),
+        key: nonEmpty(box.get(SettingsStore._kSyncKey)),
+        deviceId: nonEmpty(box.get(SettingsStore._kSyncDevice)),
+        lastSyncAt: (box.get(SettingsStore._kSyncLastAt) as num?)?.toInt(),
+      );
+    } catch (e) {
+      debugPrint('[settings-store] loadSync failed: $e');
+      return const SavedSync();
+    }
+  }
+
+  Future<void> saveSync({
+    required String treeUri,
+    required String key,
+    required String deviceId,
+    int? lastSyncAt,
+  }) async {
+    try {
+      final box = await _box();
+      await box.putAll({
+        SettingsStore._kSyncTree: treeUri,
+        SettingsStore._kSyncKey: key,
+        SettingsStore._kSyncDevice: deviceId,
+        SettingsStore._kSyncLastAt: ?lastSyncAt,
+      });
+      await box.flush();
+    } catch (e) {
+      debugPrint('[settings-store] saveSync failed: $e');
+    }
+  }
+
+  Future<SyncableSettings> loadSyncableSettings() async {
+    try {
+      final box = await _box();
+      return SyncableSettings(
+        values: {
+          for (final k in syncableKeys)
+            if (box.get(k) != null) k: box.get(k),
+        },
+        updatedAt:
+            (box.get(SettingsStore._kSyncSettingsAt) as num?)?.toInt() ?? 0,
+      );
+    } catch (e) {
+      debugPrint('[settings-store] loadSyncableSettings failed: $e');
+      return const SyncableSettings(values: {}, updatedAt: 0);
+    }
+  }
+
+  /// Apply another device's settings, whole-set.
+  ///
+  /// Only keys in [syncableKeys] are written, however the incoming file is
+  /// shaped: the payload comes out of a folder the user controls, so it is
+  /// treated as untrusted input rather than as our own data coming home.
+  Future<void> applySyncableSettings(
+    Map<String, dynamic> values,
+    int updatedAt,
+  ) async {
+    try {
+      final box = await _box();
+      final allowed = {
+        for (final e in values.entries)
+          if (syncableKeys.contains(e.key)) e.key: e.value,
+      };
+      if (allowed.isEmpty) return;
+      await box.putAll({...allowed, SettingsStore._kSyncSettingsAt: updatedAt});
+      await box.flush();
+      debugPrint(
+        '[settings-store] applied ${allowed.length} synced setting(s)',
+      );
+    } catch (e) {
+      debugPrint('[settings-store] applySyncableSettings failed: $e');
+    }
+  }
+
+  /// Stamp the moment local settings last changed, so the newest set wins a
+  /// merge. Called from the settings mutators.
+  Future<void> touchSettingsChanged() async {
+    try {
+      final box = await _box();
+      await box.put(
+        SettingsStore._kSyncSettingsAt,
+        DateTime.now().millisecondsSinceEpoch,
+      );
+      await box.flush();
+    } catch (_) {
+      // A missed stamp only costs this device a tie-break, not correctness.
+    }
+  }
 }

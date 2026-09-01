@@ -21,6 +21,7 @@ import '../providers/app_state_provider.dart';
 import '../providers/languages_provider.dart';
 import '../providers/update_provider.dart';
 import '../providers/ytmusic_provider.dart';
+import '../router/router.dart';
 import '../state/app_state.dart';
 import '../theme/tokens.dart';
 import '../widgets/ui.dart';
@@ -143,6 +144,12 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
             colors: c,
             scale: scale,
             rows: [
+              _NavRow(
+                label: 'Sync',
+                summary: 'Keep two phones in step',
+                onTap: () => context.openSync(),
+                colors: c,
+              ),
               _RadioRow<SunohTheme>(
                 label: 'Theme',
                 value: s.theme,

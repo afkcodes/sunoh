@@ -15,7 +15,6 @@
 import 'package:flutter/foundation.dart';
 import 'package:share_plus/share_plus.dart';
 
-
 const String _kBaseUrl = 'https://sunoh.online';
 
 /// Build the canonical share URL for a piece of content.

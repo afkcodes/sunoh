@@ -23,11 +23,6 @@ final searchProvider = FutureProvider.autoDispose
       Future<void>.delayed(
         const Duration(minutes: 5),
       ).then((_) => link.close());
-      // One analytics call per distinct (debounced) query — the family key
-      // dedupes naturally because the same query gets the same cached
-      // FutureProvider instance.
-      if (query.trim().isNotEmpty) {
-      }
       final api = ref.watch(sunohApiProvider);
       return api.fetchSearch(query);
     });

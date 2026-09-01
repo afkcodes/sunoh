@@ -15,6 +15,7 @@ import 'package:permission_handler/permission_handler.dart';
 
 import '../api/dto.dart';
 import '../api/local_media_channel.dart';
+import 'settings_store.dart';
 
 /// Why the local library is empty, when it is.
 enum LocalLibraryStatus {
@@ -36,10 +37,39 @@ enum LocalLibraryStatus {
 }
 
 class LocalLibrary extends ChangeNotifier {
-  LocalLibrary({LocalMediaChannel? channel})
-    : _channel = channel ?? LocalMediaChannel.instance;
+  LocalLibrary({LocalMediaChannel? channel, SettingsStore? settings})
+    : _channel = channel ?? LocalMediaChannel.instance,
+      _settings = settings ?? SettingsStore();
 
   final LocalMediaChannel _channel;
+  final SettingsStore _settings;
+
+  FolderRules _rules = const FolderRules();
+
+  /// Which folders the library takes music from.
+  FolderRules get folderRules => _rules;
+
+  /// Every folder holding music, including ones left out, largest first.
+  List<LocalFolder> get folders => _scan.folders;
+
+  /// Replace the folder rules, then rescan.
+  ///
+  /// Takes the whole rule set rather than one folder at a time because the
+  /// screen applies a selection: changing six folders one call at a time would
+  /// mean six rescans, five of them showing a library nobody asked to see.
+  ///
+  /// A rescan rather than filtering in memory: the album and artist groupings
+  /// are built from the raw MediaStore rows, where album and artist are still
+  /// separate columns, and rebuilding them from already-mapped items would
+  /// mean parsing a display string back apart. The scan is cheap on a warm
+  /// album-art cache.
+  Future<void> setFolderRules(FolderRules rules) async {
+    if (rules.sameAs(_rules)) return;
+    _rules = rules;
+    await _settings.saveFolderRules(rules);
+    notifyListeners();
+    await load(force: true);
+  }
 
   LocalLibraryStatus _status = LocalLibraryStatus.idle;
   LocalLibraryStatus get status => _status;
@@ -84,7 +114,8 @@ class LocalLibrary extends ChangeNotifier {
   Future<void> _scanNow() async {
     if (_status == LocalLibraryStatus.scanning) return;
     _set(LocalLibraryStatus.scanning);
-    _scan = await _channel.scan();
+    _rules = await _settings.loadFolderRules();
+    _scan = await _channel.scan(rules: _rules);
     _set(LocalLibraryStatus.ready);
   }
 
