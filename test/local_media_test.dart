@@ -137,9 +137,9 @@ void main() {
   group('grouping', () {
     test('tracks bucket into albums and artists', () async {
       stub([
-        _row(id: '1', album: 'Bone', artist: 'OKO'),
-        _row(id: '2', album: 'Bone', artist: 'OKO'),
-        _row(id: '3', album: 'Marble', artist: 'Niamh'),
+        _row(id: '1', album: 'Bone', artist: 'OKO', albumId: '1'),
+        _row(id: '2', album: 'Bone', artist: 'OKO', albumId: '1'),
+        _row(id: '3', album: 'Marble', artist: 'Niamh', albumId: '2'),
       ]);
       final scan = await LocalMediaChannel.instance.scan();
 
@@ -149,40 +149,61 @@ void main() {
       expect(scan.albums.first.songs, hasLength(2));
     });
 
-    test('the same album under two MediaStore ids is one album', () async {
-      // Ripped twice, or synced from two sources: MediaStore hands back two
-      // ALBUM_IDs for what the user sees as one album.
+    test('a soundtrack stays one album despite per-track artists', () async {
+      // The case that made this key on ALBUM_ID. Film soundtracks carry a
+      // different playback singer per track, so keying on album + track artist
+      // split one album into one entry per singer.
       stub([
-        _row(id: '1', album: 'Bone', artist: 'OKO', albumId: '1'),
-        _row(id: '2', album: 'Bone', artist: 'OKO', albumId: '99'),
+        _row(id: '1', album: 'Tere Naam', artist: 'Alka Yagnik', albumId: '5'),
+        _row(id: '2', album: 'Tere Naam', artist: 'Udit Narayan', albumId: '5'),
+        _row(id: '3', album: 'Tere Naam', artist: 'Himesh', albumId: '5'),
       ]);
       final scan = await LocalMediaChannel.instance.scan();
 
       expect(scan.albums, hasLength(1));
-      expect(scan.albums.single.songs, hasLength(2));
+      expect(scan.albums.single.songs, hasLength(3));
+      // Naming one singer off a six-singer soundtrack is worse than naming none.
+      expect(scan.albums.single.subtitle, 'Various artists');
+    });
+
+    test('a single-artist album is credited to that artist', () async {
+      stub([
+        _row(id: '1', album: 'Bone', artist: 'OKO', albumId: '7'),
+        _row(id: '2', album: 'Bone', artist: 'OKO', albumId: '7'),
+      ]);
+      final scan = await LocalMediaChannel.instance.scan();
+      expect(scan.albums.single.subtitle, 'OKO');
+    });
+
+    test('rows with no album id are not grouped as an album', () async {
+      stub([_row(id: '1', album: 'Loose', albumId: '0')]);
+      final scan = await LocalMediaChannel.instance.scan();
+      expect(scan.songs, hasLength(1), reason: 'still playable');
+      expect(scan.albums, isEmpty);
     });
 
     test('same album name by different artists stays separate', () async {
       // "Greatest Hits" is not one album.
+      // Two different albums on disk, so two ALBUM_IDs.
       stub([
-        _row(id: '1', album: 'Greatest Hits', artist: 'OKO'),
-        _row(id: '2', album: 'Greatest Hits', artist: 'Niamh'),
+        _row(id: '1', album: 'Greatest Hits', artist: 'OKO', albumId: '1'),
+        _row(id: '2', album: 'Greatest Hits', artist: 'Niamh', albumId: '2'),
       ]);
       final scan = await LocalMediaChannel.instance.scan();
       expect(scan.albums, hasLength(2));
     });
 
-    test('grouping is case-insensitive but keeps the first spelling', () async {
+    test('artists group case-insensitively, keeping the first spelling', () {
+      // Artists have no MediaStore id we can trust the way albums do — the
+      // same name arrives capitalised differently across files.
       stub([
-        _row(id: '1', album: 'Bone', artist: 'OKO'),
-        _row(id: '2', album: 'BONE', artist: 'oko'),
+        _row(id: '1', album: 'Bone', artist: 'OKO', albumId: '1'),
+        _row(id: '2', album: 'Bone', artist: 'oko', albumId: '1'),
       ]);
-      final scan = await LocalMediaChannel.instance.scan();
-
-      expect(scan.albums, hasLength(1));
-      expect(scan.albums.single.name, 'Bone');
-      expect(scan.artists, hasLength(1));
-      expect(scan.artists.single.name, 'OKO');
+      return LocalMediaChannel.instance.scan().then((scan) {
+        expect(scan.artists, hasLength(1));
+        expect(scan.artists.single.name, 'OKO');
+      });
     });
 
     test(
@@ -212,8 +233,8 @@ void main() {
 
     test('newest-first order from the query is preserved', () async {
       stub([
-        _row(id: '1', album: 'Newest', artist: 'A'),
-        _row(id: '2', album: 'Older', artist: 'B'),
+        _row(id: '1', album: 'Newest', artist: 'A', albumId: '1'),
+        _row(id: '2', album: 'Older', artist: 'B', albumId: '2'),
       ]);
       final scan = await LocalMediaChannel.instance.scan();
       expect(scan.albums.map((a) => a.name), ['Newest', 'Older']);

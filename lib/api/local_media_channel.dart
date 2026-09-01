@@ -105,7 +105,7 @@ class LocalMediaChannel {
     final songs = <FeedItem>[];
     final albums = <String, List<FeedItem>>{};
     final albumNames = <String, String>{};
-    final albumArtists = <String, String?>{};
+    final albumArtistSets = <String, Set<String>>{};
     final artists = <String, List<FeedItem>>{};
     final artistNames = <String, String>{};
 
@@ -120,17 +120,27 @@ class LocalMediaChannel {
       final album = _clean((r['album'] ?? '').toString());
 
       if (album != null) {
-        // Keyed on album + artist rather than MediaStore's ALBUM_ID: the same
-        // album ripped twice, or synced from two sources, gets two ids and
-        // would otherwise appear as two entries.
-        final key = '${album.toLowerCase()}|${(artist ?? '').toLowerCase()}';
-        albums
-            .putIfAbsent(key, () {
-              albumNames[key] = album;
-              albumArtists[key] = artist;
-              return <FeedItem>[];
-            })
-            .add(song);
+        // Keyed on MediaStore's ALBUM_ID, which is what actually corresponds
+        // to one album on disk.
+        //
+        // An earlier version keyed on album + track artist, reasoning that two
+        // artists' "Greatest Hits" are not one album. True, but it splits every
+        // soundtrack and compilation — where the track artist differs per
+        // track — into one entry per singer, which is by far the more common
+        // case: one film soundtrack showed up four times, once per playback
+        // singer.
+        final key = (r['albumId'] ?? '').toString();
+        if (key.isNotEmpty && key != '0') {
+          albums
+              .putIfAbsent(key, () {
+                albumNames[key] = album;
+                return <FeedItem>[];
+              })
+              .add(song);
+          // Every artist on the album, so the subtitle can say "Various
+          // artists" rather than pick whichever track happened to come first.
+          albumArtistSets.putIfAbsent(key, () => <String>{}).add(artist ?? '');
+        }
       }
 
       if (artist != null) {
@@ -155,7 +165,7 @@ class LocalMediaChannel {
           LocalCollection(
             id: e.key,
             name: albumNames[e.key] ?? '',
-            subtitle: albumArtists[e.key],
+            subtitle: _albumArtist(albumArtistSets[e.key]),
             songs: e.value,
           ),
       ],
@@ -169,6 +179,17 @@ class LocalMediaChannel {
           ),
       ],
     );
+  }
+
+  /// The artist line for an album: the one artist if it has a single one,
+  /// otherwise "Various artists". Naming one singer off a soundtrack that has
+  /// six is worse than naming none.
+  static String? _albumArtist(Set<String>? artists) {
+    final named = (artists ?? const <String>{})
+        .where((a) => a.isNotEmpty)
+        .toList();
+    if (named.isEmpty) return null;
+    return named.length == 1 ? named.first : 'Various artists';
   }
 
   /// One MediaStore row as a FeedItem.

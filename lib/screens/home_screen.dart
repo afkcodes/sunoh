@@ -681,7 +681,10 @@ class _CoverCard extends StatelessWidget {
         SizedBox(height: featured ? 10 : 8),
         Text(
           item.title,
-          maxLines: featured ? 2 : 1,
+          // One line, always. A wrapped title shifts the subtitle and the
+          // card below it, so a long name in the featured shelf made the row
+          // sit at a different height from its neighbours.
+          maxLines: 1,
           overflow: TextOverflow.ellipsis,
           style: featured
               ? SunohType.heading(
@@ -701,7 +704,7 @@ class _CoverCard extends StatelessWidget {
           SizedBox(height: featured ? 4 : 2),
           Text(
             item.displaySubtitle!,
-            maxLines: featured ? 2 : 1,
+            maxLines: 1,
             overflow: TextOverflow.ellipsis,
             style: SunohType.sans(
               fontSize: featured ? 12.5 : 11.5,
