@@ -255,9 +255,8 @@ void main() {
       expect(scan.folders.first.name, 'Music');
     });
 
-    test('choosing nothing uses the whole device', () async {
-      // The default. A fresh install has to find music without being
-      // configured first, so an empty choice cannot mean an empty library.
+    test('the default takes the whole device', () async {
+      // A fresh install has to find music without being configured first.
       stub([
         _row(id: '1', path: '/Music/a.mp3'),
         _row(id: '2', path: '/WhatsApp/voice.mp3'),
@@ -267,49 +266,65 @@ void main() {
       expect(scan.songs.map((s) => s.id), ['1', '2']);
     });
 
-    test('choosing a folder leaves everything else out', () async {
+    test('turning one folder off leaves the rest alone', () async {
       stub([
         _row(id: '1', path: '/Music/a.mp3'),
         _row(id: '2', path: '/WhatsApp/voice.mp3'),
       ]);
       final scan = await LocalMediaChannel.instance.scan(
-        includedFolders: {'/Music'},
+        rules: const FolderRules(overrides: {'/WhatsApp': false}),
       );
 
       expect(scan.songs.map((s) => s.id), ['1']);
     });
 
-    test('a chosen folder brings its subfolders with it', () async {
-      // The reason this is an include list and not an exclude list: one
-      // album-per-folder library is a hundred directories under one parent.
+    test('taking only one folder is the default plus one rule', () async {
       stub([
         _row(id: '1', path: '/Music/Rock/Album/a.mp3'),
-        _row(id: '2', path: '/Music/b.mp3'),
-        _row(id: '3', path: '/Podcasts/c.mp3'),
+        _row(id: '2', path: '/Podcasts/c.mp3'),
       ]);
       final scan = await LocalMediaChannel.instance.scan(
-        includedFolders: {'/Music'},
+        rules: const FolderRules(
+          defaultIncluded: false,
+          overrides: {'/Music': true},
+        ),
       );
 
-      expect(scan.songs.map((s) => s.id), ['1', '2']);
+      expect(scan.songs.map((s) => s.id), ['1'], reason: 'subfolders included');
+    });
+
+    test('a folder inside a chosen one can still be dropped', () async {
+      // The case an include-only list cannot express.
+      stub([
+        _row(id: '1', path: '/Music/Rock/a.mp3'),
+        _row(id: '2', path: '/Music/Voice Memos/b.mp3'),
+      ]);
+      final scan = await LocalMediaChannel.instance.scan(
+        rules: const FolderRules(
+          defaultIncluded: false,
+          overrides: {'/Music': true, '/Music/Voice Memos': false},
+        ),
+      );
+
+      expect(scan.songs.map((s) => s.id), ['1']);
     });
 
     test('a folder left out still appears in the folder list', () async {
-      // Otherwise there is no way back: the folder you left out would vanish
-      // from the list that lets you add it.
+      // Otherwise there is no way back: the folder you turned off would vanish
+      // from the list that lets you turn it on.
       stub([
         _row(id: '1', path: '/Music/a.mp3'),
         _row(id: '2', path: '/WhatsApp/voice.mp3'),
       ]);
       final scan = await LocalMediaChannel.instance.scan(
-        includedFolders: {'/Music'},
+        rules: const FolderRules(overrides: {'/WhatsApp': false}),
       );
 
       expect(scan.folders.map((f) => f.path), contains('/WhatsApp'));
       expect(
         scan.folders.firstWhere((f) => f.path == '/WhatsApp').trackCount,
         1,
-        reason: 'counts cover every row, chosen or not',
+        reason: 'counts cover every row, taken or not',
       );
     });
 
@@ -331,7 +346,7 @@ void main() {
         ),
       ]);
       final scan = await LocalMediaChannel.instance.scan(
-        includedFolders: {'/Music'},
+        rules: const FolderRules(overrides: {'/Tones': false}),
       );
 
       expect(scan.albums.map((a) => a.name), ['Real']);
@@ -345,10 +360,10 @@ void main() {
         _row(id: '2', path: '/MusicVideos/b.mp3'),
       ]);
       final scan = await LocalMediaChannel.instance.scan(
-        includedFolders: {'/Music'},
+        rules: const FolderRules(overrides: {'/Music': false}),
       );
 
-      expect(scan.songs.map((s) => s.id), ['1']);
+      expect(scan.songs.map((s) => s.id), ['2']);
     });
 
     test('a path with no directory part is not counted as a folder', () async {
@@ -360,28 +375,145 @@ void main() {
     });
   });
 
-  group('isUnderAnyRoot', () {
-    test('no roots means everything', () {
-      expect(isUnderAnyRoot('/anywhere', const {}), isTrue);
+  group('FolderRules resolution', () {
+    test('no rules means everything', () {
+      expect(const FolderRules().allows('/anywhere'), isTrue);
+      expect(const FolderRules().isDefault, isTrue);
     });
 
-    test('the root itself counts', () {
-      expect(isUnderAnyRoot('/Music', const {'/Music'}), isTrue);
-    });
-
-    test('a descendant counts at any depth', () {
-      expect(isUnderAnyRoot('/Music/a/b/c', const {'/Music'}), isTrue);
-    });
-
-    test('a prefix that is not a path boundary does not count', () {
-      expect(isUnderAnyRoot('/MusicVideos', const {'/Music'}), isFalse);
-    });
-
-    test('any one root is enough', () {
-      expect(
-        isUnderAnyRoot('/Podcasts/x', const {'/Music', '/Podcasts'}),
-        isTrue,
+    test('the nearest rule up the path wins', () {
+      const rules = FolderRules(
+        defaultIncluded: false,
+        overrides: {'/a': true, '/a/b': false, '/a/b/c': true},
       );
+      expect(rules.allows('/a/x'), isTrue);
+      expect(rules.allows('/a/b/x'), isFalse);
+      expect(rules.allows('/a/b/c/x'), isTrue);
+      expect(rules.allows('/other'), isFalse);
+    });
+
+    test('a folder with no rule anywhere above it follows the default', () {
+      // The reason the default is a visible row: a folder created tomorrow has
+      // no rule, and has to behave like the ones around it rather than vanish.
+      const rules = FolderRules(overrides: {'/a': false});
+      expect(rules.allows('/brand/new'), isTrue);
+    });
+
+    test('a prefix that is not a path boundary is a different folder', () {
+      const rules = FolderRules(overrides: {'/Music': false});
+      expect(rules.allows('/MusicVideos'), isTrue);
+    });
+  });
+
+  group('FolderRules editing', () {
+    test('a rule matching what it inherits is not stored', () {
+      // Otherwise the rule set grows with entries that change nothing and
+      // stop tracking the folder above them.
+      final rules = const FolderRules().set('/a', included: true);
+      expect(rules.overrides, isEmpty);
+      expect(rules.isDefault, isTrue);
+    });
+
+    test('a rule that says nothing today is kept for when it does', () {
+      // '/a/b' is redundant while '/a' is off. It is the only thing keeping
+      // that folder out the moment '/a' goes back on, and dropping it would
+      // resurrect the music far away from the tap that caused it.
+      const before = FolderRules(overrides: {'/a/b': false});
+      final off = before.set('/a', included: false);
+      expect(off.allows('/a/b'), isFalse);
+
+      final backOn = off.set('/a', included: true);
+      expect(backOn.allows('/a'), isTrue);
+      expect(backOn.allows('/a/b'), isFalse, reason: 'still out');
+    });
+
+    test('a rule survives the default going off and on again', () {
+      const before = FolderRules(overrides: {'/a': false});
+      final round = before
+          .withDefault(included: false)
+          .withDefault(included: true);
+
+      expect(round.allows('/a'), isFalse);
+    });
+
+    test('a contradicting rule underneath survives', () {
+      // Someone deliberately took '/a/b' out. Re-ticking the tree above it is
+      // not a request to undo that.
+      const before = FolderRules(
+        defaultIncluded: false,
+        overrides: {'/a/b': false},
+      );
+      final after = before.set('/a', included: true);
+
+      expect(after.allows('/a'), isTrue);
+      expect(after.allows('/a/b'), isFalse);
+    });
+
+    test('flipping the default keeps every rule', () {
+      const before = FolderRules(overrides: {'/a': false, '/b': true});
+      final after = before.withDefault(included: false);
+
+      expect(after.defaultIncluded, isFalse);
+      expect(after.overrides.keys, unorderedEquals(['/a', '/b']));
+      expect(after.allows('/b'), isTrue, reason: 'still the one folder in');
+    });
+
+    test('a rule survives a default flip when a folder sits between', () {
+      // Caught on a real device: with the tree ticked on and one album inside
+      // it ticked off, turning the device row off dropped the album's rule,
+      // because it happened to match the new default.
+      const before = FolderRules(
+        overrides: {'/lib': true, '/lib/voice notes': false},
+      );
+      final after = before.withDefault(included: false);
+
+      expect(after.allows('/lib/a'), isTrue);
+      expect(
+        after.allows('/lib/voice notes'),
+        isFalse,
+        reason: 'the album stays out of the tree it was taken out of',
+      );
+    });
+
+    test('a rule under a contradicting parent survives a set', () {
+      // Same shape, reached by setting a folder rather than the default.
+      const before = FolderRules(
+        defaultIncluded: false,
+        overrides: {'/lib': true, '/lib/voice notes': false},
+      );
+      final after = before.set('/lib', included: true);
+
+      expect(after.allows('/lib/voice notes'), isFalse);
+    });
+
+    test('turning a folder off then on again leaves no trace', () {
+      final rules = const FolderRules()
+          .set('/a', included: false)
+          .set('/a', included: true);
+      expect(rules.isDefault, isTrue);
+    });
+  });
+
+  group('FolderRules storage', () {
+    test('a round trip keeps the default and every rule', () {
+      const rules = FolderRules(
+        defaultIncluded: false,
+        overrides: {'/a': true, '/a/b': false},
+      );
+      expect(FolderRules.decode(rules.encode()).sameAs(rules), isTrue);
+    });
+
+    test('an empty or unreadable value falls back to taking everything', () {
+      // A half-written setting must not empty the library.
+      expect(FolderRules.decode(const []).isDefault, isTrue);
+      expect(FolderRules.decode(const ['nonsense', '+']).isDefault, isTrue);
+    });
+
+    test('sameAs sees a differing rule', () {
+      const a = FolderRules(overrides: {'/x': false});
+      expect(a.sameAs(const FolderRules(overrides: {'/x': true})), isFalse);
+      expect(a.sameAs(const FolderRules()), isFalse);
+      expect(a.sameAs(const FolderRules(overrides: {'/x': false})), isTrue);
     });
   });
 

@@ -6,6 +6,8 @@ import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:hive_ce_flutter/hive_flutter.dart';
 
+import '../api/local_media_channel.dart';
+
 class SavedEqState {
   const SavedEqState({required this.bands, this.presetId});
   final List<double> bands;
@@ -98,13 +100,13 @@ class SettingsStore {
   // shown to the user once as a recovery code, and the device id names this
   // device's file in the folder. All three live here rather than in the
   // library box because they configure sync, they are not synced by it.
-  /// Absolute folder roots the on-device library takes music from. Empty
-  /// means the whole device.
+  /// Which folders the on-device library takes music from, encoded by
+  /// [FolderRules]. Absent means the whole device.
   ///
   /// Not synced between devices: the same music sits under different paths on
   /// different phones, so one device's folder choice is meaningless on another
   /// and would silently hide the wrong music.
-  static const _kIncludedFolders = 'local.included_folders';
+  static const _kFolderRules = 'local.folder_rules';
 
   static const _kSyncTree = 'sync.tree_uri';
   static const _kSyncKey = 'sync.key';
@@ -380,25 +382,25 @@ extension SyncSettings on SettingsStore {
     'playback.yt_language',
   ];
 
-  Future<Set<String>> loadIncludedFolders() async {
+  Future<FolderRules> loadFolderRules() async {
     try {
       final box = await _box();
-      final raw = box.get(SettingsStore._kIncludedFolders);
-      if (raw is! List) return <String>{};
-      return raw.whereType<String>().toSet();
+      final raw = box.get(SettingsStore._kFolderRules);
+      if (raw is! List) return const FolderRules();
+      return FolderRules.decode(raw.whereType<String>());
     } catch (e) {
-      debugPrint('[settings-store] loadIncludedFolders failed: $e');
-      return <String>{};
+      debugPrint('[settings-store] loadFolderRules failed: $e');
+      return const FolderRules();
     }
   }
 
-  Future<void> saveIncludedFolders(Set<String> folders) async {
+  Future<void> saveFolderRules(FolderRules rules) async {
     try {
       final box = await _box();
-      await box.put(SettingsStore._kIncludedFolders, folders.toList());
+      await box.put(SettingsStore._kFolderRules, rules.encode());
       await box.flush();
     } catch (e) {
-      debugPrint('[settings-store] saveIncludedFolders failed: $e');
+      debugPrint('[settings-store] saveFolderRules failed: $e');
     }
   }
 

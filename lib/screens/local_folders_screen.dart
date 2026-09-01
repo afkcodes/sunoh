@@ -6,16 +6,20 @@
 // catch some of it, and nothing catches a folder of forwarded voice notes that
 // happen to be four minutes long.
 //
-// Choosing folders rather than excluding them. Both express the same thing,
-// but a real library is a hundred album folders under one parent: "use this
-// one" is a tap, and "not those ninety-nine" is not. Picking nothing means the
-// whole device, so a fresh install works without ever opening this screen.
+// The screen is a tree with a row for the device itself at the top. Every
+// folder follows the one above it until you say otherwise, so the two things
+// people actually want are each a couple of taps: keep everything but the
+// ringtones (leave the top row on, turn one folder off), or take only one
+// library (turn the top row off, turn that folder on). See [FolderRules] for
+// why one rule beats an include list or an exclude list.
 //
-// A chosen folder covers everything inside it, and the list is ordered and
-// indented by path so a parent sits directly above the folders it covers.
-// Folders already covered are shown checked but not tappable — untangling
-// them would mean choosing every sibling instead, which is the mess this
-// screen exists to avoid.
+// Rows are ordered and indented by path so a folder sits directly under the
+// one it inherits from, and the count on the right is every track in that
+// folder whether it is currently taken or not.
+//
+// The selection applies in one go. Six folders is one decision, and applying
+// each separately would rescan the library six times, five of those showing a
+// state nobody asked for.
 
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -38,23 +42,35 @@ class LocalFoldersScreen extends ConsumerStatefulWidget {
 }
 
 class _LocalFoldersScreenState extends ConsumerState<LocalFoldersScreen> {
-  /// Roots staged for the next apply. Null until there is a scan to read, so a
-  /// scan still in flight cannot seed an empty selection that then looks like
-  /// a deliberate choice.
-  Set<String>? _staged;
+  /// Rules staged for the next apply. Null until there is a scan to read, so a
+  /// scan still in flight cannot seed a choice nobody made.
+  FolderRules? _staged;
 
-  static bool _same(Set<String> a, Set<String> b) =>
-      a.length == b.length && a.containsAll(b);
+  /// Rows are derived from the folder list, which only changes on a rescan, so
+  /// they are built once per scan rather than on every frame — see the
+  /// no-work-in-`build` rule. [LocalLibrary.folders] hands back the same list
+  /// instance until a rescan replaces it, which is what makes the identity
+  /// check sound.
+  List<LocalFolder>? _rowsFor;
+  List<_Row> _rows = const [];
+
+  List<_Row> _rowsOf(List<LocalFolder> folders) {
+    if (identical(folders, _rowsFor)) return _rows;
+    _rowsFor = folders;
+    return _rows = _tree(folders);
+  }
 
   @override
   Widget build(BuildContext context) {
     final s = ref.watch(appStateProvider);
     final c = s.colors;
     final lib = ref.watch(localLibraryProvider);
-    final rows = _rows(lib.folders);
+    final rows = _rowsOf(lib.folders);
 
-    final staged = _staged ??= {...lib.includedFolders};
-    final dirty = !_same(staged, lib.includedFolders);
+    final staged = _staged ??= lib.folderRules;
+    final dirty = !staged.sameAs(lib.folderRules);
+    final kept = rows.where((r) => staged.allows(r.folder.path));
+    final tracks = kept.fold<int>(0, (n, r) => n + r.folder.trackCount);
 
     return ColoredBox(
       color: c.bg,
@@ -63,21 +79,14 @@ class _LocalFoldersScreenState extends ConsumerState<LocalFoldersScreen> {
           _Header(
             colors: c,
             scanning: lib.isScanning,
-            everything: staged.isEmpty,
-            onUseEverything: staged.isEmpty
-                ? null
-                : () => setState(() => _staged = <String>{}),
+            canReset: !staged.isDefault,
+            onReset: () => setState(() => _staged = const FolderRules()),
           ),
           Padding(
             padding: const EdgeInsets.fromLTRB(20, 4, 20, 14),
             child: Text(
-              staged.isEmpty
-                  ? 'Using every folder on this device. Choose one or more to '
-                        'narrow it down — a folder brings everything inside it.'
-                  : staged.length == 1
-                  ? '1 folder chosen, and everything inside it.'
-                  : '${staged.length} folders chosen, and everything inside '
-                        'them.',
+              'Turn a folder off to leave it out. Everything inside it follows '
+              'unless you turn one back on.',
               style: SunohType.sans(
                 fontSize: 13,
                 color: c.fgMute,
@@ -97,42 +106,20 @@ class _LocalFoldersScreenState extends ConsumerState<LocalFoldersScreen> {
                   )
                 : ListView.builder(
                     padding: EdgeInsets.only(bottom: dirty ? 8 : 140),
-                    itemCount: rows.length,
-                    itemBuilder: (context, i) {
-                      final row = rows[i];
-                      final chosen = staged.contains(row.folder.path);
-                      final covered =
-                          !chosen &&
-                          staged.isNotEmpty &&
-                          isUnderAnyRoot(row.folder.path, staged);
-                      return _FolderRow(
-                        row: row,
-                        colors: c,
-                        // Nothing chosen means everything is in, but the rows
-                        // are not "chosen": showing them all ticked would make
-                        // "Use everything" look like it did nothing.
-                        state: chosen
-                            ? _Pick.chosen
-                            : covered
-                            ? _Pick.covered
-                            : _Pick.off,
-                        onTap: covered
-                            ? null
-                            : () => setState(() {
-                                final next = {...staged};
-                                if (!next.remove(row.folder.path)) {
-                                  // Drop anything this folder now covers, so
-                                  // the set stays the shortest description of
-                                  // the same choice.
-                                  next.removeWhere(
-                                    (p) => isUnderAnyRoot(p, {row.folder.path}),
-                                  );
-                                  next.add(row.folder.path);
-                                }
-                                _staged = next;
-                              }),
-                      );
-                    },
+                    // One extra for the device row the folders hang off.
+                    itemCount: rows.length + 1,
+                    itemBuilder: (context, i) => i == 0
+                        ? _DeviceRow(
+                            colors: c,
+                            on: staged.defaultIncluded,
+                            tracks: tracks,
+                            onTap: () => setState(() {
+                              _staged = staged.withDefault(
+                                included: !staged.defaultIncluded,
+                              );
+                            }),
+                          )
+                        : _rowFor(rows[i - 1], staged, c),
                   ),
           ),
           if (dirty)
@@ -146,33 +133,49 @@ class _LocalFoldersScreenState extends ConsumerState<LocalFoldersScreen> {
     );
   }
 
-  Future<void> _apply(LocalLibrary lib, AppState s, Set<String> staged) async {
-    await lib.setIncludedFolders(staged);
+  Widget _rowFor(_Row row, FolderRules staged, SunohColors c) {
+    final path = row.folder.path;
+    final on = staged.allows(path);
+    return _FolderRow(
+      row: row,
+      colors: c,
+      on: on,
+      // An explicit rule is drawn solid so a folder someone deliberately set
+      // is distinguishable from one that merely follows its parent — otherwise
+      // there is no way to see what you have actually decided.
+      explicit: staged.overrides.containsKey(path),
+      onTap: () => setState(() => _staged = staged.set(path, included: !on)),
+    );
+  }
+
+  Future<void> _apply(LocalLibrary lib, AppState s, FolderRules staged) async {
+    await lib.setFolderRules(staged);
     if (!mounted) return;
     // Re-seed from what actually landed, so the bar clears only once the
     // library really matches the choice.
     setState(() => _staged = null);
-    s.flashToast(
-      staged.isEmpty
-          ? 'Using every folder'
-          : 'Using ${staged.length} folder${staged.length == 1 ? '' : 's'}',
-    );
+    s.flashToast(staged.isDefault ? 'Using every folder' : 'Folders updated');
   }
 
-  /// Order by path so a parent sits directly above what it contains, and give
-  /// each row its depth relative to the other folders actually present — the
-  /// absolute path depth would indent everything off the screen.
-  static List<_Row> _rows(List<LocalFolder> folders) {
+  /// Order by path so a folder sits directly below the one it inherits from,
+  /// and give each row its depth among the folders actually present — absolute
+  /// path depth would indent everything off the screen.
+  ///
+  /// One pass with a stack of open ancestors rather than counting ancestors per
+  /// row: the counting version is quadratic, which is invisible on a phone with
+  /// twenty folders and is not on one with a thousand.
+  static List<_Row> _tree(List<LocalFolder> folders) {
     final sorted = [...folders]..sort((a, b) => a.path.compareTo(b.path));
-    return [
-      for (final f in sorted)
-        _Row(
-          folder: f,
-          depth: sorted
-              .where((o) => o.path != f.path && f.path.startsWith('${o.path}/'))
-              .length,
-        ),
-    ];
+    final open = <String>[];
+    final rows = <_Row>[];
+    for (final f in sorted) {
+      while (open.isNotEmpty && !f.path.startsWith('${open.last}/')) {
+        open.removeLast();
+      }
+      rows.add(_Row(folder: f, depth: open.length));
+      open.add(f.path);
+    }
+    return rows;
   }
 }
 
@@ -182,20 +185,18 @@ class _Row {
   final int depth;
 }
 
-enum _Pick { chosen, covered, off }
-
 class _Header extends StatelessWidget {
   const _Header({
     required this.colors,
     required this.scanning,
-    required this.everything,
-    required this.onUseEverything,
+    required this.canReset,
+    required this.onReset,
   });
 
   final SunohColors colors;
   final bool scanning;
-  final bool everything;
-  final VoidCallback? onUseEverything;
+  final bool canReset;
+  final VoidCallback onReset;
 
   @override
   Widget build(BuildContext context) {
@@ -232,14 +233,14 @@ class _Header extends StatelessWidget {
               height: 16,
               child: CircularProgressIndicator(strokeWidth: 2, color: c.fgMute),
             )
-          else if (!everything)
+          else if (canReset)
             GestureDetector(
-              onTap: onUseEverything,
+              onTap: onReset,
               behavior: HitTestBehavior.opaque,
               child: Padding(
                 padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 6),
                 child: Text(
-                  'Use everything',
+                  'Reset',
                   style: SunohType.sans(
                     fontSize: 13,
                     fontWeight: FontWeight.w600,
@@ -254,24 +255,88 @@ class _Header extends StatelessWidget {
   }
 }
 
+/// The device itself, at the top of the tree. Every folder falls back to this,
+/// including folders that do not exist yet — which is the whole reason it is a
+/// row you can see and set rather than a hidden default.
+class _DeviceRow extends StatelessWidget {
+  const _DeviceRow({
+    required this.colors,
+    required this.on,
+    required this.tracks,
+    required this.onTap,
+  });
+
+  final SunohColors colors;
+  final bool on;
+  final int tracks;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    final c = colors;
+    return GestureDetector(
+      onTap: onTap,
+      behavior: HitTestBehavior.opaque,
+      child: Padding(
+        padding: const EdgeInsets.fromLTRB(20, 10, 20, 14),
+        child: Row(
+          children: [
+            _Check(on: on, explicit: true, colors: c),
+            const SizedBox(width: 14),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Text(
+                    'All music on this device',
+                    style: SunohType.sans(
+                      fontSize: 14,
+                      fontWeight: FontWeight.w600,
+                      color: c.fg,
+                    ),
+                  ),
+                  const SizedBox(height: 2),
+                  Text(
+                    on
+                        ? 'New folders are included'
+                        : 'New folders are left out',
+                    style: SunohType.sans(fontSize: 11.5, color: c.fgMute),
+                  ),
+                ],
+              ),
+            ),
+            const SizedBox(width: 10),
+            Text(
+              '$tracks',
+              style: SunohType.mono(fontSize: 12, color: c.fgDim),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
 class _FolderRow extends StatelessWidget {
   const _FolderRow({
     required this.row,
-    required this.state,
+    required this.on,
+    required this.explicit,
     required this.colors,
     required this.onTap,
   });
 
   final _Row row;
-  final _Pick state;
+  final bool on;
+  final bool explicit;
   final SunohColors colors;
-  final VoidCallback? onTap;
+  final VoidCallback onTap;
 
   @override
   Widget build(BuildContext context) {
     final c = colors;
     final folder = row.folder;
-    final dim = state == _Pick.off;
     return GestureDetector(
       onTap: onTap,
       behavior: HitTestBehavior.opaque,
@@ -279,14 +344,14 @@ class _FolderRow extends StatelessWidget {
         // Indent is capped: a deeply nested folder still needs room for its
         // name, and past a few levels the extra offset stops meaning anything.
         padding: EdgeInsets.fromLTRB(
-          20.0 + 18 * row.depth.clamp(0, 4),
+          20.0 + 18 * (row.depth + 1).clamp(0, 4),
           10,
           20,
           10,
         ),
         child: Row(
           children: [
-            _Check(state: state, colors: c),
+            _Check(on: on, explicit: explicit, colors: c),
             const SizedBox(width: 14),
             Expanded(
               child: Column(
@@ -300,7 +365,7 @@ class _FolderRow extends StatelessWidget {
                     style: SunohType.sans(
                       fontSize: 14,
                       fontWeight: FontWeight.w500,
-                      color: dim ? c.fgMute : c.fg,
+                      color: on ? c.fg : c.fgMute,
                     ),
                   ),
                   const SizedBox(height: 2),
@@ -308,9 +373,7 @@ class _FolderRow extends StatelessWidget {
                     // Where it sits, not the whole path: two folders can share
                     // a name, and picking the wrong one silently hides the
                     // wrong music.
-                    state == _Pick.covered
-                        ? 'Included with the folder above'
-                        : folderLocation(folder.path),
+                    folderLocation(folder.path),
                     maxLines: 1,
                     overflow: TextOverflow.ellipsis,
                     style: SunohType.sans(fontSize: 11.5, color: c.fgMute),
@@ -330,38 +393,53 @@ class _FolderRow extends StatelessWidget {
   }
 }
 
+/// Four states in one control: in or out, each either set here or inherited.
+/// Inherited reads as a faded version of the same mark rather than as a third
+/// symbol, because it is the same answer — just decided further up.
 class _Check extends StatelessWidget {
-  const _Check({required this.state, required this.colors});
-  final _Pick state;
+  const _Check({
+    required this.on,
+    required this.explicit,
+    required this.colors,
+  });
+
+  final bool on;
+  final bool explicit;
   final SunohColors colors;
 
   @override
   Widget build(BuildContext context) {
     final c = colors;
-    final on = state != _Pick.off;
     return AnimatedContainer(
       duration: const Duration(milliseconds: 140),
       curve: Curves.easeOut,
       width: 22,
       height: 22,
       decoration: BoxDecoration(
-        // A covered folder is in the library but was not picked, so it reads
-        // as a quieter version of the same tick rather than a second control.
-        color: switch (state) {
-          _Pick.chosen => c.accent,
-          _Pick.covered => c.accent.withValues(alpha: 0.28),
-          _Pick.off => Colors.transparent,
-        },
+        color: on
+            ? (explicit ? c.accent : c.accent.withValues(alpha: 0.28))
+            : Colors.transparent,
         shape: BoxShape.circle,
-        border: on ? null : Border.all(color: c.line, width: 1.5),
+        border: on
+            ? null
+            : Border.all(
+                color: explicit ? c.fgMute : c.line,
+                width: explicit ? 1.8 : 1.5,
+              ),
       ),
       child: on
           ? Icon(
               Icons.check_rounded,
               size: 15,
-              color: state == _Pick.chosen ? c.onAccent : c.fgDim,
+              color: explicit ? c.onAccent : c.fgDim,
             )
-          : null,
+          // A folder turned off here gets a mark of its own, so a deliberate
+          // exclusion is not mistaken for one that just follows its parent.
+          : (explicit
+                ? Center(
+                    child: Container(width: 9, height: 1.8, color: c.fgMute),
+                  )
+                : null),
     );
   }
 }

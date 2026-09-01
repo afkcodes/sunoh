@@ -44,30 +44,29 @@ class LocalLibrary extends ChangeNotifier {
   final LocalMediaChannel _channel;
   final SettingsStore _settings;
 
-  Set<String> _included = const {};
+  FolderRules _rules = const FolderRules();
 
-  /// Folder roots the library takes music from. Empty means the whole device.
-  Set<String> get includedFolders => _included;
+  /// Which folders the library takes music from.
+  FolderRules get folderRules => _rules;
 
   /// Every folder holding music, including ones left out, largest first.
   List<LocalFolder> get folders => _scan.folders;
 
-  /// Replace the set of folder roots to scan, then rescan.
+  /// Replace the folder rules, then rescan.
   ///
-  /// Takes the whole set rather than one folder at a time because the screen
-  /// applies a selection: choosing six folders one call at a time would mean
-  /// six rescans, five of them showing a library the user never asked to see.
+  /// Takes the whole rule set rather than one folder at a time because the
+  /// screen applies a selection: changing six folders one call at a time would
+  /// mean six rescans, five of them showing a library nobody asked to see.
   ///
   /// A rescan rather than filtering in memory: the album and artist groupings
   /// are built from the raw MediaStore rows, where album and artist are still
   /// separate columns, and rebuilding them from already-mapped items would
   /// mean parsing a display string back apart. The scan is cheap on a warm
   /// album-art cache.
-  Future<void> setIncludedFolders(Set<String> paths) async {
-    final next = Set<String>.unmodifiable(paths);
-    if (next.length == _included.length && next.containsAll(_included)) return;
-    _included = next;
-    await _settings.saveIncludedFolders(next);
+  Future<void> setFolderRules(FolderRules rules) async {
+    if (rules.sameAs(_rules)) return;
+    _rules = rules;
+    await _settings.saveFolderRules(rules);
     notifyListeners();
     await load(force: true);
   }
@@ -115,8 +114,8 @@ class LocalLibrary extends ChangeNotifier {
   Future<void> _scanNow() async {
     if (_status == LocalLibraryStatus.scanning) return;
     _set(LocalLibraryStatus.scanning);
-    _included = await _settings.loadIncludedFolders();
-    _scan = await _channel.scan(includedFolders: _included);
+    _rules = await _settings.loadFolderRules();
+    _scan = await _channel.scan(rules: _rules);
     _set(LocalLibraryStatus.ready);
   }
 
