@@ -111,19 +111,14 @@ void main() {
     test('the local copy of a shared item is kept', () {
       // It is at least as good as the remote and may carry enrichment the
       // other device never fetched.
-      final local = FeedItem(
+      const local = FeedItem(
         id: 'a',
         title: 'Full Title',
         type: 'song',
-        image: const [],
+        image: [],
         subtitle: 'Artist',
       );
-      final remote = FeedItem(
-        id: 'a',
-        title: 'a',
-        type: 'song',
-        image: const [],
-      );
+      const remote = FeedItem(id: 'a', title: 'a', type: 'song', image: []);
 
       final merged = mergeItems(
         collection: _liked,
@@ -138,7 +133,7 @@ void main() {
     test('items with no id are dropped rather than colliding', () {
       final merged = mergeItems(
         collection: _liked,
-        local: [FeedItem(id: '', title: 'junk', type: 'song', image: const [])],
+        local: [const FeedItem(id: '', title: 'junk', type: 'song', image: [])],
         remote: const [],
         meta: SyncMeta(),
       );

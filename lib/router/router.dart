@@ -35,6 +35,7 @@ import '../screens/search_screen.dart';
 import '../screens/section_screen.dart';
 import '../screens/settings_screen.dart';
 import '../screens/spotify_import_screen.dart';
+import '../screens/sync_screen.dart';
 import '../screens/user_playlist_screen.dart';
 import '../screens/ytmusic_screens.dart';
 import '../shell/app_scaffold.dart';
@@ -48,7 +49,7 @@ GoRouter buildRouter() {
   return GoRouter(
     navigatorKey: rootNavigatorKey,
     initialLocation: '/home',
-        // Safety net for inbound Android Intents. The platform forwards the
+    // Safety net for inbound Android Intents. The platform forwards the
     // URI's path component to go_router *before* DeepLinkRouter (which
     // lives on top of app_links) gets a chance. Custom-scheme deep links
     // like `sunoh://playlist/abc` get parsed by Flutter as path `/abc`
@@ -229,6 +230,10 @@ List<RouteBase> _detailRoutes() => [
   GoRoute(
     path: 'history',
     pageBuilder: (c, s) => _slideRight(const RecentlyPlayedScreen(), s),
+  ),
+  GoRoute(
+    path: 'sync',
+    pageBuilder: (c, s) => _slideRight(const SyncScreen(), s),
   ),
   GoRoute(
     path: 'local',
@@ -485,6 +490,9 @@ extension SunohNav on BuildContext {
 
   /// The on-device music library.
   void openLocalLibrary() => push('$_branchPrefix/local');
+
+  /// Library sync setup and status.
+  void openSync() => push('$_branchPrefix/sync');
 
   /// One on-device album or artist.
   void openLocalCollection(String id, {required bool album}) => push(

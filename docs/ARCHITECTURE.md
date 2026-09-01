@@ -47,6 +47,7 @@ Companion documents:
 | `lib/router/` | `go_router` config, nav extension, deep-link dispatch. |
 | `lib/screens/` `lib/overlays/` `lib/player/` `lib/shell/` | UI. |
 | `lib/services/` | Update checker. |
+| `lib/sync/` | Library sync across devices via a user-picked folder. See [`SYNC.md`](SYNC.md). |
 | `lib/state/` | `AppState` — the player and library state machine. |
 | `lib/theme/` | Design tokens, light and dark. The only place raw colours are defined. |
 | `lib/widgets/` | Shared, screen-agnostic widgets. |

@@ -26,8 +26,7 @@ final searchProvider = FutureProvider.autoDispose
       // One analytics call per distinct (debounced) query — the family key
       // dedupes naturally because the same query gets the same cached
       // FutureProvider instance.
-      if (query.trim().isNotEmpty) {
-      }
+      if (query.trim().isNotEmpty) {}
       final api = ref.watch(sunohApiProvider);
       return api.fetchSearch(query);
     });

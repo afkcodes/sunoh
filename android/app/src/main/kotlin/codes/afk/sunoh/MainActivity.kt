@@ -1,10 +1,13 @@
 package codes.afk.sunoh
 
+import android.content.Intent
 import codes.afk.sunoh.localmedia.LocalMediaBridge
+import codes.afk.sunoh.sync.SyncBridge
 import codes.afk.sunoh.ytmusic.YtMusicBridge
 import com.ryanheise.audioservice.AudioServiceActivity
 import io.flutter.embedding.engine.FlutterEngine
 import io.flutter.plugin.common.MethodChannel
+import io.flutter.plugin.common.MethodChannel.Result
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
@@ -30,6 +33,21 @@ class MainActivity : AudioServiceActivity() {
      * so a destroyed activity cancels an in-flight scan.
      */
     private val localScope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
+
+    /**
+     * Scope for sync file I/O. Separate again: a folder behind a cloud
+     * provider can block for seconds on a cold read, and that must not sit in
+     * front of stream resolution or a library scan.
+     */
+    private val syncScope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
+
+    /**
+     * Held across the folder picker. SAF answers through onActivityResult, so
+     * the Dart call is parked until the user has chosen, or backed out — which
+     * returns null rather than an error, because cancelling a picker is a
+     * normal thing to do.
+     */
+    private var pendingFolderResult: Result? = null
 
     override fun configureFlutterEngine(flutterEngine: FlutterEngine) {
         super.configureFlutterEngine(flutterEngine)
@@ -108,10 +126,133 @@ class MainActivity : AudioServiceActivity() {
                     else -> result.notImplemented()
                 }
             }
+
+        // Library sync: folder access and encryption. No network here. The app
+        // writes an encrypted file into a folder the user picked, and whatever
+        // syncs that folder does the moving.
+        MethodChannel(flutterEngine.dartExecutor.binaryMessenger, SYNC_CHANNEL)
+            .setMethodCallHandler { call, result ->
+                when (call.method) {
+                    "pickFolder" -> {
+                        if (pendingFolderResult != null) {
+                            result.error("busy", "picker already open", null)
+                        } else {
+                            pendingFolderResult = result
+                            startActivityForResult(
+                                SyncBridge.openFolderPickerIntent(),
+                                SyncBridge.PICK_FOLDER_REQUEST,
+                            )
+                        }
+                    }
+
+                    "hasAccess" -> {
+                        val tree = call.argument<String>("tree")
+                        result.success(
+                            tree != null && SyncBridge.hasAccess(applicationContext, tree),
+                        )
+                    }
+
+                    "folderName" -> {
+                        val tree = call.argument<String>("tree")
+                        result.success(
+                            tree?.let { SyncBridge.folderName(applicationContext, it) },
+                        )
+                    }
+
+                    "generateKey" -> result.success(SyncBridge.generateKey())
+
+                    "readAll" -> {
+                        val tree = call.argument<String>("tree")
+                        val key = call.argument<String>("key")
+                        if (tree == null || key == null) {
+                            result.error("bad_args", "tree and key required", null)
+                            return@setMethodCallHandler
+                        }
+                        syncScope.launch {
+                            val outcome = runCatching {
+                                SyncBridge.readAll(applicationContext, tree)
+                                    .mapNotNull { (name, bytes) ->
+                                        // A file encrypted with another key is
+                                        // skipped, not an error: the folder may
+                                        // be shared with a different setup.
+                                        SyncBridge.decrypt(bytes, key)?.let { name to it }
+                                    }
+                                    .toMap()
+                            }
+                            withContext(Dispatchers.Main) {
+                                outcome.onSuccess { result.success(it) }
+                                    .onFailure {
+                                        result.error(
+                                            "read_failed",
+                                            it.message ?: "read failed",
+                                            null,
+                                        )
+                                    }
+                            }
+                        }
+                    }
+
+                    "write" -> {
+                        val tree = call.argument<String>("tree")
+                        val name = call.argument<String>("name")
+                        val key = call.argument<String>("key")
+                        val bytes = call.argument<ByteArray>("bytes")
+                        if (tree == null || name == null || key == null || bytes == null) {
+                            result.error("bad_args", "missing argument", null)
+                            return@setMethodCallHandler
+                        }
+                        syncScope.launch {
+                            val outcome = runCatching {
+                                val blob = SyncBridge.encrypt(bytes, key)
+                                if (blob == null) false
+                                else SyncBridge.write(applicationContext, tree, name, blob)
+                            }
+                            withContext(Dispatchers.Main) {
+                                outcome.onSuccess { result.success(it) }
+                                    .onFailure {
+                                        result.error(
+                                            "write_failed",
+                                            it.message ?: "write failed",
+                                            null,
+                                        )
+                                    }
+                            }
+                        }
+                    }
+
+                    "delete" -> {
+                        val tree = call.argument<String>("tree")
+                        val name = call.argument<String>("name")
+                        result.success(
+                            tree != null && name != null &&
+                                SyncBridge.delete(applicationContext, tree, name),
+                        )
+                    }
+
+                    else -> result.notImplemented()
+                }
+            }
+    }
+
+    override fun onActivityResult(requestCode: Int, resultCode: Int, data: Intent?) {
+        if (requestCode == SyncBridge.PICK_FOLDER_REQUEST) {
+            val pending = pendingFolderResult
+            pendingFolderResult = null
+            val uri = SyncBridge.treeUriFromResult(resultCode, data)
+            if (uri == null) {
+                pending?.success(null)
+            } else {
+                SyncBridge.persistTreePermission(applicationContext, uri)
+                pending?.success(uri.toString())
+            }
+            return
+        }
+        super.onActivityResult(requestCode, resultCode, data)
     }
 
     private companion object {
         const val CHANNEL = "codes.afk.sunoh/ytmusic"
         const val LOCAL_CHANNEL = "codes.afk.sunoh/localmedia"
+        const val SYNC_CHANNEL = "codes.afk.sunoh/sync"
     }
 }

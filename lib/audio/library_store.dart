@@ -17,6 +17,7 @@ import 'package:hive_ce_flutter/hive_flutter.dart';
 
 import '../api/dto.dart';
 import '../data/user_playlist.dart';
+import '../sync/sync_merge.dart';
 
 class LibraryStore {
   LibraryStore();
@@ -39,7 +40,24 @@ class LibraryStore {
   // resume-where-you-left-off works across cold starts. Capped at
   // [_maxEpisodeProgress] entries (LRU by updatedAt).
   static const _kEpisodeProgress = 'episode_progress';
+
+  /// Timestamps and tombstones for everything syncable, keyed
+  /// `collection:id`. See `sync/sync_merge.dart` for why it sits beside the
+  /// collections rather than inside them: the stored shapes above are exactly
+  /// what they always were, so nothing here needs migrating and a library
+  /// written before sync existed still reads.
+  static const _kSyncMeta = 'sync_meta';
   static const _maxEpisodeProgress = 200;
+
+  /// Collection names for sync metadata. Deliberately short and stable: they
+  /// are written into every device's sync file, so renaming one silently
+  /// orphans the other device's records for that collection.
+  static const cLiked = 'liked';
+  static const cAlbum = 'album';
+  static const cPlaylist = 'playlist';
+  static const cArtist = 'artist';
+  static const cUserPlaylist = 'uplaylist';
+  static const cPodcast = 'podcast';
 
   /// Max items kept in the played-history list. Older entries get evicted
   /// LRU-style. 50 is enough for "Recently Played" sections without growing
@@ -113,6 +131,103 @@ class LibraryStore {
     return box;
   }
 
+  // ── Bulk replace, for applying a merge ─────────────────────────────────
+  //
+  // These write a whole collection at once and deliberately do NOT touch sync
+  // metadata: a merge result is not a user action, and stamping it with "now"
+  // would make every sync look like a fresh edit on this device and win every
+  // future tie. The service writes the merged metadata itself, once.
+
+  Future<void> replaceLiked(List<FeedItem> items) =>
+      _replace(_kLikedSongs, items);
+
+  Future<void> replaceSaved(String kind, List<FeedItem> items) =>
+      _replace(_keyForKind(kind), items);
+
+  Future<void> replaceSubscribedPodcasts(List<FeedItem> items) =>
+      _replace(_kSubscribedPodcasts, items);
+
+  Future<void> _replace(String key, List<FeedItem> items) async {
+    try {
+      final box = await _box();
+      await box.put(key, _encodeList(items));
+      await box.flush();
+    } catch (e) {
+      debugPrint('[library-store] replace $key failed: $e');
+    }
+  }
+
+  Future<void> replaceUserPlaylists(List<UserPlaylist> playlists) async {
+    try {
+      final box = await _box();
+      await box.put(_kUserPlaylists, _encodePlaylists(playlists));
+      await box.flush();
+    } catch (e) {
+      debugPrint('[library-store] replace user playlists failed: $e');
+    }
+  }
+
+  Future<void> replaceEpisodeProgress(Map<String, int> progress) async {
+    try {
+      final box = await _box();
+      // Same `{pos, t}` shape and LRU cap the incremental writer uses, so a
+      // merge cannot grow the box past what normal use would, and the reader
+      // does not need to know a merge happened.
+      final now = DateTime.now().millisecondsSinceEpoch;
+      final capped = progress.entries.toList()
+        ..sort((a, b) => b.value.compareTo(a.value));
+      await box.put(_kEpisodeProgress, {
+        for (final e in capped.take(_maxEpisodeProgress))
+          e.key: {'pos': e.value, 't': now},
+      });
+      await box.flush();
+    } catch (e) {
+      debugPrint('[library-store] replace episode progress failed: $e');
+    }
+  }
+
+  // ── Sync metadata ──────────────────────────────────────────────────────
+
+  Future<SyncMeta> loadSyncMeta() async {
+    try {
+      final box = await _box();
+      return SyncMeta.fromJson(box.get(_kSyncMeta));
+    } catch (e) {
+      debugPrint('[library-store] sync meta read failed: $e');
+      return SyncMeta();
+    }
+  }
+
+  Future<void> saveSyncMeta(SyncMeta meta) async {
+    try {
+      final box = await _box();
+      await box.put(_kSyncMeta, meta.toJson());
+      await box.flush();
+    } catch (e) {
+      debugPrint('[library-store] sync meta write failed: $e');
+    }
+  }
+
+  /// Record that [id] in [collection] was just added or removed.
+  ///
+  /// Called from every mutation below. A mutation that forgets to call this
+  /// still works locally and is simply invisible to sync, which is the quiet
+  /// failure to watch for when adding a new collection.
+  Future<void> _touch(
+    String collection,
+    String id, {
+    required bool deleted,
+  }) async {
+    if (id.isEmpty) return;
+    final meta = await loadSyncMeta();
+    if (deleted) {
+      meta.markDeleted(collection, id);
+    } else {
+      meta.markAdded(collection, id);
+    }
+    await saveSyncMeta(meta);
+  }
+
   List<FeedItem> _decodeList(Object? raw) {
     // CRITICAL: must return a *growable, modifiable* list because every
     // mutation path (setLiked / pushHistory / setSaved) does
@@ -175,6 +290,7 @@ class LibraryStore {
     current.removeWhere((s) => s.id == song.id);
     if (liked) current.insert(0, song);
     await box.put(_kLikedSongs, _encodeList(current));
+    await _touch(cLiked, song.id, deleted: !liked);
     // Force fsync — Hive buffers writes by default; without flush, a
     // crash or fast subsequent `adb install` can drop the write.
     await box.flush();
@@ -222,6 +338,13 @@ class LibraryStore {
   // Same shape as liked_songs but separate keys so the UI can show
   // them in their own buckets (and the user can have a Maroon 5 album
   // saved without that artist being followed, etc.).
+
+  /// Map a saved-item kind onto its sync collection name.
+  static String _collectionForKind(String kind) => switch (kind) {
+    'album' => cAlbum,
+    'artist' => cArtist,
+    _ => cPlaylist,
+  };
 
   String _keyForKind(String kind) {
     switch (kind) {
@@ -275,6 +398,7 @@ class LibraryStore {
     current.removeWhere((s) => s.id == item.id);
     if (saved) current.insert(0, item);
     await box.put(key, _encodeList(current));
+    await _touch(_collectionForKind(item.type), item.id, deleted: !saved);
     await box.flush();
     debugPrint(
       '[library-store] saved=${saved ? 'on' : 'off'} '
@@ -317,6 +441,7 @@ class LibraryStore {
     current.removeWhere((x) => x.id == p.id);
     current.insert(0, p);
     await box.put(_kUserPlaylists, _encodePlaylists(current));
+    await _touch(cUserPlaylist, p.id, deleted: false);
     await box.flush();
     debugPrint(
       '[library-store] upsert user-playlist "${p.name}" '
@@ -330,6 +455,7 @@ class LibraryStore {
     final current = _decodePlaylists(box.get(_kUserPlaylists));
     current.removeWhere((p) => p.id == id);
     await box.put(_kUserPlaylists, _encodePlaylists(current));
+    await _touch(cUserPlaylist, id, deleted: true);
     await box.flush();
     debugPrint(
       '[library-store] deleted user-playlist $id '
@@ -378,6 +504,7 @@ class LibraryStore {
     current.removeWhere((s) => s.id == show.id);
     if (subscribed) current.insert(0, show);
     await box.put(_kSubscribedPodcasts, _encodeList(current));
+    await _touch(cPodcast, show.id, deleted: !subscribed);
     await box.flush();
     debugPrint(
       '[library-store] subscribed=${subscribed ? 'on' : 'off'} '

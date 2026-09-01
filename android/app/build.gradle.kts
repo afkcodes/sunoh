@@ -86,6 +86,13 @@ flutter {
 }
 
 dependencies {
+    // ── Library sync ─────────────────────────────────────────────────────
+    // DocumentFile wraps the Storage Access Framework's tree API, which is
+    // otherwise raw ContentResolver calls against DocumentsContract. AndroidX,
+    // free software, and small — the alternative is hand-rolling directory
+    // listing and file creation over a provider we do not control.
+    implementation("androidx.documentfile:documentfile:1.0.1")
+
     // ── YouTube Music tier ───────────────────────────────────────────────
     // InnerTube extraction (client ladder, cipher/n-transform, format
     // selection, self-healing remote player configs) from the Metrolist
