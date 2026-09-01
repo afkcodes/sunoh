@@ -38,7 +38,6 @@ import 'providers/downloads_provider.dart';
 import 'providers/ytmusic_provider.dart';
 import 'router/deep_links.dart';
 import 'router/router.dart';
-import 'services/analytics_service.dart';
 
 /// One app-wide scroll feel: Android-style **stretch** overscroll on every
 /// platform (clamping physics + stretching indicator), draggable with
@@ -180,7 +179,6 @@ Future<void> main() async {
   // a single log line, instead of blocking app boot. Every call site
   // checks `_ready` before touching the SDK so it's safe to call before
   // this future resolves.
-  unawaited(AnalyticsService.instance.init());
   final handler = SunohAudioHandler(resolver: resolver);
   final repo = AudioRepo(
     handler: handler,

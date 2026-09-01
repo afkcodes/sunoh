@@ -68,17 +68,15 @@ value, derivable from any published APK:
 apksigner verify --print-certs app-release.apk
 ```
 
-### Expect anti-feature labels
+### Expect one anti-feature label
 
 IzzyOnDroid runs every APK through [Exodus](https://reports.exodus-privacy.eu.org/)
-and labels what it finds. sunoh will be flagged for:
+and labels what it finds. With Firebase removed there is **no tracker left to
+find**; the scan should come back clean.
 
-- **Tracking** and **NonFreeNet** — Firebase Analytics.
-- **NonFreeDep** — Google Play Services, via Firebase and the Cast SDK.
-
-These do not block inclusion; they appear on the listing. Being upfront about
-them in the request is better than having them discovered — and the README
-already describes the analytics as opt-out rather than claiming there is none.
+One label remains likely: **NonFreeDep**, for Google Play Services, pulled in
+by the Cast SDK. It does not block inclusion — it appears on the listing —
+and stating it in the request is better than having it discovered.
 
 ---
 
@@ -90,41 +88,35 @@ IzzyOnDroid's, and sunoh does not currently clear it.
 
 ### What is blocking it
 
+Exactly one dependency, now that Firebase is gone.
+
 | Dependency | Pulls in | Used for |
 |---|---|---|
-| `firebase_analytics`, `firebase_core` | `com.google.firebase:firebase-analytics` | Opt-out event counts |
 | `flutter_chrome_cast` | `com.google.android.gms:play-services-cast-framework` | Chromecast |
 
-Both are closed-source Google libraries. Neither can ship in an F-Droid build,
+It is a closed-source Google library, and it cannot ship in an F-Droid build
 however optional it is at runtime — the objection is to the library being in
-the APK, not to whether it executes.
-
-Note what is *not* a blocker: `google-services.json` is already gitignored and
-the Gradle plugin is applied conditionally, so a clone without it builds fine.
-That was already true before any of this work.
+the APK, not to whether it executes. Verified against the built APK: the only
+`com.google.android.gms` packages left are `cast`, `auth`, `common`, `dynamite`
+and `flags`, all pulled in by that one plugin.
 
 ### What inclusion would cost
 
-A FOSS build flavour that omits both. Analytics is a clean removal — it is
-already wrapped so that a failed init degrades to "analytics disabled", and
-nothing in the app reads it back. **Chromecast is the real cost: the F-Droid
-build would not be able to cast.**
+**Chromecast.** There is no way to keep casting and be in F-Droid's main
+repository: the Cast protocol requires Google's SDK, and the open
+reimplementations do not handle the authenticated handshake current Chromecast
+firmware demands.
 
-There is no way to keep casting and be in F-Droid's main repository. The Cast
-protocol requires Google's SDK; the open reimplementations do not support the
-authenticated handshake current Chromecast firmware demands.
-
-### The options, honestly
+### The options
 
 1. **IzzyOnDroid only.** Costs nothing, keeps every feature, and is where most
-   people looking for an F-Droid-compatible repo will find it. This is the
-   recommended route.
-2. **Both, with a `foss` flavour.** F-Droid gets a build without analytics or
-   casting; GitHub and IzzyOnDroid keep the full one. Real work — Gradle
-   flavours plus stubbing the plugins out of the Dart build — and two variants
-   to keep working from then on.
-3. **Drop Cast and Firebase entirely.** Simplest to maintain, one build
-   everywhere, and F-Droid becomes straightforward. Costs casting for everyone.
+   people looking for an F-Droid-compatible repo will find it.
+2. **Both, with a `foss` flavour.** F-Droid gets a build without casting;
+   GitHub and IzzyOnDroid keep the full one. Gradle flavours plus stubbing the
+   plugin out of the Dart build, and two variants to keep working from then on.
+3. **Drop Cast entirely.** One build everywhere, simplest to maintain, and
+   F-Droid becomes straightforward. Costs casting for everyone.
 
 This is a product decision, not a technical one, and it should be made before
-any flavour work starts.
+any flavour work starts. Removing Firebase was the cheap half — it cost a
+feature nobody uses deliberately. Cast is the half that costs something real.

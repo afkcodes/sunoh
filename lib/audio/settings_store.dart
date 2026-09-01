@@ -103,11 +103,6 @@ class SettingsStore {
   // when it surpasses it (next release), the banner returns.
   static const _kDismissedUpdate = 'updates.dismissed_version';
 
-  // Privacy — opt-out switch for Firebase Analytics. Default true (on).
-  // When false, AnalyticsService.setEnabled(false) flips Firebase's
-  // own setAnalyticsCollectionEnabled so the SDK stops collecting AND
-  // queues nothing for upload.
-  static const _kAnalyticsEnabled = 'privacy.analytics_enabled';
 
   /// Cached in-flight open so concurrent loaders share one openBox call
   /// — same race-avoidance idiom as library_store.
@@ -328,22 +323,5 @@ class SettingsStore {
 
   // ── Privacy ─────────────────────────────────────────────────────────────
 
-  /// Returns null on fresh installs / older saves — caller treats null
-  /// as "on" (analytics defaults to enabled until the user explicitly
-  /// opts out).
-  Future<bool?> loadAnalyticsEnabled() async {
-    try {
-      final box = await _box();
-      return box.get(_kAnalyticsEnabled) as bool?;
-    } catch (e) {
-      debugPrint('[settings-store] loadAnalyticsEnabled failed: $e');
-      return null;
-    }
-  }
 
-  Future<void> saveAnalyticsEnabled(bool enabled) async {
-    final box = await _box();
-    await box.put(_kAnalyticsEnabled, enabled);
-    await box.flush();
-  }
 }

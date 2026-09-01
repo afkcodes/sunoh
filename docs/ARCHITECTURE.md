@@ -46,7 +46,7 @@ Companion documents:
 | `lib/providers/` | Riverpod wiring. Thin: composition only, no logic. |
 | `lib/router/` | `go_router` config, nav extension, deep-link dispatch. |
 | `lib/screens/` `lib/overlays/` `lib/player/` `lib/shell/` | UI. |
-| `lib/services/` | Analytics, update checker. |
+| `lib/services/` | Update checker. |
 | `lib/state/` | `AppState` — the player and library state machine. |
 | `lib/theme/` | Design tokens, light and dark. The only place raw colours are defined. |
 | `lib/widgets/` | Shared, screen-agnostic widgets. |
@@ -69,12 +69,11 @@ optional can block it.**
 1. **Blocking, cheap.** Hive init, `MpvAudioKit.ensureInitialized()`,
    `StreamResolver`, `DownloadManager.init()`, `SunohAudioHandler`, `AudioRepo`.
    After this line the app can play audio.
-2. **Fire-and-forget.** Cast SDK, Firebase Analytics, and `audio_service`
-   (behind a hard 5 s timeout) are launched unawaited. Each is wrapped so a
-   failure degrades one feature rather than the app: no Play Services means no
-   Cast, a missing `google-services.json` means no analytics, a failed
+2. **Fire-and-forget.** The Cast SDK and `audio_service` (behind a hard 5 s
+   timeout) are launched unawaited. Each is wrapped so a failure degrades one
+   feature rather than the app: no Play Services means no Cast, a failed
    `AudioService.init` means no lockscreen controls. In-app playback survives
-   all three.
+   both.
 3. **Post-first-frame.** Deep-link wiring, YouTube region detection, and the
    PO-token WebView prewarm run from `addPostFrameCallback` so the router has
    built its initial route first.
@@ -146,8 +145,6 @@ Two guards worth knowing:
   `/library`, `/player` to `/home`. Android hands `sunoh://playlist/abc` to
   go_router as bare path `/abc` before the deep-link dispatcher sees it;
   without the redirect that surfaces the error page.
-- `_AnalyticsObserver` normalizes `/home/album/abc` to screen name `album`,
-  keeping the Firebase screen-view cardinality bounded.
 
 ---
 

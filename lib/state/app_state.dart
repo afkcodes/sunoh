@@ -16,7 +16,6 @@ import '../cast/cast_service.dart';
 import '../data/catalog.dart';
 import '../data/models.dart';
 import '../data/user_playlist.dart';
-import '../services/analytics_service.dart';
 import '../theme/tokens.dart';
 import '../widgets/album_art.dart';
 
@@ -206,25 +205,10 @@ class AppState extends ChangeNotifier with WidgetsBindingObserver {
       ytLanguageOverride = play?.ytLanguage ?? '';
       final recents = await repo.settings.loadSearchRecents();
       if (recents.isNotEmpty) _searchRecents = recents;
-      // Privacy — load the analytics opt-out before notifying. A null
-      // value (fresh installs) keeps the default `analyticsEnabled =
-      // true`. Apply to the service before any event fires so a user
-      // who'd opted out previously doesn't see a single event slip
-      // through on startup.
-      final analytics = await repo.settings.loadAnalyticsEnabled();
-      if (analytics != null) analyticsEnabled = analytics;
-      await AnalyticsService.instance.setEnabled(analyticsEnabled);
 
       notifyListeners();
       // Push restored settings as user properties so every subsequent
       // analytics event is grouped by them in Firebase.
-      AnalyticsService.instance.setUserProperties(
-        languages: selectedLanguagesCsv,
-        density: density.name,
-        tintFromArt: tintFromArt,
-        streamQuality: streamQuality,
-        endlessAutoplay: endlessAutoplay,
-      );
     } catch (e) {
       debugPrint('[settings] restore failed: $e');
     }
@@ -382,9 +366,6 @@ class AppState extends ChangeNotifier with WidgetsBindingObserver {
     theme = value;
     notifyListeners();
     audioRepo?.settings.saveAppearance(theme: value);
-    AnalyticsService.instance.logCustomEvent('set_theme', {
-      'theme': value.name,
-    });
   }
 
   /// How strongly the extracted artwork color overrides the user's accent
@@ -411,13 +392,6 @@ class AppState extends ChangeNotifier with WidgetsBindingObserver {
   /// the difference between Indian and American content.
   String ytCountryOverride = '';
   String ytLanguageOverride = '';
-
-  /// User-facing opt-out for Firebase Analytics. On by default; flipping
-  /// to false calls `AnalyticsService.setEnabled(false)` which both
-  /// halts collection via Firebase's own switch AND resets the local
-  /// install id. Persisted in the settings box under
-  /// `privacy.analytics_enabled`.
-  bool analyticsEnabled = true;
 
   /// Guard against a second prime firing while the first one's network
   /// call is in flight (currentSongStream can emit several times back-to-
@@ -619,12 +593,6 @@ class AppState extends ChangeNotifier with WidgetsBindingObserver {
           : 'Removed ${_kindLabel(kind)} from Library',
     );
     notifyListeners();
-    AnalyticsService.instance.logSaveCollection(
-      kind: kind,
-      id: item.id,
-      saved: shouldSave,
-      title: item.title,
-    );
     try {
       final next = await repo.library.setSaved(item: item, saved: shouldSave);
       switch (kind) {
@@ -677,7 +645,6 @@ class AppState extends ChangeNotifier with WidgetsBindingObserver {
     );
     _userPlaylists = [p, ..._userPlaylists];
     notifyListeners();
-    AnalyticsService.instance.logPlaylistCreate(id: p.id, name: p.name);
     if (repo != null) {
       // Fire-and-forget persistence — UI already swapped in the new list.
       try {
@@ -757,10 +724,6 @@ class AppState extends ChangeNotifier with WidgetsBindingObserver {
       );
       _userPlaylists = [playlist, ..._userPlaylists];
       notifyListeners();
-      AnalyticsService.instance.logPlaylistCreate(
-        id: playlist.id,
-        name: playlist.name,
-      );
       final repo = audioRepo;
       if (repo != null) {
         try {
@@ -860,10 +823,6 @@ class AppState extends ChangeNotifier with WidgetsBindingObserver {
     ];
     flashToast('Added to “${current.name}”');
     notifyListeners();
-    AnalyticsService.instance.logPlaylistAddSong(
-      playlistId: playlistId,
-      songId: song.id,
-    );
     if (repo != null) {
       try {
         await repo.library.upsertUserPlaylist(updated);
@@ -904,10 +863,6 @@ class AppState extends ChangeNotifier with WidgetsBindingObserver {
       flashToast('“${p.name}” is empty');
       return;
     }
-    AnalyticsService.instance.logPlaylistPlay(
-      playlistId: p.id,
-      songCount: p.songs.length,
-    );
     await playApiQueue(
       p.songs,
       startIndex,
@@ -1076,11 +1031,6 @@ class AppState extends ChangeNotifier with WidgetsBindingObserver {
     }
     flashToast(shouldLike ? 'Added to Liked' : 'Removed from Liked');
     notifyListeners();
-    AnalyticsService.instance.logLike(
-      song.id,
-      liked: shouldLike,
-      title: song.title,
-    );
     // Persist + reconcile with disk truth (in case of concurrent writes).
     try {
       final next = await repo.library.setLiked(song: song, liked: shouldLike);
@@ -1326,15 +1276,6 @@ class AppState extends ChangeNotifier with WidgetsBindingObserver {
     // Analytics: fired here (not on `playApiQueue` start) so we only
     // count tracks the user actually heard — history-push is called
     // when the player advances OFF a track. Mirrors RN's `useHistoryStore`.
-    AnalyticsService.instance.logSongPlay(
-      id: song.id,
-      title: song.title,
-      artist: (song.artists ?? const []).isNotEmpty
-          ? song.artists!.first.name
-          : null,
-      provider: song.source,
-      sourceLabel: apiSourceLabel,
-    );
     try {
       final next = await repo.library.pushHistory(song);
       _playedHistory = next;
@@ -1692,7 +1633,6 @@ class AppState extends ChangeNotifier with WidgetsBindingObserver {
     audioRepo?.handler.setEqBands(eqBands);
     _persistEq();
     notifyListeners();
-    AnalyticsService.instance.logEqPresetApply(presetId: preset.id);
   }
 
   void resetEq() {
@@ -1830,7 +1770,6 @@ class AppState extends ChangeNotifier with WidgetsBindingObserver {
           position: Duration(seconds: position),
         );
         _castConnectedAt = DateTime.now();
-        AnalyticsService.instance.logCastConnect(_castDeviceName ?? 'unknown');
         await _handOffToCast();
       } else if (wasCasting && !nowConnected) {
         // Just disconnected → drop cast-override (bridge resumes
@@ -1842,11 +1781,6 @@ class AppState extends ChangeNotifier with WidgetsBindingObserver {
         );
         final connectedAt = _castConnectedAt;
         _castConnectedAt = null;
-        AnalyticsService.instance.logCastDisconnect(
-          sessionLength: connectedAt == null
-              ? null
-              : DateTime.now().difference(connectedAt),
-        );
         await _resumeOnPhone();
       }
       notifyListeners();
@@ -2244,19 +2178,6 @@ class AppState extends ChangeNotifier with WidgetsBindingObserver {
     await audioRepo?.settings.savePlayback(ytLanguage: code);
   }
 
-  /// Privacy: flip Firebase Analytics collection on/off. Disable hits
-  /// Firebase's own `setAnalyticsCollectionEnabled` AND resets the
-  /// local install id (severs the link between any new install and
-  /// already-collected events). Persisted so the choice survives
-  /// restart.
-  Future<void> setAnalyticsEnabled(bool enabled) async {
-    if (analyticsEnabled == enabled) return;
-    analyticsEnabled = enabled;
-    notifyListeners();
-    await audioRepo?.settings.saveAnalyticsEnabled(enabled);
-    await AnalyticsService.instance.setEnabled(enabled);
-  }
-
   /// Called from the `currentSongStream` listener (and once at the tail of
   /// `playApiQueue` for single-song queues). Checks whether autoplay is on
   /// AND we're now on the last queue entry AND no prime is already in
@@ -2414,10 +2335,6 @@ class AppState extends ChangeNotifier with WidgetsBindingObserver {
       for (final s in filtered) {
         await repo.addToQueue(s);
       }
-      AnalyticsService.instance.logAutoplayPrime(
-        songsAppended: filtered.length,
-        seedId: seed.id,
-      );
       // If the player stopped while we were appending — the race the
       // threshold trigger is supposed to avoid, but can still happen
       // if the user skips fast on a short queue — jump to the first
@@ -2482,10 +2399,6 @@ class AppState extends ChangeNotifier with WidgetsBindingObserver {
   // ── Sleep timer API ────────────────────────────────────────────────────
   void armSleepTimer({Duration? duration, bool endOfTrack = false}) {
     cancelSleepTimer(silent: true);
-    AnalyticsService.instance.logSleepTimerSet(
-      minutes: duration?.inMinutes,
-      endOfTrack: endOfTrack,
-    );
     if (endOfTrack) {
       sleepAtTrackEnd = true;
       _sleepCapturedSongId = currentApiSong?.id;
@@ -2520,7 +2433,6 @@ class AppState extends ChangeNotifier with WidgetsBindingObserver {
     if (!silent) notifyListeners();
     // Only log a cancel when something WAS armed — silent re-arm cycles
     // call cancelSleepTimer(silent:true) under the hood.
-    if (!silent && wasArmed) AnalyticsService.instance.logSleepTimerCancel();
   }
 
   // Called from the `currentSongStream` listener (in _bindAudio) when the

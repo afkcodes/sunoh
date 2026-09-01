@@ -8,7 +8,7 @@ interface.**
 YouTube Music, Gaana and Saavn behind a single search — plus the music already
 on your phone, podcasts, and audiobooks.
 
-No ads. No account. No sign-in, ever.
+No ads. No account. No analytics. No sign-in, ever.
 
 [![Release](https://img.shields.io/github/v/release/afkcodes/sunoh?style=for-the-badge&label=release&color=D97757)](https://github.com/afkcodes/sunoh/releases/latest)
 [![Total downloads](https://img.shields.io/github/downloads/afkcodes/sunoh/total?style=for-the-badge&label=downloads&color=82B07B)](https://github.com/afkcodes/sunoh/releases)
@@ -116,9 +116,9 @@ drops, and downloaded tracks are the only tier that survives it.
 sunoh has no accounts and no user identity, and that is deliberate.
 
 - No sign-in, anywhere.
-- Analytics is **opt-out** and limited to event counts. Turning it off both
-  halts collection and resets the local install id, severing the link to
-  anything already collected.
+- **No analytics of any kind.** There is no telemetry SDK in the app — Firebase
+  was removed outright rather than left switchable, so there is nothing to opt
+  out of and nothing to take on trust.
 - SponsorBlock lookups send a 4-character hash prefix of the video id — enough
   to fetch segments, not enough to identify the track.
 - On-device music never leaves the phone. It is read through MediaStore and
@@ -203,11 +203,11 @@ source, so no build recipe is needed and the app keeps every feature. The
 the repo; what remains is a request.
 
 **F-Droid's main repository** builds from source and accepts no proprietary
-dependencies. sunoh currently has two — Firebase Analytics, and the Google Cast
-SDK behind Chromecast — and the objection is to the libraries being in the APK
-at all, not to whether they run. Removing analytics is clean; **removing Cast
-means the F-Droid build could not cast**, and there is no open replacement that
-current Chromecast firmware accepts. That trade-off is unresolved, and
+dependencies. Firebase Analytics is gone, so **the Google Cast SDK behind
+Chromecast is the only one left** — and the objection is to the library being
+in the APK at all, not to whether it runs. **Removing it means the F-Droid
+build could not cast**, and there is no open replacement that current
+Chromecast firmware accepts. That trade-off is unresolved;
 `docs/DISTRIBUTION.md` lays out the options.
 
 ---
@@ -247,9 +247,9 @@ trademarks belong to their respective owners.
   circumventing anything. Upstream platforms change without notice, and any
   given source can stop working at any time.
 
-- **Privacy.** No account, no sign-in, and no listening history leaves the
-  phone. Analytics is opt-out and limited to event counts; on-device music
-  never leaves the device at all. See [Privacy](#privacy) above.
+- **Privacy.** No account, no sign-in, no analytics, and no listening history
+  leaving the phone. On-device music never leaves the device at all. See
+  [Privacy](#privacy) above.
 
 - **Copyleft.** sunoh is free software under the **GPL-3.0** — see
   [`LICENSE`](LICENSE). The licence does not let anyone forbid others from

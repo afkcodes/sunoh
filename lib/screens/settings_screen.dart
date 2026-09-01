@@ -50,38 +50,6 @@ class SettingsScreen extends ConsumerStatefulWidget {
 }
 
 class _SettingsScreenState extends ConsumerState<SettingsScreen> {
-  // "Tap Version 7 times to unlock the analytics toggle" — Android-style
-  // hidden control. We don't put a privacy switch in plain view because
-  // analytics is on by default for a personal app and the user (me)
-  // doesn't need a visible reminder; the unlock pattern keeps it
-  // reachable without it being part of the everyday UI. Counter resets
-  // every time the user leaves the screen.
-  int _versionTaps = 0;
-  bool _analyticsRevealed = false;
-
-  static const int _kAnalyticsUnlockTaps = 7;
-
-  void _onVersionTap() {
-    if (_analyticsRevealed) return;
-    final next = _versionTaps + 1;
-    if (next >= _kAnalyticsUnlockTaps) {
-      setState(() {
-        _analyticsRevealed = true;
-        _versionTaps = next;
-      });
-      ref.read(appStateProvider).flashToast('Analytics setting unlocked');
-    } else {
-      setState(() => _versionTaps = next);
-      // Quiet feedback after a few taps so the user knows something is
-      // happening but the path isn't broadcast on the first poke.
-      if (next >= 3 && next < _kAnalyticsUnlockTaps) {
-        ref
-            .read(appStateProvider)
-            .flashToast('${_kAnalyticsUnlockTaps - next} more…');
-      }
-    }
-  }
-
   /// Opens the Telegram community group. Same external-launcher path
   /// the donation links use — hand the URL off to the OS and let it
   /// pick Telegram-app-or-browser.
@@ -308,18 +276,7 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
                         '—',
                     icon: SolarIconsOutline.infoCircle,
                     colors: c,
-                    // Tap 7× to unlock the hidden Share-analytics toggle.
-                    onTap: _onVersionTap,
                   ),
-                  if (_analyticsRevealed)
-                    _ToggleRow(
-                      label: 'Share analytics',
-                      summary:
-                          'Anonymous usage events. Off also resets the install id.',
-                      value: s.analyticsEnabled,
-                      onChange: s.setAnalyticsEnabled,
-                      colors: c,
-                    ),
                 ],
               );
             },
@@ -408,13 +365,16 @@ class _Link extends StatelessWidget {
   const _Link({
     required this.label,
     required this.icon,
-    required this.onTap,
     required this.colors,
+    this.onTap,
     this.trailing,
   });
   final String label;
   final IconData icon;
-  final VoidCallback onTap;
+
+  /// Optional: the Version row states a fact rather than going anywhere.
+  /// It used to open a hidden analytics toggle, which no longer exists.
+  final VoidCallback? onTap;
   final SunohColors colors;
   final String? trailing;
   @override
@@ -440,7 +400,9 @@ class _Link extends StatelessWidget {
             ),
             const SizedBox(width: 6),
           ],
-          Icon(SolarIconsOutline.altArrowRight, size: 16, color: c.fgMute),
+          // No chevron on a row that goes nowhere.
+          if (onTap != null)
+            Icon(SolarIconsOutline.altArrowRight, size: 16, color: c.fgMute),
         ],
       ),
     );

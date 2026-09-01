@@ -57,7 +57,6 @@ app.*.map.json
 # Per-machine Android SDK paths + signing keys — never commit.
 /android/local.properties
 /android/key.properties
-/android/app/google-services.json
 
 # macOS / Cocoapods
 ios/Pods/
