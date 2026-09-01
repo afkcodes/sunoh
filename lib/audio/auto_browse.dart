@@ -39,6 +39,7 @@ import 'package:audio_service/audio_service.dart';
 import '../api/dto.dart';
 import '../api/sunoh_api.dart';
 import 'auto_catalog.dart';
+import 'auto_collections.dart';
 import 'auto_feeds.dart';
 import 'auto_media_id.dart';
 import 'download_manager.dart';
@@ -69,6 +70,11 @@ class AutoBrowseTree {
     // One shared catalog: a track tapped inside a feed section has to resolve
     // against the same cache the library tabs write to.
     _feeds = AutoFeeds(api: api, catalog: catalog, languages: languages);
+    _collections = AutoCollections(
+      api: api,
+      library: library,
+      catalog: catalog,
+    );
   }
 
   final LibraryStore library;
@@ -76,6 +82,7 @@ class AutoBrowseTree {
   final DownloadManager? downloads;
   final AutoCatalog catalog;
   late final AutoFeeds _feeds;
+  late final AutoCollections _collections;
 
   /// Starts playback. Wired to `AudioRepo.playQueue` in main.dart rather than
   /// taking the repo itself, so this class stays testable with a closure.
@@ -118,14 +125,14 @@ class AutoBrowseTree {
         'Recently played',
       );
     }
-    if (parentMediaId == _Tab.playlists.id) return _collections();
+    if (parentMediaId == _Tab.playlists.id) return _savedCollections();
 
     if (AutoFeeds.isFeed(parentMediaId)) return _feeds.sections(parentMediaId);
     if (AutoFeeds.isSection(parentMediaId)) {
       return _feeds.sectionItems(parentMediaId);
     }
     if (AutoMediaId.isCollection(parentMediaId)) {
-      return _collectionTracks(parentMediaId);
+      return _collections.children(parentMediaId);
     }
     return const [];
   }
@@ -159,7 +166,7 @@ class AutoBrowseTree {
   /// User-created playlists first, then saved playlists, then saved albums.
   /// Own-made content ranks above saved content because it is what a driver
   /// reaches for by name.
-  Future<List<MediaItem>> _collections() async {
+  Future<List<MediaItem>> _savedCollections() async {
     final items = <MediaItem>[];
 
     for (final p in await library.loadUserPlaylists()) {
@@ -191,83 +198,13 @@ class AutoBrowseTree {
     return items;
   }
 
-  /// Tracks of one collection, resolved from the id alone — see the cold-start
-  /// rule in the file header.
-  Future<List<MediaItem>> _collectionTracks(String id) async {
-    final cached = catalog.songsFor(id);
-    if (cached != null) return catalog.tracks(id, cached, catalog.labelFor(id));
-
-    final ref = AutoMediaId.parseCollection(id);
-    if (ref == null) return const [];
-    final provider = ref.source.isEmpty ? null : ref.source;
-
-    // Local, and the only kind needing no network — read it back rather than
-    // trusting the cache. Resolving it here also recovers the playlist's real
-    // name for the "playing from" label.
-    if (ref.kind == 'user') {
-      for (final p in await library.loadUserPlaylists()) {
-        if (p.id == ref.id) {
-          return catalog.tracks(id, p.songs, 'PLAYLIST · ${p.name}');
-        }
-      }
-      return const [];
-    }
-
-    // An audiobook genre shelf: its children are books, which are themselves
-    // browsable. Handled before the track switch below because everything
-    // there returns a queue, and a shelf is not one.
-    if (ref.kind == 'cat') return _categoryBooks(ref.id);
-
-    try {
-      final songs = switch (ref.kind) {
-        'album' => (await api.fetchAlbum(ref.id, provider: provider)).songs,
-        'playlist' => (await api.fetchPlaylist(
-          ref.id,
-          provider: provider,
-        )).songs,
-        'artist' => (await api.fetchArtist(
-          ref.id,
-          provider: provider,
-        )).topSongs,
-        'show' => (await api.fetchPodcastShow(ref.id)).episodes,
-        'book' =>
-          (await api.fetchAudiobookDetail(ref.id))?.chapters ??
-              const <FeedItem>[],
-        _ => const <FeedItem>[],
-      };
-      return catalog.tracks(
-        id,
-        songs,
-        catalog.labelFor(id) ?? ref.kind.toUpperCase(),
-      );
-    } catch (_) {
-      return const [];
-    }
-  }
-
-  /// Books in one audiobook genre, as browsable rows.
-  Future<List<MediaItem>> _categoryBooks(String categoryId) async {
-    final id = int.tryParse(categoryId);
-    if (id == null) return const [];
-    try {
-      final books = await api.fetchAudiobooksByCategory(categoryId: id);
-      final rows = <MediaItem>[];
-      for (final b in books) {
-        final bookId = AutoCatalog.collectionIdFor(b);
-        if (bookId == null) continue;
-        catalog.label(bookId, 'AUDIOBOOK · ${b.title}');
-        rows.add(catalog.browsable(b, id: bookId));
-      }
-      return rows;
-    } catch (_) {
-      return const [];
-    }
-  }
-
   // ── Playback ─────────────────────────────────────────────────────────────
 
   /// The car tapped a row. Rebuild that row's container and start there.
   Future<void> playFromMediaId(String mediaId) async {
+    final station = AutoMediaId.parseStation(mediaId);
+    if (station != null) return _playStation(station);
+
     final track = AutoMediaId.parseTrack(mediaId);
     if (track != null) {
       var songs = catalog.songsFor(track.containerId);
@@ -295,6 +232,38 @@ class AutoBrowseTree {
       final songs = catalog.songsFor(mediaId);
       if (songs == null || songs.isEmpty) return;
       await playQueue(songs, 0, sourceLabel: catalog.labelFor(mediaId));
+    }
+  }
+
+  /// Start a radio station.
+  ///
+  /// A station is a seed, not a queue: the backend builds the queue from it.
+  /// Saavn's quick-stations ship an empty `id` and are keyed off the name, so
+  /// the whole seed FeedItem has to survive to this point — which is why
+  /// stations are indexed against the container's seeds rather than carrying
+  /// their identity in the media id.
+  Future<void> _playStation(AutoTrackRef ref) async {
+    var seed = catalog.seedAt(ref.containerId, ref.index);
+    if (seed == null) {
+      // Cold path — rebuild the container that offered it.
+      await getChildren(ref.containerId);
+      seed = catalog.seedAt(ref.containerId, ref.index);
+    }
+    if (seed == null) return;
+    try {
+      final sessionId = await api.fetchRadioSession(
+        id: seed.id,
+        type: seed.stationType ?? 'featured',
+        provider: seed.source ?? 'saavn',
+        name: seed.title,
+        lang: seed.language,
+      );
+      if (sessionId == null || sessionId.isEmpty) return;
+      final songs = await api.fetchRadioSongs(sessionId);
+      if (songs.isEmpty) return;
+      await playQueue(songs, 0, sourceLabel: 'RADIO · ${seed.title}');
+    } catch (_) {
+      // Station unavailable — the car keeps the browse screen it was on.
     }
   }
 

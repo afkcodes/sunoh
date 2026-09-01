@@ -19,6 +19,11 @@ const String kAutoTabPrefix = 'sunoh:t:';
 const String kAutoCollectionPrefix = 'sunoh:c:';
 const String kAutoTrackPrefix = 'sunoh:s:';
 
+/// A radio station row. Distinct from a track because a station is not an
+/// entry in a queue — playing one means asking the backend to build a queue
+/// from the seed, so it resolves against the container's SEEDS, not its songs.
+const String kAutoStationPrefix = 'sunoh:x:';
+
 /// A decoded collection id.
 typedef AutoCollectionRef = ({String kind, String id, String source});
 
@@ -37,8 +42,13 @@ abstract final class AutoMediaId {
   static String track(String containerId, int index) =>
       '$kAutoTrackPrefix$containerId#$index';
 
+  /// `sunoh:x:<container>#<index>`.
+  static String station(String containerId, int index) =>
+      '$kAutoStationPrefix$containerId#$index';
+
   static bool isCollection(String id) => id.startsWith(kAutoCollectionPrefix);
   static bool isTrack(String id) => id.startsWith(kAutoTrackPrefix);
+  static bool isStation(String id) => id.startsWith(kAutoStationPrefix);
   static bool isContainer(String id) =>
       id.startsWith(kAutoTabPrefix) || isCollection(id);
 
@@ -65,9 +75,16 @@ abstract final class AutoMediaId {
   ///
   /// Uses the LAST `#` so a container id containing one can't truncate the
   /// index.
-  static AutoTrackRef? parseTrack(String id) {
-    if (!isTrack(id)) return null;
-    final body = id.substring(kAutoTrackPrefix.length);
+  static AutoTrackRef? parseTrack(String id) =>
+      _parseIndexed(id, kAutoTrackPrefix);
+
+  /// Decode a station id, or null if it isn't one.
+  static AutoTrackRef? parseStation(String id) =>
+      _parseIndexed(id, kAutoStationPrefix);
+
+  static AutoTrackRef? _parseIndexed(String id, String prefix) {
+    if (!id.startsWith(prefix)) return null;
+    final body = id.substring(prefix.length);
     final hash = body.lastIndexOf('#');
     if (hash < 0) return null;
     final index = int.tryParse(body.substring(hash + 1));

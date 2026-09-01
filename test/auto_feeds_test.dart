@@ -156,6 +156,73 @@ void main() {
     );
   });
 
+  test('radio stations are playable rows, not browsable ones', () async {
+    // A station has no track list to open. Making the driver drill into one to
+    // reach a play button is the interaction Android Auto asks apps to avoid.
+    final feeds = feedsFor([
+      _section('Radio', [
+        _item('Party', 'radio_station'),
+        _item('697691', 'radio_station'),
+      ]),
+    ]);
+    final sections = await feeds.sections('sunoh:f:music');
+    final rows = await feeds.sectionItems(sections.single.id);
+
+    expect(rows, hasLength(2));
+    expect(rows.every((r) => r.playable == true), isTrue);
+    expect(rows.every((r) => r.id.startsWith('sunoh:x:')), isTrue);
+  });
+
+  test('stations and songs are numbered independently', () async {
+    // Both are indexed from zero against different lists: songs form a queue,
+    // stations are seeds the backend builds a queue from.
+    final feeds = feedsFor([
+      _section('Mixed', [
+        _item('r1', 'radio_station'),
+        _item('s1', 'song'),
+        _item('r2', 'radio_station'),
+        _item('s2', 'song'),
+      ]),
+    ]);
+    final sections = await feeds.sections('sunoh:f:music');
+    final id = sections.single.id;
+    final rows = await feeds.sectionItems(id);
+
+    expect(rows.map((r) => r.id), [
+      'sunoh:x:$id#0',
+      'sunoh:s:$id#0',
+      'sunoh:x:$id#1',
+      'sunoh:s:$id#1',
+    ]);
+  });
+
+  test('a section of only radio stations is kept, not dropped', () async {
+    // The live /music/home carries three such sections ("Radio",
+    // "Recommended Artist Stations", "Gaana Party Central"). Treating a
+    // station as unroutable hides all of them.
+    final feeds = feedsFor([
+      _section('Radio', [_item('Party', 'radio_station')]),
+    ]);
+    expect((await feeds.sections('sunoh:f:music')).map((s) => s.title), [
+      'Radio',
+    ]);
+  });
+
+  test('channels resolve to a curated page, not dropped', () async {
+    expect(
+      AutoCatalog.collectionIdFor(
+        const FeedItem(
+          id: '27',
+          title: 'Romance',
+          type: 'channel',
+          image: [],
+          source: 'saavn',
+        ),
+      ),
+      'sunoh:c:occ:27:saavn',
+    );
+  });
+
   test('a section of only unroutable rows is not listed at all', () async {
     final feeds = feedsFor([
       _section('Fine', [_item('s1', 'song')]),

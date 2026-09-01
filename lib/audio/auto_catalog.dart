@@ -68,6 +68,13 @@ class AutoCatalog {
   /// Container id → the "playing from" label for its queue.
   final Map<String, String> _labels = {};
 
+  /// Container id → the radio-station seeds it offered, in row order.
+  ///
+  /// Stations are not queue entries: playing one means handing the seed back
+  /// to the backend to build a queue from. So they are indexed separately
+  /// from the songs in the same container.
+  final Map<String, List<FeedItem>> _seeds = {};
+
   List<FeedItem>? songsFor(String containerId) => _contents[containerId];
   String? labelFor(String containerId) => _labels[containerId];
 
@@ -77,6 +84,65 @@ class AutoCatalog {
   }
 
   void label(String containerId, String label) => _labels[containerId] = label;
+
+  FeedItem? seedAt(String containerId, int index) {
+    final seeds = _seeds[containerId];
+    if (seeds == null || index < 0 || index >= seeds.length) return null;
+    return seeds[index];
+  }
+
+  /// Render a heterogeneous item list — the shape both home-feed sections and
+  /// channel pages arrive in.
+  ///
+  /// Songs, stations and collections are numbered independently: the songs
+  /// form one queue, so the second song must be queue index 1 whatever sits
+  /// between them on screen.
+  List<MediaItem> rows(
+    String containerId,
+    List<FeedItem> items, [
+    String? queueLabel,
+  ]) {
+    final songs = <FeedItem>[];
+    final seeds = <FeedItem>[];
+    final out = <MediaItem>[];
+
+    for (final item in items) {
+      if (item.type == 'song') {
+        out.add(
+          mediaItem(item, id: AutoMediaId.track(containerId, songs.length)),
+        );
+        songs.add(item);
+        continue;
+      }
+      if (isStation(item)) {
+        // Playable, not browsable: a station has no track list to open, and
+        // making the driver drill into one to reach a play button is exactly
+        // the interaction Android Auto asks apps to avoid.
+        out.add(
+          MediaItem(
+            id: AutoMediaId.station(containerId, seeds.length),
+            title: item.title,
+            artist: item.displaySubtitle ?? 'Radio',
+            artUri: artOf(item),
+            playable: true,
+          ),
+        );
+        seeds.add(item);
+        continue;
+      }
+      final collectionId = collectionIdFor(item);
+      if (collectionId == null) continue;
+      label(collectionId, '${item.type.toUpperCase()} · ${item.title}');
+      out.add(browsable(item, id: collectionId));
+    }
+
+    remember(containerId, songs, queueLabel);
+    _seeds[containerId] = seeds;
+    return out;
+  }
+
+  static bool isStation(FeedItem item) =>
+      item.type == 'radio_station' || item.type == 'radio';
 
   /// Turn a song list into playable MediaItems, remembering it so a later
   /// `playFromMediaId` on any row can rebuild the whole queue.
@@ -139,7 +205,7 @@ class AutoCatalog {
   /// car can drill into. Used to drop rows, and whole sections, that would
   /// otherwise render as dead space.
   static bool isRenderable(FeedItem item) =>
-      item.type == 'song' || collectionIdFor(item) != null;
+      item.type == 'song' || isStation(item) || collectionIdFor(item) != null;
 
   static String? collectionIdFor(FeedItem item) {
     final source = item.source ?? '';
@@ -173,6 +239,13 @@ class AutoCatalog {
       // than tracks, which `AutoBrowseTree` handles separately.
       'audiobook_category' => AutoMediaId.collection(
         kind: 'cat',
+        id: item.id,
+        source: source,
+      ),
+      // A curated page (Saavn calls them channels, Gaana occasions). Opens to
+      // a mixed list of playlists and songs, like a home-feed section.
+      'channel' || 'occasion' => AutoMediaId.collection(
+        kind: 'occ',
         id: item.id,
         source: source,
       ),

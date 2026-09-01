@@ -278,7 +278,17 @@ children are all one kind.
 **A row that cannot be routed is dropped, and a section of only such rows is
 not listed at all.** Upstream adds item types without notice — an unhandled one
 renders as blank space in the car, which reads as a network failure with no way
-to tell. `audiobook_category` was exactly this case.
+to tell. That guard is also how the gaps get found: `/music/home` carries
+`radio_station` and `channel` rows, and until both were handled the filter was
+quietly hiding four whole sections.
+
+**Radio stations are playable rows, not browsable ones.** A station has no
+track list to open, so making the driver drill in to reach a play button is the
+interaction Android Auto asks apps to avoid. They also cannot be addressed by
+id alone: Saavn's quick-stations ship an empty `id` and key off the name, so
+the seed FeedItem has to survive to the tap. Stations are therefore indexed
+against a container's *seeds* (`sunoh:x:<container>#<index>`), separately from
+the songs in the same container, which form the queue.
 
 **Media ids** are the whole contract, defined once in `audio/auto_media_id.dart`
 and never built by hand. `playFromMediaId` arrives with an id and nothing else,

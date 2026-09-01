@@ -19,7 +19,6 @@ import 'package:audio_service/audio_service.dart';
 import '../api/dto.dart';
 import '../api/sunoh_api.dart';
 import 'auto_catalog.dart';
-import 'auto_media_id.dart';
 
 /// The three home feeds, in the order the phone shows them.
 enum AutoFeed { music, podcasts, audiobooks }
@@ -116,34 +115,7 @@ class AutoFeeds {
         ? feed.title.toUpperCase()
         : section.heading.trim().toUpperCase();
 
-    // A section of nothing but songs is a playlist in disguise — serve it as
-    // one so the whole row is a queue and tapping track 3 starts at track 3.
-    final songs = section.items.where((i) => i.type == 'song').toList();
-    if (songs.length == section.items.length) {
-      return catalog.tracks(sectionId, songs, label);
-    }
-
-    // Mixed or collection-only: remember the songs among them so a tapped
-    // track still plays with its neighbours as the queue.
-    catalog.remember(sectionId, songs, label);
-    final rows = <MediaItem>[];
-    var songIndex = 0;
-    for (final item in section.items) {
-      if (item.type == 'song') {
-        rows.add(
-          catalog.mediaItem(
-            item,
-            id: AutoMediaId.track(sectionId, songIndex++),
-          ),
-        );
-        continue;
-      }
-      final collectionId = AutoCatalog.collectionIdFor(item);
-      if (collectionId == null) continue;
-      catalog.label(collectionId, '${item.type.toUpperCase()} · ${item.title}');
-      rows.add(catalog.browsable(item, id: collectionId));
-    }
-    return rows;
+    return catalog.rows(sectionId, section.items, label);
   }
 
   /// Fetch (and cache) a feed's sections. A failure yields an empty feed
