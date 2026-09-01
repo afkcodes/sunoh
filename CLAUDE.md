@@ -26,8 +26,9 @@ dart format lib/path/you/touched.dart        # NOT `dart format .` — see below
 flutter build apk --split-per-abi --release
 ```
 
-There is no test suite yet. See `docs/ENGINEERING.md` section 9 for the order
-to build one in.
+`flutter test` runs 30 tests covering the Android Auto surface
+(`auto_browse`, `auto_media_id`). The rest of the app is uncovered — see
+`docs/ENGINEERING.md` section 9 for the order to extend it in.
 
 ## Priorities, in order
 
@@ -89,6 +90,13 @@ comment above them first.
   otherwise.
 - **`phosphor_icons`, not `phosphor_flutter`.** The latter subclasses
   `IconData`, which Flutter 3.43 made final.
+- **Android Auto browse paths must resolve with a COLD cache.** The
+  MediaBrowserService restarts independently of the Flutter UI and the car
+  remembers its browse position, so it asks for collections this process never
+  served. Anything relying on a warm `_contents` renders empty in the car and
+  nowhere else.
+- **Never hand-build an Auto media id.** Go through `AutoMediaId`
+  (`lib/audio/auto_media_id.dart`) or encode and decode drift apart.
 - **The three `onReorder` call sites do not share index semantics.**
   `apiReorderUpNext` passes `newIndex` through unadjusted because mpv's
   `playlist-move` matches `onReorder`'s convention; the other two apply the
@@ -103,8 +111,9 @@ section 9.
 `AppState` is 2440 lines across six concerns. Nineteen files exceed 400 lines.
 The fictional placeholder catalog (`data/catalog.dart`) is still seeded in the
 `AppState` constructor and `queue_screen.dart` still carries a parallel dummy
-rendering path. There are no tests, zero `.select()` calls against 150 bare
-`ref.watch` sites, and 90 raw `print` calls.
+rendering path. Test coverage reaches only the Android Auto
+surface. There are zero `.select()` calls against 150 bare `ref.watch` sites,
+and 90 raw `print` calls.
 
 ## Conventions
 

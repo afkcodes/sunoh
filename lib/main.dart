@@ -19,10 +19,12 @@ import 'package:permission_handler/permission_handler.dart';
 import 'api/client.dart';
 import 'api/sponsorblock.dart';
 import 'api/stream_resolver.dart';
+import 'api/sunoh_api.dart';
 import 'api/ytmusic_channel.dart';
 import 'audio/audio_handler.dart';
 import 'audio/audio_repo.dart';
 import 'audio/audio_service_bridge.dart';
+import 'audio/auto_browse.dart';
 import 'audio/download_manager.dart';
 import 'audio/download_store.dart';
 import 'audio/library_store.dart';
@@ -200,12 +202,23 @@ Future<void> main() async {
   // ignore: avoid_print
   print('[audio] AudioRepo ready ✓ (Phase 1 — mpv only)');
 
+  // Android Auto browse tree. Reads the same Hive-backed library the phone
+  // UI does and starts playback through the same repo, so the car and the
+  // phone can never disagree about what "Liked Songs" means.
+  final autoBrowse = AutoBrowseTree(
+    library: repo.library,
+    api: SunohApi(buildSunohDio()),
+    downloads: downloadManager,
+    playQueue: repo.playQueue,
+  );
+
   // Phase 2 add-on: try to wire audio_service for OS integration. Runs in
   // the background with a hard 5s timeout. If it succeeds, the bridge gets
   // attached to the repo. If it hangs or throws, in-app playback is
-  // unaffected — we just don't get lockscreen/notification controls.
+  // unaffected — we just don't get lockscreen/notification controls, and
+  // the car sees no app at all.
   unawaited(
-    _tryWireAudioService(handler).then((bridge) {
+    _tryWireAudioService(handler, autoBrowse).then((bridge) {
       if (bridge != null) {
         repo.attachBridge(bridge);
       }
@@ -225,6 +238,7 @@ Future<void> main() async {
 
 Future<SunohAudioServiceBridge?> _tryWireAudioService(
   SunohAudioHandler handler,
+  AutoBrowseTree autoBrowse,
 ) async {
   // Request POST_NOTIFICATIONS first. On Android 13+ this triggers the
   // system permission dialog; on older versions / iOS it's a no-op.
@@ -243,7 +257,7 @@ Future<SunohAudioServiceBridge?> _tryWireAudioService(
   print('[audio-svc] AudioService.init starting…');
   try {
     final bridge = await AudioService.init(
-      builder: () => SunohAudioServiceBridge(handler),
+      builder: () => SunohAudioServiceBridge(handler, browse: autoBrowse),
       config: const AudioServiceConfig(
         androidNotificationChannelId: 'com.sunoh.sunoh.audio',
         androidNotificationChannelName: 'sunoh playback',
@@ -258,6 +272,11 @@ Future<SunohAudioServiceBridge?> _tryWireAudioService(
         // ongoing flag would have no effect once the FG service stays alive
         // through pause. So we drop `androidNotificationOngoing: true` too.
         androidStopForegroundOnPause: false,
+        // Returned from onGetRoot. Tells Android Auto how to lay the browse
+        // tree out (collections as a grid, tracks as a list); without it the
+        // car falls back to its own default, which renders track lists as
+        // artwork tiles and makes long lists unreadable at a glance.
+        androidBrowsableRootExtras: kAutoRootExtras,
       ),
     ).timeout(const Duration(seconds: 5));
     // ignore: avoid_print

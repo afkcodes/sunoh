@@ -80,6 +80,16 @@
                 <data android:scheme="https" android:host="sunoh.online"/>
             </intent-filter>
         </activity>
+        <!-- Android Auto. Points at res/xml/automotive_app_desc.xml, which
+             claims the `media` capability. Android Auto refuses to surface an
+             app in the car media launcher without this meta-data, no matter
+             how correct the MediaBrowserService is. Browsing + playback are
+             served by com.ryanheise.audioservice.AudioService (declared
+             below) via lib/audio/auto_browse.dart. -->
+        <meta-data
+            android:name="com.google.android.gms.car.application"
+            android:resource="@xml/automotive_app_desc"/>
+
         <!-- Don't delete the meta-data below.
              This is used by the Flutter tool to generate GeneratedPluginRegistrant.java -->
         <meta-data

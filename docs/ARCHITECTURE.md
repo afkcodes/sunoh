@@ -244,6 +244,46 @@ should cost one missing row, never an exception.
 
 ---
 
+## 6a. Android Auto
+
+The car never renders our Flutter UI. Android Auto connects to the exported
+`MediaBrowserService` that `audio_service` already provides, walks a tree of
+`MediaItem`s, and draws its own driver-distraction-compliant screens from them.
+So everything reachable in the car is expressed as MediaItems, in
+`audio/auto_browse.dart`.
+
+Three things are required, and all three are load-bearing:
+
+1. `res/xml/automotive_app_desc.xml` claiming the `media` capability.
+2. The `com.google.android.gms.car.application` meta-data pointing at it.
+   Without this the app is invisible in the car, however correct the service is.
+3. `playFromMediaId` / `playFromSearch` in the session's `systemActions`.
+   Without them the car draws the tree but tapping a row does nothing.
+
+**Root tabs**: Downloads, Liked Songs, Recently Played, Playlists. Downloads
+leads deliberately — a car is where the network drops mid-song, and downloaded
+tracks are the only tier that survives it.
+
+**Media ids** are the whole contract, defined once in `audio/auto_media_id.dart`
+and never built by hand. `playFromMediaId` arrives with an id and nothing else,
+possibly in a fresh process, so the id carries everything needed to rebuild
+what the user tapped: `sunoh:s:<container>#<index>` addresses a track *by
+position in its container*, so tapping row four of a playlist starts that
+playlist at row four rather than playing one orphaned song.
+
+**Everything must resolve cold.** The MediaBrowserService is a foreground
+service Android restarts independently of the Flutter UI, and Android Auto
+remembers the user's browse position across reconnects — so it will ask for a
+collection whose parent this process never served. Any browse path that
+depends on an in-memory cache being warm renders as empty in the car and
+nowhere else. `test/auto_browse_test.dart` pins this case.
+
+**Failure is always empty, never a throw.** An exception out of a browse
+callback surfaces as a hard error in the car and can wedge the browse stack;
+an empty list is recoverable by backing out.
+
+---
+
 ## 7. Persistence
 
 Four Hive boxes, opened lazily, each with the same cold-start shape:
@@ -297,7 +337,7 @@ standards these violate.
 | `AppState` is 2440 lines and owns six unrelated concerns | `state/app_state.dart` | Hard to test, hard to reason about, every screen watching it rebuilds on any change. |
 | Oversized files | 19 files above 500 lines; `detail_screens.dart` at 1793 | Navigation and review cost. |
 | Placeholder catalog still live | `data/catalog.dart`, seeded in the `AppState` constructor; parallel `_DummyQueueBody` in `queue_screen.dart` | Two rendering paths for one screen; fictional data reachable in production. |
-| No tests | no `test/` directory | Every refactor is unverified. |
+| Thin test coverage | only `test/auto_browse_test.dart` + `test/auto_media_id_test.dart` (30 tests) | The Android Auto surface is covered; the rest of the app is not. |
 | `.select()` never used | 150 `ref.watch` call sites, 0 selects | Whole screens rebuild on unrelated `AppState` changes. |
 | 90 raw `print(` calls | across `lib/` | Ships log noise in release builds. |
 | Compile-time base URL | `api/client.dart` | No runtime environment switch. |
