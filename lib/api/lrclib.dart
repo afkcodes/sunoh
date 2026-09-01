@@ -24,8 +24,10 @@ import 'package:flutter/foundation.dart';
 
 class LrcLibClient {
   LrcLibClient({Dio? dio})
-      : _dio = dio ??
-            Dio(BaseOptions(
+    : _dio =
+          dio ??
+          Dio(
+            BaseOptions(
               baseUrl: 'https://lrclib.net',
               connectTimeout: const Duration(seconds: 6),
               receiveTimeout: const Duration(seconds: 8),
@@ -37,7 +39,8 @@ class LrcLibClient {
                 'Accept': 'application/json',
               },
               responseType: ResponseType.json,
-            ));
+            ),
+          );
 
   final Dio _dio;
 
@@ -74,10 +77,7 @@ class LrcLibClient {
     try {
       final res = await _dio.get<List<dynamic>>(
         '/api/search',
-        queryParameters: {
-          'track_name': trackName,
-          'artist_name': artistName,
-        },
+        queryParameters: {'track_name': trackName, 'artist_name': artistName},
       );
       final list = res.data;
       if (list == null || list.isEmpty) return LyricsLookupResult.notFound;
@@ -134,10 +134,8 @@ class LyricsLookupResult {
   final String? plainLyrics;
   final String? syncedLyrics;
 
-  bool get hasSynced =>
-      syncedLyrics != null && syncedLyrics!.trim().isNotEmpty;
-  bool get hasPlain =>
-      plainLyrics != null && plainLyrics!.trim().isNotEmpty;
+  bool get hasSynced => syncedLyrics != null && syncedLyrics!.trim().isNotEmpty;
+  bool get hasPlain => plainLyrics != null && plainLyrics!.trim().isNotEmpty;
 
   factory LyricsLookupResult.fromJson(Map<String, dynamic> j) {
     return LyricsLookupResult(

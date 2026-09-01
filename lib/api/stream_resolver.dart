@@ -80,10 +80,10 @@ class StreamResolver {
   /// The current quality preference as the string form the native YouTube
   /// resolver expects.
   String _qualityParam() => switch (quality) {
-        StreamQuality.high => 'high',
-        StreamQuality.data => 'data',
-        StreamQuality.auto => 'auto',
-      };
+    StreamQuality.high => 'high',
+    StreamQuality.data => 'data',
+    StreamQuality.auto => 'auto',
+  };
 
   /// Convenience setter for the Hive-persisted string form used in the UI.
   /// Unknown values fall back to `auto`.
@@ -106,8 +106,11 @@ class StreamResolver {
   /// set, step 1 (inline mediaUrls embedded in the FeedItem) is skipped
   /// — the embedded URLs are the original signed ones from when the feed
   /// was fetched, which is the exact set of URLs we need to bypass.
-  Future<ResolvedStream> resolve(FeedItem song,
-      {bool forceRefresh = false, bool network = false}) async {
+  Future<ResolvedStream> resolve(
+    FeedItem song, {
+    bool forceRefresh = false,
+    bool network = false,
+  }) async {
     // 0) Offline tier — short-circuits everything. forceRefresh DOESN'T
     //    bypass this because local files don't have expiry; the only
     //    reason to "force refresh" is a stale signed URL, which is a
@@ -135,11 +138,14 @@ class StreamResolver {
     //     scheduler. Bails after one attempt: no other tier can resolve a
     //     `youtube` id.
     if (song.source == 'youtube') {
-      final yt = await YtMusicChannel.instance
-          .resolve(song.id, quality: _qualityParam());
+      final yt = await YtMusicChannel.instance.resolve(
+        song.id,
+        quality: _qualityParam(),
+      );
       if (yt == null) {
         throw StreamResolveException(
-            'No playable stream for "${song.title}" (${song.id}).');
+          'No playable stream for "${song.title}" (${song.id}).',
+        );
       }
       return ResolvedStream(yt.url, httpHeaders: yt.headers);
     }
@@ -187,8 +193,7 @@ class StreamResolver {
         );
         final dataRaw = res.data?['data'];
         if (dataRaw is Map) {
-          final parsed =
-              FeedItem.fromJson(dataRaw.cast<String, dynamic>());
+          final parsed = FeedItem.fromJson(dataRaw.cast<String, dynamic>());
           final url = _pick(parsed.mediaUrls);
           if (url != null) {
             return _store(song.id, ResolvedStream(url, enriched: parsed));
@@ -198,7 +203,8 @@ class StreamResolver {
         // Fall through to the throw — no other tier can recover a podcast.
       }
       throw StreamResolveException(
-          'No playable stream variants for "${song.title}" (${song.id}).');
+        'No playable stream variants for "${song.title}" (${song.id}).',
+      );
     }
 
     final query = <String, dynamic>{
@@ -241,7 +247,8 @@ class StreamResolver {
     }
 
     throw StreamResolveException(
-        'No playable stream variants for "${song.title}" (${song.id}).');
+      'No playable stream variants for "${song.title}" (${song.id}).',
+    );
   }
 
   ResolvedStream _store(String songId, ResolvedStream stream) {

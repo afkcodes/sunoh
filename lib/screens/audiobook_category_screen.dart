@@ -20,11 +20,7 @@ import '../widgets/album_art.dart';
 import '../widgets/ui.dart';
 
 class AudiobookCategoryScreen extends ConsumerWidget {
-  const AudiobookCategoryScreen({
-    super.key,
-    required this.id,
-    this.name,
-  });
+  const AudiobookCategoryScreen({super.key, required this.id, this.name});
   final int id;
   final String? name;
 
@@ -70,7 +66,9 @@ class AudiobookCategoryScreen extends ConsumerWidget {
                     width: 24,
                     height: 24,
                     child: CircularProgressIndicator(
-                        strokeWidth: 2, color: c.fgDim),
+                      strokeWidth: 2,
+                      color: c.fgDim,
+                    ),
                   ),
                 ),
                 error: (e, _) => Center(
@@ -79,27 +77,26 @@ class AudiobookCategoryScreen extends ConsumerWidget {
                     child: Text(
                       'Couldn’t load this genre.\n$e',
                       textAlign: TextAlign.center,
-                      style:
-                          SunohType.sans(fontSize: 13, color: c.fgMute),
+                      style: SunohType.sans(fontSize: 13, color: c.fgMute),
                     ),
                   ),
                 ),
                 data: (books) => books.isEmpty
                     ? Center(
-                        child: Text('No books in this genre.',
-                            style: SunohType.sans(
-                                fontSize: 13, color: c.fgMute)),
+                        child: Text(
+                          'No books in this genre.',
+                          style: SunohType.sans(fontSize: 13, color: c.fgMute),
+                        ),
                       )
                     : GridView.builder(
-                        padding:
-                            const EdgeInsets.fromLTRB(20, 0, 20, 140),
+                        padding: const EdgeInsets.fromLTRB(20, 0, 20, 140),
                         gridDelegate:
                             const SliverGridDelegateWithFixedCrossAxisCount(
-                          crossAxisCount: 2,
-                          mainAxisSpacing: 14,
-                          crossAxisSpacing: 14,
-                          childAspectRatio: 0.78,
-                        ),
+                              crossAxisCount: 2,
+                              mainAxisSpacing: 14,
+                              crossAxisSpacing: 14,
+                              childAspectRatio: 0.78,
+                            ),
                         itemCount: books.length,
                         itemBuilder: (context, i) =>
                             _AudiobookGridTile(seed: books[i], colors: c),

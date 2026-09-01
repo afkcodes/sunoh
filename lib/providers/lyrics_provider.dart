@@ -35,11 +35,11 @@ class LyricsQuery {
 
   @override
   int get hashCode => Object.hash(
-        track.toLowerCase(),
-        artist.toLowerCase(),
-        album?.toLowerCase(),
-        durationSec,
-      );
+    track.toLowerCase(),
+    artist.toLowerCase(),
+    album?.toLowerCase(),
+    durationSec,
+  );
 }
 
 class LyricsResult {
@@ -74,48 +74,48 @@ class LyricsResult {
 
 final _lrcLibClientProvider = Provider((_) => LrcLibClient());
 
-final lyricsProvider =
-    FutureProvider.autoDispose.family<LyricsResult, LyricsQuery>(
-  (ref, query) async {
-    // Keep the entry warm for a day after every consumer has unsubscribed
-    // so re-opening the lyrics sheet for the same track doesn't refetch.
-    final link = ref.keepAlive();
-    Future.delayed(const Duration(hours: 24), link.close);
+final lyricsProvider = FutureProvider.autoDispose
+    .family<LyricsResult, LyricsQuery>((ref, query) async {
+      // Keep the entry warm for a day after every consumer has unsubscribed
+      // so re-opening the lyrics sheet for the same track doesn't refetch.
+      final link = ref.keepAlive();
+      Future.delayed(const Duration(hours: 24), link.close);
 
-    final client = ref.read(_lrcLibClientProvider);
-    final r = await client.fetch(
-      trackName: query.track,
-      artistName: query.artist,
-      albumName: query.album,
-      durationSec: query.durationSec,
-    );
-    if (!r.found) return LyricsResult.empty;
-    if (r.instrumental) {
-      return const LyricsResult(
-        lines: [],
-        synced: false,
-        instrumental: true,
-        found: true,
+      final client = ref.read(_lrcLibClientProvider);
+      final r = await client.fetch(
+        trackName: query.track,
+        artistName: query.artist,
+        albumName: query.album,
+        durationSec: query.durationSec,
       );
-    }
-    if (r.hasSynced) {
-      final lines = parseLrc(r.syncedLyrics!);
-      return LyricsResult(
-        lines: lines,
-        synced: lines.isNotEmpty,
-        instrumental: false,
-        found: true,
-      );
-    }
-    if (r.hasPlain) {
-      return LyricsResult(
-        lines: plainLyricsAsLines(r.plainLyrics!,
-            totalSec: query.durationSec ?? 180),
-        synced: false,
-        instrumental: false,
-        found: true,
-      );
-    }
-    return LyricsResult.empty;
-  },
-);
+      if (!r.found) return LyricsResult.empty;
+      if (r.instrumental) {
+        return const LyricsResult(
+          lines: [],
+          synced: false,
+          instrumental: true,
+          found: true,
+        );
+      }
+      if (r.hasSynced) {
+        final lines = parseLrc(r.syncedLyrics!);
+        return LyricsResult(
+          lines: lines,
+          synced: lines.isNotEmpty,
+          instrumental: false,
+          found: true,
+        );
+      }
+      if (r.hasPlain) {
+        return LyricsResult(
+          lines: plainLyricsAsLines(
+            r.plainLyrics!,
+            totalSec: query.durationSec ?? 180,
+          ),
+          synced: false,
+          instrumental: false,
+          found: true,
+        );
+      }
+      return LyricsResult.empty;
+    });

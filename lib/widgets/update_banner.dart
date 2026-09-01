@@ -66,8 +66,7 @@ class _UpdateRow extends ConsumerWidget {
           radius: 14,
           // Subtle tinted surface — accent at low alpha layered over the
           // section bg so the ribbon reads as "soft notice" not "warning".
-          color: Color.alphaBlend(
-              accent.withValues(alpha: 0.13), c.surface),
+          color: Color.alphaBlend(accent.withValues(alpha: 0.13), c.surface),
           borderColor: accent.withValues(alpha: 0.45),
         ),
         child: Row(
@@ -79,8 +78,11 @@ class _UpdateRow extends ConsumerWidget {
                 color: accent.withValues(alpha: 0.22),
                 shape: BoxShape.circle,
               ),
-              child: Icon(SolarIconsBold.downloadMinimalistic,
-                  size: 16, color: accent),
+              child: Icon(
+                SolarIconsBold.downloadMinimalistic,
+                size: 16,
+                color: accent,
+              ),
             ),
             const SizedBox(width: 12),
             Expanded(
@@ -88,22 +90,32 @@ class _UpdateRow extends ConsumerWidget {
                 mainAxisSize: MainAxisSize.min,
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Text('Update available · v${info.version}',
-                      style: SunohType.sans(
-                          fontSize: 13.5,
-                          fontWeight: FontWeight.w600,
-                          color: c.fg)),
+                  Text(
+                    'Update available · v${info.version}',
+                    style: SunohType.sans(
+                      fontSize: 13.5,
+                      fontWeight: FontWeight.w600,
+                      color: c.fg,
+                    ),
+                  ),
                   if ((info.notes ?? '').isNotEmpty) ...[
                     const SizedBox(height: 2),
-                    Text(info.notes!,
-                        maxLines: slim ? 1 : 3,
-                        overflow: TextOverflow.ellipsis,
-                        style: SunohType.sans(
-                            fontSize: 12, color: c.fgMute, height: 1.3)),
+                    Text(
+                      info.notes!,
+                      maxLines: slim ? 1 : 3,
+                      overflow: TextOverflow.ellipsis,
+                      style: SunohType.sans(
+                        fontSize: 12,
+                        color: c.fgMute,
+                        height: 1.3,
+                      ),
+                    ),
                   ] else ...[
                     const SizedBox(height: 2),
-                    Text('Tap to open the release on GitHub',
-                        style: SunohType.sans(fontSize: 12, color: c.fgMute)),
+                    Text(
+                      'Tap to open the release on GitHub',
+                      style: SunohType.sans(fontSize: 12, color: c.fgMute),
+                    ),
                   ],
                 ],
               ),
@@ -111,13 +123,15 @@ class _UpdateRow extends ConsumerWidget {
             const SizedBox(width: 8),
             GestureDetector(
               behavior: HitTestBehavior.opaque,
-              onTap: () =>
-                  dismissAvailableUpdate(ref, info.version),
+              onTap: () => dismissAvailableUpdate(ref, info.version),
               child: SizedBox(
                 width: 32,
                 height: 32,
-                child: Icon(SolarIconsOutline.closeCircle,
-                    size: 18, color: c.fgMute),
+                child: Icon(
+                  SolarIconsOutline.closeCircle,
+                  size: 18,
+                  color: c.fgMute,
+                ),
               ),
             ),
           ],
@@ -125,5 +139,4 @@ class _UpdateRow extends ConsumerWidget {
       ),
     );
   }
-
 }

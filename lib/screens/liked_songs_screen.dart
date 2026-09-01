@@ -62,11 +62,7 @@ class _LikedSongsScreenState extends ConsumerState<LikedSongsScreen> {
                     count: songs.length,
                     scrollOffset: _offset,
                   ),
-                  _LikedActions(
-                    colors: c,
-                    accent: accent,
-                    songs: songs,
-                  ),
+                  _LikedActions(colors: c, accent: accent, songs: songs),
                   if (songs.isEmpty)
                     _EmptyState(
                       colors: c,
@@ -169,10 +165,7 @@ class _LikedHero extends StatelessWidget {
                       decoration: squircleDecoration(
                         radius: 16,
                         gradient: LinearGradient(
-                          colors: [
-                            accent,
-                            accent.withValues(alpha: 0.55),
-                          ],
+                          colors: [accent, accent.withValues(alpha: 0.55)],
                           begin: Alignment.topLeft,
                           end: Alignment.bottomRight,
                         ),
@@ -186,17 +179,21 @@ class _LikedHero extends StatelessWidget {
                     const SizedBox(height: 20),
                     eyebrow('YOUR LIBRARY', c.fgMute),
                     const SizedBox(height: 6),
-                    Text('Liked Songs',
-                        textAlign: TextAlign.center,
-                        style: SunohType.heading(
-                            fontSize: 26,
-                            color: c.fg,
-                            height: 1.1,
-                            letterSpacing: -0.4)),
+                    Text(
+                      'Liked Songs',
+                      textAlign: TextAlign.center,
+                      style: SunohType.heading(
+                        fontSize: 26,
+                        color: c.fg,
+                        height: 1.1,
+                        letterSpacing: -0.4,
+                      ),
+                    ),
                     const SizedBox(height: 6),
-                    Text('$count ${count == 1 ? 'song' : 'songs'}',
-                        style:
-                            SunohType.sans(fontSize: 13, color: c.fgDim)),
+                    Text(
+                      '$count ${count == 1 ? 'song' : 'songs'}',
+                      style: SunohType.sans(fontSize: 13, color: c.fgDim),
+                    ),
                   ],
                 ),
               ),
@@ -223,73 +220,85 @@ class _LikedActions extends StatelessWidget {
     final c = colors;
     // We need AppState here for play actions — grab via Riverpod's
     // ProviderScope rather than asking the caller to thread it through.
-    return Consumer(builder: (context, ref, _) {
-      final app = ref.watch(appStateProvider);
-      return Padding(
-        padding: const EdgeInsets.fromLTRB(20, 14, 20, 18),
-        child: Row(
-          mainAxisAlignment: MainAxisAlignment.spaceBetween,
-          children: [
-            Text('${songs.length} ${songs.length == 1 ? 'song' : 'songs'}',
-                style: SunohType.sans(fontSize: 12, color: c.fgMute)),
-            Row(
-              children: [
-                GestureDetector(
-                  onTap: songs.isEmpty
-                      ? null
-                      : () => app.playShuffled(songs,
-                          sourceLabel: 'LIKED · Songs'),
-                  child: Container(
-                    width: 44,
-                    height: 44,
-                    decoration: BoxDecoration(
-                      color: c.surface,
-                      shape: BoxShape.circle,
-                      border: Border.all(color: c.line, width: 0.5),
-                    ),
-                    child: Icon(PhosphorIconsBold.shuffle,
+    return Consumer(
+      builder: (context, ref, _) {
+        final app = ref.watch(appStateProvider);
+        return Padding(
+          padding: const EdgeInsets.fromLTRB(20, 14, 20, 18),
+          child: Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              Text(
+                '${songs.length} ${songs.length == 1 ? 'song' : 'songs'}',
+                style: SunohType.sans(fontSize: 12, color: c.fgMute),
+              ),
+              Row(
+                children: [
+                  GestureDetector(
+                    onTap: songs.isEmpty
+                        ? null
+                        : () => app.playShuffled(
+                            songs,
+                            sourceLabel: 'LIKED · Songs',
+                          ),
+                    child: Container(
+                      width: 44,
+                      height: 44,
+                      decoration: BoxDecoration(
+                        color: c.surface,
+                        shape: BoxShape.circle,
+                        border: Border.all(color: c.line, width: 0.5),
+                      ),
+                      child: Icon(
+                        PhosphorIconsBold.shuffle,
                         size: 18,
-                        color: songs.isEmpty ? c.fgMute : c.fgDim),
+                        color: songs.isEmpty ? c.fgMute : c.fgDim,
+                      ),
+                    ),
                   ),
-                ),
-                const SizedBox(width: 10),
-                GestureDetector(
-                  onTap: songs.isEmpty
-                      ? null
-                      : () => app.playApiQueue(songs, 0,
-                          sourceLabel: 'LIKED · Songs'),
-                  child: Container(
-                    width: 56,
-                    height: 56,
-                    decoration: BoxDecoration(
-                      color: songs.isEmpty
-                          ? c.surface
-                          : accent,
-                      shape: BoxShape.circle,
-                      boxShadow: songs.isEmpty
-                          ? null
-                          : [
-                              BoxShadow(
+                  const SizedBox(width: 10),
+                  GestureDetector(
+                    onTap: songs.isEmpty
+                        ? null
+                        : () => app.playApiQueue(
+                            songs,
+                            0,
+                            sourceLabel: 'LIKED · Songs',
+                          ),
+                    child: Container(
+                      width: 56,
+                      height: 56,
+                      decoration: BoxDecoration(
+                        color: songs.isEmpty ? c.surface : accent,
+                        shape: BoxShape.circle,
+                        boxShadow: songs.isEmpty
+                            ? null
+                            : [
+                                BoxShadow(
                                   color: accent.withValues(alpha: 0.33),
                                   blurRadius: 22,
-                                  offset: const Offset(0, 6)),
-                            ],
-                    ),
-                    child: Icon(PhosphorIconsFill.play,
+                                  offset: const Offset(0, 6),
+                                ),
+                              ],
+                      ),
+                      child: Icon(
+                        PhosphorIconsFill.play,
                         size: 24,
                         color: songs.isEmpty
                             ? c.fgMute
                             : (accent.computeLuminance() > 0.55
-                                ? const Color(0xFF0B0B0D)
-                                : const Color(0xFFFAFAFA))),
+                                  ? const Color(0xFF0B0B0D)
+                                  : const Color(0xFFFAFAFA)),
+                      ),
+                    ),
                   ),
-                ),
-              ],
-            ),
-          ],
-        ),
-      );
-    });
+                ],
+              ),
+            ],
+          ),
+        );
+      },
+    );
   }
 }
 
@@ -321,14 +330,18 @@ class _LikedTrackRow extends ConsumerWidget {
       behavior: HitTestBehavior.opaque,
       child: Padding(
         padding: EdgeInsets.symmetric(
-            horizontal: 20, vertical: 10 * s.density.scale),
+          horizontal: 20,
+          vertical: 10 * s.density.scale,
+        ),
         child: Row(
           children: [
             SizedBox(
               width: 22,
               child: Center(
-                child: Text(n.toString().padLeft(2, '0'),
-                    style: SunohType.mono(fontSize: 11, color: c.fgMute)),
+                child: Text(
+                  n.toString().padLeft(2, '0'),
+                  style: SunohType.mono(fontSize: 11, color: c.fgMute),
+                ),
               ),
             ),
             const SizedBox(width: 12),
@@ -341,39 +354,48 @@ class _LikedTrackRow extends ConsumerWidget {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Text(song.title,
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                      style: SunohType.sans(
-                          fontSize: 14,
-                          fontWeight: FontWeight.w500,
-                          color: c.fg)),
+                  Text(
+                    song.title,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: SunohType.sans(
+                      fontSize: 14,
+                      fontWeight: FontWeight.w500,
+                      color: c.fg,
+                    ),
+                  ),
                   if (artistsLabel.isNotEmpty) ...[
                     const SizedBox(height: 1),
-                    Text(artistsLabel,
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                        style:
-                            SunohType.sans(fontSize: 11.5, color: c.fgMute)),
+                    Text(
+                      artistsLabel,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: SunohType.sans(fontSize: 11.5, color: c.fgMute),
+                    ),
                   ],
                 ],
               ),
             ),
             IconBtn(
-                icon: SolarIconsBold.heart,
-                color: accent,
-                size: 16,
-                width: 32,
-                height: 32,
-                onTap: () => s.toggleLikedSong(song)),
+              icon: SolarIconsBold.heart,
+              color: accent,
+              size: 16,
+              width: 32,
+              height: 32,
+              onTap: () => s.toggleLikedSong(song),
+            ),
             IconBtn(
-                icon: SolarIconsBold.menuDots,
-                color: colors.fgMute,
-                size: 16,
-                width: 32,
-                height: 32,
-                onTap: () => showTrackMenuSheet(context,
-                    song: song, sourceLabel: 'LIKED · Songs')),
+              icon: SolarIconsBold.menuDots,
+              color: colors.fgMute,
+              size: 16,
+              width: 32,
+              height: 32,
+              onTap: () => showTrackMenuSheet(
+                context,
+                song: song,
+                sourceLabel: 'LIKED · Songs',
+              ),
+            ),
           ],
         ),
       ),
@@ -388,25 +410,26 @@ class _LikedThumb extends StatelessWidget {
   final FeedItem song;
   @override
   Widget build(BuildContext context) => squircleClip(
-        radius: 6,
-        child: SizedBox(
-          width: 42,
-          height: 42,
-          child: ColoredBox(
-            color: const Color(0xFF1A1A1F),
-            child: song.artwork == null || song.artwork!.isEmpty
-                ? const Icon(SolarIconsBold.heart, size: 18, color: Colors.white24)
-                : Image.network(
-                    song.artwork!,
-                    fit: BoxFit.cover,
-                    errorBuilder: (_, _, _) => const Icon(
-                        SolarIconsBold.heart,
-                        size: 18,
-                        color: Colors.white24),
-                  ),
-          ),
-        ),
-      );
+    radius: 6,
+    child: SizedBox(
+      width: 42,
+      height: 42,
+      child: ColoredBox(
+        color: const Color(0xFF1A1A1F),
+        child: song.artwork == null || song.artwork!.isEmpty
+            ? const Icon(SolarIconsBold.heart, size: 18, color: Colors.white24)
+            : Image.network(
+                song.artwork!,
+                fit: BoxFit.cover,
+                errorBuilder: (_, _, _) => const Icon(
+                  SolarIconsBold.heart,
+                  size: 18,
+                  color: Colors.white24,
+                ),
+              ),
+      ),
+    ),
+  );
 }
 
 class _StickyLikedHeader extends StatelessWidget {
@@ -445,7 +468,10 @@ class _StickyLikedHeader extends StatelessWidget {
                             border: bgT > 0.9
                                 ? Border(
                                     bottom: BorderSide(
-                                        color: c.line, width: 0.5))
+                                      color: c.line,
+                                      width: 0.5,
+                                    ),
+                                  )
                                 : null,
                           ),
                         ),
@@ -459,11 +485,14 @@ class _StickyLikedHeader extends StatelessWidget {
                         child: Opacity(
                           opacity: titleT,
                           child: Center(
-                            child: Text('Liked Songs',
-                                style: SunohType.heading(
-                                    fontSize: 15,
-                                    color: c.fg,
-                                    letterSpacing: -0.2)),
+                            child: Text(
+                              'Liked Songs',
+                              style: SunohType.heading(
+                                fontSize: 15,
+                                color: c.fg,
+                                letterSpacing: -0.2,
+                              ),
+                            ),
                           ),
                         ),
                       ),
@@ -482,24 +511,23 @@ class _StickyLikedHeader extends StatelessWidget {
                       mainAxisAlignment: MainAxisAlignment.spaceBetween,
                       children: [
                         IconBtn(
-                            icon: SolarIconsOutline.altArrowLeft,
-                            color: c.fg,
-                            size: 22,
-                            background:
-                                Colors.black.withValues(alpha: 0.35),
-                            onTap: onBack),
+                          icon: SolarIconsOutline.altArrowLeft,
+                          color: c.fg,
+                          size: 22,
+                          background: Colors.black.withValues(alpha: 0.35),
+                          onTap: onBack,
+                        ),
                         IconBtn(
-                            icon: SolarIconsBold.menuDots,
-                            color: c.fg,
-                            size: 18,
-                            background:
-                                Colors.black.withValues(alpha: 0.35),
-                            // Liked-songs-level menu (share, clear all,
-                            // download all, etc.) — defer.
-                            onTap: () => ProviderScope.containerOf(context)
-                                .read(appStateProvider)
-                                .flashToast(
-                                    'More options coming soon')),
+                          icon: SolarIconsBold.menuDots,
+                          color: c.fg,
+                          size: 18,
+                          background: Colors.black.withValues(alpha: 0.35),
+                          // Liked-songs-level menu (share, clear all,
+                          // download all, etc.) — defer.
+                          onTap: () => ProviderScope.containerOf(context)
+                              .read(appStateProvider)
+                              .flashToast('More options coming soon'),
+                        ),
                       ],
                     ),
                   ),
@@ -513,11 +541,12 @@ class _StickyLikedHeader extends StatelessWidget {
                 top: topInset + 6,
                 left: 16,
                 child: IconBtn(
-                    icon: SolarIconsOutline.altArrowLeft,
-                    color: c.fg,
-                    size: 22,
-                    background: Colors.black.withValues(alpha: 0.35),
-                    onTap: onBack),
+                  icon: SolarIconsOutline.altArrowLeft,
+                  color: c.fg,
+                  size: 22,
+                  background: Colors.black.withValues(alpha: 0.35),
+                  onTap: onBack,
+                ),
               ),
             ],
           );
@@ -544,16 +573,16 @@ class _EmptyState extends StatelessWidget {
       child: Center(
         child: Column(
           children: [
-            Text(label,
-                style: SunohType.heading(fontSize: 18, color: c.fgDim)),
+            Text(label, style: SunohType.heading(fontSize: 18, color: c.fgDim)),
             const SizedBox(height: 8),
-            Text(detail,
-                textAlign: TextAlign.center,
-                style: SunohType.sans(fontSize: 12.5, color: c.fgMute)),
+            Text(
+              detail,
+              textAlign: TextAlign.center,
+              style: SunohType.sans(fontSize: 12.5, color: c.fgMute),
+            ),
           ],
         ),
       ),
     );
   }
 }
-

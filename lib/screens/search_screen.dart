@@ -153,87 +153,96 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
         if (hasQuery) _clear();
       },
       child: Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Padding(
-          padding: const EdgeInsets.fromLTRB(20, 12, 20, 0),
-          child: Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-            children: [
-              Text('Search',
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Padding(
+            padding: const EdgeInsets.fromLTRB(20, 12, 20, 0),
+            child: Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                Text(
+                  'Search',
                   style: SunohType.heading(
-                      fontSize: 28, color: c.fg, letterSpacing: -0.4)),
-              IconBtn(
+                    fontSize: 28,
+                    color: c.fg,
+                    letterSpacing: -0.4,
+                  ),
+                ),
+                IconBtn(
                   icon: SolarIconsOutline.microphone,
                   color: c.fgDim,
                   size: 20,
-                  onTap: () {}),
-            ],
-          ),
-        ),
-        Padding(
-          padding: const EdgeInsets.fromLTRB(20, 16, 20, 10),
-          child: Container(
-            height: 52,
-            padding: const EdgeInsets.symmetric(horizontal: 16),
-            decoration: squircleDecoration(
-                radius: 14, color: c.surface, borderColor: c.line),
-            child: Row(
-              children: [
-                Icon(SolarIconsOutline.magnifier, size: 19, color: c.fgMute),
-                const SizedBox(width: 12),
-                Expanded(
-                  child: TextField(
-                    controller: controller,
-                    focusNode: _searchFocus,
-                    onChanged: _onChanged,
-                    onSubmitted: (_) {
-                      _debounce?.cancel();
-                      final trimmed = q.trim();
-                      if (trimmed.isNotEmpty) {
-                        ref
-                            .read(appStateProvider)
-                            .pushSearchRecent(trimmed);
-                      }
-                      setState(() => _activeQuery = trimmed);
-                    },
-                    cursorColor: c.accent,
-                    textInputAction: TextInputAction.search,
-                    style: SunohType.sans(fontSize: 15.5, color: c.fg),
-                    decoration: InputDecoration(
-                      isCollapsed: true,
-                      border: InputBorder.none,
-                      hintText: 'Artists, songs, podcasts, audiobooks…',
-                      hintStyle:
-                          SunohType.sans(fontSize: 15, color: c.fgMute),
-                    ),
-                  ),
+                  onTap: () {},
                 ),
-                if (q.isNotEmpty)
-                  GestureDetector(
-                    onTap: _clear,
-                    child: Container(
-                      width: 26,
-                      height: 26,
-                      decoration: BoxDecoration(
-                        color: Colors.white.withValues(alpha: 0.08),
-                        shape: BoxShape.circle,
-                      ),
-                      child: Icon(SolarIconsOutline.closeCircle,
-                          size: 14, color: c.fg),
-                    ),
-                  ),
               ],
             ),
           ),
-        ),
-        if (!hasQuery)
-          _browse(c)
-        else
-          _liveResults(c, s),
-        const SizedBox(height: 20),
-      ],
-    ),
+          Padding(
+            padding: const EdgeInsets.fromLTRB(20, 16, 20, 10),
+            child: Container(
+              height: 52,
+              padding: const EdgeInsets.symmetric(horizontal: 16),
+              decoration: squircleDecoration(
+                radius: 14,
+                color: c.surface,
+                borderColor: c.line,
+              ),
+              child: Row(
+                children: [
+                  Icon(SolarIconsOutline.magnifier, size: 19, color: c.fgMute),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: TextField(
+                      controller: controller,
+                      focusNode: _searchFocus,
+                      onChanged: _onChanged,
+                      onSubmitted: (_) {
+                        _debounce?.cancel();
+                        final trimmed = q.trim();
+                        if (trimmed.isNotEmpty) {
+                          ref.read(appStateProvider).pushSearchRecent(trimmed);
+                        }
+                        setState(() => _activeQuery = trimmed);
+                      },
+                      cursorColor: c.accent,
+                      textInputAction: TextInputAction.search,
+                      style: SunohType.sans(fontSize: 15.5, color: c.fg),
+                      decoration: InputDecoration(
+                        isCollapsed: true,
+                        border: InputBorder.none,
+                        hintText: 'Artists, songs, podcasts, audiobooks…',
+                        hintStyle: SunohType.sans(
+                          fontSize: 15,
+                          color: c.fgMute,
+                        ),
+                      ),
+                    ),
+                  ),
+                  if (q.isNotEmpty)
+                    GestureDetector(
+                      onTap: _clear,
+                      child: Container(
+                        width: 26,
+                        height: 26,
+                        decoration: BoxDecoration(
+                          color: Colors.white.withValues(alpha: 0.08),
+                          shape: BoxShape.circle,
+                        ),
+                        child: Icon(
+                          SolarIconsOutline.closeCircle,
+                          size: 14,
+                          color: c.fg,
+                        ),
+                      ),
+                    ),
+                ],
+              ),
+            ),
+          ),
+          if (!hasQuery) _browse(c) else _liveResults(c, s),
+          const SizedBox(height: 20),
+        ],
+      ),
     );
   }
 
@@ -251,28 +260,28 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         const SizedBox(height: 12),
-        if (recents.isNotEmpty) _RecentSearches(
-          colors: c,
-          recents: recents,
-          onTap: (q) {
-            controller.text = q;
-            _debounce?.cancel();
-            ref.read(appStateProvider).pushSearchRecent(q);
-            setState(() {
-              this.q = q;
-              _activeQuery = q;
-            });
-          },
-          onClear: () => ref.read(appStateProvider).clearSearchRecents(),
-        ),
+        if (recents.isNotEmpty)
+          _RecentSearches(
+            colors: c,
+            recents: recents,
+            onTap: (q) {
+              controller.text = q;
+              _debounce?.cancel();
+              ref.read(appStateProvider).pushSearchRecent(q);
+              setState(() {
+                this.q = q;
+                _activeQuery = q;
+              });
+            },
+            onClear: () => ref.read(appStateProvider).clearSearchRecents(),
+          ),
         if (recents.isNotEmpty) const SizedBox(height: 28),
         // ── Trending — same shape as home, horizontal carousels per section.
         trending.when(
           loading: () => const _TrendingSkeleton(),
           error: (e, _) => const SizedBox.shrink(),
           data: (sections) {
-            final nonEmpty =
-                sections.where((s) => s.items.isNotEmpty).toList();
+            final nonEmpty = sections.where((s) => s.items.isNotEmpty).toList();
             if (nonEmpty.isEmpty) return const SizedBox.shrink();
             return Column(
               crossAxisAlignment: CrossAxisAlignment.start,
@@ -331,11 +340,9 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
     // Either side failing degrades gracefully — its section just
     // doesn't appear in the list.
     final podcastAsync = ref.watch(podcastSearchProvider(_activeQuery));
-    final audiobookAsync =
-        ref.watch(audiobookSearchProvider(_activeQuery));
+    final audiobookAsync = ref.watch(audiobookSearchProvider(_activeQuery));
     final ytAsync = ref.watch(ytMusicSearchProvider(_activeQuery));
-    final ytArtistsAsync =
-        ref.watch(ytMusicArtistSearchProvider(_activeQuery));
+    final ytArtistsAsync = ref.watch(ytMusicArtistSearchProvider(_activeQuery));
     final ytAlbumsAsync = ref.watch(ytMusicAlbumSearchProvider(_activeQuery));
     return async.when(
       loading: () => const _ResultsSkeleton(),
@@ -363,27 +370,33 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
         // rendering and the `song` tap case need no special casing.
         final ytSongs = ytAsync.asData?.value ?? const <FeedItem>[];
         if (ytSongs.isNotEmpty) {
-          nonEmpty.add(HomeSection(
-            heading: 'YouTube Music',
-            items: ytSongs,
-            source: 'youtube',
-          ));
+          nonEmpty.add(
+            HomeSection(
+              heading: 'YouTube Music',
+              items: ytSongs,
+              source: 'youtube',
+            ),
+          );
         }
         final ytArtists = ytArtistsAsync.asData?.value ?? const <FeedItem>[];
         if (ytArtists.isNotEmpty) {
-          nonEmpty.add(HomeSection(
-            heading: 'YouTube artists',
-            items: ytArtists,
-            source: 'youtube',
-          ));
+          nonEmpty.add(
+            HomeSection(
+              heading: 'YouTube artists',
+              items: ytArtists,
+              source: 'youtube',
+            ),
+          );
         }
         final ytAlbums = ytAlbumsAsync.asData?.value ?? const <FeedItem>[];
         if (ytAlbums.isNotEmpty) {
-          nonEmpty.add(HomeSection(
-            heading: 'YouTube albums',
-            items: ytAlbums,
-            source: 'youtube',
-          ));
+          nonEmpty.add(
+            HomeSection(
+              heading: 'YouTube albums',
+              items: ytAlbums,
+              source: 'youtube',
+            ),
+          );
         }
         if (nonEmpty.isEmpty) {
           return _SearchHint(
@@ -396,8 +409,7 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
         // returns) to the top — those carry the richest cross-provider
         // matches and are usually what the user actually wants.
         final ordered = [...nonEmpty]
-          ..sort((a, b) => _topPriority(b.heading) -
-              _topPriority(a.heading));
+          ..sort((a, b) => _topPriority(b.heading) - _topPriority(a.heading));
         return Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
@@ -421,8 +433,10 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
                 child: _ResultsSection(
                   section: ordered[i],
                   colors: c,
-                  onPlay: (song) => s.playApiSong(song,
-                      sourceLabel: 'SEARCH · $_activeQuery'),
+                  onPlay: (song) => s.playApiSong(
+                    song,
+                    sourceLabel: 'SEARCH · $_activeQuery',
+                  ),
                 ),
               ),
               if (i < ordered.length - 1) const SizedBox(height: 20),
@@ -445,11 +459,7 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
 }
 
 class _SearchHint extends StatelessWidget {
-  const _SearchHint({
-    required this.colors,
-    required this.label,
-    this.detail,
-  });
+  const _SearchHint({required this.colors, required this.label, this.detail});
   final SunohColors colors;
   final String label;
   final String? detail;
@@ -461,13 +471,14 @@ class _SearchHint extends StatelessWidget {
       child: Center(
         child: Column(
           children: [
-            Text(label,
-                style: SunohType.heading(fontSize: 22, color: c.fgDim)),
+            Text(label, style: SunohType.heading(fontSize: 22, color: c.fgDim)),
             if (detail != null) ...[
               const SizedBox(height: 8),
-              Text(detail!,
-                  textAlign: TextAlign.center,
-                  style: SunohType.sans(fontSize: 13, color: c.fgMute)),
+              Text(
+                detail!,
+                textAlign: TextAlign.center,
+                style: SunohType.sans(fontSize: 13, color: c.fgMute),
+              ),
             ],
           ],
         ),
@@ -511,8 +522,7 @@ class _SectionPills extends StatelessWidget {
             onTap: () => onTap(s.heading),
             behavior: HitTestBehavior.opaque,
             child: Container(
-              padding:
-                  const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+              padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
               decoration: squircleDecoration(
                 radius: 999,
                 color: c.surface,
@@ -543,9 +553,7 @@ class _SectionPills extends StatelessWidget {
     final lower = h.toLowerCase();
     if (lower.contains('top result') || lower == 'topquery') return 'Top';
     if (lower.contains('podcast')) return 'Podcasts';
-    return h.isEmpty
-        ? '—'
-        : h[0].toUpperCase() + h.substring(1);
+    return h.isEmpty ? '—' : h[0].toUpperCase() + h.substring(1);
   }
 }
 
@@ -597,8 +605,13 @@ class _ResultsSection extends StatelessWidget {
                 case 'playlist':
                 case 'artist':
                 case 'podcast':
-                  context.openRef(DetailRef(item.type, item.id,
-                      source: item.source ?? section.source));
+                  context.openRef(
+                    DetailRef(
+                      item.type,
+                      item.id,
+                      source: item.source ?? section.source,
+                    ),
+                  );
                 default:
                   // Unknown type — fall through to a no-op so we don't
                   // route somewhere invalid.
@@ -644,39 +657,48 @@ class _ResultRow extends StatelessWidget {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Text(item.title,
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                      style: SunohType.sans(
-                          fontSize: 14,
-                          fontWeight: FontWeight.w500,
-                          color: c.fg)),
+                  Text(
+                    item.title,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: SunohType.sans(
+                      fontSize: 14,
+                      fontWeight: FontWeight.w500,
+                      color: c.fg,
+                    ),
+                  ),
                   if (_subFor(item).isNotEmpty) ...[
                     const SizedBox(height: 1),
-                    Text(_subFor(item),
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                        style:
-                            SunohType.sans(fontSize: 12, color: c.fgMute)),
+                    Text(
+                      _subFor(item),
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: SunohType.sans(fontSize: 12, color: c.fgMute),
+                    ),
                   ],
                 ],
               ),
             ),
             if (isSong)
               GestureDetector(
-                onTap: () => showTrackMenuSheet(context,
-                    song: item, sourceLabel: 'SEARCH'),
+                onTap: () => showTrackMenuSheet(
+                  context,
+                  song: item,
+                  sourceLabel: 'SEARCH',
+                ),
                 behavior: HitTestBehavior.opaque,
                 child: SizedBox(
                   width: 32,
                   height: 32,
-                  child: Icon(SolarIconsBold.menuDots,
-                      size: 18, color: c.fgMute),
+                  child: Icon(
+                    SolarIconsBold.menuDots,
+                    size: 18,
+                    color: c.fgMute,
+                  ),
                 ),
               )
             else
-              Icon(SolarIconsOutline.altArrowRight,
-                  size: 18, color: c.fgMute),
+              Icon(SolarIconsOutline.altArrowRight, size: 18, color: c.fgMute),
           ],
         ),
       ),
@@ -735,16 +757,23 @@ class _TrendingRow extends ConsumerWidget {
               case 'song':
                 // Songs play immediately — tapping a song in a "trending"
                 // carousel should never open a song-detail screen.
-                s.playApiSong(item,
-                    sourceLabel: 'TRENDING · ${section.heading}');
+                s.playApiSong(
+                  item,
+                  sourceLabel: 'TRENDING · ${section.heading}',
+                );
               case 'audiobook':
                 context.openAudiobook(item.id, item: item);
               case 'album':
               case 'playlist':
               case 'artist':
               case 'podcast':
-                context.openRef(DetailRef(item.type, item.id,
-                    source: item.source ?? section.source));
+                context.openRef(
+                  DetailRef(
+                    item.type,
+                    item.id,
+                    source: item.source ?? section.source,
+                  ),
+                );
               default:
                 break;
             }
@@ -753,43 +782,56 @@ class _TrendingRow extends ConsumerWidget {
               ? Column(
                   children: [
                     SunohArt(
-                        id: item.id,
-                        imageUrl: item.artwork,
-                        size: w - 10,
-                        radius: 999),
+                      id: item.id,
+                      imageUrl: item.artwork,
+                      size: w - 10,
+                      radius: 999,
+                    ),
                     const SizedBox(height: 10),
-                    Text(item.title,
-                        textAlign: TextAlign.center,
-                        maxLines: 2,
-                        overflow: TextOverflow.ellipsis,
-                        style: SunohType.sans(
-                            fontSize: 12.5,
-                            fontWeight: FontWeight.w500,
-                            color: c.fg,
-                            height: 1.2)),
+                    Text(
+                      item.title,
+                      textAlign: TextAlign.center,
+                      maxLines: 2,
+                      overflow: TextOverflow.ellipsis,
+                      style: SunohType.sans(
+                        fontSize: 12.5,
+                        fontWeight: FontWeight.w500,
+                        color: c.fg,
+                        height: 1.2,
+                      ),
+                    ),
                   ],
                 )
               : Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     SunohArt(
-                        id: item.id,
-                        imageUrl: item.artwork,
-                        size: w,
-                        radius: 10),
+                      id: item.id,
+                      imageUrl: item.artwork,
+                      size: w,
+                      radius: 10,
+                    ),
                     const SizedBox(height: 8),
-                    Text(item.title,
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                        style: SunohType.sans(
-                            fontSize: 13,
-                            fontWeight: FontWeight.w500,
-                            color: c.fg,
-                            height: 1.2)),
+                    Text(
+                      item.title,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: SunohType.sans(
+                        fontSize: 13,
+                        fontWeight: FontWeight.w500,
+                        color: c.fg,
+                        height: 1.2,
+                      ),
+                    ),
                     if ((item.displaySubtitle ?? '').isNotEmpty) ...[
                       const SizedBox(height: 3),
-                      eyebrow(item.displaySubtitle!, c.fgMute,
-                          size: 10, letterSpacing: 0.8, maxLines: 2),
+                      eyebrow(
+                        item.displaySubtitle!,
+                        c.fgMute,
+                        size: 10,
+                        letterSpacing: 0.8,
+                        maxLines: 2,
+                      ),
                     ],
                   ],
                 ),
@@ -871,7 +913,10 @@ class _OccasionsSkeleton extends StatelessWidget {
           children: [
             for (var i = 0; i < 6; i++)
               const SkeletonBar(
-                  height: double.infinity, width: double.infinity, radius: 14),
+                height: double.infinity,
+                width: double.infinity,
+                radius: 14,
+              ),
           ],
         ),
       ),
@@ -897,8 +942,7 @@ class _ResultsSkeleton extends StatelessWidget {
             ),
             for (var i = 0; i < 6; i++)
               const Padding(
-                padding:
-                    EdgeInsets.symmetric(horizontal: 20, vertical: 8),
+                padding: EdgeInsets.symmetric(horizontal: 20, vertical: 8),
                 child: Row(
                   children: [
                     SkeletonBar(height: 42, width: 42, radius: 4),
@@ -1018,11 +1062,14 @@ class _RecentSearches extends StatelessWidget {
               GestureDetector(
                 behavior: HitTestBehavior.opaque,
                 onTap: onClear,
-                child: Text('Clear',
-                    style: SunohType.sans(
-                        fontSize: 11,
-                        fontWeight: FontWeight.w500,
-                        color: c.fgMute)),
+                child: Text(
+                  'Clear',
+                  style: SunohType.sans(
+                    fontSize: 11,
+                    fontWeight: FontWeight.w500,
+                    color: c.fgMute,
+                  ),
+                ),
               ),
             ],
           ),
@@ -1039,17 +1086,26 @@ class _RecentSearches extends StatelessWidget {
                   onTap: () => onTap(recents[i]),
                   child: Container(
                     padding: const EdgeInsets.symmetric(
-                        horizontal: 14, vertical: 8),
+                      horizontal: 14,
+                      vertical: 8,
+                    ),
                     decoration: squircleDecoration(
-                        radius: 999, color: c.surface, borderColor: c.line),
+                      radius: 999,
+                      color: c.surface,
+                      borderColor: c.line,
+                    ),
                     child: Row(
                       children: [
-                        Icon(SolarIconsOutline.clockCircle,
-                            size: 13, color: c.fgMute),
+                        Icon(
+                          SolarIconsOutline.clockCircle,
+                          size: 13,
+                          color: c.fgMute,
+                        ),
                         const SizedBox(width: 6),
-                        Text(recents[i],
-                            style: SunohType.sans(
-                                fontSize: 13, color: c.fg)),
+                        Text(
+                          recents[i],
+                          style: SunohType.sans(fontSize: 13, color: c.fg),
+                        ),
                       ],
                     ),
                   ),

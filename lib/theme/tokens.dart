@@ -62,10 +62,7 @@ class SunohColors {
 
   /// Build the dark palette from the accent, optionally tinting the background
   /// toward an artwork accent (the "Tint from artwork" tweak).
-  factory SunohColors.resolve({
-    required Color accent,
-    Color? tintAccent,
-  }) {
+  factory SunohColors.resolve({required Color accent, Color? tintAccent}) {
     const base = Color(0xFF0B0B0D);
     var bg = base;
     var bgSoft = const Color(0xFF101013);
@@ -113,15 +110,14 @@ class SunohType {
     Color? color,
     double? height,
     double? letterSpacing,
-  }) =>
-      TextStyle(
-        fontFamily: SunohFonts.heading,
-        fontSize: fontSize,
-        fontWeight: fontWeight,
-        color: color,
-        height: height,
-        letterSpacing: letterSpacing,
-      );
+  }) => TextStyle(
+    fontFamily: SunohFonts.heading,
+    fontSize: fontSize,
+    fontWeight: fontWeight,
+    color: color,
+    height: height,
+    letterSpacing: letterSpacing,
+  );
 
   static TextStyle sans({
     double? fontSize,
@@ -129,15 +125,14 @@ class SunohType {
     Color? color,
     double? height,
     double? letterSpacing,
-  }) =>
-      TextStyle(
-        fontFamily: SunohFonts.sans,
-        fontSize: fontSize,
-        fontWeight: fontWeight,
-        color: color,
-        height: height,
-        letterSpacing: letterSpacing,
-      );
+  }) => TextStyle(
+    fontFamily: SunohFonts.sans,
+    fontSize: fontSize,
+    fontWeight: fontWeight,
+    color: color,
+    height: height,
+    letterSpacing: letterSpacing,
+  );
 
   static TextStyle mono({
     double? fontSize,
@@ -145,13 +140,12 @@ class SunohType {
     Color? color,
     double? height,
     double? letterSpacing,
-  }) =>
-      TextStyle(
-        fontFamily: SunohFonts.mono,
-        fontSize: fontSize,
-        fontWeight: fontWeight,
-        color: color,
-        height: height,
-        letterSpacing: letterSpacing,
-      );
+  }) => TextStyle(
+    fontFamily: SunohFonts.mono,
+    fontSize: fontSize,
+    fontWeight: fontWeight,
+    color: color,
+    height: height,
+    letterSpacing: letterSpacing,
+  );
 }

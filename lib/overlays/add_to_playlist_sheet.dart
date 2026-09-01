@@ -79,8 +79,11 @@ class _AddToPlaylistSheet extends ConsumerWidget {
                       color: accent.withValues(alpha: 0.22),
                       shape: BoxShape.circle,
                     ),
-                    child: Icon(SolarIconsBold.playlist,
-                        color: accent, size: 22),
+                    child: Icon(
+                      SolarIconsBold.playlist,
+                      color: accent,
+                      size: 22,
+                    ),
                   ),
                   const SizedBox(width: 14),
                   Expanded(
@@ -88,17 +91,22 @@ class _AddToPlaylistSheet extends ConsumerWidget {
                       crossAxisAlignment: CrossAxisAlignment.start,
                       mainAxisSize: MainAxisSize.min,
                       children: [
-                        eyebrow('ADD TO PLAYLIST', c.fgMute,
-                            size: 9, letterSpacing: 1.6),
+                        eyebrow(
+                          'ADD TO PLAYLIST',
+                          c.fgMute,
+                          size: 9,
+                          letterSpacing: 1.6,
+                        ),
                         const SizedBox(height: 4),
                         Text(
                           song.title,
                           maxLines: 1,
                           overflow: TextOverflow.ellipsis,
                           style: SunohType.heading(
-                              fontSize: 18,
-                              color: c.fg,
-                              letterSpacing: -0.3),
+                            fontSize: 18,
+                            color: c.fg,
+                            letterSpacing: -0.3,
+                          ),
                         ),
                       ],
                     ),
@@ -134,14 +142,15 @@ class _AddToPlaylistSheet extends ConsumerWidget {
             Flexible(
               child: playlists.isEmpty
                   ? Padding(
-                      padding:
-                          const EdgeInsets.fromLTRB(22, 18, 22, 16),
+                      padding: const EdgeInsets.fromLTRB(22, 18, 22, 16),
                       child: Text(
-                          'No playlists yet. Tap "New playlist" above to start one.',
-                          style: SunohType.sans(
-                              fontSize: 12.5,
-                              color: c.fgMute,
-                              height: 1.4)),
+                        'No playlists yet. Tap "New playlist" above to start one.',
+                        style: SunohType.sans(
+                          fontSize: 12.5,
+                          color: c.fgMute,
+                          height: 1.4,
+                        ),
+                      ),
                     )
                   : ListView.separated(
                       padding: const EdgeInsets.symmetric(vertical: 4),
@@ -149,13 +158,11 @@ class _AddToPlaylistSheet extends ConsumerWidget {
                       separatorBuilder: (_, _) => Container(
                         height: 0.5,
                         color: c.line.withValues(alpha: 0.5),
-                        margin:
-                            const EdgeInsets.symmetric(horizontal: 22),
+                        margin: const EdgeInsets.symmetric(horizontal: 22),
                       ),
                       itemBuilder: (context, i) {
                         final p = playlists[i];
-                        final already =
-                            p.songs.any((x) => x.id == song.id);
+                        final already = p.songs.any((x) => x.id == song.id);
                         return _PlaylistRow(
                           playlist: p,
                           accent: accent,
@@ -201,11 +208,14 @@ class _NewPlaylistRow extends StatelessWidget {
             Icon(SolarIconsBold.addCircle, color: accent, size: 20),
             const SizedBox(width: 16),
             Expanded(
-              child: Text('New playlist',
-                  style: SunohType.sans(
-                      fontSize: 14,
-                      fontWeight: FontWeight.w600,
-                      color: accent)),
+              child: Text(
+                'New playlist',
+                style: SunohType.sans(
+                  fontSize: 14,
+                  fontWeight: FontWeight.w600,
+                  color: accent,
+                ),
+              ),
             ),
           ],
         ),
@@ -246,10 +256,12 @@ class _PlaylistRow extends StatelessWidget {
                 width: 38,
                 height: 38,
                 child: cover != null
-                    ? Image.network(cover,
+                    ? Image.network(
+                        cover,
                         fit: BoxFit.cover,
-                        errorBuilder: (_, _, _) => _PlaylistArtFallback(
-                            accent: accent))
+                        errorBuilder: (_, _, _) =>
+                            _PlaylistArtFallback(accent: accent),
+                      )
                     : _PlaylistArtFallback(accent: accent),
               ),
             ),
@@ -259,27 +271,33 @@ class _PlaylistRow extends StatelessWidget {
                 crossAxisAlignment: CrossAxisAlignment.start,
                 mainAxisSize: MainAxisSize.min,
                 children: [
-                  Text(playlist.name,
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                      style: SunohType.sans(
-                          fontSize: 14,
-                          fontWeight: FontWeight.w500,
-                          color: c.fg)),
+                  Text(
+                    playlist.name,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: SunohType.sans(
+                      fontSize: 14,
+                      fontWeight: FontWeight.w500,
+                      color: c.fg,
+                    ),
+                  ),
                   const SizedBox(height: 1),
                   Text(
-                      '${playlist.songs.length} '
-                      '${playlist.songs.length == 1 ? 'song' : 'songs'}',
-                      style: SunohType.sans(
-                          fontSize: 11.5, color: c.fgMute)),
+                    '${playlist.songs.length} '
+                    '${playlist.songs.length == 1 ? 'song' : 'songs'}',
+                    style: SunohType.sans(fontSize: 11.5, color: c.fgMute),
+                  ),
                 ],
               ),
             ),
             if (already)
               Padding(
                 padding: const EdgeInsets.only(left: 8),
-                child: Icon(SolarIconsBold.checkCircle,
-                    size: 18, color: accent),
+                child: Icon(
+                  SolarIconsBold.checkCircle,
+                  size: 18,
+                  color: accent,
+                ),
               ),
           ],
         ),
@@ -312,8 +330,11 @@ class _PlaylistArtFallback extends StatelessWidget {
           end: Alignment.bottomRight,
         ),
       ),
-      child: Icon(SolarIconsBold.musicLibrary2,
-          size: 18, color: Colors.white.withValues(alpha: 0.92)),
+      child: Icon(
+        SolarIconsBold.musicLibrary2,
+        size: 18,
+        color: Colors.white.withValues(alpha: 0.92),
+      ),
     );
   }
 }

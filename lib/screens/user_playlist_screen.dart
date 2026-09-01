@@ -26,8 +26,7 @@ class UserPlaylistScreen extends ConsumerStatefulWidget {
   const UserPlaylistScreen({super.key, required this.id});
   final String id;
   @override
-  ConsumerState<UserPlaylistScreen> createState() =>
-      _UserPlaylistScreenState();
+  ConsumerState<UserPlaylistScreen> createState() => _UserPlaylistScreenState();
 }
 
 class _UserPlaylistScreenState extends ConsumerState<UserPlaylistScreen> {
@@ -114,11 +113,8 @@ class _UserPlaylistScreenState extends ConsumerState<UserPlaylistScreen> {
                         accent: accent,
                         playlistId: playlist.id,
                         sourceLabel: sourceLabel,
-                        onTap: () => s.playApiQueue(
-                          songs,
-                          i,
-                          sourceLabel: sourceLabel,
-                        ),
+                        onTap: () =>
+                            s.playApiQueue(songs, i, sourceLabel: sourceLabel),
                       ),
                     ),
                 ],
@@ -143,7 +139,10 @@ class _UserPlaylistScreenState extends ConsumerState<UserPlaylistScreen> {
   }
 
   Future<void> _showOverflowMenu(
-      BuildContext context, WidgetRef ref, UserPlaylist p) async {
+    BuildContext context,
+    WidgetRef ref,
+    UserPlaylist p,
+  ) async {
     final action = await showModalBottomSheet<String>(
       context: context,
       backgroundColor: Colors.transparent,
@@ -173,26 +172,33 @@ class _UserPlaylistScreenState extends ConsumerState<UserPlaylistScreen> {
       context: context,
       builder: (_) => AlertDialog(
         backgroundColor: const Color(0xFF15151A),
-        shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(16)),
-        title: Text('Delete “$name”?',
-            style: SunohType.heading(fontSize: 17, color: c.fg)),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+        title: Text(
+          'Delete “$name”?',
+          style: SunohType.heading(fontSize: 17, color: c.fg),
+        ),
         content: Text(
-            'The playlist is removed from your library. Songs stay where they are.',
-            style: SunohType.sans(fontSize: 13, color: c.fgMute)),
+          'The playlist is removed from your library. Songs stay where they are.',
+          style: SunohType.sans(fontSize: 13, color: c.fgMute),
+        ),
         actions: [
           TextButton(
             onPressed: () => Navigator.of(context).pop(false),
-            child: Text('Cancel',
-                style: SunohType.sans(fontSize: 13.5, color: c.fgDim)),
+            child: Text(
+              'Cancel',
+              style: SunohType.sans(fontSize: 13.5, color: c.fgDim),
+            ),
           ),
           TextButton(
             onPressed: () => Navigator.of(context).pop(true),
-            child: Text('Delete',
-                style: SunohType.sans(
-                    fontSize: 13.5,
-                    color: const Color(0xFFE05656),
-                    fontWeight: FontWeight.w600)),
+            child: Text(
+              'Delete',
+              style: SunohType.sans(
+                fontSize: 13.5,
+                color: const Color(0xFFE05656),
+                fontWeight: FontWeight.w600,
+              ),
+            ),
           ),
         ],
       ),
@@ -233,14 +239,20 @@ class _OverflowSheet extends ConsumerWidget {
             ),
             Padding(
               padding: const EdgeInsets.fromLTRB(22, 6, 22, 10),
-              child: Text(name,
-                  style: SunohType.heading(
-                      fontSize: 16, color: c.fg, letterSpacing: -0.2)),
+              child: Text(
+                name,
+                style: SunohType.heading(
+                  fontSize: 16,
+                  color: c.fg,
+                  letterSpacing: -0.2,
+                ),
+              ),
             ),
             Container(
-                height: 0.5,
-                color: c.line,
-                margin: const EdgeInsets.symmetric(horizontal: 12)),
+              height: 0.5,
+              color: c.line,
+              margin: const EdgeInsets.symmetric(horizontal: 12),
+            ),
             _SheetRow(
               icon: SolarIconsOutline.pen,
               label: 'Rename',
@@ -277,8 +289,7 @@ class _SheetRow extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final c = colors;
-    final tint =
-        destructive ? const Color(0xFFE05656) : c.fg;
+    final tint = destructive ? const Color(0xFFE05656) : c.fg;
     return GestureDetector(
       onTap: onTap,
       behavior: HitTestBehavior.opaque,
@@ -288,11 +299,14 @@ class _SheetRow extends StatelessWidget {
           children: [
             Icon(icon, size: 18, color: tint),
             const SizedBox(width: 14),
-            Text(label,
-                style: SunohType.sans(
-                    fontSize: 14,
-                    fontWeight: FontWeight.w500,
-                    color: tint)),
+            Text(
+              label,
+              style: SunohType.sans(
+                fontSize: 14,
+                fontWeight: FontWeight.w500,
+                color: tint,
+              ),
+            ),
           ],
         ),
       ),
@@ -382,30 +396,33 @@ class _PlaylistHero extends StatelessWidget {
                               coverUrl,
                               fit: BoxFit.cover,
                               errorBuilder: (_, _, _) => Icon(
-                                  SolarIconsBold.musicLibrary2,
-                                  size: 88,
-                                  color: Colors.white
-                                      .withValues(alpha: 0.92)),
+                                SolarIconsBold.musicLibrary2,
+                                size: 88,
+                                color: Colors.white.withValues(alpha: 0.92),
+                              ),
                             ),
                     ),
                     const SizedBox(height: 20),
                     eyebrow('YOUR PLAYLIST', c.fgMute),
                     const SizedBox(height: 6),
-                    Text(playlist.name,
-                        textAlign: TextAlign.center,
-                        maxLines: 2,
-                        overflow: TextOverflow.ellipsis,
-                        style: SunohType.heading(
-                            fontSize: 26,
-                            color: c.fg,
-                            height: 1.1,
-                            letterSpacing: -0.4)),
+                    Text(
+                      playlist.name,
+                      textAlign: TextAlign.center,
+                      maxLines: 2,
+                      overflow: TextOverflow.ellipsis,
+                      style: SunohType.heading(
+                        fontSize: 26,
+                        color: c.fg,
+                        height: 1.1,
+                        letterSpacing: -0.4,
+                      ),
+                    ),
                     const SizedBox(height: 6),
                     Text(
-                        '${playlist.songs.length} '
-                        '${playlist.songs.length == 1 ? 'song' : 'songs'}',
-                        style:
-                            SunohType.sans(fontSize: 13, color: c.fgDim)),
+                      '${playlist.songs.length} '
+                      '${playlist.songs.length == 1 ? 'song' : 'songs'}',
+                      style: SunohType.sans(fontSize: 13, color: c.fgDim),
+                    ),
                   ],
                 ),
               ),
@@ -446,15 +463,19 @@ class _PlaylistActions extends ConsumerWidget {
       child: Row(
         mainAxisAlignment: MainAxisAlignment.spaceBetween,
         children: [
-          Text('${songs.length} ${songs.length == 1 ? 'song' : 'songs'}',
-              style: SunohType.sans(fontSize: 12, color: c.fgMute)),
+          Text(
+            '${songs.length} ${songs.length == 1 ? 'song' : 'songs'}',
+            style: SunohType.sans(fontSize: 12, color: c.fgMute),
+          ),
           Row(
             children: [
               GestureDetector(
                 onTap: isEmpty
                     ? null
-                    : () => s.playShuffled(playlist.songs,
-                        sourceLabel: 'PLAYLIST · ${playlist.name}'),
+                    : () => s.playShuffled(
+                        playlist.songs,
+                        sourceLabel: 'PLAYLIST · ${playlist.name}',
+                      ),
                 child: Container(
                   width: 44,
                   height: 44,
@@ -463,8 +484,11 @@ class _PlaylistActions extends ConsumerWidget {
                     shape: BoxShape.circle,
                     border: Border.all(color: c.line, width: 0.5),
                   ),
-                  child: Icon(PhosphorIconsBold.shuffle,
-                      size: 18, color: isEmpty ? c.fgMute : c.fgDim),
+                  child: Icon(
+                    PhosphorIconsBold.shuffle,
+                    size: 18,
+                    color: isEmpty ? c.fgMute : c.fgDim,
+                  ),
                 ),
               ),
               const SizedBox(width: 10),
@@ -480,18 +504,21 @@ class _PlaylistActions extends ConsumerWidget {
                         ? null
                         : [
                             BoxShadow(
-                                color: accent.withValues(alpha: 0.33),
-                                blurRadius: 22,
-                                offset: const Offset(0, 6)),
+                              color: accent.withValues(alpha: 0.33),
+                              blurRadius: 22,
+                              offset: const Offset(0, 6),
+                            ),
                           ],
                   ),
-                  child: Icon(PhosphorIconsFill.play,
-                      size: 24,
-                      color: isEmpty
-                          ? c.fgMute
-                          : (accent.computeLuminance() > 0.55
+                  child: Icon(
+                    PhosphorIconsFill.play,
+                    size: 24,
+                    color: isEmpty
+                        ? c.fgMute
+                        : (accent.computeLuminance() > 0.55
                               ? const Color(0xFF0B0B0D)
-                              : const Color(0xFFFAFAFA))),
+                              : const Color(0xFFFAFAFA)),
+                  ),
                 ),
               ),
             ],
@@ -515,6 +542,7 @@ class _PlaylistTrackRow extends ConsumerWidget {
     required this.onTap,
   });
   final int n;
+
   /// 0-based position in the playlist, used by the `ReorderableDragStart-
   /// Listener` wrapping the hamburger handle so drag-to-reorder operates
   /// on the correct slot.
@@ -544,7 +572,9 @@ class _PlaylistTrackRow extends ConsumerWidget {
         // hero gradient behind would bleed through during the drag).
         color: c.bg,
         padding: EdgeInsets.symmetric(
-            horizontal: 20, vertical: 10 * s.density.scale),
+          horizontal: 20,
+          vertical: 10 * s.density.scale,
+        ),
         child: Row(
           children: [
             // Drag-only hamburger — long-press to grab. Keeps the rest
@@ -553,15 +583,20 @@ class _PlaylistTrackRow extends ConsumerWidget {
               index: index,
               child: Padding(
                 padding: const EdgeInsets.only(right: 8),
-                child: Icon(SolarIconsOutline.hamburgerMenu,
-                    size: 14, color: c.fgMute.withValues(alpha: 0.6)),
+                child: Icon(
+                  SolarIconsOutline.hamburgerMenu,
+                  size: 14,
+                  color: c.fgMute.withValues(alpha: 0.6),
+                ),
               ),
             ),
             SizedBox(
               width: 18,
               child: Center(
-                child: Text(n.toString().padLeft(2, '0'),
-                    style: SunohType.mono(fontSize: 11, color: c.fgMute)),
+                child: Text(
+                  n.toString().padLeft(2, '0'),
+                  style: SunohType.mono(fontSize: 11, color: c.fgMute),
+                ),
               ),
             ),
             const SizedBox(width: 10),
@@ -573,15 +608,19 @@ class _PlaylistTrackRow extends ConsumerWidget {
                 child: ColoredBox(
                   color: const Color(0xFF1A1A1F),
                   child: song.artwork == null || song.artwork!.isEmpty
-                      ? const Icon(SolarIconsBold.musicNotes,
-                          size: 18, color: Colors.white24)
+                      ? const Icon(
+                          SolarIconsBold.musicNotes,
+                          size: 18,
+                          color: Colors.white24,
+                        )
                       : Image.network(
                           song.artwork!,
                           fit: BoxFit.cover,
                           errorBuilder: (_, _, _) => const Icon(
-                              SolarIconsBold.musicNotes,
-                              size: 18,
-                              color: Colors.white24),
+                            SolarIconsBold.musicNotes,
+                            size: 18,
+                            color: Colors.white24,
+                          ),
                         ),
                 ),
               ),
@@ -591,35 +630,41 @@ class _PlaylistTrackRow extends ConsumerWidget {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Text(song.title,
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                      style: SunohType.sans(
-                          fontSize: 14,
-                          fontWeight: FontWeight.w500,
-                          color: c.fg)),
+                  Text(
+                    song.title,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: SunohType.sans(
+                      fontSize: 14,
+                      fontWeight: FontWeight.w500,
+                      color: c.fg,
+                    ),
+                  ),
                   if (artistsLabel.isNotEmpty) ...[
                     const SizedBox(height: 1),
-                    Text(artistsLabel,
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                        style:
-                            SunohType.sans(fontSize: 11.5, color: c.fgMute)),
+                    Text(
+                      artistsLabel,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: SunohType.sans(fontSize: 11.5, color: c.fgMute),
+                    ),
                   ],
                 ],
               ),
             ),
             IconBtn(
-                icon: SolarIconsBold.menuDots,
-                color: colors.fgMute,
-                size: 16,
-                width: 32,
-                height: 32,
-                onTap: () => showTrackMenuSheet(
-                    context,
-                    song: song,
-                    sourceLabel: sourceLabel,
-                    removeFromUserPlaylistId: playlistId)),
+              icon: SolarIconsBold.menuDots,
+              color: colors.fgMute,
+              size: 16,
+              width: 32,
+              height: 32,
+              onTap: () => showTrackMenuSheet(
+                context,
+                song: song,
+                sourceLabel: sourceLabel,
+                removeFromUserPlaylistId: playlistId,
+              ),
+            ),
           ],
         ),
       ),
@@ -664,7 +709,10 @@ class _StickyHeader extends StatelessWidget {
                             border: bgT > 0.9
                                 ? Border(
                                     bottom: BorderSide(
-                                        color: c.line, width: 0.5))
+                                      color: c.line,
+                                      width: 0.5,
+                                    ),
+                                  )
                                 : null,
                           ),
                         ),
@@ -678,13 +726,16 @@ class _StickyHeader extends StatelessWidget {
                         child: Opacity(
                           opacity: titleT,
                           child: Center(
-                            child: Text(title,
-                                maxLines: 1,
-                                overflow: TextOverflow.ellipsis,
-                                style: SunohType.heading(
-                                    fontSize: 15,
-                                    color: c.fg,
-                                    letterSpacing: -0.2)),
+                            child: Text(
+                              title,
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                              style: SunohType.heading(
+                                fontSize: 15,
+                                color: c.fg,
+                                letterSpacing: -0.2,
+                              ),
+                            ),
                           ),
                         ),
                       ),
@@ -699,17 +750,19 @@ class _StickyHeader extends StatelessWidget {
                   mainAxisAlignment: MainAxisAlignment.spaceBetween,
                   children: [
                     IconBtn(
-                        icon: SolarIconsOutline.altArrowLeft,
-                        color: c.fg,
-                        size: 22,
-                        background: Colors.black.withValues(alpha: 0.35),
-                        onTap: onBack),
+                      icon: SolarIconsOutline.altArrowLeft,
+                      color: c.fg,
+                      size: 22,
+                      background: Colors.black.withValues(alpha: 0.35),
+                      onTap: onBack,
+                    ),
                     IconBtn(
-                        icon: SolarIconsBold.menuDots,
-                        color: c.fg,
-                        size: 18,
-                        background: Colors.black.withValues(alpha: 0.35),
-                        onTap: onMenu),
+                      icon: SolarIconsBold.menuDots,
+                      color: c.fg,
+                      size: 18,
+                      background: Colors.black.withValues(alpha: 0.35),
+                      onTap: onMenu,
+                    ),
                   ],
                 ),
               ),
@@ -732,13 +785,16 @@ class _EmptyPlaylist extends StatelessWidget {
       child: Center(
         child: Column(
           children: [
-            Text('No songs yet',
-                style: SunohType.heading(fontSize: 18, color: c.fgDim)),
+            Text(
+              'No songs yet',
+              style: SunohType.heading(fontSize: 18, color: c.fgDim),
+            ),
             const SizedBox(height: 8),
             Text(
-                'Open any song\'s menu and pick "Add to playlist" to drop it here.',
-                textAlign: TextAlign.center,
-                style: SunohType.sans(fontSize: 12.5, color: c.fgMute)),
+              'Open any song\'s menu and pick "Add to playlist" to drop it here.',
+              textAlign: TextAlign.center,
+              style: SunohType.sans(fontSize: 12.5, color: c.fgMute),
+            ),
           ],
         ),
       ),
@@ -748,20 +804,21 @@ class _EmptyPlaylist extends StatelessWidget {
 
 /// Shared "Name the playlist" prompt — used by Create + Rename flows.
 /// Returns the trimmed input or null when the user cancels.
-Future<String?> promptForPlaylistName(BuildContext context,
-    {String? initial}) {
+Future<String?> promptForPlaylistName(BuildContext context, {String? initial}) {
   final controller = TextEditingController(text: initial ?? '');
   final c = ProviderScope.containerOf(context).read(appStateProvider).colors;
-  final accent =
-      ProviderScope.containerOf(context).read(appStateProvider).resolvedAccent;
+  final accent = ProviderScope.containerOf(
+    context,
+  ).read(appStateProvider).resolvedAccent;
   return showDialog<String>(
     context: context,
     builder: (ctx) => AlertDialog(
       backgroundColor: const Color(0xFF15151A),
-      shape:
-          RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-      title: Text(initial == null ? 'New playlist' : 'Rename playlist',
-          style: SunohType.heading(fontSize: 17, color: c.fg)),
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+      title: Text(
+        initial == null ? 'New playlist' : 'Rename playlist',
+        style: SunohType.heading(fontSize: 17, color: c.fg),
+      ),
       content: TextField(
         controller: controller,
         autofocus: true,
@@ -771,9 +828,11 @@ Future<String?> promptForPlaylistName(BuildContext context,
           hintText: 'Playlist name',
           hintStyle: SunohType.sans(fontSize: 14, color: c.fgMute),
           enabledBorder: UnderlineInputBorder(
-              borderSide: BorderSide(color: c.line, width: 0.5)),
-          focusedBorder:
-              UnderlineInputBorder(borderSide: BorderSide(color: accent)),
+            borderSide: BorderSide(color: c.line, width: 0.5),
+          ),
+          focusedBorder: UnderlineInputBorder(
+            borderSide: BorderSide(color: accent),
+          ),
         ),
         textInputAction: TextInputAction.done,
         onSubmitted: (v) => Navigator.of(ctx).pop(v.trim()),
@@ -781,17 +840,21 @@ Future<String?> promptForPlaylistName(BuildContext context,
       actions: [
         TextButton(
           onPressed: () => Navigator.of(ctx).pop(null),
-          child: Text('Cancel',
-              style: SunohType.sans(fontSize: 13.5, color: c.fgDim)),
+          child: Text(
+            'Cancel',
+            style: SunohType.sans(fontSize: 13.5, color: c.fgDim),
+          ),
         ),
         TextButton(
-          onPressed: () =>
-              Navigator.of(ctx).pop(controller.text.trim()),
-          child: Text(initial == null ? 'Create' : 'Save',
-              style: SunohType.sans(
-                  fontSize: 13.5,
-                  color: accent,
-                  fontWeight: FontWeight.w600)),
+          onPressed: () => Navigator.of(ctx).pop(controller.text.trim()),
+          child: Text(
+            initial == null ? 'Create' : 'Save',
+            style: SunohType.sans(
+              fontSize: 13.5,
+              color: accent,
+              fontWeight: FontWeight.w600,
+            ),
+          ),
         ),
       ],
     ),

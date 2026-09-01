@@ -18,15 +18,18 @@ import 'app_state_provider.dart';
 /// Google. Timeouts are generous — InnerTube browse responses run to several
 /// hundred KB.
 final _ytDioProvider = Provider<Dio>((ref) {
-  return Dio(BaseOptions(
-    connectTimeout: const Duration(seconds: 15),
-    receiveTimeout: const Duration(seconds: 30),
-    responseType: ResponseType.json,
-  ));
+  return Dio(
+    BaseOptions(
+      connectTimeout: const Duration(seconds: 15),
+      receiveTimeout: const Duration(seconds: 30),
+      responseType: ResponseType.json,
+    ),
+  );
 });
 
-final ytLocaleResolverProvider =
-    Provider<YtLocaleResolver>((ref) => YtLocaleResolver(ref.watch(_ytDioProvider)));
+final ytLocaleResolverProvider = Provider<YtLocaleResolver>(
+  (ref) => YtLocaleResolver(ref.watch(_ytDioProvider)),
+);
 
 /// The region/language every YouTube request is made for.
 ///
@@ -35,39 +38,43 @@ final ytLocaleResolverProvider =
 /// new region rather than serving a stale country's charts.
 final ytLocaleProvider = Provider<YtLocale>((ref) {
   final s = ref.watch(appStateProvider);
-  return ref.watch(ytLocaleResolverProvider).resolve(
+  return ref
+      .watch(ytLocaleResolverProvider)
+      .resolve(
         countryOverride: s.ytCountryOverride,
         languageOverride: s.ytLanguageOverride,
       );
 });
 
-final ytMusicApiProvider = Provider<YtMusicApi>((ref) => YtMusicApi(
-      ref.watch(_ytDioProvider),
-      locale: ref.watch(ytLocaleProvider),
-    ));
+final ytMusicApiProvider = Provider<YtMusicApi>(
+  (ref) => YtMusicApi(
+    ref.watch(_ytDioProvider),
+    locale: ref.watch(ytLocaleProvider),
+  ),
+);
 
 /// Song results, merged into the Search screen. Failure degrades to an
 /// absent section rather than an error state.
-final ytMusicSearchProvider =
-    FutureProvider.autoDispose.family<List<FeedItem>, String>((ref, query) {
-  if (query.trim().isEmpty) return Future.value(const <FeedItem>[]);
-  return ref.watch(ytMusicApiProvider).searchSongs(query);
-});
+final ytMusicSearchProvider = FutureProvider.autoDispose
+    .family<List<FeedItem>, String>((ref, query) {
+      if (query.trim().isEmpty) return Future.value(const <FeedItem>[]);
+      return ref.watch(ytMusicApiProvider).searchSongs(query);
+    });
 
 /// Artist results, merged into Search so an artist page is reachable by
 /// searching for the artist — the obvious entry point.
-final ytMusicArtistSearchProvider =
-    FutureProvider.autoDispose.family<List<FeedItem>, String>((ref, query) {
-  if (query.trim().isEmpty) return Future.value(const <FeedItem>[]);
-  return ref.watch(ytMusicApiProvider).searchArtists(query);
-});
+final ytMusicArtistSearchProvider = FutureProvider.autoDispose
+    .family<List<FeedItem>, String>((ref, query) {
+      if (query.trim().isEmpty) return Future.value(const <FeedItem>[]);
+      return ref.watch(ytMusicApiProvider).searchArtists(query);
+    });
 
 /// Album results.
-final ytMusicAlbumSearchProvider =
-    FutureProvider.autoDispose.family<List<FeedItem>, String>((ref, query) {
-  if (query.trim().isEmpty) return Future.value(const <FeedItem>[]);
-  return ref.watch(ytMusicApiProvider).searchAlbums(query);
-});
+final ytMusicAlbumSearchProvider = FutureProvider.autoDispose
+    .family<List<FeedItem>, String>((ref, query) {
+      if (query.trim().isEmpty) return Future.value(const <FeedItem>[]);
+      return ref.watch(ytMusicApiProvider).searchAlbums(query);
+    });
 
 /// The YouTube Music home feed, interleaved into the Music tab. Not
 /// autoDispose: it's a large response and the feed doesn't change minute to
@@ -87,21 +94,25 @@ typedef YtCategoryKey = ({String browseId, String params});
 
 final ytMusicCategoryProvider = FutureProvider.autoDispose
     .family<List<HomeSection>, YtCategoryKey>((ref, key) {
-  return ref.watch(ytMusicApiProvider).category(key.browseId, key.params);
-});
+      return ref.watch(ytMusicApiProvider).category(key.browseId, key.params);
+    });
 
 final ytMusicArtistProvider = FutureProvider.autoDispose
     .family<YtArtistDetail?, String>((ref, browseId) {
-  final link = ref.keepAlive();
-  Future<void>.delayed(const Duration(minutes: 10)).then((_) => link.close());
-  return ref.watch(ytMusicApiProvider).artist(browseId);
-});
+      final link = ref.keepAlive();
+      Future<void>.delayed(
+        const Duration(minutes: 10),
+      ).then((_) => link.close());
+      return ref.watch(ytMusicApiProvider).artist(browseId);
+    });
 
 final ytMusicPlaylistProvider = FutureProvider.autoDispose
     .family<YtPlaylistDetail?, String>((ref, browseId) {
-  // Held briefly so back-navigation out of a playlist and straight back in
-  // doesn't re-fetch a 100-track response.
-  final link = ref.keepAlive();
-  Future<void>.delayed(const Duration(minutes: 10)).then((_) => link.close());
-  return ref.watch(ytMusicApiProvider).playlist(browseId);
-});
+      // Held briefly so back-navigation out of a playlist and straight back in
+      // doesn't re-fetch a 100-track response.
+      final link = ref.keepAlive();
+      Future<void>.delayed(
+        const Duration(minutes: 10),
+      ).then((_) => link.close());
+      return ref.watch(ytMusicApiProvider).playlist(browseId);
+    });

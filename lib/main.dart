@@ -47,7 +47,9 @@ class SunohScrollBehavior extends MaterialScrollBehavior {
 
   @override
   ScrollPhysics getScrollPhysics(BuildContext context) =>
-      const _LooseClampingScrollPhysics(parent: AlwaysScrollableScrollPhysics());
+      const _LooseClampingScrollPhysics(
+        parent: AlwaysScrollableScrollPhysics(),
+      );
 
   @override
   Widget buildOverscrollIndicator(
@@ -63,11 +65,11 @@ class SunohScrollBehavior extends MaterialScrollBehavior {
 
   @override
   Set<PointerDeviceKind> get dragDevices => {
-        PointerDeviceKind.touch,
-        PointerDeviceKind.mouse,
-        PointerDeviceKind.trackpad,
-        PointerDeviceKind.stylus,
-      };
+    PointerDeviceKind.touch,
+    PointerDeviceKind.mouse,
+    PointerDeviceKind.trackpad,
+    PointerDeviceKind.stylus,
+  };
 }
 
 /// ClampingScrollPhysics with reduced fling friction. The default friction
@@ -86,7 +88,9 @@ class _LooseClampingScrollPhysics extends ClampingScrollPhysics {
 
   @override
   Simulation? createBallisticSimulation(
-      ScrollMetrics position, double velocity) {
+    ScrollMetrics position,
+    double velocity,
+  ) {
     final Tolerance tolerance = toleranceFor(position);
     if (position.outOfRange) {
       double end;
@@ -128,8 +132,10 @@ Future<void> main() async {
   // Local persistence (queue + future library/history/settings boxes).
   await Hive.initFlutter();
   // ignore: avoid_print
-  print('[hive] init complete — boxes will land in '
-      'getApplicationDocumentsDirectory() (/data/data/<pkg>/app_flutter/).');
+  print(
+    '[hive] init complete — boxes will land in '
+    'getApplicationDocumentsDirectory() (/data/data/<pkg>/app_flutter/).',
+  );
 
   // mpv FFI bindings init — synchronous, cheap.
   // Using `print` not `debugPrint` so these always surface in logcat.
@@ -147,8 +153,10 @@ Future<void> main() async {
   // is additive (no downloads → network only), so a broken Hive box
   // shouldn't prevent in-app playback.
   final downloadStore = DownloadStore();
-  final downloadManager =
-      DownloadManager(resolver: resolver, store: downloadStore);
+  final downloadManager = DownloadManager(
+    resolver: resolver,
+    store: downloadStore,
+  );
   try {
     await downloadManager.init();
     resolver.localSource = downloadManager;
@@ -179,10 +187,14 @@ Future<void> main() async {
     // Its own Dio: buildSunohDio carries our base URL and sunoh-api
     // headers, none of which belong on a request to sponsor.ajay.app.
     sponsorBlock: SponsorBlockSkipper(
-      client: SponsorBlockClient(Dio(BaseOptions(
-        connectTimeout: const Duration(seconds: 8),
-        receiveTimeout: const Duration(seconds: 12),
-      ))),
+      client: SponsorBlockClient(
+        Dio(
+          BaseOptions(
+            connectTimeout: const Duration(seconds: 8),
+            receiveTimeout: const Duration(seconds: 12),
+          ),
+        ),
+      ),
     ),
   );
   // ignore: avoid_print
@@ -192,29 +204,34 @@ Future<void> main() async {
   // the background with a hard 5s timeout. If it succeeds, the bridge gets
   // attached to the repo. If it hangs or throws, in-app playback is
   // unaffected — we just don't get lockscreen/notification controls.
-  unawaited(_tryWireAudioService(handler).then((bridge) {
-    if (bridge != null) {
-      repo.attachBridge(bridge);
-    }
-  }));
+  unawaited(
+    _tryWireAudioService(handler).then((bridge) {
+      if (bridge != null) {
+        repo.attachBridge(bridge);
+      }
+    }),
+  );
 
-  runApp(ProviderScope(
-    overrides: [
-      audioRepoProvider.overrideWithValue(repo),
-      downloadManagerProvider.overrideWithValue(downloadManager),
-    ],
-    child: const _Root(),
-  ));
+  runApp(
+    ProviderScope(
+      overrides: [
+        audioRepoProvider.overrideWithValue(repo),
+        downloadManagerProvider.overrideWithValue(downloadManager),
+      ],
+      child: const _Root(),
+    ),
+  );
 }
 
 Future<SunohAudioServiceBridge?> _tryWireAudioService(
-    SunohAudioHandler handler) async {
+  SunohAudioHandler handler,
+) async {
   // Request POST_NOTIFICATIONS first. On Android 13+ this triggers the
   // system permission dialog; on older versions / iOS it's a no-op.
   try {
-    final status = await Permission.notification
-        .request()
-        .timeout(const Duration(seconds: 3));
+    final status = await Permission.notification.request().timeout(
+      const Duration(seconds: 3),
+    );
     // ignore: avoid_print
     print('[audio-svc] notification permission: $status');
   } catch (e) {
@@ -329,11 +346,13 @@ class _RootState extends ConsumerState<_Root> {
   @override
   Widget build(BuildContext context) {
     // Dark only — light status-bar icons over the near-black bg.
-    SystemChrome.setSystemUIOverlayStyle(const SystemUiOverlayStyle(
-      statusBarColor: Colors.transparent,
-      statusBarIconBrightness: Brightness.light,
-      statusBarBrightness: Brightness.dark,
-    ));
+    SystemChrome.setSystemUIOverlayStyle(
+      const SystemUiOverlayStyle(
+        statusBarColor: Colors.transparent,
+        statusBarIconBrightness: Brightness.light,
+        statusBarBrightness: Brightness.dark,
+      ),
+    );
     return MaterialApp.router(
       title: 'sunoh.',
       debugShowCheckedModeBanner: false,

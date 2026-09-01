@@ -16,30 +16,31 @@ import '../widgets/ui.dart';
 /// Pick the YouTube region (`gl`). This is the one that matters — it
 /// decides which charts and home rows come back.
 Future<void> showYtRegionSheet(BuildContext context) => _show(
-      context,
-      title: 'YouTube region',
-      blurb: 'Shifts the editorial rows YouTube returns. Charts and Top '
-          'artists ignore this and follow your connection instead, so '
-          'those stay local wherever you set this.',
-      options: kYtRegions,
-      selectedOf: (s) => s.ytCountryOverride,
-      autoLabelOf: (locale) => kYtRegions[locale.country] ?? locale.country,
-      onPick: (s, code) => s.setYtCountry(code),
-    );
+  context,
+  title: 'YouTube region',
+  blurb:
+      'Shifts the editorial rows YouTube returns. Charts and Top '
+      'artists ignore this and follow your connection instead, so '
+      'those stay local wherever you set this.',
+  options: kYtRegions,
+  selectedOf: (s) => s.ytCountryOverride,
+  autoLabelOf: (locale) => kYtRegions[locale.country] ?? locale.country,
+  onPick: (s, code) => s.setYtCountry(code),
+);
 
 /// Pick the YouTube interface language (`hl`). Affects the wording of
 /// section headings YouTube sends, not which music is returned.
 Future<void> showYtLanguageSheet(BuildContext context) => _show(
-      context,
-      title: 'YouTube language',
-      blurb: 'The language YouTube labels its sections in. It does not '
-          'filter which music you get — use Music languages for that.',
-      options: kYtLanguages,
-      selectedOf: (s) => s.ytLanguageOverride,
-      autoLabelOf: (locale) =>
-          kYtLanguages[locale.language] ?? locale.language,
-      onPick: (s, code) => s.setYtLanguage(code),
-    );
+  context,
+  title: 'YouTube language',
+  blurb:
+      'The language YouTube labels its sections in. It does not '
+      'filter which music you get — use Music languages for that.',
+  options: kYtLanguages,
+  selectedOf: (s) => s.ytLanguageOverride,
+  autoLabelOf: (locale) => kYtLanguages[locale.language] ?? locale.language,
+  onPick: (s, code) => s.setYtLanguage(code),
+);
 
 Future<void> _show(
   BuildContext context, {
@@ -119,15 +120,25 @@ class _YtLocaleSheet extends ConsumerWidget {
             ),
             Padding(
               padding: const EdgeInsets.fromLTRB(20, 16, 20, 6),
-              child: Text(title,
-                  style: SunohType.heading(
-                      fontSize: 20, color: c.fg, letterSpacing: -0.2)),
+              child: Text(
+                title,
+                style: SunohType.heading(
+                  fontSize: 20,
+                  color: c.fg,
+                  letterSpacing: -0.2,
+                ),
+              ),
             ),
             Padding(
               padding: const EdgeInsets.fromLTRB(20, 0, 20, 12),
-              child: Text(blurb,
-                  style: SunohType.sans(
-                      fontSize: 12, color: c.fgMute, height: 1.35)),
+              child: Text(
+                blurb,
+                style: SunohType.sans(
+                  fontSize: 12,
+                  color: c.fgMute,
+                  height: 1.35,
+                ),
+              ),
             ),
             Flexible(
               child: ListView(
@@ -196,15 +207,19 @@ class _Option extends StatelessWidget {
         child: Row(
           children: [
             Expanded(
-              child: Text(label,
-                  style: SunohType.sans(
-                      fontSize: 14.5,
-                      fontWeight:
-                          selected ? FontWeight.w600 : FontWeight.w400,
-                      color: selected ? accent : c.fg)),
+              child: Text(
+                label,
+                style: SunohType.sans(
+                  fontSize: 14.5,
+                  fontWeight: selected ? FontWeight.w600 : FontWeight.w400,
+                  color: selected ? accent : c.fg,
+                ),
+              ),
             ),
-            Text(trailing,
-                style: SunohType.mono(fontSize: 11, color: c.fgMute)),
+            Text(
+              trailing,
+              style: SunohType.mono(fontSize: 11, color: c.fgMute),
+            ),
             const SizedBox(width: 10),
             Opacity(
               opacity: selected ? 1 : 0,

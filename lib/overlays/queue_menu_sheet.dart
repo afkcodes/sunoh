@@ -32,8 +32,9 @@ class _QueueMenuSheet extends ConsumerWidget {
     final c = s.colors;
     final topInset = MediaQuery.of(context).padding.bottom;
     final repo = s.audioRepo;
-    final upNext =
-        repo == null ? 0 : (repo.queue.length - repo.currentIndex - 1);
+    final upNext = repo == null
+        ? 0
+        : (repo.queue.length - repo.currentIndex - 1);
 
     return SafeArea(
       top: false,
@@ -65,18 +66,19 @@ class _QueueMenuSheet extends ConsumerWidget {
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        Text('Queue',
-                            style: SunohType.sans(
-                                fontSize: 14.5,
-                                fontWeight: FontWeight.w500,
-                                color: c.fg)),
+                        Text(
+                          'Queue',
+                          style: SunohType.sans(
+                            fontSize: 14.5,
+                            fontWeight: FontWeight.w500,
+                            color: c.fg,
+                          ),
+                        ),
                         const SizedBox(height: 3),
                         Text(
-                            upNext > 0
-                                ? '$upNext upcoming'
-                                : 'Nothing up next',
-                            style: SunohType.sans(
-                                fontSize: 12, color: c.fgMute)),
+                          upNext > 0 ? '$upNext upcoming' : 'Nothing up next',
+                          style: SunohType.sans(fontSize: 12, color: c.fgMute),
+                        ),
                       ],
                     ),
                   ),
@@ -84,9 +86,10 @@ class _QueueMenuSheet extends ConsumerWidget {
               ),
             ),
             Container(
-                height: 0.5,
-                color: c.line,
-                margin: const EdgeInsets.symmetric(horizontal: 12)),
+              height: 0.5,
+              color: c.line,
+              margin: const EdgeInsets.symmetric(horizontal: 12),
+            ),
             _QueueMenuRow(
               icon: SolarIconsOutline.trashBinTrash,
               label: 'Clear queue',
@@ -132,10 +135,12 @@ class _QueueMenuRow extends StatelessWidget {
             Icon(icon, size: 20, color: color),
             const SizedBox(width: 16),
             Expanded(
-              child: Text(label,
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                  style: SunohType.sans(fontSize: 14, color: color)),
+              child: Text(
+                label,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: SunohType.sans(fontSize: 14, color: color),
+              ),
             ),
           ],
         ),

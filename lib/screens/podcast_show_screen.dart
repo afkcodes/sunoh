@@ -98,7 +98,10 @@ class _PodcastShowScreenState extends ConsumerState<PodcastShowScreen> {
     });
     try {
       final api = ref.read(sunohApiProvider);
-      final list = await api.fetchPodcastEpisodes(widget.id, max: _kFullFetchMax);
+      final list = await api.fetchPodcastEpisodes(
+        widget.id,
+        max: _kFullFetchMax,
+      );
       if (!mounted) return;
       // Defensive dedup by id — the bundled 30 and the full 500 overlap
       // entirely so we just take the new list, but if anything weird
@@ -170,11 +173,7 @@ class _PodcastShowScreenState extends ConsumerState<PodcastShowScreen> {
             final tint = palette?.dominant ?? accent;
             return Column(
               children: [
-                _NavBar(
-                  title: show.title,
-                  subtitle: show.subtitle,
-                  colors: c,
-                ),
+                _NavBar(title: show.title, subtitle: show.subtitle, colors: c),
                 Expanded(
                   child: ListView.builder(
                     controller: _scroll,
@@ -193,16 +192,20 @@ class _PodcastShowScreenState extends ConsumerState<PodcastShowScreen> {
                         return Padding(
                           padding: const EdgeInsets.only(top: 18),
                           child: _AboutCard(
-                              show: show, colors: c, accent: accent),
+                            show: show,
+                            colors: c,
+                            accent: accent,
+                          ),
                         );
                       }
                       if (idx == 2) {
                         return Padding(
                           padding: const EdgeInsets.only(top: 22),
                           child: _EpisodesHeader(
-                              count: episodes.length,
-                              total: _expanded ? episodes.length : null,
-                              colors: c),
+                            count: episodes.length,
+                            total: _expanded ? episodes.length : null,
+                            colors: c,
+                          ),
                         );
                       }
                       if (idx == 3) {
@@ -285,14 +288,17 @@ class _EpisodesFooter extends StatelessWidget {
               behavior: HitTestBehavior.opaque,
               onTap: onRetry,
               child: Padding(
-                padding:
-                    const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 10,
+                  vertical: 6,
+                ),
                 child: Text(
                   'Retry',
                   style: SunohType.sans(
-                      fontSize: 12.5,
-                      fontWeight: FontWeight.w500,
-                      color: c.fg),
+                    fontSize: 12.5,
+                    fontWeight: FontWeight.w500,
+                    color: c.fg,
+                  ),
                 ),
               ),
             ),
@@ -338,45 +344,51 @@ class _NavBar extends StatelessWidget {
       child: Row(
         children: [
           IconBtn(
-              icon: SolarIconsOutline.altArrowLeft,
-              color: c.fg,
-              size: 22,
-              width: 40,
-              height: 40,
-              background: c.surface,
-              onTap: () => context.pop()),
+            icon: SolarIconsOutline.altArrowLeft,
+            color: c.fg,
+            size: 22,
+            width: 40,
+            height: 40,
+            background: c.surface,
+            onTap: () => context.pop(),
+          ),
           Expanded(
             child: Column(
               mainAxisSize: MainAxisSize.min,
               children: [
-                Text(title,
+                Text(
+                  title,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  textAlign: TextAlign.center,
+                  style: SunohType.heading(
+                    fontSize: 16,
+                    color: c.fg,
+                    letterSpacing: -0.2,
+                  ),
+                ),
+                if ((subtitle ?? '').isNotEmpty) ...[
+                  const SizedBox(height: 2),
+                  Text(
+                    subtitle!,
                     maxLines: 1,
                     overflow: TextOverflow.ellipsis,
                     textAlign: TextAlign.center,
-                    style: SunohType.heading(
-                        fontSize: 16,
-                        color: c.fg,
-                        letterSpacing: -0.2)),
-                if ((subtitle ?? '').isNotEmpty) ...[
-                  const SizedBox(height: 2),
-                  Text(subtitle!,
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                      textAlign: TextAlign.center,
-                      style:
-                          SunohType.sans(fontSize: 12, color: c.fgMute)),
+                    style: SunohType.sans(fontSize: 12, color: c.fgMute),
+                  ),
                 ],
               ],
             ),
           ),
           IconBtn(
-              icon: SolarIconsOutline.share,
-              color: c.fg,
-              size: 20,
-              width: 40,
-              height: 40,
-              background: c.surface,
-              onTap: () {}),
+            icon: SolarIconsOutline.share,
+            color: c.fg,
+            size: 20,
+            width: 40,
+            height: 40,
+            background: c.surface,
+            onTap: () {},
+          ),
         ],
       ),
     );
@@ -387,11 +399,7 @@ class _NavBar extends StatelessWidget {
 /// cover is the visual anchor of the page now that the title lives in
 /// the nav bar.
 class _Cover extends StatelessWidget {
-  const _Cover({
-    required this.show,
-    required this.tint,
-    required this.colors,
-  });
+  const _Cover({required this.show, required this.tint, required this.colors});
   final PodcastShowDetail show;
   final Color tint;
   final SunohColors colors;
@@ -483,11 +491,14 @@ class _AboutCardState extends ConsumerState<_AboutCard> {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Text('About this podcast',
-                style: SunohType.heading(
-                    fontSize: 15,
-                    color: c.fg,
-                    letterSpacing: -0.2)),
+            Text(
+              'About this podcast',
+              style: SunohType.heading(
+                fontSize: 15,
+                color: c.fg,
+                letterSpacing: -0.2,
+              ),
+            ),
             if (cleaned.isNotEmpty) ...[
               const SizedBox(height: 10),
               GestureDetector(
@@ -508,8 +519,8 @@ class _AboutCardState extends ConsumerState<_AboutCard> {
                       ? SolarIconsBold.heart
                       : SolarIconsOutline.heart,
                   color: subscribed ? accent : c.fgDim,
-                  onTap: () => s.toggleSubscribedPodcast(
-                      _showAsFeedItem(widget.show)),
+                  onTap: () =>
+                      s.toggleSubscribedPodcast(_showAsFeedItem(widget.show)),
                 ),
                 const SizedBox(width: 8),
                 _ChipIcon(
@@ -527,8 +538,7 @@ class _AboutCardState extends ConsumerState<_AboutCard> {
                           for (final e in episodes) {
                             s.addApiSongToQueue(e);
                           }
-                          s.flashToast(
-                              'Added ${episodes.length} to queue');
+                          s.flashToast('Added ${episodes.length} to queue');
                         },
                 ),
                 const Spacer(),
@@ -536,9 +546,11 @@ class _AboutCardState extends ConsumerState<_AboutCard> {
                 GestureDetector(
                   onTap: isEmpty
                       ? null
-                      : () => s.playApiQueue(episodes, 0,
-                          sourceLabel:
-                              'PODCAST · ${widget.show.title}'),
+                      : () => s.playApiQueue(
+                          episodes,
+                          0,
+                          sourceLabel: 'PODCAST · ${widget.show.title}',
+                        ),
                   child: Container(
                     height: 40,
                     padding: const EdgeInsets.only(left: 16, right: 6),
@@ -549,21 +561,23 @@ class _AboutCardState extends ConsumerState<_AboutCard> {
                           ? null
                           : [
                               BoxShadow(
-                                  color: accent.withValues(alpha: 0.28),
-                                  blurRadius: 16,
-                                  offset: const Offset(0, 4)),
+                                color: accent.withValues(alpha: 0.28),
+                                blurRadius: 16,
+                                offset: const Offset(0, 4),
+                              ),
                             ],
                     ),
                     child: Row(
                       mainAxisSize: MainAxisSize.min,
                       children: [
-                        Text('Play',
-                            style: SunohType.sans(
-                                fontSize: 13.5,
-                                fontWeight: FontWeight.w700,
-                                color: isEmpty
-                                    ? c.fgMute
-                                    : fgOnAccent)),
+                        Text(
+                          'Play',
+                          style: SunohType.sans(
+                            fontSize: 13.5,
+                            fontWeight: FontWeight.w700,
+                            color: isEmpty ? c.fgMute : fgOnAccent,
+                          ),
+                        ),
                         const SizedBox(width: 10),
                         Container(
                           width: 30,
@@ -572,20 +586,20 @@ class _AboutCardState extends ConsumerState<_AboutCard> {
                           decoration: BoxDecoration(
                             color: isEmpty
                                 ? c.line
-                                : (fgOnAccent ==
-                                        const Color(0xFF0B0B0D)
-                                    ? const Color(0xFF0B0B0D)
-                                    : const Color(0xFFFAFAFA)),
+                                : (fgOnAccent == const Color(0xFF0B0B0D)
+                                      ? const Color(0xFF0B0B0D)
+                                      : const Color(0xFFFAFAFA)),
                             shape: BoxShape.circle,
                           ),
-                          child: Icon(PhosphorIconsFill.play,
-                              size: 13,
-                              color: isEmpty
-                                  ? c.fgDim
-                                  : (fgOnAccent ==
-                                          const Color(0xFF0B0B0D)
+                          child: Icon(
+                            PhosphorIconsFill.play,
+                            size: 13,
+                            color: isEmpty
+                                ? c.fgDim
+                                : (fgOnAccent == const Color(0xFF0B0B0D)
                                       ? const Color(0xFFFAFAFA)
-                                      : const Color(0xFF0B0B0D))),
+                                      : const Color(0xFF0B0B0D)),
+                          ),
                         ),
                       ],
                     ),
@@ -618,8 +632,10 @@ class _DescriptionText extends StatelessWidget {
   Widget build(BuildContext context) {
     final c = colors;
     if (expanded) {
-      return Text(text,
-          style: SunohType.sans(fontSize: 13, color: c.fgDim, height: 1.5));
+      return Text(
+        text,
+        style: SunohType.sans(fontSize: 13, color: c.fgDim, height: 1.5),
+      );
     }
     // Inline "see more" — render the truncated body + a single bold
     // link at the end so the user can expand without a separate
@@ -632,10 +648,11 @@ class _DescriptionText extends StatelessWidget {
           TextSpan(
             text: '… see more',
             style: SunohType.sans(
-                fontSize: 13,
-                color: c.fg,
-                fontWeight: FontWeight.w600,
-                height: 1.5),
+              fontSize: 13,
+              color: c.fg,
+              fontWeight: FontWeight.w600,
+              height: 1.5,
+            ),
           ),
         ],
       ),
@@ -657,11 +674,7 @@ class _DescriptionText extends StatelessWidget {
 /// target matching the nav bar chips, c.bg fill so it pops cleanly off
 /// the About card's c.surface background.
 class _ChipIcon extends StatelessWidget {
-  const _ChipIcon({
-    required this.icon,
-    required this.color,
-    this.onTap,
-  });
+  const _ChipIcon({required this.icon, required this.color, this.onTap});
   final IconData icon;
   final Color color;
   final VoidCallback? onTap;
@@ -685,15 +698,15 @@ class _ChipIcon extends StatelessWidget {
 }
 
 FeedItem _showAsFeedItem(PodcastShowDetail s) => FeedItem(
-      id: s.id,
-      title: s.title,
-      subtitle: s.subtitle,
-      type: 'podcast',
-      image: s.image,
-      source: 'podcastindex',
-      language: s.language,
-      url: s.url,
-    );
+  id: s.id,
+  title: s.title,
+  subtitle: s.subtitle,
+  type: 'podcast',
+  image: s.image,
+  source: 'podcastindex',
+  language: s.language,
+  url: s.url,
+);
 
 class _EpisodesHeader extends StatelessWidget {
   const _EpisodesHeader({
@@ -702,6 +715,7 @@ class _EpisodesHeader extends StatelessWidget {
     this.total,
   });
   final int count;
+
   /// Final count once the full list has been fetched. Until then it's
   /// null and the row shows only the initial (bundled) count. Kept
   /// optional so the header doesn't have to fake a "30+" string while
@@ -716,13 +730,23 @@ class _EpisodesHeader extends StatelessWidget {
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.end,
         children: [
-          Text('Episodes',
-              style: SunohType.heading(
-                  fontSize: 19, color: c.fg, letterSpacing: -0.2)),
+          Text(
+            'Episodes',
+            style: SunohType.heading(
+              fontSize: 19,
+              color: c.fg,
+              letterSpacing: -0.2,
+            ),
+          ),
           const SizedBox(width: 10),
-          Text('$count',
-              style: SunohType.mono(
-                  fontSize: 12, color: c.fgMute, letterSpacing: 0.4)),
+          Text(
+            '$count',
+            style: SunohType.mono(
+              fontSize: 12,
+              color: c.fgMute,
+              letterSpacing: 0.4,
+            ),
+          ),
         ],
       ),
     );
@@ -763,8 +787,7 @@ class _EpisodeRow extends ConsumerWidget {
     final metaParts = <String>[
       if (dateLabel.isNotEmpty) dateLabel,
       if (durLabel.isNotEmpty) durLabel,
-      if (savedPos > 30 && dur > 0)
-        '${_fmtRemaining(dur, savedPos)} left',
+      if (savedPos > 30 && dur > 0) '${_fmtRemaining(dur, savedPos)} left',
     ];
     final fgOnAccent = accent.computeLuminance() > 0.55
         ? const Color(0xFF0B0B0D)
@@ -784,127 +807,140 @@ class _EpisodeRow extends ConsumerWidget {
         ),
         padding: const EdgeInsets.fromLTRB(20, 14, 20, 14),
         child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Row(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  squircleClip(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                squircleClip(
+                  radius: 10,
+                  child: SunohArt(
+                    id: episode.id,
+                    imageUrl: episode.image.isNotEmpty
+                        ? episode.image.last.link
+                        : null,
+                    size: 80,
                     radius: 10,
-                    child: SunohArt(
-                      id: episode.id,
-                      imageUrl: episode.image.isNotEmpty
-                          ? episode.image.last.link
-                          : null,
-                      size: 80,
-                      radius: 10,
-                    ),
                   ),
-                  const SizedBox(width: 14),
-                  Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(episode.title,
-                            maxLines: 3,
-                            overflow: TextOverflow.ellipsis,
-                            style: SunohType.sans(
-                                fontSize: 14,
-                                fontWeight: FontWeight.w600,
-                                color: isCurrent ? accent : c.fg,
-                                height: 1.3,
-                                letterSpacing: -0.1)),
-                        if (metaParts.isNotEmpty) ...[
-                          const SizedBox(height: 8),
-                          Text(metaParts.join(' · '),
-                              maxLines: 1,
-                              overflow: TextOverflow.ellipsis,
-                              style: SunohType.sans(
-                                  fontSize: 11.5,
-                                  color: c.fgMute,
-                                  letterSpacing: 0.1)),
-                        ],
-                      ],
-                    ),
-                  ),
-                ],
-              ),
-              if (progressFrac > 0) ...[
-                const SizedBox(height: 12),
-                Container(
-                  height: 3,
-                  decoration: BoxDecoration(
-                    color: c.line,
-                    borderRadius: BorderRadius.circular(2),
-                  ),
-                  child: FractionallySizedBox(
-                    alignment: Alignment.centerLeft,
-                    widthFactor: progressFrac,
-                    child: Container(
-                      decoration: BoxDecoration(
-                        color: accent,
-                        borderRadius: BorderRadius.circular(2),
+                ),
+                const SizedBox(width: 14),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        episode.title,
+                        maxLines: 3,
+                        overflow: TextOverflow.ellipsis,
+                        style: SunohType.sans(
+                          fontSize: 14,
+                          fontWeight: FontWeight.w600,
+                          color: isCurrent ? accent : c.fg,
+                          height: 1.3,
+                          letterSpacing: -0.1,
+                        ),
                       ),
-                    ),
+                      if (metaParts.isNotEmpty) ...[
+                        const SizedBox(height: 8),
+                        Text(
+                          metaParts.join(' · '),
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: SunohType.sans(
+                            fontSize: 11.5,
+                            color: c.fgMute,
+                            letterSpacing: 0.1,
+                          ),
+                        ),
+                      ],
+                    ],
                   ),
                 ),
               ],
+            ),
+            if (progressFrac > 0) ...[
               const SizedBox(height: 12),
-              Row(
-                children: [
-                  _ActionIcon(
-                    icon: SolarIconsOutline.addCircle,
-                    color: c.fgDim,
-                    onTap: () => s.addApiSongToQueue(episode),
-                  ),
-                  const SizedBox(width: 4),
-                  _ActionIcon(
-                    icon: SolarIconsOutline.downloadMinimalistic,
-                    color: c.fgDim,
-                    onTap: () => s.flashToast('Downloads coming soon'),
-                  ),
-                  const SizedBox(width: 4),
-                  _ActionIcon(
-                    icon: SolarIconsOutline.share,
-                    color: c.fgDim,
-                    onTap: () {},
-                  ),
-                  const SizedBox(width: 4),
-                  _ActionIcon(
-                    icon: SolarIconsBold.menuDots,
-                    color: c.fgMute,
-                    onTap: () {},
-                  ),
-                  const Spacer(),
-                  GestureDetector(
-                    onTap: onTap,
-                    child: Container(
-                      width: 44,
-                      height: 44,
-                      decoration: BoxDecoration(
-                        color: accent,
-                        shape: BoxShape.circle,
-                        boxShadow: [
-                          BoxShadow(
-                              color: accent.withValues(alpha: 0.30),
-                              blurRadius: 14,
-                              offset: const Offset(0, 4)),
-                        ],
-                      ),
-                      alignment: Alignment.center,
-                      child: isPlayingHere
-                          ? PlayingBars(
-                              color: fgOnAccent, size: 14, animate: true)
-                          : Icon(PhosphorIconsFill.play,
-                              size: 18, color: fgOnAccent),
+              Container(
+                height: 3,
+                decoration: BoxDecoration(
+                  color: c.line,
+                  borderRadius: BorderRadius.circular(2),
+                ),
+                child: FractionallySizedBox(
+                  alignment: Alignment.centerLeft,
+                  widthFactor: progressFrac,
+                  child: Container(
+                    decoration: BoxDecoration(
+                      color: accent,
+                      borderRadius: BorderRadius.circular(2),
                     ),
                   ),
-                ],
+                ),
               ),
             ],
-          ),
+            const SizedBox(height: 12),
+            Row(
+              children: [
+                _ActionIcon(
+                  icon: SolarIconsOutline.addCircle,
+                  color: c.fgDim,
+                  onTap: () => s.addApiSongToQueue(episode),
+                ),
+                const SizedBox(width: 4),
+                _ActionIcon(
+                  icon: SolarIconsOutline.downloadMinimalistic,
+                  color: c.fgDim,
+                  onTap: () => s.flashToast('Downloads coming soon'),
+                ),
+                const SizedBox(width: 4),
+                _ActionIcon(
+                  icon: SolarIconsOutline.share,
+                  color: c.fgDim,
+                  onTap: () {},
+                ),
+                const SizedBox(width: 4),
+                _ActionIcon(
+                  icon: SolarIconsBold.menuDots,
+                  color: c.fgMute,
+                  onTap: () {},
+                ),
+                const Spacer(),
+                GestureDetector(
+                  onTap: onTap,
+                  child: Container(
+                    width: 44,
+                    height: 44,
+                    decoration: BoxDecoration(
+                      color: accent,
+                      shape: BoxShape.circle,
+                      boxShadow: [
+                        BoxShadow(
+                          color: accent.withValues(alpha: 0.30),
+                          blurRadius: 14,
+                          offset: const Offset(0, 4),
+                        ),
+                      ],
+                    ),
+                    alignment: Alignment.center,
+                    child: isPlayingHere
+                        ? PlayingBars(
+                            color: fgOnAccent,
+                            size: 14,
+                            animate: true,
+                          )
+                        : Icon(
+                            PhosphorIconsFill.play,
+                            size: 18,
+                            color: fgOnAccent,
+                          ),
+                  ),
+                ),
+              ],
+            ),
+          ],
         ),
-      );
+      ),
+    );
   }
 
   static String _fmtDur(int sec) {
@@ -965,8 +1001,10 @@ class _NoEpisodes extends StatelessWidget {
   Widget build(BuildContext context) {
     return Padding(
       padding: const EdgeInsets.fromLTRB(20, 16, 20, 16),
-      child: Text('No episodes yet.',
-          style: SunohType.sans(fontSize: 13, color: colors.fgMute)),
+      child: Text(
+        'No episodes yet.',
+        style: SunohType.sans(fontSize: 13, color: colors.fgMute),
+      ),
     );
   }
 }
@@ -980,8 +1018,7 @@ class _CenteredSpinner extends StatelessWidget {
       child: SizedBox(
         width: 24,
         height: 24,
-        child: CircularProgressIndicator(
-            strokeWidth: 2, color: colors.fgDim),
+        child: CircularProgressIndicator(strokeWidth: 2, color: colors.fgDim),
       ),
     );
   }
@@ -1005,26 +1042,36 @@ class _ErrorState extends StatelessWidget {
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            Text('Couldn’t load this show.',
-                style: SunohType.heading(fontSize: 18, color: c.fgDim)),
+            Text(
+              'Couldn’t load this show.',
+              style: SunohType.heading(fontSize: 18, color: c.fgDim),
+            ),
             const SizedBox(height: 8),
-            Text(message,
-                textAlign: TextAlign.center,
-                style: SunohType.sans(fontSize: 12, color: c.fgMute)),
+            Text(
+              message,
+              textAlign: TextAlign.center,
+              style: SunohType.sans(fontSize: 12, color: c.fgMute),
+            ),
             const SizedBox(height: 14),
             GestureDetector(
               onTap: onRetry,
               child: Container(
                 padding: const EdgeInsets.symmetric(
-                    horizontal: 14, vertical: 10),
+                  horizontal: 14,
+                  vertical: 10,
+                ),
                 decoration: squircleDecoration(
                   radius: 12,
                   color: c.surface,
                   borderColor: c.line,
                 ),
-                child: Text('Retry',
-                    style: SunohType.sans(
-                        fontSize: 13, fontWeight: FontWeight.w600)),
+                child: Text(
+                  'Retry',
+                  style: SunohType.sans(
+                    fontSize: 13,
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
               ),
             ),
           ],

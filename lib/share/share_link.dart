@@ -56,9 +56,7 @@ Future<void> shareSunohLink({
   final text = 'Listen on sunoh.: $label\n$url';
   AnalyticsService.instance.logShare(kind: kind, id: id, title: title);
   try {
-    await SharePlus.instance.share(
-      ShareParams(text: text, subject: label),
-    );
+    await SharePlus.instance.share(ShareParams(text: text, subject: label));
   } catch (e, st) {
     // The share sheet itself can throw in obscure cases (no installed
     // target apps, user cancels with a platform that surfaces an error,

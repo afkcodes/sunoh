@@ -34,8 +34,7 @@ class SkipSegment {
   Duration get length => end - start;
 
   @override
-  String toString() =>
-      '$category ${start.inSeconds}s->${end.inSeconds}s';
+  String toString() => '$category ${start.inSeconds}s->${end.inSeconds}s';
 }
 
 /// Categories enabled by default.
@@ -67,8 +66,10 @@ class SponsorBlockClient {
     Set<String> categories = kDefaultSponsorBlockCategories,
   }) async {
     if (videoId.isEmpty || categories.isEmpty) return const [];
-    final prefix =
-        sha256.convert(utf8.encode(videoId)).toString().substring(0, 4);
+    final prefix = sha256
+        .convert(utf8.encode(videoId))
+        .toString()
+        .substring(0, 4);
     try {
       final res = await _dio.get<List<dynamic>>(
         '$_kBase/$prefix',
@@ -119,12 +120,14 @@ class SponsorBlockClient {
       final endSec = (bounds[1] as num?)?.toDouble();
       if (startSec == null || endSec == null || endSec <= startSec) continue;
 
-      out.add(SkipSegment(
-        start: Duration(milliseconds: (startSec * 1000).round()),
-        end: Duration(milliseconds: (endSec * 1000).round()),
-        category: category,
-        uuid: (s['UUID'] ?? '').toString(),
-      ));
+      out.add(
+        SkipSegment(
+          start: Duration(milliseconds: (startSec * 1000).round()),
+          end: Duration(milliseconds: (endSec * 1000).round()),
+          category: category,
+          uuid: (s['UUID'] ?? '').toString(),
+        ),
+      );
     }
     out.sort((a, b) => a.start.compareTo(b.start));
     return out;

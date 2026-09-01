@@ -79,16 +79,21 @@ class _LyricsScreenState extends ConsumerState<LyricsScreen> {
           ),
         ),
         child: SafeArea(
-        child: Column(
-          children: [
-            Padding(
-              padding: const EdgeInsets.fromLTRB(20, 12, 20, 8),
-              child: Row(
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                children: [
-                  IconBtn(icon: SolarIconsOutline.altArrowDown, color: c.fgDim, size: 22, onTap: () => context.pop()),
-                  eyebrow('LYRICS', c.fgMute),
-                  IconBtn(
+          child: Column(
+            children: [
+              Padding(
+                padding: const EdgeInsets.fromLTRB(20, 12, 20, 8),
+                child: Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    IconBtn(
+                      icon: SolarIconsOutline.altArrowDown,
+                      color: c.fgDim,
+                      size: 22,
+                      onTap: () => context.pop(),
+                    ),
+                    eyebrow('LYRICS', c.fgMute),
+                    IconBtn(
                       icon: SolarIconsOutline.share,
                       color: c.fgDim,
                       size: 18,
@@ -105,55 +110,69 @@ class _LyricsScreenState extends ConsumerState<LyricsScreen> {
                           subtitle: apiSong.displaySubtitle ?? apiSong.subtitle,
                           source: apiSong.source,
                         );
-                      }),
-                ],
+                      },
+                    ),
+                  ],
+                ),
               ),
-            ),
-            Padding(
-              padding: const EdgeInsets.fromLTRB(20, 8, 20, 20),
-              child: Row(
-                children: [
-                  SunohArt(
+              Padding(
+                padding: const EdgeInsets.fromLTRB(20, 8, 20, 20),
+                child: Row(
+                  children: [
+                    SunohArt(
                       id: apiSong?.id ?? track.id,
                       imageUrl: apiSong?.artwork,
                       size: 44,
-                      radius: 6),
-                  const SizedBox(width: 12),
-                  Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(track.title,
-                            style: SunohType.sans(fontSize: 13.5, fontWeight: FontWeight.w500, color: c.fg)),
-                        const SizedBox(height: 1),
-                        Text(track.artist, style: SunohType.sans(fontSize: 12, color: c.fgMute)),
-                      ],
+                      radius: 6,
                     ),
-                  ),
-                ],
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            track.title,
+                            style: SunohType.sans(
+                              fontSize: 13.5,
+                              fontWeight: FontWeight.w500,
+                              color: c.fg,
+                            ),
+                          ),
+                          const SizedBox(height: 1),
+                          Text(
+                            track.artist,
+                            style: SunohType.sans(
+                              fontSize: 12,
+                              color: c.fgMute,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ],
+                ),
               ),
-            ),
-            Expanded(
-              child: query == null
-                  ? _LyricsBody(
-                      colors: c,
-                      lines: fallbackLines,
-                      synced: true,
-                      controller: controller,
-                      tick: s.positionTick,
-                      onActive: _onActive,
-                    )
-                  : _LiveLyrics(
-                      query: query,
-                      colors: c,
-                      controller: controller,
-                      tick: s.positionTick,
-                      onActive: _onActive,
-                    ),
-            ),
-          ],
+              Expanded(
+                child: query == null
+                    ? _LyricsBody(
+                        colors: c,
+                        lines: fallbackLines,
+                        synced: true,
+                        controller: controller,
+                        tick: s.positionTick,
+                        onActive: _onActive,
+                      )
+                    : _LiveLyrics(
+                        query: query,
+                        colors: c,
+                        controller: controller,
+                        tick: s.positionTick,
+                        onActive: _onActive,
+                      ),
+              ),
+            ],
+          ),
         ),
-      ),
       ),
     );
   }
@@ -194,15 +213,18 @@ class _LyricsScreenState extends ConsumerState<LyricsScreen> {
     _lastIdx = idx;
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (!controller.hasClients) return;
-      final target =
-          (idx.clamp(0, total - 1) * 52.0 - 160)
-              .clamp(0.0, controller.position.maxScrollExtent);
-      controller.animateTo(target,
-          // Longer + Material 3's emphasised curve — slower out, faster
-          // settle — feels less mechanical than easeOutCubic when the
-          // line below is fading up at the same time.
-          duration: const Duration(milliseconds: 720),
-          curve: Curves.easeInOutCubicEmphasized);
+      final target = (idx.clamp(0, total - 1) * 52.0 - 160).clamp(
+        0.0,
+        controller.position.maxScrollExtent,
+      );
+      controller.animateTo(
+        target,
+        // Longer + Material 3's emphasised curve — slower out, faster
+        // settle — feels less mechanical than easeOutCubic when the
+        // line below is fading up at the same time.
+        duration: const Duration(milliseconds: 720),
+        curve: Curves.easeInOutCubicEmphasized,
+      );
     });
   }
 }
@@ -227,11 +249,8 @@ class _LiveLyrics extends ConsumerWidget {
     final async = ref.watch(lyricsProvider(query));
     return async.when(
       loading: () => _Hint(colors: colors, label: 'Finding lyrics…'),
-      error: (e, _) => _Hint(
-        colors: colors,
-        label: 'Couldn’t load lyrics',
-        detail: '$e',
-      ),
+      error: (e, _) =>
+          _Hint(colors: colors, label: 'Couldn’t load lyrics', detail: '$e'),
       data: (r) {
         if (r.instrumental) {
           return _Hint(
@@ -304,8 +323,9 @@ class _LyricsBody extends StatelessWidget {
               curve: Curves.easeInOutCubicEmphasized,
               style: SunohType.heading(
                 fontSize: active ? 28 : 22,
-                color: c.fg
-                    .withValues(alpha: active ? 1.0 : (past ? 0.4 : 0.55)),
+                color: c.fg.withValues(
+                  alpha: active ? 1.0 : (past ? 0.4 : 0.55),
+                ),
                 height: 1.3,
                 letterSpacing: -0.3,
               ),
@@ -348,13 +368,14 @@ class _Hint extends StatelessWidget {
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            Text(label,
-                style: SunohType.heading(fontSize: 22, color: c.fgDim)),
+            Text(label, style: SunohType.heading(fontSize: 22, color: c.fgDim)),
             if (detail != null) ...[
               const SizedBox(height: 10),
-              Text(detail!,
-                  textAlign: TextAlign.center,
-                  style: SunohType.sans(fontSize: 13, color: c.fgMute)),
+              Text(
+                detail!,
+                textAlign: TextAlign.center,
+                style: SunohType.sans(fontSize: 13, color: c.fgMute),
+              ),
             ],
           ],
         ),

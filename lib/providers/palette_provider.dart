@@ -20,45 +20,42 @@ class ArtPalette {
   final bool isDark;
 }
 
-final artPaletteProvider =
-    FutureProvider.autoDispose.family<ArtPalette?, String>((ref, url) async {
-  if (url.isEmpty) return null;
+final artPaletteProvider = FutureProvider.autoDispose
+    .family<ArtPalette?, String>((ref, url) async {
+      if (url.isEmpty) return null;
 
-  // Extract from a small variant — the source can be 500×500+, but palette
-  // accuracy doesn't need that. Smaller = faster + lighter on memory.
-  final image = ResizeImage(
-    CachedNetworkImageProvider(url),
-    width: 160,
-    height: 160,
-    allowUpscaling: false,
-  );
+      // Extract from a small variant — the source can be 500×500+, but palette
+      // accuracy doesn't need that. Smaller = faster + lighter on memory.
+      final image = ResizeImage(
+        CachedNetworkImageProvider(url),
+        width: 160,
+        height: 160,
+        allowUpscaling: false,
+      );
 
-  final pg = await PaletteGenerator.fromImageProvider(
-    image,
-    size: const Size(160, 160),
-    maximumColorCount: 12,
-  );
+      final pg = await PaletteGenerator.fromImageProvider(
+        image,
+        size: const Size(160, 160),
+        maximumColorCount: 12,
+      );
 
-  final dominant = pg.dominantColor?.color;
-  if (dominant == null) return null;
+      final dominant = pg.dominantColor?.color;
+      if (dominant == null) return null;
 
-  // Prefer a more saturated accent if available; fall back to dominant.
-  final accent = pg.vibrantColor?.color ??
-      pg.lightVibrantColor?.color ??
-      pg.mutedColor?.color ??
-      dominant;
+      // Prefer a more saturated accent if available; fall back to dominant.
+      final accent =
+          pg.vibrantColor?.color ??
+          pg.lightVibrantColor?.color ??
+          pg.mutedColor?.color ??
+          dominant;
 
-  // Cheap luminance-ish check (avoid going through HSL for speed).
-  final luma = 0.299 * dominant.r + 0.587 * dominant.g + 0.114 * dominant.b;
-  final isDark = luma < 0.5;
+      // Cheap luminance-ish check (avoid going through HSL for speed).
+      final luma = 0.299 * dominant.r + 0.587 * dominant.g + 0.114 * dominant.b;
+      final isDark = luma < 0.5;
 
-  // Keep warm for 30 min so re-opening the same screen is instant.
-  final link = ref.keepAlive();
-  Future.delayed(const Duration(minutes: 30), link.close);
+      // Keep warm for 30 min so re-opening the same screen is instant.
+      final link = ref.keepAlive();
+      Future.delayed(const Duration(minutes: 30), link.close);
 
-  return ArtPalette(
-    dominant: dominant,
-    accent: accent,
-    isDark: isDark,
-  );
-});
+      return ArtPalette(dominant: dominant, accent: accent, isDark: isDark);
+    });

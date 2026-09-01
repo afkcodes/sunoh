@@ -30,16 +30,18 @@ Dio buildSunohDio() {
 
   // Minimal request logger (silent in release).
   assert(() {
-    dio.interceptors.add(LogInterceptor(
-      requestBody: false,
-      responseBody: false,
-      requestHeader: false,
-      responseHeader: false,
-      logPrint: (o) {
-        // ignore: avoid_print
-        print('[sunoh-api] $o');
-      },
-    ));
+    dio.interceptors.add(
+      LogInterceptor(
+        requestBody: false,
+        responseBody: false,
+        requestHeader: false,
+        responseHeader: false,
+        logPrint: (o) {
+          // ignore: avoid_print
+          print('[sunoh-api] $o');
+        },
+      ),
+    );
     return true;
   }());
 

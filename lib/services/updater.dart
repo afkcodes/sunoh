@@ -106,7 +106,8 @@ class UpdaterController extends ChangeNotifier {
       final apkUrl = await _pickApkUrl(info);
       if (apkUrl == null) {
         throw _UpdaterException(
-            'No APK matches this device. Opening the release page instead.');
+          'No APK matches this device. Opening the release page instead.',
+        );
       }
       final dest = await _destinationPath(info.version);
       _stage = UpdateStage.downloading;
@@ -135,7 +136,8 @@ class UpdaterController extends ChangeNotifier {
       final result = await OpenFilex.open(dest);
       if (result.type != ResultType.done) {
         throw _UpdaterException(
-            'Couldn’t open the installer: ${result.message}');
+          'Couldn’t open the installer: ${result.message}',
+        );
       }
       // We never reach "done" from our side — the install happens in
       // the system UI and the app may be killed during install. Stage
@@ -158,7 +160,9 @@ class UpdaterController extends ChangeNotifier {
     if (uri == null) return;
     try {
       await launchUrl(uri, mode: LaunchMode.externalApplication);
-    } catch (_) {/* swallow — user can retry */}
+    } catch (_) {
+      /* swallow — user can retry */
+    }
   }
 
   /// Pick the right APK URL from the manifest's `apks` map based on

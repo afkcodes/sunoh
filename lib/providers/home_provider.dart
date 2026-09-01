@@ -10,11 +10,13 @@ import 'api_providers.dart';
 /// Family parameter so different language selections cache independently.
 final homeFeedProvider = FutureProvider.autoDispose
     .family<List<HomeSection>, String?>((ref, languages) async {
-  // Keep the response cached even when nothing is listening, so navigating
-  // away and back doesn't refetch (similar to RN's staleTime).
-  final link = ref.keepAlive();
-  Future<void>.delayed(const Duration(minutes: 30)).then((_) => link.close());
+      // Keep the response cached even when nothing is listening, so navigating
+      // away and back doesn't refetch (similar to RN's staleTime).
+      final link = ref.keepAlive();
+      Future<void>.delayed(
+        const Duration(minutes: 30),
+      ).then((_) => link.close());
 
-  final api = ref.watch(sunohApiProvider);
-  return api.fetchHome(languages: languages);
-});
+      final api = ref.watch(sunohApiProvider);
+      return api.fetchHome(languages: languages);
+    });

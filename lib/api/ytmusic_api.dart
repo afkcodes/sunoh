@@ -117,25 +117,25 @@ class YtMusicApi {
   final YtLocale locale;
 
   Map<String, dynamic> get _context => {
-        'context': {
-          'client': {
-            'clientName': _kClientName,
-            'clientVersion': _kClientVersion,
-            'hl': locale.language,
-            'gl': locale.country,
-          },
-        },
-      };
+    'context': {
+      'client': {
+        'clientName': _kClientName,
+        'clientVersion': _kClientVersion,
+        'hl': locale.language,
+        'gl': locale.country,
+      },
+    },
+  };
 
   Options get _options => Options(
-        headers: {
-          'Content-Type': 'application/json',
-          'X-Youtube-Client-Name': '67',
-          'X-Youtube-Client-Version': _kClientVersion,
-          'Origin': 'https://music.youtube.com',
-        },
-        validateStatus: (s) => s != null && s < 500,
-      );
+    headers: {
+      'Content-Type': 'application/json',
+      'X-Youtube-Client-Name': '67',
+      'X-Youtube-Client-Version': _kClientVersion,
+      'Origin': 'https://music.youtube.com',
+    },
+    validateStatus: (s) => s != null && s < 500,
+  );
 
   Future<Map<String, dynamic>?> _post(
     String path,
@@ -179,9 +179,7 @@ class YtMusicApi {
   Future<List<FeedItem>> searchAlbums(String query) =>
       _searchFiltered(query, _kAlbumsOnlyParams);
 
-  Future<List<FeedItem>> _searchFiltered(
-    String query,
-    String params) async {
+  Future<List<FeedItem>> _searchFiltered(String query, String params) async {
     if (query.trim().isEmpty) return const [];
     try {
       final body = await _post('search', {
@@ -237,13 +235,9 @@ class YtMusicApi {
     return out;
   }
 
-  Future<List<HomeSection>> _browseSections(
-    String browseId) async {
+  Future<List<HomeSection>> _browseSections(String browseId) async {
     try {
-      final body = await _post('browse', {
-        ..._context,
-        'browseId': browseId,
-      });
+      final body = await _post('browse', {..._context, 'browseId': browseId});
       if (body == null) return const [];
       return _carouselSections(_singleColumnShelves(body));
     } catch (_) {
@@ -253,10 +247,7 @@ class YtMusicApi {
 
   /// An artist page: header, top songs, and the discography carousels.
   Future<YtArtistDetail?> artist(String browseId) async {
-    final body = await _post('browse', {
-      ..._context,
-      'browseId': browseId,
-    });
+    final body = await _post('browse', {..._context, 'browseId': browseId});
     if (body == null) {
       // ignore: avoid_print
       print('[ytmusic] artist $browseId: empty response');
@@ -277,10 +268,12 @@ class YtMusicApi {
     final name = _runsText(_asMap(header?['title']));
     if (name.isEmpty) {
       // ignore: avoid_print
-      print('[ytmusic] artist $browseId: no name. '
-          'top=${body.keys.toList()} '
-          'header=${_asMap(body['header'])?.keys.toList()} '
-          'contents=${_asMap(body['contents'])?.keys.toList()}');
+      print(
+        '[ytmusic] artist $browseId: no name. '
+        'top=${body.keys.toList()} '
+        'header=${_asMap(body['header'])?.keys.toList()} '
+        'contents=${_asMap(body['contents'])?.keys.toList()}',
+      );
       return null;
     }
 
@@ -353,22 +346,26 @@ class YtMusicApi {
       'isAudioOnly': true,
     });
     if (body == null) return const [];
-    final tabs = _asList(_dig(body, [
-      'contents',
-      'singleColumnMusicWatchNextResultsRenderer',
-      'tabbedRenderer',
-      'watchNextTabbedResultsRenderer',
-      'tabs',
-    ]));
-    for (final tab in tabs) {
-      final items = _asList(_dig(_asMap(tab), [
-        'tabRenderer',
-        'content',
-        'musicQueueRenderer',
-        'content',
-        'playlistPanelRenderer',
+    final tabs = _asList(
+      _dig(body, [
         'contents',
-      ]));
+        'singleColumnMusicWatchNextResultsRenderer',
+        'tabbedRenderer',
+        'watchNextTabbedResultsRenderer',
+        'tabs',
+      ]),
+    );
+    for (final tab in tabs) {
+      final items = _asList(
+        _dig(_asMap(tab), [
+          'tabRenderer',
+          'content',
+          'musicQueueRenderer',
+          'content',
+          'playlistPanelRenderer',
+          'contents',
+        ]),
+      );
       final out = <FeedItem>[];
       for (final raw in items) {
         final r = _asMap(_asMap(raw)?['playlistPanelVideoRenderer']);
@@ -377,16 +374,19 @@ class YtMusicApi {
         final title = _runsText(_asMap(r['title']));
         if (id == null || id.isEmpty || title.isEmpty) continue;
         final byline = _runsText(_asMap(r['longBylineText'])).split(' • ');
-        out.add(FeedItem(
-          id: id,
-          title: title,
-          type: 'song',
-          source: 'youtube',
-          image: _thumbnails(r),
-          subtitle: byline.isEmpty ? null : byline.first,
-          duration: _durationToSeconds(_runsText(_asMap(r['lengthText'])))
-              ?.toString(),
-        ));
+        out.add(
+          FeedItem(
+            id: id,
+            title: title,
+            type: 'song',
+            source: 'youtube',
+            image: _thumbnails(r),
+            subtitle: byline.isEmpty ? null : byline.first,
+            duration: _durationToSeconds(
+              _runsText(_asMap(r['lengthText'])),
+            )?.toString(),
+          ),
+        );
       }
       if (out.isNotEmpty) return out;
     }
@@ -395,24 +395,26 @@ class YtMusicApi {
 
   /// The artist header, from whichever layout this page uses.
   Map<String, dynamic>? _artistHeader(Map<String, dynamic> body) {
-    final immersive =
-        _asMap(_dig(body, ['header', 'musicImmersiveHeaderRenderer']));
+    final immersive = _asMap(
+      _dig(body, ['header', 'musicImmersiveHeaderRenderer']),
+    );
     if (immersive != null) return immersive;
 
     // Two-column layout: header lives in the primary column.
-    for (final tab in _asList(_dig(body, [
-      'contents',
-      'twoColumnBrowseResultsRenderer',
-      'tabs',
-    ]))) {
-      for (final sec in _asList(_dig(_asMap(tab), [
-        'tabRenderer',
-        'content',
-        'sectionListRenderer',
-        'contents',
-      ]))) {
+    for (final tab in _asList(
+      _dig(body, ['contents', 'twoColumnBrowseResultsRenderer', 'tabs']),
+    )) {
+      for (final sec in _asList(
+        _dig(_asMap(tab), [
+          'tabRenderer',
+          'content',
+          'sectionListRenderer',
+          'contents',
+        ]),
+      )) {
         final m = _asMap(sec);
-        final h = _asMap(m?['musicResponsiveHeaderRenderer']) ??
+        final h =
+            _asMap(m?['musicResponsiveHeaderRenderer']) ??
             _asMap(m?['musicImmersiveHeaderRenderer']);
         if (h != null) return h;
       }
@@ -427,13 +429,15 @@ class YtMusicApi {
     final single = _singleColumnShelves(body);
     if (single.isNotEmpty) return single;
     final out = <Map<String, dynamic>>[];
-    for (final sec in _asList(_dig(body, [
-      'contents',
-      'twoColumnBrowseResultsRenderer',
-      'secondaryContents',
-      'sectionListRenderer',
-      'contents',
-    ]))) {
+    for (final sec in _asList(
+      _dig(body, [
+        'contents',
+        'twoColumnBrowseResultsRenderer',
+        'secondaryContents',
+        'sectionListRenderer',
+        'contents',
+      ]),
+    )) {
       final m = _asMap(sec);
       if (m != null) out.add(m);
     }
@@ -442,11 +446,9 @@ class YtMusicApi {
 
   /// `(videoId, playlistId)` from a header button's watch endpoint.
   (String, String)? _watchSeed(Map<String, dynamic>? button) {
-    final we = _asMap(_dig(button, [
-      'buttonRenderer',
-      'navigationEndpoint',
-      'watchEndpoint',
-    ]));
+    final we = _asMap(
+      _dig(button, ['buttonRenderer', 'navigationEndpoint', 'watchEndpoint']),
+    );
     final v = we?['videoId'] as String?;
     final p = we?['playlistId'] as String?;
     if (v == null || p == null || v.isEmpty || p.isEmpty) return null;
@@ -464,39 +466,41 @@ class YtMusicApi {
     for (final sec in _singleColumnShelves(body)) {
       final grid = _asMap(sec['gridRenderer']);
       if (grid == null) continue;
-      final title = _runsText(_asMap(
-          _dig(grid, ['header', 'gridHeaderRenderer', 'title'])));
+      final title = _runsText(
+        _asMap(_dig(grid, ['header', 'gridHeaderRenderer', 'title'])),
+      );
       final chips = <YtCategoryChip>[];
       for (final raw in _asList(grid['items'])) {
         final btn = _asMap(_asMap(raw)?['musicNavigationButtonRenderer']);
         if (btn == null) continue;
         final label = _runsText(_asMap(btn['buttonText']));
-        final endpoint =
-            _asMap(_dig(btn, ['clickCommand', 'browseEndpoint']));
+        final endpoint = _asMap(_dig(btn, ['clickCommand', 'browseEndpoint']));
         final browseId = endpoint?['browseId'] as String?;
         final params = endpoint?['params'] as String?;
         if (label.isEmpty || browseId == null || params == null) continue;
-        chips.add(YtCategoryChip(
-          title: label,
-          browseId: browseId,
-          params: params,
-          color: (_dig(btn, ['solid', 'leftStripeColor']) as num?)?.toInt(),
-        ));
+        chips.add(
+          YtCategoryChip(
+            title: label,
+            browseId: browseId,
+            params: params,
+            color: (_dig(btn, ['solid', 'leftStripeColor']) as num?)?.toInt(),
+          ),
+        );
       }
       if (chips.isNotEmpty) {
-        groups.add(YtCategoryGroup(
-          title: title.isEmpty ? 'Browse' : title,
-          chips: chips,
-        ));
+        groups.add(
+          YtCategoryGroup(
+            title: title.isEmpty ? 'Browse' : title,
+            chips: chips,
+          ),
+        );
       }
     }
     return groups;
   }
 
   /// Contents of one mood/genre category — carousels of playlists.
-  Future<List<HomeSection>> category(
-    String browseId,
-    String params) async {
+  Future<List<HomeSection>> category(String browseId, String params) async {
     final body = await _post('browse', {
       ..._context,
       'browseId': browseId,
@@ -512,15 +516,11 @@ class YtMusicApi {
   /// description) sits in the primary column and the track list in
   /// `secondaryContents` — unlike home/search, which are single-column.
   Future<YtPlaylistDetail?> playlist(String browseId) async {
-    final body = await _post('browse', {
-      ..._context,
-      'browseId': browseId,
-    });
+    final body = await _post('browse', {..._context, 'browseId': browseId});
     if (body == null) return null;
-    final two = _asMap(_dig(body, [
-      'contents',
-      'twoColumnBrowseResultsRenderer',
-    ]));
+    final two = _asMap(
+      _dig(body, ['contents', 'twoColumnBrowseResultsRenderer']),
+    );
     if (two == null) return null;
 
     // Header — primary column.
@@ -530,12 +530,14 @@ class YtMusicApi {
     String? artwork;
     final tabs = _asList(two['tabs']);
     for (final tab in tabs) {
-      final contents = _asList(_dig(_asMap(tab), [
-        'tabRenderer',
-        'content',
-        'sectionListRenderer',
-        'contents',
-      ]));
+      final contents = _asList(
+        _dig(_asMap(tab), [
+          'tabRenderer',
+          'content',
+          'sectionListRenderer',
+          'contents',
+        ]),
+      );
       for (final sec in contents) {
         final h = _asMap(_asMap(sec)?['musicResponsiveHeaderRenderer']);
         if (h == null) continue;
@@ -548,13 +550,12 @@ class YtMusicApi {
 
     // Tracks — secondary column.
     final tracks = <FeedItem>[];
-    final secContents = _asList(_dig(two, [
-      'secondaryContents',
-      'sectionListRenderer',
-      'contents',
-    ]));
+    final secContents = _asList(
+      _dig(two, ['secondaryContents', 'sectionListRenderer', 'contents']),
+    );
     for (final sec in secContents) {
-      final shelf = _asMap(_asMap(sec)?['musicPlaylistShelfRenderer']) ??
+      final shelf =
+          _asMap(_asMap(sec)?['musicPlaylistShelfRenderer']) ??
           _asMap(_asMap(sec)?['musicShelfRenderer']);
       if (shelf == null) continue;
       for (final raw in _asList(shelf['contents'])) {
@@ -573,15 +574,12 @@ class YtMusicApi {
             for (final t in tracks)
               t.image.isNotEmpty
                   ? t
-                  : _withImages(
-                      t,
-                      [
-                        ApiImage(
-                          quality: '${_kMaxArtSize}x$_kMaxArtSize',
-                          link: headerArt,
-                        )
-                      ],
-                    ),
+                  : _withImages(t, [
+                      ApiImage(
+                        quality: '${_kMaxArtSize}x$_kMaxArtSize',
+                        link: headerArt,
+                      ),
+                    ]),
           ];
 
     if (title.isEmpty && withArt.isEmpty) return null;
@@ -598,23 +596,23 @@ class YtMusicApi {
   /// FeedItem is immutable and has no copyWith, so rebuild it with the
   /// supplied artwork and every other field carried across untouched.
   FeedItem _withImages(FeedItem item, List<ApiImage> image) => FeedItem(
-        id: item.id,
-        title: item.title,
-        type: item.type,
-        image: image,
-        subtitle: item.subtitle,
-        source: item.source,
-        language: item.language,
-        url: item.url,
-        duration: item.duration,
-        songCount: item.songCount,
-        playCount: item.playCount,
-        releaseDate: item.releaseDate,
-        artists: item.artists,
-        token: item.token,
-        stationType: item.stationType,
-        mediaUrls: item.mediaUrls,
-      );
+    id: item.id,
+    title: item.title,
+    type: item.type,
+    image: image,
+    subtitle: item.subtitle,
+    source: item.source,
+    language: item.language,
+    url: item.url,
+    duration: item.duration,
+    songCount: item.songCount,
+    playCount: item.playCount,
+    releaseDate: item.releaseDate,
+    artists: item.artists,
+    token: item.token,
+    stationType: item.stationType,
+    mediaUrls: item.mediaUrls,
+  );
 
   // ── Renderer navigation ───────────────────────────────────────────────
 
@@ -623,11 +621,15 @@ class YtMusicApi {
     for (final shelf in shelves) {
       final carousel = _asMap(shelf['musicCarouselShelfRenderer']);
       if (carousel == null) continue;
-      final heading = _runsText(_asMap(_dig(carousel, [
-        'header',
-        'musicCarouselShelfBasicHeaderRenderer',
-        'title',
-      ])));
+      final heading = _runsText(
+        _asMap(
+          _dig(carousel, [
+            'header',
+            'musicCarouselShelfBasicHeaderRenderer',
+            'title',
+          ]),
+        ),
+      );
       final items = <FeedItem>[];
       for (final raw in _asList(carousel['contents'])) {
         final m = _asMap(raw);
@@ -636,30 +638,32 @@ class YtMusicApi {
         if (item != null) items.add(item);
       }
       if (items.isNotEmpty) {
-        sections.add(HomeSection(
-          heading: heading.isEmpty ? 'YouTube Music' : heading,
-          items: items,
-          source: 'youtube',
-        ));
+        sections.add(
+          HomeSection(
+            heading: heading.isEmpty ? 'YouTube Music' : heading,
+            items: items,
+            source: 'youtube',
+          ),
+        );
       }
     }
     return sections;
   }
 
   List<Map<String, dynamic>> _searchShelves(Map<String, dynamic> body) {
-    final tabs = _asList(_dig(body, [
-      'contents',
-      'tabbedSearchResultsRenderer',
-      'tabs',
-    ]));
+    final tabs = _asList(
+      _dig(body, ['contents', 'tabbedSearchResultsRenderer', 'tabs']),
+    );
     for (final tab in tabs) {
       final shelves = <Map<String, dynamic>>[];
-      for (final c in _asList(_dig(_asMap(tab), [
-        'tabRenderer',
-        'content',
-        'sectionListRenderer',
-        'contents',
-      ]))) {
+      for (final c in _asList(
+        _dig(_asMap(tab), [
+          'tabRenderer',
+          'content',
+          'sectionListRenderer',
+          'contents',
+        ]),
+      )) {
         final shelf = _asMap(_asMap(c)?['musicShelfRenderer']);
         if (shelf != null) shelves.add(shelf);
       }
@@ -669,18 +673,18 @@ class YtMusicApi {
   }
 
   List<Map<String, dynamic>> _singleColumnShelves(Map<String, dynamic> body) {
-    final tabs = _asList(_dig(body, [
-      'contents',
-      'singleColumnBrowseResultsRenderer',
-      'tabs',
-    ]));
+    final tabs = _asList(
+      _dig(body, ['contents', 'singleColumnBrowseResultsRenderer', 'tabs']),
+    );
     for (final tab in tabs) {
-      final contents = _asList(_dig(_asMap(tab), [
-        'tabRenderer',
-        'content',
-        'sectionListRenderer',
-        'contents',
-      ]));
+      final contents = _asList(
+        _dig(_asMap(tab), [
+          'tabRenderer',
+          'content',
+          'sectionListRenderer',
+          'contents',
+        ]),
+      );
       if (contents.isNotEmpty) {
         return contents.map(_asMap).whereType<Map<String, dynamic>>().toList();
       }
@@ -749,10 +753,13 @@ class YtMusicApi {
         case 'MUSIC_PAGE_TYPE_ARTIST':
           // Keep the channel id, not just the name — it's what lets the
           // player's "View artist" open the artist page.
-          artists.add(ApiArtistRef(
-            id: (_asMap(nav?['browseEndpoint'])?['browseId'] ?? '').toString(),
-            name: trimmed,
-          ));
+          artists.add(
+            ApiArtistRef(
+              id: (_asMap(nav?['browseEndpoint'])?['browseId'] ?? '')
+                  .toString(),
+              name: trimmed,
+            ),
+          );
         case 'MUSIC_PAGE_TYPE_ALBUM':
           album ??= trimmed;
         case _:
@@ -774,9 +781,7 @@ class YtMusicApi {
       type: 'song',
       source: 'youtube',
       image: _thumbnails(r),
-      subtitle: artists.isEmpty
-          ? album
-          : artists.map((a) => a.name).join(', '),
+      subtitle: artists.isEmpty ? album : artists.map((a) => a.name).join(', '),
       duration: duration,
       playCount: plays,
       artists: List.unmodifiable(artists),
@@ -826,15 +831,14 @@ class YtMusicApi {
 
   // ── Field extraction ──────────────────────────────────────────────────
 
-  String? _pageTypeOf(Map<String, dynamic>? navigationEndpoint) => _dig(
-        navigationEndpoint,
-        [
-          'browseEndpoint',
-          'browseEndpointContextSupportedConfigs',
-          'browseEndpointContextMusicConfig',
-          'pageType',
-        ],
-      ) as String?;
+  String? _pageTypeOf(Map<String, dynamic>? navigationEndpoint) =>
+      _dig(navigationEndpoint, [
+            'browseEndpoint',
+            'browseEndpointContextSupportedConfigs',
+            'browseEndpointContextMusicConfig',
+            'pageType',
+          ])
+          as String?;
 
   String? _videoIdOf(Map<String, dynamic> r) {
     final fromPlaylistData =
@@ -869,7 +873,12 @@ class YtMusicApi {
   List<ApiImage> _thumbnails(Map<String, dynamic> r) {
     final candidates = <List<String>>[
       ['thumbnail', 'musicThumbnailRenderer', 'thumbnail', 'thumbnails'],
-      ['thumbnailRenderer', 'musicThumbnailRenderer', 'thumbnail', 'thumbnails'],
+      [
+        'thumbnailRenderer',
+        'musicThumbnailRenderer',
+        'thumbnail',
+        'thumbnails',
+      ],
       ['thumbnail', 'thumbnails'],
     ];
     for (final path in candidates) {
@@ -886,10 +895,12 @@ class YtMusicApi {
         // Label with the size actually being requested, not the size the
         // API offered — FeedItem.artwork picks the highest number here, so
         // a stale label would have it choose a smaller image.
-        out.add(ApiImage(
-          quality: upscaled.$2 == null ? '' : '${upscaled.$2}x${upscaled.$3}',
-          link: upscaled.$1,
-        ));
+        out.add(
+          ApiImage(
+            quality: upscaled.$2 == null ? '' : '${upscaled.$2}x${upscaled.$3}',
+            link: upscaled.$1,
+          ),
+        );
       }
       if (out.isNotEmpty) return out;
     }
@@ -968,18 +979,20 @@ class YtMusicApi {
     return (url, width, height);
   }
 
-  String _flexColumnText(List<dynamic> cols, int index) =>
-      _flexColumnRuns(cols, index)
-          .map((r) => (r['text'] ?? '').toString())
-          .join();
+  String _flexColumnText(List<dynamic> cols, int index) => _flexColumnRuns(
+    cols,
+    index,
+  ).map((r) => (r['text'] ?? '').toString()).join();
 
   List<Map<String, dynamic>> _flexColumnRuns(List<dynamic> cols, int index) {
     if (index >= cols.length) return const [];
-    return _asList(_dig(_asMap(cols[index]), [
-      'musicResponsiveListItemFlexColumnRenderer',
-      'text',
-      'runs',
-    ])).map(_asMap).whereType<Map<String, dynamic>>().toList();
+    return _asList(
+      _dig(_asMap(cols[index]), [
+        'musicResponsiveListItemFlexColumnRenderer',
+        'text',
+        'runs',
+      ]),
+    ).map(_asMap).whereType<Map<String, dynamic>>().toList();
   }
 
   String _runsText(Map<String, dynamic>? node) => _asList(node?['runs'])

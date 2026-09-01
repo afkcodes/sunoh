@@ -33,27 +33,38 @@ class RecentlyPlayedScreen extends ConsumerWidget {
             child: Row(
               children: [
                 IconBtn(
-                    icon: SolarIconsOutline.altArrowLeft,
-                    color: c.fg,
-                    size: 22,
-                    onTap: () => context.pop()),
+                  icon: SolarIconsOutline.altArrowLeft,
+                  color: c.fg,
+                  size: 22,
+                  onTap: () => context.pop(),
+                ),
                 const SizedBox(width: 6),
                 Expanded(
-                  child: Text('Recently Played',
-                      style: SunohType.heading(
-                          fontSize: 22, color: c.fg, letterSpacing: -0.3)),
+                  child: Text(
+                    'Recently Played',
+                    style: SunohType.heading(
+                      fontSize: 22,
+                      color: c.fg,
+                      letterSpacing: -0.3,
+                    ),
+                  ),
                 ),
                 if (history.isNotEmpty)
                   GestureDetector(
                     onTap: () => _confirmClear(context, s),
                     child: Padding(
-                      padding:
-                          const EdgeInsets.symmetric(horizontal: 6, vertical: 8),
-                      child: Text('Clear',
-                          style: SunohType.sans(
-                              fontSize: 12.5,
-                              fontWeight: FontWeight.w500,
-                              color: c.fgMute)),
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 6,
+                        vertical: 8,
+                      ),
+                      child: Text(
+                        'Clear',
+                        style: SunohType.sans(
+                          fontSize: 12.5,
+                          fontWeight: FontWeight.w500,
+                          color: c.fgMute,
+                        ),
+                      ),
                     ),
                   ),
               ],
@@ -66,15 +77,16 @@ class RecentlyPlayedScreen extends ConsumerWidget {
               child: Center(
                 child: Column(
                   children: [
-                    Text('Nothing here yet.',
-                        style:
-                            SunohType.heading(fontSize: 18, color: c.fgDim)),
+                    Text(
+                      'Nothing here yet.',
+                      style: SunohType.heading(fontSize: 18, color: c.fgDim),
+                    ),
                     const SizedBox(height: 8),
                     Text(
-                        'Songs you play will show up here so you can jump back in.',
-                        textAlign: TextAlign.center,
-                        style:
-                            SunohType.sans(fontSize: 12.5, color: c.fgMute)),
+                      'Songs you play will show up here so you can jump back in.',
+                      textAlign: TextAlign.center,
+                      style: SunohType.sans(fontSize: 12.5, color: c.fgMute),
+                    ),
                   ],
                 ),
               ),
@@ -84,8 +96,8 @@ class RecentlyPlayedScreen extends ConsumerWidget {
               _HistoryRow(
                 song: history[i],
                 colors: c,
-                onTap: () => s.playApiQueue(history, i,
-                    sourceLabel: 'RECENTLY PLAYED'),
+                onTap: () =>
+                    s.playApiQueue(history, i, sourceLabel: 'RECENTLY PLAYED'),
               ),
         ],
       ),
@@ -99,11 +111,13 @@ class RecentlyPlayedScreen extends ConsumerWidget {
         backgroundColor: const Color(0xFF15151A),
         title: const Text('Clear history?'),
         content: const Text(
-            'This removes everything from Recently Played. Liked songs are not affected.'),
+          'This removes everything from Recently Played. Liked songs are not affected.',
+        ),
         actions: [
           TextButton(
-              onPressed: () => Navigator.of(ctx).pop(),
-              child: const Text('Cancel')),
+            onPressed: () => Navigator.of(ctx).pop(),
+            child: const Text('Cancel'),
+          ),
           TextButton(
             onPressed: () {
               s.clearPlayedHistory();
@@ -145,48 +159,54 @@ class _HistoryRow extends ConsumerWidget {
         padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 10),
         child: Row(
           children: [
-            SunohArt(
-                id: song.id, imageUrl: song.artwork, size: 44, radius: 6),
+            SunohArt(id: song.id, imageUrl: song.artwork, size: 44, radius: 6),
             const SizedBox(width: 12),
             Expanded(
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Text(song.title,
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                      style: SunohType.sans(
-                          fontSize: 14,
-                          fontWeight: FontWeight.w500,
-                          color: c.fg)),
+                  Text(
+                    song.title,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: SunohType.sans(
+                      fontSize: 14,
+                      fontWeight: FontWeight.w500,
+                      color: c.fg,
+                    ),
+                  ),
                   if (artistsLabel.isNotEmpty) ...[
                     const SizedBox(height: 1),
-                    Text(artistsLabel,
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                        style:
-                            SunohType.sans(fontSize: 11.5, color: c.fgMute)),
+                    Text(
+                      artistsLabel,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: SunohType.sans(fontSize: 11.5, color: c.fgMute),
+                    ),
                   ],
                 ],
               ),
             ),
             IconBtn(
-                icon: liked
-                    ? SolarIconsBold.heart
-                    : SolarIconsOutline.heart,
-                color: liked ? accent : c.fgMute,
-                size: 16,
-                width: 32,
-                height: 32,
-                onTap: () => s.toggleLikedSong(song)),
+              icon: liked ? SolarIconsBold.heart : SolarIconsOutline.heart,
+              color: liked ? accent : c.fgMute,
+              size: 16,
+              width: 32,
+              height: 32,
+              onTap: () => s.toggleLikedSong(song),
+            ),
             IconBtn(
-                icon: SolarIconsBold.menuDots,
-                color: c.fgMute,
-                size: 16,
-                width: 32,
-                height: 32,
-                onTap: () => showTrackMenuSheet(context,
-                    song: song, sourceLabel: 'RECENTLY PLAYED')),
+              icon: SolarIconsBold.menuDots,
+              color: c.fgMute,
+              size: 16,
+              width: 32,
+              height: 32,
+              onTap: () => showTrackMenuSheet(
+                context,
+                song: song,
+                sourceLabel: 'RECENTLY PLAYED',
+              ),
+            ),
           ],
         ),
       ),

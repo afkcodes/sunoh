@@ -15,12 +15,9 @@ import '../providers/audiobook_provider.dart';
 import 'detail_screens.dart' show AlbumLikeBody, DetailLoading;
 
 class AudiobookDetailScreen extends ConsumerWidget {
-  const AudiobookDetailScreen({
-    super.key,
-    required this.slug,
-    this.seed,
-  });
+  const AudiobookDetailScreen({super.key, required this.slug, this.seed});
   final String slug;
+
   /// Optional tile-source FeedItem so the hero can show title + cover
   /// before the network detail resolves. AlbumLikeBody owns the hero
   /// fade-in; passing the cached values keeps the loading state honest

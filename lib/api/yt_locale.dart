@@ -43,11 +43,11 @@ class YtLocale {
   final bool countryIsAuto;
   final bool languageIsAuto;
 
-  static const fallback =
-      YtLocale(country: 'IN', language: 'en');
+  static const fallback = YtLocale(country: 'IN', language: 'en');
 
   @override
-  String toString() => 'YtLocale($country/$language, '
+  String toString() =>
+      'YtLocale($country/$language, '
       'auto: country=$countryIsAuto language=$languageIsAuto)';
 
   @override
@@ -141,8 +141,8 @@ class YtLocaleResolver {
     final country = (countryOverride != null && countryOverride.isNotEmpty)
         ? countryOverride
         : (_freshCachedCountry() ??
-            deviceCountry() ??
-            YtLocale.fallback.country);
+              deviceCountry() ??
+              YtLocale.fallback.country);
     final language = (languageOverride != null && languageOverride.isNotEmpty)
         ? languageOverride
         : (deviceLanguage() ?? YtLocale.fallback.language);

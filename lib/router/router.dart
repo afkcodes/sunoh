@@ -67,8 +67,7 @@ GoRouter buildRouter() {
     redirect: (context, state) {
       final loc = state.uri.path;
       const ownedPrefixes = ['/home', '/search', '/library', '/player'];
-      final known =
-          ownedPrefixes.any((p) => loc == p || loc.startsWith('$p/'));
+      final known = ownedPrefixes.any((p) => loc == p || loc.startsWith('$p/'));
       if (known) return null;
       return '/home';
     },
@@ -82,7 +81,8 @@ GoRouter buildRouter() {
             routes: [
               GoRoute(
                 path: '/home',
-                pageBuilder: (c, s) => _fade(const _RootScroll(HomeScreen()), s),
+                pageBuilder: (c, s) =>
+                    _fade(const _RootScroll(HomeScreen()), s),
                 routes: _detailRoutes(),
               ),
             ],
@@ -92,7 +92,8 @@ GoRouter buildRouter() {
             routes: [
               GoRoute(
                 path: '/search',
-                pageBuilder: (c, s) => _fade(const _RootScroll(SearchScreen()), s),
+                pageBuilder: (c, s) =>
+                    _fade(const _RootScroll(SearchScreen()), s),
                 routes: _detailRoutes(),
               ),
             ],
@@ -102,7 +103,8 @@ GoRouter buildRouter() {
             routes: [
               GoRoute(
                 path: '/library',
-                pageBuilder: (c, s) => _fade(const _RootScroll(LibraryScreen()), s),
+                pageBuilder: (c, s) =>
+                    _fade(const _RootScroll(LibraryScreen()), s),
                 routes: _detailRoutes(),
               ),
             ],
@@ -138,183 +140,183 @@ GoRouter buildRouter() {
 // `?source=saavn|gaana|spotify` is read off the query string — the sunoh-api
 // album/playlist endpoints route by provider hint.
 List<RouteBase> _detailRoutes() => [
-      GoRoute(
-        path: 'album/:id',
-        pageBuilder: (c, s) => _slideRight(
-            AlbumScreen(
-              id: s.pathParameters['id']!,
-              kind: 'album',
-              source: s.uri.queryParameters['source'],
-            ),
-            s),
+  GoRoute(
+    path: 'album/:id',
+    pageBuilder: (c, s) => _slideRight(
+      AlbumScreen(
+        id: s.pathParameters['id']!,
+        kind: 'album',
+        source: s.uri.queryParameters['source'],
       ),
-      GoRoute(
-        path: 'playlist/:id',
-        pageBuilder: (c, s) => _slideRight(
-            AlbumScreen(
-              id: s.pathParameters['id']!,
-              kind: 'playlist',
-              source: s.uri.queryParameters['source'],
-            ),
-            s),
+      s,
+    ),
+  ),
+  GoRoute(
+    path: 'playlist/:id',
+    pageBuilder: (c, s) => _slideRight(
+      AlbumScreen(
+        id: s.pathParameters['id']!,
+        kind: 'playlist',
+        source: s.uri.queryParameters['source'],
       ),
-      GoRoute(
-        path: 'artist/:id',
-        pageBuilder: (c, s) => _slideRight(
-            ArtistScreen(
-              id: s.pathParameters['id']!,
-              source: s.uri.queryParameters['source'],
-            ),
-            s),
+      s,
+    ),
+  ),
+  GoRoute(
+    path: 'artist/:id',
+    pageBuilder: (c, s) => _slideRight(
+      ArtistScreen(
+        id: s.pathParameters['id']!,
+        source: s.uri.queryParameters['source'],
       ),
-      GoRoute(
-        path: 'podcast/:id',
-        pageBuilder: (c, s) =>
-            _slideRight(PodcastShowScreen(id: s.pathParameters['id']!), s),
+      s,
+    ),
+  ),
+  GoRoute(
+    path: 'podcast/:id',
+    pageBuilder: (c, s) =>
+        _slideRight(PodcastShowScreen(id: s.pathParameters['id']!), s),
+  ),
+  GoRoute(
+    path: 'podcast-episode/:guid',
+    pageBuilder: (c, s) =>
+        _slideRight(EpisodeDetailScreen(guid: s.pathParameters['guid']!), s),
+  ),
+  GoRoute(
+    path: 'podcast-categories',
+    pageBuilder: (c, s) => _slideRight(const PodcastCategoriesScreen(), s),
+  ),
+  GoRoute(
+    path: 'podcast-category/:slug',
+    pageBuilder: (c, s) {
+      // `extra` carries the category name when navigating from the
+      // categories grid so the per-category screen can show a clean
+      // title without a second fetch.
+      final name = s.extra is String ? s.extra as String : null;
+      return _slideRight(
+        PodcastCategoryScreen(slug: s.pathParameters['slug']!, name: name),
+        s,
+      );
+    },
+  ),
+  GoRoute(
+    path: 'occasion/:slug',
+    pageBuilder: (c, s) {
+      // The originating FeedItem is passed via extras so the hero has
+      // its title + artwork available before the detail fetch resolves
+      // (avoids a flash of "?" in the hero).
+      final item = s.extra is FeedItem ? s.extra as FeedItem : null;
+      return _slideRight(
+        OccasionScreen(
+          slug: s.pathParameters['slug']!,
+          title: item?.title ?? s.pathParameters['slug']!,
+          imageUrl: item?.artwork,
+          source: s.uri.queryParameters['source'] ?? 'gaana',
+        ),
+        s,
+      );
+    },
+  ),
+  GoRoute(
+    path: 'section',
+    pageBuilder: (c, s) {
+      final section = s.extra as HomeSection;
+      return _slideRight(SectionScreen(section: section), s);
+    },
+  ),
+  GoRoute(
+    path: 'settings',
+    pageBuilder: (c, s) => _slideRight(const SettingsScreen(), s),
+  ),
+  GoRoute(
+    path: 'liked',
+    pageBuilder: (c, s) => _slideRight(const LikedSongsScreen(), s),
+  ),
+  GoRoute(
+    path: 'history',
+    pageBuilder: (c, s) => _slideRight(const RecentlyPlayedScreen(), s),
+  ),
+  GoRoute(
+    path: 'downloads',
+    pageBuilder: (c, s) => _slideRight(const DownloadsScreen(), s),
+  ),
+  GoRoute(
+    path: 'user-playlist/:id',
+    pageBuilder: (c, s) =>
+        _slideRight(UserPlaylistScreen(id: s.pathParameters['id']!), s),
+  ),
+  GoRoute(
+    path: 'spotify-import',
+    pageBuilder: (c, s) => _slideRight(const SpotifyImportScreen(), s),
+  ),
+  // ── YouTube Music ──────────────────────────────────────────────
+  // Separate from the generic detail routes because YouTube browse ids
+  // (VLRDCLAK5uy_…, FEmusic_…) mean nothing to sunoh-api.
+  GoRoute(
+    path: 'yt-playlist/:id',
+    pageBuilder: (c, s) => _slideRight(
+      YtPlaylistScreen(
+        browseId: Uri.decodeComponent(s.pathParameters['id']!),
+        name: s.extra is String ? s.extra as String : null,
       ),
-      GoRoute(
-        path: 'podcast-episode/:guid',
-        pageBuilder: (c, s) => _slideRight(
-            EpisodeDetailScreen(guid: s.pathParameters['guid']!), s),
+      s,
+    ),
+  ),
+  GoRoute(
+    path: 'yt-artist/:id',
+    pageBuilder: (c, s) => _slideRight(
+      YtArtistScreen(
+        browseId: Uri.decodeComponent(s.pathParameters['id']!),
+        name: s.extra is String ? s.extra as String : null,
       ),
-      GoRoute(
-        path: 'podcast-categories',
-        pageBuilder: (c, s) =>
-            _slideRight(const PodcastCategoriesScreen(), s),
-      ),
-      GoRoute(
-        path: 'podcast-category/:slug',
-        pageBuilder: (c, s) {
-          // `extra` carries the category name when navigating from the
-          // categories grid so the per-category screen can show a clean
-          // title without a second fetch.
-          final name = s.extra is String ? s.extra as String : null;
-          return _slideRight(
-              PodcastCategoryScreen(
-                  slug: s.pathParameters['slug']!, name: name),
-              s);
-        },
-      ),
-      GoRoute(
-        path: 'occasion/:slug',
-        pageBuilder: (c, s) {
-          // The originating FeedItem is passed via extras so the hero has
-          // its title + artwork available before the detail fetch resolves
-          // (avoids a flash of "?" in the hero).
-          final item = s.extra is FeedItem ? s.extra as FeedItem : null;
-          return _slideRight(
-            OccasionScreen(
-              slug: s.pathParameters['slug']!,
-              title: item?.title ?? s.pathParameters['slug']!,
-              imageUrl: item?.artwork,
-              source: s.uri.queryParameters['source'] ?? 'gaana',
-            ),
-            s,
-          );
-        },
-      ),
-      GoRoute(
-        path: 'section',
-        pageBuilder: (c, s) {
-          final section = s.extra as HomeSection;
-          return _slideRight(SectionScreen(section: section), s);
-        },
-      ),
-      GoRoute(
-        path: 'settings',
-        pageBuilder: (c, s) => _slideRight(const SettingsScreen(), s),
-      ),
-      GoRoute(
-        path: 'liked',
-        pageBuilder: (c, s) => _slideRight(const LikedSongsScreen(), s),
-      ),
-      GoRoute(
-        path: 'history',
-        pageBuilder: (c, s) => _slideRight(const RecentlyPlayedScreen(), s),
-      ),
-      GoRoute(
-        path: 'downloads',
-        pageBuilder: (c, s) => _slideRight(const DownloadsScreen(), s),
-      ),
-      GoRoute(
-        path: 'user-playlist/:id',
-        pageBuilder: (c, s) => _slideRight(
-            UserPlaylistScreen(id: s.pathParameters['id']!), s),
-      ),
-      GoRoute(
-        path: 'spotify-import',
-        pageBuilder: (c, s) => _slideRight(const SpotifyImportScreen(), s),
-      ),
-      // ── YouTube Music ──────────────────────────────────────────────
-      // Separate from the generic detail routes because YouTube browse ids
-      // (VLRDCLAK5uy_…, FEmusic_…) mean nothing to sunoh-api.
-      GoRoute(
-        path: 'yt-playlist/:id',
-        pageBuilder: (c, s) => _slideRight(
-            YtPlaylistScreen(
-              browseId: Uri.decodeComponent(s.pathParameters['id']!),
-              name: s.extra is String ? s.extra as String : null,
-            ),
-            s),
-      ),
-      GoRoute(
-        path: 'yt-artist/:id',
-        pageBuilder: (c, s) => _slideRight(
-            YtArtistScreen(
-              browseId: Uri.decodeComponent(s.pathParameters['id']!),
-              name: s.extra is String ? s.extra as String : null,
-            ),
-            s),
-      ),
-      GoRoute(
-        path: 'yt-moods',
-        pageBuilder: (c, s) => _slideRight(const YtMoodsScreen(), s),
-      ),
-      GoRoute(
-        path: 'yt-category/:id',
-        pageBuilder: (c, s) {
-          // `params` is opaque and travels with the browseId; passed via
-          // extra alongside the display name rather than in the path.
-          final extra = s.extra is Map ? s.extra as Map : const {};
-          return _slideRight(
-              YtCategoryScreen(
-                browseId: Uri.decodeComponent(s.pathParameters['id']!),
-                params: (extra['params'] ?? '').toString(),
-                name: extra['name'] as String?,
-              ),
-              s);
-        },
-      ),
-      GoRoute(
-        path: 'audiobook-categories',
-        pageBuilder: (c, s) =>
-            _slideRight(const AudiobookCategoriesScreen(), s),
-      ),
-      GoRoute(
-        path: 'audiobook-category/:id',
-        pageBuilder: (c, s) {
-          final id = int.tryParse(s.pathParameters['id']!) ?? 0;
-          final name = s.extra is String ? s.extra as String : null;
-          return _slideRight(
-            AudiobookCategoryScreen(id: id, name: name),
-            s,
-          );
-        },
-      ),
-      GoRoute(
-        path: 'audiobook/:slug',
-        pageBuilder: (c, s) {
-          // `extra` carries the FeedItem tile that opened this screen so
-          // the hero shows title + cover before the network detail resolves.
-          final seed = s.extra is FeedItem ? s.extra as FeedItem : null;
-          return _slideRight(
-            AudiobookDetailScreen(
-                slug: s.pathParameters['slug']!, seed: seed),
-            s,
-          );
-        },
-      ),
-    ];
+      s,
+    ),
+  ),
+  GoRoute(
+    path: 'yt-moods',
+    pageBuilder: (c, s) => _slideRight(const YtMoodsScreen(), s),
+  ),
+  GoRoute(
+    path: 'yt-category/:id',
+    pageBuilder: (c, s) {
+      // `params` is opaque and travels with the browseId; passed via
+      // extra alongside the display name rather than in the path.
+      final extra = s.extra is Map ? s.extra as Map : const {};
+      return _slideRight(
+        YtCategoryScreen(
+          browseId: Uri.decodeComponent(s.pathParameters['id']!),
+          params: (extra['params'] ?? '').toString(),
+          name: extra['name'] as String?,
+        ),
+        s,
+      );
+    },
+  ),
+  GoRoute(
+    path: 'audiobook-categories',
+    pageBuilder: (c, s) => _slideRight(const AudiobookCategoriesScreen(), s),
+  ),
+  GoRoute(
+    path: 'audiobook-category/:id',
+    pageBuilder: (c, s) {
+      final id = int.tryParse(s.pathParameters['id']!) ?? 0;
+      final name = s.extra is String ? s.extra as String : null;
+      return _slideRight(AudiobookCategoryScreen(id: id, name: name), s);
+    },
+  ),
+  GoRoute(
+    path: 'audiobook/:slug',
+    pageBuilder: (c, s) {
+      // `extra` carries the FeedItem tile that opened this screen so
+      // the hero shows title + cover before the network detail resolves.
+      final seed = s.extra is FeedItem ? s.extra as FeedItem : null;
+      return _slideRight(
+        AudiobookDetailScreen(slug: s.pathParameters['slug']!, seed: seed),
+        s,
+      );
+    },
+  ),
+];
 
 /// Scroll + safe-area padding for the non-scrolling tab screens (Column roots).
 class _RootScroll extends StatelessWidget {
@@ -323,7 +325,10 @@ class _RootScroll extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return SingleChildScrollView(
-      padding: EdgeInsets.only(top: MediaQuery.of(context).padding.top, bottom: 140),
+      padding: EdgeInsets.only(
+        top: MediaQuery.of(context).padding.top,
+        bottom: 140,
+      ),
       child: child,
     );
   }
@@ -348,7 +353,10 @@ CustomTransitionPage<void> _slideRight(Widget child, GoRouterState state) {
     transitionsBuilder: (c, a, sa, ch) {
       final curved = CurvedAnimation(parent: a, curve: Curves.easeOutCubic);
       return SlideTransition(
-        position: Tween(begin: const Offset(0.06, 0), end: Offset.zero).animate(curved),
+        position: Tween(
+          begin: const Offset(0.06, 0),
+          end: Offset.zero,
+        ).animate(curved),
         child: FadeTransition(opacity: curved, child: ch),
       );
     },
@@ -365,7 +373,10 @@ CustomTransitionPage<void> _slideUp(Widget child, GoRouterState state) {
     transitionsBuilder: (c, a, sa, ch) {
       final curved = CurvedAnimation(parent: a, curve: Curves.easeOutCubic);
       return SlideTransition(
-        position: Tween(begin: const Offset(0, 1), end: Offset.zero).animate(curved),
+        position: Tween(
+          begin: const Offset(0, 1),
+          end: Offset.zero,
+        ).animate(curved),
         child: ch,
       );
     },
@@ -376,7 +387,10 @@ CustomTransitionPage<void> _slideUp(Widget child, GoRouterState state) {
 /// pure fade-out (no slide), so the Hero-flying album art is the visual focus
 /// and the sheet appears to *contract* into the mini player rather than slide
 /// away.
-CustomTransitionPage<void> _playerTransition(Widget child, GoRouterState state) {
+CustomTransitionPage<void> _playerTransition(
+  Widget child,
+  GoRouterState state,
+) {
   return CustomTransitionPage(
     key: state.pageKey,
     child: Material(type: MaterialType.transparency, child: child),
@@ -385,13 +399,19 @@ CustomTransitionPage<void> _playerTransition(Widget child, GoRouterState state) 
     reverseTransitionDuration: const Duration(milliseconds: 320),
     transitionsBuilder: (c, a, sa, ch) {
       final closing = a.status == AnimationStatus.reverse;
-      final curved =
-          CurvedAnimation(parent: a, curve: Curves.easeOutCubic, reverseCurve: Curves.easeIn);
+      final curved = CurvedAnimation(
+        parent: a,
+        curve: Curves.easeOutCubic,
+        reverseCurve: Curves.easeIn,
+      );
       if (closing) {
         return FadeTransition(opacity: curved, child: ch);
       }
       return SlideTransition(
-        position: Tween(begin: const Offset(0, 1), end: Offset.zero).animate(curved),
+        position: Tween(
+          begin: const Offset(0, 1),
+          end: Offset.zero,
+        ).animate(curved),
         child: FadeTransition(opacity: curved, child: ch),
       );
     },
@@ -451,25 +471,27 @@ extension SunohNav on BuildContext {
   void openLikedSongs() => push('$_branchPrefix/liked');
   void openRecentlyPlayed() => push('$_branchPrefix/history');
   void openDownloads() => push('$_branchPrefix/downloads');
-  void openUserPlaylist(String id) =>
-      push('$_branchPrefix/user-playlist/$id');
+  void openUserPlaylist(String id) => push('$_branchPrefix/user-playlist/$id');
   void openPodcastEpisode(String guid) =>
       push('$_branchPrefix/podcast-episode/${Uri.encodeComponent(guid)}');
-  void openPodcastCategories() =>
-      push('$_branchPrefix/podcast-categories');
+  void openPodcastCategories() => push('$_branchPrefix/podcast-categories');
   void openPodcastCategory(String slug, {String? name}) => push(
-      '$_branchPrefix/podcast-category/${Uri.encodeComponent(slug)}',
-      extra: name);
+    '$_branchPrefix/podcast-category/${Uri.encodeComponent(slug)}',
+    extra: name,
+  );
   void openSpotifyImport() => push('$_branchPrefix/spotify-import');
+
   /// Open a YouTube Music playlist/album track list.
-  void openYtPlaylist(String browseId, {String? name}) =>
-      push('$_branchPrefix/yt-playlist/${Uri.encodeComponent(browseId)}',
-          extra: name);
+  void openYtPlaylist(String browseId, {String? name}) => push(
+    '$_branchPrefix/yt-playlist/${Uri.encodeComponent(browseId)}',
+    extra: name,
+  );
 
   /// Open a YouTube Music artist page.
-  void openYtArtist(String browseId, {String? name}) =>
-      push('$_branchPrefix/yt-artist/${Uri.encodeComponent(browseId)}',
-          extra: name);
+  void openYtArtist(String browseId, {String? name}) => push(
+    '$_branchPrefix/yt-artist/${Uri.encodeComponent(browseId)}',
+    extra: name,
+  );
 
   /// The moods & genres index.
   void openYtMoods() => push('$_branchPrefix/yt-moods');
@@ -479,9 +501,10 @@ extension SunohNav on BuildContext {
     required String browseId,
     required String params,
     String? name,
-  }) =>
-      push('$_branchPrefix/yt-category/${Uri.encodeComponent(browseId)}',
-          extra: {'params': params, 'name': name});
+  }) => push(
+    '$_branchPrefix/yt-category/${Uri.encodeComponent(browseId)}',
+    extra: {'params': params, 'name': name},
+  );
 
   /// Dispatch a YouTube feed item by type. Songs play immediately (there's
   /// no track detail screen); collections open their track list.
@@ -497,14 +520,13 @@ extension SunohNav on BuildContext {
     }
   }
 
-  void openAudiobookCategories() =>
-      push('$_branchPrefix/audiobook-categories');
+  void openAudiobookCategories() => push('$_branchPrefix/audiobook-categories');
   void openAudiobookCategory(int id, {String? name}) =>
       push('$_branchPrefix/audiobook-category/$id', extra: name);
   void openAudiobook(String slug, {FeedItem? item}) => push(
-        '$_branchPrefix/audiobook/${Uri.encodeComponent(slug)}',
-        extra: item,
-      );
+    '$_branchPrefix/audiobook/${Uri.encodeComponent(slug)}',
+    extra: item,
+  );
 }
 
 /// NavigatorObserver that fires Firebase `screen_view` whenever a route

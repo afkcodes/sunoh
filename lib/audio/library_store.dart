@@ -72,8 +72,10 @@ class LibraryStore {
       // the same path opened fine. Delete the corrupted file + start
       // fresh so subsequent writes get a clean baseline.
       // ignore: avoid_print
-      print('[library-store] ⚠ openBox("$_boxName") FAILED: $e\n$st\n'
-          '[library-store] deleting corrupted box file and retrying…');
+      print(
+        '[library-store] ⚠ openBox("$_boxName") FAILED: $e\n$st\n'
+        '[library-store] deleting corrupted box file and retrying…',
+      );
       try {
         await Hive.deleteBoxFromDisk(_boxName);
       } catch (_) {}
@@ -99,13 +101,15 @@ class LibraryStore {
 
     // `print` (not debugPrint) so this surfaces in release logcat too.
     // ignore: avoid_print
-    print('[library-store] opened "$_boxName" at ${box.path} '
-        '(file=${boxBytes}b lock=${lockBytes}b) — '
-        'liked=${(box.get(_kLikedSongs) as List?)?.length ?? 0} '
-        'history=${(box.get(_kHistory) as List?)?.length ?? 0} '
-        'albums=${(box.get(_kSavedAlbums) as List?)?.length ?? 0} '
-        'playlists=${(box.get(_kSavedPlaylists) as List?)?.length ?? 0} '
-        'artists=${(box.get(_kSavedArtists) as List?)?.length ?? 0}');
+    print(
+      '[library-store] opened "$_boxName" at ${box.path} '
+      '(file=${boxBytes}b lock=${lockBytes}b) — '
+      'liked=${(box.get(_kLikedSongs) as List?)?.length ?? 0} '
+      'history=${(box.get(_kHistory) as List?)?.length ?? 0} '
+      'albums=${(box.get(_kSavedAlbums) as List?)?.length ?? 0} '
+      'playlists=${(box.get(_kSavedPlaylists) as List?)?.length ?? 0} '
+      'artists=${(box.get(_kSavedArtists) as List?)?.length ?? 0}',
+    );
     return box;
   }
 
@@ -174,8 +178,10 @@ class LibraryStore {
     // Force fsync — Hive buffers writes by default; without flush, a
     // crash or fast subsequent `adb install` can drop the write.
     await box.flush();
-    debugPrint('[library-store] liked=${liked ? 'on' : 'off'} ${song.id} '
-        '(total=${current.length})');
+    debugPrint(
+      '[library-store] liked=${liked ? 'on' : 'off'} ${song.id} '
+      '(total=${current.length})',
+    );
     return current;
   }
 
@@ -270,8 +276,10 @@ class LibraryStore {
     if (saved) current.insert(0, item);
     await box.put(key, _encodeList(current));
     await box.flush();
-    debugPrint('[library-store] saved=${saved ? 'on' : 'off'} '
-        '${item.type}:${item.id} (total=${current.length})');
+    debugPrint(
+      '[library-store] saved=${saved ? 'on' : 'off'} '
+      '${item.type}:${item.id} (total=${current.length})',
+    );
     return current;
   }
 
@@ -310,8 +318,10 @@ class LibraryStore {
     current.insert(0, p);
     await box.put(_kUserPlaylists, _encodePlaylists(current));
     await box.flush();
-    debugPrint('[library-store] upsert user-playlist "${p.name}" '
-        '(songs=${p.songs.length}, total=${current.length})');
+    debugPrint(
+      '[library-store] upsert user-playlist "${p.name}" '
+      '(songs=${p.songs.length}, total=${current.length})',
+    );
     return current;
   }
 
@@ -321,8 +331,10 @@ class LibraryStore {
     current.removeWhere((p) => p.id == id);
     await box.put(_kUserPlaylists, _encodePlaylists(current));
     await box.flush();
-    debugPrint('[library-store] deleted user-playlist $id '
-        '(total=${current.length})');
+    debugPrint(
+      '[library-store] deleted user-playlist $id '
+      '(total=${current.length})',
+    );
     return current;
   }
 
@@ -367,8 +379,10 @@ class LibraryStore {
     if (subscribed) current.insert(0, show);
     await box.put(_kSubscribedPodcasts, _encodeList(current));
     await box.flush();
-    debugPrint('[library-store] subscribed=${subscribed ? 'on' : 'off'} '
-        'podcast:${show.id} (total=${current.length})');
+    debugPrint(
+      '[library-store] subscribed=${subscribed ? 'on' : 'off'} '
+      'podcast:${show.id} (total=${current.length})',
+    );
     return current;
   }
 
@@ -427,8 +441,7 @@ class LibraryStore {
       if (map.length > _maxEpisodeProgress) {
         final entries = map.entries.toList()
           ..sort((a, b) => (a.value['t'] ?? 0).compareTo(b.value['t'] ?? 0));
-        final keep =
-            entries.sublist(entries.length - _maxEpisodeProgress);
+        final keep = entries.sublist(entries.length - _maxEpisodeProgress);
         map
           ..clear()
           ..addEntries(keep);
@@ -436,8 +449,7 @@ class LibraryStore {
       await box.put(_kEpisodeProgress, map);
       await box.flush();
     } catch (e) {
-      debugPrint(
-          '[library-store] saveEpisodeProgress($episodeId) failed: $e');
+      debugPrint('[library-store] saveEpisodeProgress($episodeId) failed: $e');
     }
   }
 
@@ -454,8 +466,7 @@ class LibraryStore {
       await box.put(_kEpisodeProgress, map);
       await box.flush();
     } catch (e) {
-      debugPrint(
-          '[library-store] clearEpisodeProgress($episodeId) failed: $e');
+      debugPrint('[library-store] clearEpisodeProgress($episodeId) failed: $e');
     }
   }
 }

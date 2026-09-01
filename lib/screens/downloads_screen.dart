@@ -38,17 +38,25 @@ class DownloadsScreen extends ConsumerWidget {
             child: Row(
               children: [
                 IconBtn(
-                    icon: SolarIconsOutline.altArrowLeft,
-                    color: c.fgDim,
-                    size: 18,
-                    onTap: () => context.pop()),
+                  icon: SolarIconsOutline.altArrowLeft,
+                  color: c.fgDim,
+                  size: 18,
+                  onTap: () => context.pop(),
+                ),
                 const SizedBox(width: 4),
-                Text('Downloads',
-                    style: SunohType.heading(
-                        fontSize: 24, color: c.fg, letterSpacing: -0.4)),
+                Text(
+                  'Downloads',
+                  style: SunohType.heading(
+                    fontSize: 24,
+                    color: c.fg,
+                    letterSpacing: -0.4,
+                  ),
+                ),
                 const Spacer(),
-                Text('${entries.length}',
-                    style: SunohType.mono(fontSize: 13, color: c.fgMute)),
+                Text(
+                  '${entries.length}',
+                  style: SunohType.mono(fontSize: 13, color: c.fgMute),
+                ),
               ],
             ),
           ),
@@ -102,27 +110,30 @@ class _DownloadRow extends ConsumerWidget {
         padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 10),
         child: Row(
           children: [
-            SunohArt(
-                id: song.id, imageUrl: song.artwork, size: 46, radius: 6),
+            SunohArt(id: song.id, imageUrl: song.artwork, size: 46, radius: 6),
             const SizedBox(width: 12),
             Expanded(
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Text(song.title,
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                      style: SunohType.sans(
-                          fontSize: 14.5,
-                          fontWeight: FontWeight.w500,
-                          color: c.fg)),
+                  Text(
+                    song.title,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: SunohType.sans(
+                      fontSize: 14.5,
+                      fontWeight: FontWeight.w500,
+                      color: c.fg,
+                    ),
+                  ),
                   if (artistsLabel.isNotEmpty) ...[
                     const SizedBox(height: 2),
-                    Text(artistsLabel,
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                        style: SunohType.sans(
-                            fontSize: 12, color: c.fgMute)),
+                    Text(
+                      artistsLabel,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: SunohType.sans(fontSize: 12, color: c.fgMute),
+                    ),
                   ],
                   const SizedBox(height: 4),
                   _StateLine(entry: entry, colors: c, accent: accent),
@@ -130,12 +141,13 @@ class _DownloadRow extends ConsumerWidget {
               ),
             ),
             IconBtn(
-                icon: SolarIconsOutline.trashBin2,
-                color: c.fgMute,
-                size: 16,
-                width: 36,
-                height: 36,
-                onTap: () => mgr.remove(song.id)),
+              icon: SolarIconsOutline.trashBin2,
+              color: c.fgMute,
+              size: 16,
+              width: 36,
+              height: 36,
+              onTap: () => mgr.remove(song.id),
+            ),
           ],
         ),
       ),
@@ -162,13 +174,17 @@ class _StateLine extends ConsumerWidget {
           children: [
             Icon(SolarIconsBold.checkCircle, size: 11, color: accent),
             const SizedBox(width: 5),
-            Text('Saved on device',
-                style: SunohType.sans(fontSize: 11, color: c.fgMute)),
+            Text(
+              'Saved on device',
+              style: SunohType.sans(fontSize: 11, color: c.fgMute),
+            ),
           ],
         );
       case DownloadState.queued:
-        return Text('Queued',
-            style: SunohType.sans(fontSize: 11, color: c.fgMute));
+        return Text(
+          'Queued',
+          style: SunohType.sans(fontSize: 11, color: c.fgMute),
+        );
       case DownloadState.downloading:
         // Live percent. Falls back to "Downloading…" while we wait for
         // the first Dio chunk (a hundred ms or so).
@@ -178,17 +194,21 @@ class _StateLine extends ConsumerWidget {
             ?.value;
         final pct = p == null ? null : (p.fraction * 100).round();
         return Text(
-            pct == null ? 'Downloading…' : 'Downloading… $pct%',
-            style: SunohType.sans(fontSize: 11, color: c.fgMute));
+          pct == null ? 'Downloading…' : 'Downloading… $pct%',
+          style: SunohType.sans(fontSize: 11, color: c.fgMute),
+        );
       case DownloadState.paused:
-        return Text('Paused — tap to resume',
-            style: SunohType.sans(fontSize: 11, color: c.fgMute));
+        return Text(
+          'Paused — tap to resume',
+          style: SunohType.sans(fontSize: 11, color: c.fgMute),
+        );
       case DownloadState.failed:
         return Text(
-            'Failed — ${entry.error ?? "tap to retry"}',
-            maxLines: 1,
-            overflow: TextOverflow.ellipsis,
-            style: SunohType.sans(fontSize: 11, color: c.fgMute));
+          'Failed — ${entry.error ?? "tap to retry"}',
+          maxLines: 1,
+          overflow: TextOverflow.ellipsis,
+          style: SunohType.sans(fontSize: 11, color: c.fgMute),
+        );
     }
   }
 }
@@ -205,17 +225,23 @@ class _Empty extends StatelessWidget {
       child: Center(
         child: Column(
           children: [
-            Icon(SolarIconsOutline.downloadMinimalistic,
-                size: 36, color: c.fgMute),
+            Icon(
+              SolarIconsOutline.downloadMinimalistic,
+              size: 36,
+              color: c.fgMute,
+            ),
             const SizedBox(height: 14),
-            Text('No downloads yet',
-                style: SunohType.heading(fontSize: 22, color: c.fgDim)),
+            Text(
+              'No downloads yet',
+              style: SunohType.heading(fontSize: 22, color: c.fgDim),
+            ),
             const SizedBox(height: 8),
             Text(
-                'Open a saavn song, album, or playlist and tap '
-                'Download to save it for offline listening.',
-                textAlign: TextAlign.center,
-                style: SunohType.sans(fontSize: 13, color: c.fgMute)),
+              'Open a saavn song, album, or playlist and tap '
+              'Download to save it for offline listening.',
+              textAlign: TextAlign.center,
+              style: SunohType.sans(fontSize: 13, color: c.fgMute),
+            ),
           ],
         ),
       ),

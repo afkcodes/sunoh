@@ -10,12 +10,14 @@ import '../theme/tokens.dart';
 // images so corners feel smooth rather than abruptly rounded.
 const double kSquircleSmoothness = 0.6;
 
-SmoothRectangleBorder squircleBorder(double radius, {BorderSide side = BorderSide.none}) =>
-    SmoothRectangleBorder(
-      borderRadius: BorderRadius.circular(radius),
-      smoothness: kSquircleSmoothness,
-      side: side,
-    );
+SmoothRectangleBorder squircleBorder(
+  double radius, {
+  BorderSide side = BorderSide.none,
+}) => SmoothRectangleBorder(
+  borderRadius: BorderRadius.circular(radius),
+  smoothness: kSquircleSmoothness,
+  side: side,
+);
 
 /// A squircle surface decoration (replacement for BoxDecoration on cards).
 ShapeDecoration squircleDecoration({
@@ -25,22 +27,24 @@ ShapeDecoration squircleDecoration({
   Color? borderColor,
   double borderWidth = 0.5,
   List<BoxShadow>? shadows,
-}) =>
-    ShapeDecoration(
-      color: color,
-      gradient: gradient,
-      shadows: shadows,
-      shape: squircleBorder(
-        radius,
-        side: borderColor == null
-            ? BorderSide.none
-            : BorderSide(color: borderColor, width: borderWidth),
-      ),
-    );
+}) => ShapeDecoration(
+  color: color,
+  gradient: gradient,
+  shadows: shadows,
+  shape: squircleBorder(
+    radius,
+    side: borderColor == null
+        ? BorderSide.none
+        : BorderSide(color: borderColor, width: borderWidth),
+  ),
+);
 
 /// Clip a child to a squircle (replacement for ClipRRect).
 Widget squircleClip({required double radius, required Widget child}) =>
-    ClipPath(clipper: ShapeBorderClipper(shape: squircleBorder(radius)), child: child);
+    ClipPath(
+      clipper: ShapeBorderClipper(shape: squircleBorder(radius)),
+      child: child,
+    );
 
 /// Mono uppercase eyebrow / data label.
 Widget eyebrow(
@@ -96,11 +100,7 @@ class IconBtn extends StatelessWidget {
       child: Icon(icon, size: size, color: color),
     );
     if (onTap == null) return child;
-    return InkResponse(
-      onTap: onTap,
-      radius: width / 2 + 4,
-      child: child,
-    );
+    return InkResponse(onTap: onTap, radius: width / 2 + 4, child: child);
   }
 }
 
@@ -172,7 +172,12 @@ class SectionHeader extends StatelessWidget {
               mainAxisSize: MainAxisSize.min,
               children: [
                 if (eyebrowText != null) ...[
-                  eyebrow(eyebrowText!, colors.fgMute, size: 10, letterSpacing: 1.2),
+                  eyebrow(
+                    eyebrowText!,
+                    colors.fgMute,
+                    size: 10,
+                    letterSpacing: 1.2,
+                  ),
                   const SizedBox(height: 2),
                 ],
                 Text(

@@ -17,22 +17,25 @@ void _keepAlive(Ref ref, Duration ttl) {
   Future<void>.delayed(ttl).then((_) => link.close());
 }
 
-final albumProvider = FutureProvider.autoDispose
-    .family<AlbumDetail, DetailKey>((ref, key) async {
-  _keepAlive(ref, const Duration(minutes: 30));
-  return ref.watch(sunohApiProvider).fetchAlbum(key.id, provider: key.source);
-});
+final albumProvider = FutureProvider.autoDispose.family<AlbumDetail, DetailKey>(
+  (ref, key) async {
+    _keepAlive(ref, const Duration(minutes: 30));
+    return ref.watch(sunohApiProvider).fetchAlbum(key.id, provider: key.source);
+  },
+);
 
 final playlistProvider = FutureProvider.autoDispose
     .family<PlaylistDetail, DetailKey>((ref, key) async {
-  _keepAlive(ref, const Duration(minutes: 30));
-  return ref
-      .watch(sunohApiProvider)
-      .fetchPlaylist(key.id, provider: key.source);
-});
+      _keepAlive(ref, const Duration(minutes: 30));
+      return ref
+          .watch(sunohApiProvider)
+          .fetchPlaylist(key.id, provider: key.source);
+    });
 
 final artistProvider = FutureProvider.autoDispose
     .family<ArtistDetail, DetailKey>((ref, key) async {
-  _keepAlive(ref, const Duration(minutes: 30));
-  return ref.watch(sunohApiProvider).fetchArtist(key.id, provider: key.source);
-});
+      _keepAlive(ref, const Duration(minutes: 30));
+      return ref
+          .watch(sunohApiProvider)
+          .fetchArtist(key.id, provider: key.source);
+    });

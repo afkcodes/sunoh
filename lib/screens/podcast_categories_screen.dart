@@ -58,25 +58,29 @@ class PodcastCategoriesScreen extends ConsumerWidget {
               child: Row(
                 children: [
                   IconBtn(
-                      icon: SolarIconsOutline.altArrowLeft,
-                      color: c.fg,
-                      size: 22,
-                      onTap: () => context.pop()),
+                    icon: SolarIconsOutline.altArrowLeft,
+                    color: c.fg,
+                    size: 22,
+                    onTap: () => context.pop(),
+                  ),
                   const SizedBox(width: 6),
-                  Text('Categories',
-                      style: SunohType.heading(
-                          fontSize: 24,
-                          color: c.fg,
-                          letterSpacing: -0.3)),
+                  Text(
+                    'Categories',
+                    style: SunohType.heading(
+                      fontSize: 24,
+                      color: c.fg,
+                      letterSpacing: -0.3,
+                    ),
+                  ),
                 ],
               ),
             ),
             Padding(
               padding: const EdgeInsets.fromLTRB(20, 0, 20, 18),
               child: Text(
-                  'Pick a category to discover podcasts in it.',
-                  style:
-                      SunohType.sans(fontSize: 13, color: c.fgMute)),
+                'Pick a category to discover podcasts in it.',
+                style: SunohType.sans(fontSize: 13, color: c.fgMute),
+              ),
             ),
             Expanded(
               child: async.when(
@@ -85,22 +89,24 @@ class PodcastCategoriesScreen extends ConsumerWidget {
                     width: 24,
                     height: 24,
                     child: CircularProgressIndicator(
-                        strokeWidth: 2, color: c.fgDim),
+                      strokeWidth: 2,
+                      color: c.fgDim,
+                    ),
                   ),
                 ),
                 error: (e, _) => Center(
                   child: Padding(
                     padding: const EdgeInsets.all(24),
-                    child: Text('Couldn’t load categories.\n$e',
-                        textAlign: TextAlign.center,
-                        style: SunohType.sans(
-                            fontSize: 13, color: c.fgMute)),
+                    child: Text(
+                      'Couldn’t load categories.\n$e',
+                      textAlign: TextAlign.center,
+                      style: SunohType.sans(fontSize: 13, color: c.fgMute),
+                    ),
                   ),
                 ),
                 data: (cats) => GridView.builder(
                   padding: const EdgeInsets.fromLTRB(20, 0, 20, 140),
-                  gridDelegate:
-                      const SliverGridDelegateWithFixedCrossAxisCount(
+                  gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
                     crossAxisCount: 2,
                     mainAxisSpacing: 10,
                     crossAxisSpacing: 10,
@@ -144,6 +150,7 @@ class PodcastCategoryCard extends StatelessWidget {
   });
   final PodcastCategory category;
   final SunohColors colors;
+
   /// Kept for API compatibility (the preview strip on the Podcasts
   /// tab passes the user accent in), but no longer used for tinting —
   /// see [_categoryPalette] above.
@@ -152,12 +159,12 @@ class PodcastCategoryCard extends StatelessWidget {
   Widget build(BuildContext context) {
     final c = colors;
     final icon = _iconFor(category.name);
-    final seed =
-        _categoryPalette[category.id % _categoryPalette.length];
+    final seed = _categoryPalette[category.id % _categoryPalette.length];
     return GestureDetector(
       onTap: () => context.openPodcastCategory(
-          category.id.toString(),
-          name: category.name),
+        category.id.toString(),
+        name: category.name,
+      ),
       behavior: HitTestBehavior.opaque,
       child: squircleClip(
         radius: 10,
@@ -235,22 +242,16 @@ class PodcastCategoryCard extends StatelessWidget {
       return SolarIconsBold.book;
     }
     if (n.contains('history')) return SolarIconsBold.book2;
-    if (n.contains('busin') ||
-        n.contains('career') ||
-        n.contains('econom')) {
+    if (n.contains('busin') || n.contains('career') || n.contains('econom')) {
       return SolarIconsBold.caseMinimalistic;
     }
-    if (n.contains('health') ||
-        n.contains('fitness') ||
-        n.contains('medic')) {
+    if (n.contains('health') || n.contains('fitness') || n.contains('medic')) {
       return SolarIconsBold.dumbbellLargeMinimalistic;
     }
     if (n.contains('food') || n.contains('cook')) {
       return SolarIconsBold.cup;
     }
-    if (n.contains('art') ||
-        n.contains('design') ||
-        n.contains('visual')) {
+    if (n.contains('art') || n.contains('design') || n.contains('visual')) {
       return SolarIconsBold.paintRoller;
     }
     if (n.contains('travel')) return SolarIconsBold.planet;

@@ -35,19 +35,26 @@ class SectionScreen extends ConsumerWidget {
             child: Row(
               children: [
                 IconBtn(
-                    icon: SolarIconsOutline.altArrowLeft,
-                    color: c.fg,
-                    size: 22,
-                    background: c.surface,
-                    onTap: () => context.pop()),
+                  icon: SolarIconsOutline.altArrowLeft,
+                  color: c.fg,
+                  size: 22,
+                  background: c.surface,
+                  onTap: () => context.pop(),
+                ),
               ],
             ),
           ),
           Padding(
             padding: const EdgeInsets.fromLTRB(20, 8, 20, 20),
-            child: Text(section.heading,
-                style: SunohType.heading(
-                    fontSize: 30, color: c.fg, height: 1.05, letterSpacing: -0.5)),
+            child: Text(
+              section.heading,
+              style: SunohType.heading(
+                fontSize: 30,
+                color: c.fg,
+                height: 1.05,
+                letterSpacing: -0.5,
+              ),
+            ),
           ),
           Padding(
             padding: const EdgeInsets.symmetric(horizontal: 20),
@@ -124,20 +131,32 @@ class _CoverTile extends StatelessWidget {
         AspectRatio(
           aspectRatio: 1,
           child: SunohArt(
-              id: item.id, width: double.infinity, radius: 10, imageUrl: item.artwork),
+            id: item.id,
+            width: double.infinity,
+            radius: 10,
+            imageUrl: item.artwork,
+          ),
         ),
         const SizedBox(height: 10),
-        Text(item.title,
-            maxLines: 1,
-            overflow: TextOverflow.ellipsis,
-            style: SunohType.sans(
-                fontSize: 14, fontWeight: FontWeight.w500, color: c.fg, height: 1.2)),
+        Text(
+          item.title,
+          maxLines: 1,
+          overflow: TextOverflow.ellipsis,
+          style: SunohType.sans(
+            fontSize: 14,
+            fontWeight: FontWeight.w500,
+            color: c.fg,
+            height: 1.2,
+          ),
+        ),
         if ((item.displaySubtitle ?? '').isNotEmpty) ...[
           const SizedBox(height: 2),
-          Text(item.displaySubtitle!,
-              maxLines: 1,
-              overflow: TextOverflow.ellipsis,
-              style: SunohType.sans(fontSize: 12, color: c.fgMute)),
+          Text(
+            item.displaySubtitle!,
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+            style: SunohType.sans(fontSize: 12, color: c.fgMute),
+          ),
         ],
       ],
     );
@@ -156,15 +175,25 @@ class _ArtistTile extends StatelessWidget {
         AspectRatio(
           aspectRatio: 1,
           child: SunohArt(
-              id: item.id, width: double.infinity, radius: 999, imageUrl: item.artwork),
+            id: item.id,
+            width: double.infinity,
+            radius: 999,
+            imageUrl: item.artwork,
+          ),
         ),
         const SizedBox(height: 10),
-        Text(item.title,
-            textAlign: TextAlign.center,
-            maxLines: 2,
-            overflow: TextOverflow.ellipsis,
-            style: SunohType.sans(
-                fontSize: 13, fontWeight: FontWeight.w500, color: c.fg, height: 1.2)),
+        Text(
+          item.title,
+          textAlign: TextAlign.center,
+          maxLines: 2,
+          overflow: TextOverflow.ellipsis,
+          style: SunohType.sans(
+            fontSize: 13,
+            fontWeight: FontWeight.w500,
+            color: c.fg,
+            height: 1.2,
+          ),
+        ),
       ],
     );
   }

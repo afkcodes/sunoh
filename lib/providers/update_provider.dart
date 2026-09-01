@@ -40,8 +40,9 @@ final currentVersionProvider = FutureProvider<CurrentAppVersion>((_) async {
 ///
 /// One fetch per app session. Pull-to-refresh / Settings → "Check for
 /// updates" should `ref.invalidate(availableUpdateProvider)` to recheck.
-final availableUpdateProvider =
-    FutureProvider.autoDispose<UpdateInfo?>((ref) async {
+final availableUpdateProvider = FutureProvider.autoDispose<UpdateInfo?>((
+  ref,
+) async {
   // Keep alive for the whole session — otherwise leaving Home (where the
   // banner lives) would refetch on every return.
   ref.keepAlive();

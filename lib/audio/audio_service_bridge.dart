@@ -25,28 +25,34 @@ class SunohAudioServiceBridge extends BaseAudioHandler {
   bool _castOverride = false;
 
   void _wire() {
-    _subs.add(_handler.playingStream.listen((playing) {
-      if (_castOverride) return; // cast layer owns the notification state
-      // Controls have to reflect the current state: when playing, expose
-      // *pause* (not play). If the controls list doesn't change with state,
-      // Android may decide the foreground service isn't really an active
-      // media session and kill it when the app is backgrounded.
-      playbackState.add(playbackState.value.copyWith(
-        controls: [
-          MediaControl.skipToPrevious,
-          if (playing) MediaControl.pause else MediaControl.play,
-          MediaControl.skipToNext,
-        ],
-        systemActions: const {MediaAction.seek},
-        processingState: AudioProcessingState.ready,
-        playing: playing,
-        updatePosition: _handler.position,
-      ));
-    }));
-    _subs.add(_handler.positionStream.listen((pos) {
-      if (_castOverride) return;
-      playbackState.add(playbackState.value.copyWith(updatePosition: pos));
-    }));
+    _subs.add(
+      _handler.playingStream.listen((playing) {
+        if (_castOverride) return; // cast layer owns the notification state
+        // Controls have to reflect the current state: when playing, expose
+        // *pause* (not play). If the controls list doesn't change with state,
+        // Android may decide the foreground service isn't really an active
+        // media session and kill it when the app is backgrounded.
+        playbackState.add(
+          playbackState.value.copyWith(
+            controls: [
+              MediaControl.skipToPrevious,
+              if (playing) MediaControl.pause else MediaControl.play,
+              MediaControl.skipToNext,
+            ],
+            systemActions: const {MediaAction.seek},
+            processingState: AudioProcessingState.ready,
+            playing: playing,
+            updatePosition: _handler.position,
+          ),
+        );
+      }),
+    );
+    _subs.add(
+      _handler.positionStream.listen((pos) {
+        if (_castOverride) return;
+        playbackState.add(playbackState.value.copyWith(updatePosition: pos));
+      }),
+    );
   }
 
   /// Flip the bridge into / out of cast-override mode. While `true`,
@@ -62,31 +68,35 @@ class SunohAudioServiceBridge extends BaseAudioHandler {
   }) {
     _castOverride = active;
     if (active) {
-      playbackState.add(playbackState.value.copyWith(
-        controls: [
-          MediaControl.skipToPrevious,
-          if (playing) MediaControl.pause else MediaControl.play,
-          MediaControl.skipToNext,
-        ],
-        systemActions: const {MediaAction.seek},
-        processingState: AudioProcessingState.ready,
-        playing: playing,
-        updatePosition: position,
-      ));
+      playbackState.add(
+        playbackState.value.copyWith(
+          controls: [
+            MediaControl.skipToPrevious,
+            if (playing) MediaControl.pause else MediaControl.play,
+            MediaControl.skipToNext,
+          ],
+          systemActions: const {MediaAction.seek},
+          processingState: AudioProcessingState.ready,
+          playing: playing,
+          updatePosition: position,
+        ),
+      );
     } else {
       // Falling back to mpv. Re-emit the current mpv state so the
       // notification snaps back without waiting for the next tick.
-      playbackState.add(playbackState.value.copyWith(
-        controls: [
-          MediaControl.skipToPrevious,
-          if (_handler.isPlaying) MediaControl.pause else MediaControl.play,
-          MediaControl.skipToNext,
-        ],
-        systemActions: const {MediaAction.seek},
-        processingState: AudioProcessingState.ready,
-        playing: _handler.isPlaying,
-        updatePosition: _handler.position,
-      ));
+      playbackState.add(
+        playbackState.value.copyWith(
+          controls: [
+            MediaControl.skipToPrevious,
+            if (_handler.isPlaying) MediaControl.pause else MediaControl.play,
+            MediaControl.skipToNext,
+          ],
+          systemActions: const {MediaAction.seek},
+          processingState: AudioProcessingState.ready,
+          playing: _handler.isPlaying,
+          updatePosition: _handler.position,
+        ),
+      );
     }
   }
 
@@ -98,17 +108,19 @@ class SunohAudioServiceBridge extends BaseAudioHandler {
     required Duration position,
   }) {
     if (!_castOverride) return;
-    playbackState.add(playbackState.value.copyWith(
-      controls: [
-        MediaControl.skipToPrevious,
-        if (playing) MediaControl.pause else MediaControl.play,
-        MediaControl.skipToNext,
-      ],
-      systemActions: const {MediaAction.seek},
-      processingState: AudioProcessingState.ready,
-      playing: playing,
-      updatePosition: position,
-    ));
+    playbackState.add(
+      playbackState.value.copyWith(
+        controls: [
+          MediaControl.skipToPrevious,
+          if (playing) MediaControl.pause else MediaControl.play,
+          MediaControl.skipToNext,
+        ],
+        systemActions: const {MediaAction.seek},
+        processingState: AudioProcessingState.ready,
+        playing: playing,
+        updatePosition: position,
+      ),
+    );
   }
 
   /// Tell the OS about the full queue + which one is active. Called by

@@ -48,11 +48,8 @@ Future<void> showHeroMenuSheet(
     backgroundColor: Colors.transparent,
     isScrollControlled: true,
     useRootNavigator: true,
-    builder: (_) => _HeroMenuSheet(
-      entity: entity,
-      artist: artist,
-      songs: songs,
-    ),
+    builder: (_) =>
+        _HeroMenuSheet(entity: entity, artist: artist, songs: songs),
   );
 }
 
@@ -117,14 +114,17 @@ class _HeroMenuSheet extends ConsumerWidget {
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        Text(entity.title,
-                            maxLines: 2,
-                            overflow: TextOverflow.ellipsis,
-                            style: SunohType.sans(
-                                fontSize: 14.5,
-                                fontWeight: FontWeight.w500,
-                                color: c.fg,
-                                height: 1.2)),
+                        Text(
+                          entity.title,
+                          maxLines: 2,
+                          overflow: TextOverflow.ellipsis,
+                          style: SunohType.sans(
+                            fontSize: 14.5,
+                            fontWeight: FontWeight.w500,
+                            color: c.fg,
+                            height: 1.2,
+                          ),
+                        ),
                         const SizedBox(height: 3),
                         Text(
                           entity.type[0].toUpperCase() +
@@ -140,9 +140,10 @@ class _HeroMenuSheet extends ConsumerWidget {
               ),
             ),
             Container(
-                height: 0.5,
-                color: c.line,
-                margin: const EdgeInsets.symmetric(horizontal: 12)),
+              height: 0.5,
+              color: c.line,
+              margin: const EdgeInsets.symmetric(horizontal: 12),
+            ),
             _HeroMenuRow(
               icon: saved ? SolarIconsBold.heart : SolarIconsOutline.heart,
               iconColor: saved ? accent : c.fg,
@@ -163,8 +164,9 @@ class _HeroMenuSheet extends ConsumerWidget {
                     context.openYtArtist(artist!.id, name: artist!.name);
                     return;
                   }
-                  context.openRef(DetailRef('artist', artist!.id,
-                      source: entity.source));
+                  context.openRef(
+                    DetailRef('artist', artist!.id, source: entity.source),
+                  );
                 },
                 colors: c,
               ),
@@ -232,10 +234,12 @@ class _HeroMenuRow extends StatelessWidget {
             Icon(icon, size: 20, color: iconColor ?? c.fg),
             const SizedBox(width: 16),
             Expanded(
-              child: Text(label,
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                  style: SunohType.sans(fontSize: 14, color: c.fg)),
+              child: Text(
+                label,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: SunohType.sans(fontSize: 14, color: c.fg),
+              ),
             ),
           ],
         ),

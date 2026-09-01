@@ -50,11 +50,12 @@ Future<void> showTrackMenuSheet(
     // behind them. Using the root navigator promotes it above everything.
     useRootNavigator: true,
     builder: (_) => _TrackMenuSheet(
-        song: song,
-        sourceLabel: sourceLabel,
-        sourceRef: sourceRef,
-        fromPlayer: fromPlayer,
-        removeFromUserPlaylistId: removeFromUserPlaylistId),
+      song: song,
+      sourceLabel: sourceLabel,
+      sourceRef: sourceRef,
+      fromPlayer: fromPlayer,
+      removeFromUserPlaylistId: removeFromUserPlaylistId,
+    ),
   );
 }
 
@@ -92,8 +93,8 @@ Future<void> _openYtArtistByName(
   final prefix = loc.startsWith('/search')
       ? '/search'
       : loc.startsWith('/library')
-          ? '/library'
-          : '/home';
+      ? '/library'
+      : '/home';
 
   state.flashToast('Finding $name…');
   final results = await api.searchArtists(name);
@@ -118,10 +119,12 @@ class _TrackMenuSheet extends ConsumerWidget {
   final FeedItem song;
   final String? sourceLabel;
   final DetailRef? sourceRef;
+
   /// True when the sheet was opened from the expanded player. Navigation
   /// rows then also pop the player itself off the root navigator so the
   /// destination screen isn't hidden behind it.
   final bool fromPlayer;
+
   /// When set, the sheet shows a "Remove from this playlist" row that
   /// removes [song] from the user-created playlist with the given id.
   /// Only used by UserPlaylistScreen.
@@ -170,30 +173,38 @@ class _TrackMenuSheet extends ConsumerWidget {
               child: Row(
                 children: [
                   SunohArt(
-                      id: song.id,
-                      imageUrl: song.artwork,
-                      size: 52,
-                      radius: 8),
+                    id: song.id,
+                    imageUrl: song.artwork,
+                    size: 52,
+                    radius: 8,
+                  ),
                   const SizedBox(width: 14),
                   Expanded(
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        Text(song.title,
-                            maxLines: 2,
-                            overflow: TextOverflow.ellipsis,
-                            style: SunohType.sans(
-                                fontSize: 14.5,
-                                fontWeight: FontWeight.w500,
-                                color: c.fg,
-                                height: 1.2)),
+                        Text(
+                          song.title,
+                          maxLines: 2,
+                          overflow: TextOverflow.ellipsis,
+                          style: SunohType.sans(
+                            fontSize: 14.5,
+                            fontWeight: FontWeight.w500,
+                            color: c.fg,
+                            height: 1.2,
+                          ),
+                        ),
                         if (artistsLabel.isNotEmpty) ...[
                           const SizedBox(height: 3),
-                          Text(artistsLabel,
-                              maxLines: 1,
-                              overflow: TextOverflow.ellipsis,
-                              style: SunohType.sans(
-                                  fontSize: 12, color: c.fgMute)),
+                          Text(
+                            artistsLabel,
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: SunohType.sans(
+                              fontSize: 12,
+                              color: c.fgMute,
+                            ),
+                          ),
                         ],
                       ],
                     ),
@@ -202,9 +213,10 @@ class _TrackMenuSheet extends ConsumerWidget {
               ),
             ),
             Container(
-                height: 0.5,
-                color: c.line,
-                margin: const EdgeInsets.symmetric(horizontal: 12)),
+              height: 0.5,
+              color: c.line,
+              margin: const EdgeInsets.symmetric(horizontal: 12),
+            ),
             // Actions.
             _MenuRow(
               icon: liked ? SolarIconsBold.heart : SolarIconsOutline.heart,
@@ -249,7 +261,9 @@ class _TrackMenuSheet extends ConsumerWidget {
                 onTap: () {
                   Navigator.of(context).pop();
                   s.removeSongFromUserPlaylist(
-                      removeFromUserPlaylistId!, song.id);
+                    removeFromUserPlaylistId!,
+                    song.id,
+                  );
                 },
                 colors: c,
               ),
@@ -280,23 +294,32 @@ class _TrackMenuSheet extends ConsumerWidget {
                 onTap: () {
                   final artist = song.artists!.first;
                   // ignore: avoid_print
-                  print('[artist-nav] source=${song.source} '
-                      'name="${artist.name}" id="${artist.id}"');
+                  print(
+                    '[artist-nav] source=${song.source} '
+                    'name="${artist.name}" id="${artist.id}"',
+                  );
                   // YouTube artist ids are channel browse ids, which
                   // sunoh-api's artist endpoint can't resolve — they need
                   // the YouTube artist screen.
                   if (song.source == 'youtube') {
                     if (artist.id.isNotEmpty) {
                       _navigateToYtArtistAfterClose(
-                          context, artist.id, artist.name);
+                        context,
+                        artist.id,
+                        artist.name,
+                      );
                     } else {
                       // No linked channel on this row. Happens for
                       // auto-generated art tracks whose byline isn't
                       // navigable, and for queue entries persisted before
                       // artist ids were captured. Resolve by name instead
                       // of dead-ending on a toast.
-                      _openYtArtistByName(context, ref, artist.name,
-                          fromPlayer: fromPlayer);
+                      _openYtArtistByName(
+                        context,
+                        ref,
+                        artist.name,
+                        fromPlayer: fromPlayer,
+                      );
                     }
                     return;
                   }
@@ -351,8 +374,8 @@ class _TrackMenuSheet extends ConsumerWidget {
     final prefix = loc.startsWith('/search')
         ? '/search'
         : loc.startsWith('/library')
-            ? '/library'
-            : '/home';
+        ? '/library'
+        : '/home';
     final src = ref.source;
     final query = (src == null || src.isEmpty)
         ? ''
@@ -382,8 +405,8 @@ class _TrackMenuSheet extends ConsumerWidget {
     final prefix = loc.startsWith('/search')
         ? '/search'
         : loc.startsWith('/library')
-            ? '/library'
-            : '/home';
+        ? '/library'
+        : '/home';
     goRouter.push(
       '$prefix/yt-artist/${Uri.encodeComponent(browseId)}',
       extra: name,
@@ -410,7 +433,8 @@ class _MenuRow extends StatelessWidget {
     // Late-binding the color tokens lets _MenuRow take only an iconColor
     // (for the like-state highlight) without callers having to repeat the
     // whole tokens object for every row.
-    final c = colors ??
+    final c =
+        colors ??
         const SunohColors(
           bg: Color(0xFF15151A),
           bgSoft: Color(0xFF15151A),
@@ -431,10 +455,12 @@ class _MenuRow extends StatelessWidget {
             Icon(icon, size: 20, color: iconColor ?? c.fg),
             const SizedBox(width: 16),
             Expanded(
-              child: Text(label,
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                  style: SunohType.sans(fontSize: 14, color: c.fg)),
+              child: Text(
+                label,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: SunohType.sans(fontSize: 14, color: c.fg),
+              ),
             ),
           ],
         ),
@@ -489,8 +515,10 @@ class _DownloadRow extends ConsumerWidget {
         label = 'Queued…';
         onTap = null;
       case DownloadState.downloading:
-        final progress =
-            ref.watch(downloadProgressProvider(song.id)).asData?.value;
+        final progress = ref
+            .watch(downloadProgressProvider(song.id))
+            .asData
+            ?.value;
         final pct = progress == null
             ? null
             : (progress.fraction * 100).clamp(0.0, 100.0);

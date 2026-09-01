@@ -39,6 +39,7 @@ class _HeroBack extends StatelessWidget {
   const _HeroBack({required this.onBack, required this.color, this.onMenu});
   final VoidCallback onBack;
   final Color color;
+
   /// When non-null, the menu-dots taps this; otherwise falls through to
   /// a "coming soon" toast (the only path that still hits the toast is
   /// the `_DetailError` screen which has no entity context to act on).
@@ -49,20 +50,23 @@ class _HeroBack extends StatelessWidget {
       mainAxisAlignment: MainAxisAlignment.spaceBetween,
       children: [
         IconBtn(
-            icon: SolarIconsOutline.altArrowLeft,
-            color: color,
-            size: 22,
-            background: Colors.black.withValues(alpha: 0.35),
-            onTap: onBack),
+          icon: SolarIconsOutline.altArrowLeft,
+          color: color,
+          size: 22,
+          background: Colors.black.withValues(alpha: 0.35),
+          onTap: onBack,
+        ),
         IconBtn(
-            icon: SolarIconsBold.menuDots,
-            color: color,
-            size: 18,
-            background: Colors.black.withValues(alpha: 0.35),
-            onTap: onMenu ??
-                () => ProviderScope.containerOf(context)
-                    .read(appStateProvider)
-                    .flashToast('More options coming soon')),
+          icon: SolarIconsBold.menuDots,
+          color: color,
+          size: 18,
+          background: Colors.black.withValues(alpha: 0.35),
+          onTap:
+              onMenu ??
+              () => ProviderScope.containerOf(
+                context,
+              ).read(appStateProvider).flashToast('More options coming soon'),
+        ),
       ],
     );
   }
@@ -120,30 +124,34 @@ class _HeroActions extends StatelessWidget {
           Row(
             children: [
               IconBtn(
-                  icon: liked ? SolarIconsBold.heart : SolarIconsOutline.heart,
-                  color: liked ? accent : c.fgDim,
-                  size: 22,
-                  onTap: onLike),
+                icon: liked ? SolarIconsBold.heart : SolarIconsOutline.heart,
+                color: liked ? accent : c.fgDim,
+                size: 22,
+                onTap: onLike,
+              ),
               if (onDownload != null)
                 IconBtn(
-                    icon: downloadActive
-                        ? SolarIconsBold.checkCircle
-                        : SolarIconsOutline.downloadMinimalistic,
-                    color: downloadActive ? accent : c.fgDim,
-                    size: 20,
-                    onTap: onDownload),
+                  icon: downloadActive
+                      ? SolarIconsBold.checkCircle
+                      : SolarIconsOutline.downloadMinimalistic,
+                  color: downloadActive ? accent : c.fgDim,
+                  size: 20,
+                  onTap: onDownload,
+                ),
               if (onAddToQueue != null)
                 IconBtn(
-                    icon: SolarIconsOutline.addCircle,
-                    color: c.fgDim,
-                    size: 20,
-                    onTap: onAddToQueue),
+                  icon: SolarIconsOutline.addCircle,
+                  color: c.fgDim,
+                  size: 20,
+                  onTap: onAddToQueue,
+                ),
               if (onRadio != null)
                 IconBtn(
-                    icon: SolarIconsOutline.soundwaveCircle,
-                    color: c.fgDim,
-                    size: 20,
-                    onTap: onRadio),
+                  icon: SolarIconsOutline.soundwaveCircle,
+                  color: c.fgDim,
+                  size: 20,
+                  onTap: onRadio,
+                ),
             ],
           ),
           Row(
@@ -158,7 +166,11 @@ class _HeroActions extends StatelessWidget {
                     shape: BoxShape.circle,
                     border: Border.all(color: c.line, width: 0.5),
                   ),
-                  child: Icon(PhosphorIconsBold.shuffle, size: 18, color: c.fgDim),
+                  child: Icon(
+                    PhosphorIconsBold.shuffle,
+                    size: 18,
+                    color: c.fgDim,
+                  ),
                 ),
               ),
               const SizedBox(width: 10),
@@ -171,11 +183,20 @@ class _HeroActions extends StatelessWidget {
                     color: accent,
                     shape: BoxShape.circle,
                     boxShadow: [
-                      BoxShadow(color: accent.withValues(alpha: 0.33), blurRadius: 22, offset: const Offset(0, 6)),
+                      BoxShadow(
+                        color: accent.withValues(alpha: 0.33),
+                        blurRadius: 22,
+                        offset: const Offset(0, 6),
+                      ),
                     ],
                   ),
-                  child: Icon(isPlaying ? PhosphorIconsFill.pause : PhosphorIconsFill.play,
-                      size: 24, color: _contrastOn(accent)),
+                  child: Icon(
+                    isPlaying
+                        ? PhosphorIconsFill.pause
+                        : PhosphorIconsFill.play,
+                    size: 24,
+                    color: _contrastOn(accent),
+                  ),
                 ),
               ),
             ],
@@ -255,8 +276,10 @@ class _DetailHero extends ConsumerWidget {
             ValueListenableBuilder<double>(
               valueListenable: scrollOffset,
               builder: (_, offset, child) {
-                final progress =
-                    (offset / _kHeroScrollDistance).clamp(0.0, 1.0);
+                final progress = (offset / _kHeroScrollDistance).clamp(
+                  0.0,
+                  1.0,
+                );
                 final scale = 1.0 - progress * 0.3; // 1.0 → 0.7
                 final opacity = (1.0 - progress).clamp(0.0, 1.0);
                 // Never collapse the layout — keep the same vertical space
@@ -281,37 +304,48 @@ class _DetailHero extends ConsumerWidget {
                   children: [
                     Center(
                       child: SunohArt(
-                          id: id, imageUrl: imageUrl, size: 320, radius: 16),
+                        id: id,
+                        imageUrl: imageUrl,
+                        size: 320,
+                        radius: 16,
+                      ),
                     ),
                     const SizedBox(height: 20),
                     if ((eyebrowText ?? '').isNotEmpty) ...[
                       eyebrow(eyebrowText!, c.fgMute),
                       const SizedBox(height: 6),
                     ],
-                    Text(title,
-                        textAlign: TextAlign.center,
-                        maxLines: 2,
-                        overflow: TextOverflow.ellipsis,
-                        style: SunohType.heading(
-                            fontSize: 26,
-                            color: c.fg,
-                            height: 1.1,
-                            letterSpacing: -0.4)),
+                    Text(
+                      title,
+                      textAlign: TextAlign.center,
+                      maxLines: 2,
+                      overflow: TextOverflow.ellipsis,
+                      style: SunohType.heading(
+                        fontSize: 26,
+                        color: c.fg,
+                        height: 1.1,
+                        letterSpacing: -0.4,
+                      ),
+                    ),
                     if ((sub ?? '').isNotEmpty) ...[
                       const SizedBox(height: 6),
-                      Text(sub!,
-                          textAlign: TextAlign.center,
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
-                          style: SunohType.sans(fontSize: 13, color: c.fgDim)),
+                      Text(
+                        sub!,
+                        textAlign: TextAlign.center,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: SunohType.sans(fontSize: 13, color: c.fgDim),
+                      ),
                     ],
                     if ((secondary ?? '').isNotEmpty) ...[
                       const SizedBox(height: 2),
-                      Text(secondary!,
-                          textAlign: TextAlign.center,
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
-                          style: SunohType.sans(fontSize: 11.5, color: c.fgMute)),
+                      Text(
+                        secondary!,
+                        textAlign: TextAlign.center,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: SunohType.sans(fontSize: 11.5, color: c.fgMute),
+                      ),
                     ],
                   ],
                 ),
@@ -375,6 +409,7 @@ class _ApiTrackRow extends ConsumerWidget {
   final Color accent;
   final bool showArt;
   final VoidCallback? onTap;
+
   /// The album/playlist/artist this row belongs to. Forwarded to the
   /// menu-dots sheet so it can surface a "Go to album/playlist" navigation
   /// row. Null when the row isn't logically inside a detail screen.
@@ -428,35 +463,50 @@ class _ApiTrackRow extends ConsumerWidget {
                             size: 14,
                             animate: isPlayingHere,
                           )
-                        : Text(n.toString().padLeft(2, '0'),
-                            style:
-                                SunohType.mono(fontSize: 11.5, color: c.fgMute)),
+                        : Text(
+                            n.toString().padLeft(2, '0'),
+                            style: SunohType.mono(
+                              fontSize: 11.5,
+                              color: c.fgMute,
+                            ),
+                          ),
                   ),
                 ),
                 if (showArt) ...[
                   const SizedBox(width: 12),
                   SunohArt(
-                      id: song.id, imageUrl: song.artwork, size: 42, radius: 6),
+                    id: song.id,
+                    imageUrl: song.artwork,
+                    size: 42,
+                    radius: 6,
+                  ),
                 ],
                 const SizedBox(width: 12),
                 Expanded(
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      Text(song.title,
+                      Text(
+                        song.title,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: SunohType.sans(
+                          fontSize: 15,
+                          fontWeight: FontWeight.w500,
+                          color: titleColor,
+                        ),
+                      ),
+                      if (artistsLabel.isNotEmpty) ...[
+                        const SizedBox(height: 2),
+                        Text(
+                          artistsLabel,
                           maxLines: 1,
                           overflow: TextOverflow.ellipsis,
                           style: SunohType.sans(
-                              fontSize: 15,
-                              fontWeight: FontWeight.w500,
-                              color: titleColor)),
-                      if (artistsLabel.isNotEmpty) ...[
-                        const SizedBox(height: 2),
-                        Text(artistsLabel,
-                            maxLines: 1,
-                            overflow: TextOverflow.ellipsis,
-                            style: SunohType.sans(
-                                fontSize: 12.5, color: c.fgMute)),
+                            fontSize: 12.5,
+                            color: c.fgMute,
+                          ),
+                        ),
                       ],
                     ],
                   ),
@@ -468,24 +518,31 @@ class _ApiTrackRow extends ConsumerWidget {
                 _RowDownloadGlyph(songId: song.id, colors: c),
                 if (durationLabel != null) ...[
                   const SizedBox(width: 8),
-                  Text(durationLabel,
-                      style: SunohType.mono(fontSize: 11.5, color: c.fgMute)),
+                  Text(
+                    durationLabel,
+                    style: SunohType.mono(fontSize: 11.5, color: c.fgMute),
+                  ),
                 ],
                 IconBtn(
-                    icon: liked ? SolarIconsBold.heart : SolarIconsOutline.heart,
-                    color: liked ? accent : c.fgMute,
-                    size: 16,
-                    width: 32,
-                    height: 32,
-                    onTap: () => s.toggleLikedSong(song)),
+                  icon: liked ? SolarIconsBold.heart : SolarIconsOutline.heart,
+                  color: liked ? accent : c.fgMute,
+                  size: 16,
+                  width: 32,
+                  height: 32,
+                  onTap: () => s.toggleLikedSong(song),
+                ),
                 IconBtn(
-                    icon: SolarIconsBold.menuDots,
-                    color: c.fgMute,
-                    size: 16,
-                    width: 32,
-                    height: 32,
-                    onTap: () => showTrackMenuSheet(context,
-                        song: song, sourceRef: sourceRef)),
+                  icon: SolarIconsBold.menuDots,
+                  color: c.fgMute,
+                  size: 16,
+                  width: 32,
+                  height: 32,
+                  onTap: () => showTrackMenuSheet(
+                    context,
+                    song: song,
+                    sourceRef: sourceRef,
+                  ),
+                ),
               ],
             ),
           ),
@@ -556,18 +613,31 @@ class _RowDownloadGlyph extends ConsumerWidget {
     return Padding(
       padding: const EdgeInsets.only(left: 6),
       child: switch (state) {
-        DownloadState.done => Icon(SolarIconsBold.checkCircle,
-            size: 13, color: colors.accent),
+        DownloadState.done => Icon(
+          SolarIconsBold.checkCircle,
+          size: 13,
+          color: colors.accent,
+        ),
         DownloadState.downloading => Icon(
-            SolarIconsOutline.downloadMinimalistic,
-            size: 13,
-            color: colors.fgMute),
-        DownloadState.queued => Icon(SolarIconsOutline.clockCircle,
-            size: 13, color: colors.fgMute),
-        DownloadState.paused => Icon(SolarIconsOutline.pauseCircle,
-            size: 13, color: colors.fgMute),
-        DownloadState.failed => Icon(SolarIconsOutline.dangerCircle,
-            size: 13, color: colors.fgMute),
+          SolarIconsOutline.downloadMinimalistic,
+          size: 13,
+          color: colors.fgMute,
+        ),
+        DownloadState.queued => Icon(
+          SolarIconsOutline.clockCircle,
+          size: 13,
+          color: colors.fgMute,
+        ),
+        DownloadState.paused => Icon(
+          SolarIconsOutline.pauseCircle,
+          size: 13,
+          color: colors.fgMute,
+        ),
+        DownloadState.failed => Icon(
+          SolarIconsOutline.dangerCircle,
+          size: 13,
+          color: colors.fgMute,
+        ),
       },
     );
   }
@@ -636,7 +706,9 @@ class DetailLoading extends StatelessWidget {
       color: c.bg,
       child: ListView(
         padding: EdgeInsets.only(
-            top: MediaQuery.of(context).padding.top + 56, bottom: 140),
+          top: MediaQuery.of(context).padding.top + 56,
+          bottom: 140,
+        ),
         children: [
           Center(
             child: Container(
@@ -689,23 +761,38 @@ class _DetailError extends StatelessWidget {
                 child: Column(
                   mainAxisAlignment: MainAxisAlignment.center,
                   children: [
-                    Text("Couldn't load this.",
-                        textAlign: TextAlign.center,
-                        style: SunohType.heading(fontSize: 20, color: c.fg)),
+                    Text(
+                      "Couldn't load this.",
+                      textAlign: TextAlign.center,
+                      style: SunohType.heading(fontSize: 20, color: c.fg),
+                    ),
                     const SizedBox(height: 8),
-                    Text(message,
-                        textAlign: TextAlign.center,
-                        style: SunohType.sans(fontSize: 12, color: c.fgMute)),
+                    Text(
+                      message,
+                      textAlign: TextAlign.center,
+                      style: SunohType.sans(fontSize: 12, color: c.fgMute),
+                    ),
                     const SizedBox(height: 20),
                     GestureDetector(
                       onTap: onRetry,
                       child: Container(
-                        padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 10),
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 18,
+                          vertical: 10,
+                        ),
                         decoration: squircleDecoration(
-                            radius: 999, color: c.surface, borderColor: c.line),
-                        child: Text('Try again',
-                            style: SunohType.sans(
-                                fontSize: 13, fontWeight: FontWeight.w600, color: c.fg)),
+                          radius: 999,
+                          color: c.surface,
+                          borderColor: c.line,
+                        ),
+                        child: Text(
+                          'Try again',
+                          style: SunohType.sans(
+                            fontSize: 13,
+                            fontWeight: FontWeight.w600,
+                            color: c.fg,
+                          ),
+                        ),
                       ),
                     ),
                   ],
@@ -835,6 +922,7 @@ class AlbumLikeBody extends ConsumerStatefulWidget {
   final SunohColors colors;
   final String id;
   final String title;
+
   /// The detail-ref of *this* screen — forwarded into each track row's menu
   /// sheet so the "Go to album / Go to playlist" navigation row can re-open
   /// the source. Built once at the parent's construction so all rows share
@@ -935,103 +1023,112 @@ class AlbumLikeBodyState extends ConsumerState<AlbumLikeBody> {
                   // kind + id + (optional) source separately — we build the
                   // FeedItem with the same shape `toggleSaved` would have
                   // received from any other entry point.
-                  Consumer(builder: (ctx, ref, _) {
-                    // Watch (not read) so the play button reactively reflects
-                    // playback state — turns into a pause icon when this
-                    // detail IS the now-playing source, and tapping then
-                    // toggles instead of restarting.
-                    final live = ref.watch(appStateProvider);
-                    final kind = showAlbumArtInRow ? 'playlist' : 'album';
-                    final heroItem = FeedItem(
-                      id: id,
-                      title: title,
-                      type: kind,
-                      image: (imageUrl ?? '').isEmpty
-                          ? const []
-                          : [ApiImage(quality: 'hero', link: imageUrl!)],
-                      // Source MUST round-trip into the saved FeedItem
-                      // so the library can re-open the detail via
-                      // `?provider=…`. Without this, gaana
-                      // albums/playlists saved → re-opened from
-                      // Library land at the detail endpoint without a
-                      // provider hint → server defaults to saavn →
-                      // 404 on the gaana id → empty detail screen.
-                      source: widget.sourceRef.source,
-                    );
-                    final saved = live.isSaved(heroItem);
-                    final isHere = live.apiSourceRef?.kind == kind &&
-                        live.apiSourceRef?.id == id;
-                    // Bulk-download surfaces (the heart-row icon + the
-                    // hero-menu "Download all") only matter for saavn
-                    // sources. Gaana songs are HLS, which we can't
-                    // single-file save yet.
-                    final isGaana =
-                        widget.sourceRef.source == 'gaana';
-                    final dlEntries = ref
-                        .watch(downloadEntriesProvider)
-                        .asData
-                        ?.value;
-                    final dlIds = dlEntries == null
-                        ? const <String>{}
-                        : {
-                            for (final e in dlEntries)
-                              if (e.state == DownloadState.done) e.id
-                          };
-                    final allDownloaded = !isGaana &&
-                        songs.isNotEmpty &&
-                        songs.every((sg) => dlIds.contains(sg.id));
-                    return _HeroActions(
-                      colors: c,
-                      accent: accent,
-                      liked: saved,
-                      isPlaying: isHere && live.isPlaying,
-                      onPlay: () {
-                        if (isHere) {
-                          // Resume or pause — never restart from track 1
-                          // when the user is already inside this album/
-                          // playlist's queue.
-                          live.playPause();
-                          return;
-                        }
-                        if (songs.isNotEmpty) {
-                          live.playApiQueue(songs, 0,
-                              sourceLabel:
-                                  '${kind.toUpperCase()} · $title',
-                              sourceRef: widget.sourceRef);
-                        }
-                      },
-                      onShuffle: () {
-                        // Pick a random start index and turn shuffle on in
-                        // one shot — that way the first track is unpredictable
-                        // and everything after it has been shuffled by the
-                        // handler. Without the random start, shuffle would
-                        // always begin at track #1 which feels broken.
-                        if (songs.isEmpty) return;
-                        final start =
-                            DateTime.now().microsecondsSinceEpoch % songs.length;
-                        s.playApiQueue(songs, start,
-                            sourceLabel:
-                                '${kind.toUpperCase()} · $title',
-                            sourceRef: widget.sourceRef);
-                        if (!s.shuffle) s.toggleShuffle();
-                      },
-                      onLike: () => s.toggleSaved(heroItem),
-                      onDownload: isGaana || songs.isEmpty
-                          ? null
-                          : () {
-                              ref
-                                  .read(downloadManagerProvider)
-                                  .enqueueAll(songs);
-                              live.flashToast(
-                                  'Queued ${songs.length} tracks');
-                            },
-                      downloadActive: allDownloaded,
-                      onAddToQueue: songs.isEmpty
-                          ? null
-                          : () => live.addApiSongsToQueue(songs),
-                      onRadio: widget.onRadio,
-                    );
-                  }),
+                  Consumer(
+                    builder: (ctx, ref, _) {
+                      // Watch (not read) so the play button reactively reflects
+                      // playback state — turns into a pause icon when this
+                      // detail IS the now-playing source, and tapping then
+                      // toggles instead of restarting.
+                      final live = ref.watch(appStateProvider);
+                      final kind = showAlbumArtInRow ? 'playlist' : 'album';
+                      final heroItem = FeedItem(
+                        id: id,
+                        title: title,
+                        type: kind,
+                        image: (imageUrl ?? '').isEmpty
+                            ? const []
+                            : [ApiImage(quality: 'hero', link: imageUrl!)],
+                        // Source MUST round-trip into the saved FeedItem
+                        // so the library can re-open the detail via
+                        // `?provider=…`. Without this, gaana
+                        // albums/playlists saved → re-opened from
+                        // Library land at the detail endpoint without a
+                        // provider hint → server defaults to saavn →
+                        // 404 on the gaana id → empty detail screen.
+                        source: widget.sourceRef.source,
+                      );
+                      final saved = live.isSaved(heroItem);
+                      final isHere =
+                          live.apiSourceRef?.kind == kind &&
+                          live.apiSourceRef?.id == id;
+                      // Bulk-download surfaces (the heart-row icon + the
+                      // hero-menu "Download all") only matter for saavn
+                      // sources. Gaana songs are HLS, which we can't
+                      // single-file save yet.
+                      final isGaana = widget.sourceRef.source == 'gaana';
+                      final dlEntries = ref
+                          .watch(downloadEntriesProvider)
+                          .asData
+                          ?.value;
+                      final dlIds = dlEntries == null
+                          ? const <String>{}
+                          : {
+                              for (final e in dlEntries)
+                                if (e.state == DownloadState.done) e.id,
+                            };
+                      final allDownloaded =
+                          !isGaana &&
+                          songs.isNotEmpty &&
+                          songs.every((sg) => dlIds.contains(sg.id));
+                      return _HeroActions(
+                        colors: c,
+                        accent: accent,
+                        liked: saved,
+                        isPlaying: isHere && live.isPlaying,
+                        onPlay: () {
+                          if (isHere) {
+                            // Resume or pause — never restart from track 1
+                            // when the user is already inside this album/
+                            // playlist's queue.
+                            live.playPause();
+                            return;
+                          }
+                          if (songs.isNotEmpty) {
+                            live.playApiQueue(
+                              songs,
+                              0,
+                              sourceLabel: '${kind.toUpperCase()} · $title',
+                              sourceRef: widget.sourceRef,
+                            );
+                          }
+                        },
+                        onShuffle: () {
+                          // Pick a random start index and turn shuffle on in
+                          // one shot — that way the first track is unpredictable
+                          // and everything after it has been shuffled by the
+                          // handler. Without the random start, shuffle would
+                          // always begin at track #1 which feels broken.
+                          if (songs.isEmpty) return;
+                          final start =
+                              DateTime.now().microsecondsSinceEpoch %
+                              songs.length;
+                          s.playApiQueue(
+                            songs,
+                            start,
+                            sourceLabel: '${kind.toUpperCase()} · $title',
+                            sourceRef: widget.sourceRef,
+                          );
+                          if (!s.shuffle) s.toggleShuffle();
+                        },
+                        onLike: () => s.toggleSaved(heroItem),
+                        onDownload: isGaana || songs.isEmpty
+                            ? null
+                            : () {
+                                ref
+                                    .read(downloadManagerProvider)
+                                    .enqueueAll(songs);
+                                live.flashToast(
+                                  'Queued ${songs.length} tracks',
+                                );
+                              },
+                        downloadActive: allDownloaded,
+                        onAddToQueue: songs.isEmpty
+                            ? null
+                            : () => live.addApiSongsToQueue(songs),
+                        onRadio: widget.onRadio,
+                      );
+                    },
+                  ),
                   for (var i = 0; i < songs.length; i++)
                     _ApiTrackRow(
                       n: i + 1,
@@ -1041,19 +1138,27 @@ class AlbumLikeBodyState extends ConsumerState<AlbumLikeBody> {
                       showArt: showAlbumArtInRow,
                       sourceRef: widget.sourceRef,
                       onTap: () {
-                        s.playApiQueue(songs, i,
-                            sourceLabel:
-                                '${showAlbumArtInRow ? 'PLAYLIST' : 'ALBUM'} · $title',
-                            sourceRef: widget.sourceRef);
+                        s.playApiQueue(
+                          songs,
+                          i,
+                          sourceLabel:
+                              '${showAlbumArtInRow ? 'PLAYLIST' : 'ALBUM'} · $title',
+                          sourceRef: widget.sourceRef,
+                        );
                       },
                     ),
                   if (_stripHtml(description ?? '').isNotEmpty) ...[
                     const SizedBox(height: 20),
                     Padding(
                       padding: const EdgeInsets.fromLTRB(24, 8, 24, 24),
-                      child: Text(_stripHtml(description!),
-                          style: SunohType.sans(
-                              fontSize: 13, color: c.fgDim, height: 1.5)),
+                      child: Text(
+                        _stripHtml(description!),
+                        style: SunohType.sans(
+                          fontSize: 13,
+                          color: c.fgDim,
+                          height: 1.5,
+                        ),
+                      ),
                     ),
                   ],
                   for (var i = 0; i < sections.length; i++) ...[
@@ -1081,20 +1186,19 @@ class AlbumLikeBodyState extends ConsumerState<AlbumLikeBody> {
                   // (Same shape we already pass to `s.toggleSaved` for the
                   // hero heart.)
                   final kind = widget.showAlbumArtInRow ? 'playlist' : 'album';
-                  showHeroMenuSheet(context,
-                      entity: FeedItem(
-                        id: widget.id,
-                        title: title,
-                        type: kind,
-                        image: (widget.imageUrl ?? '').isEmpty
-                            ? const []
-                            : [
-                                ApiImage(
-                                    quality: 'hero', link: widget.imageUrl!)
-                              ],
-                        source: widget.sourceRef.source,
-                      ),
-                      songs: songs);
+                  showHeroMenuSheet(
+                    context,
+                    entity: FeedItem(
+                      id: widget.id,
+                      title: title,
+                      type: kind,
+                      image: (widget.imageUrl ?? '').isEmpty
+                          ? const []
+                          : [ApiImage(quality: 'hero', link: widget.imageUrl!)],
+                      source: widget.sourceRef.source,
+                    ),
+                    songs: songs,
+                  );
                 },
               ),
             ),
@@ -1134,10 +1238,14 @@ class _StickyHeader extends StatelessWidget {
       child: ValueListenableBuilder<double>(
         valueListenable: scrollOffset,
         builder: (_, offset, _) {
-          final bgT =
-              ((offset - (_kHeroScrollDistance - 80)) / 80).clamp(0.0, 1.0);
-          final titleT =
-              ((offset - (_kHeroScrollDistance - 50)) / 50).clamp(0.0, 1.0);
+          final bgT = ((offset - (_kHeroScrollDistance - 80)) / 80).clamp(
+            0.0,
+            1.0,
+          );
+          final titleT = ((offset - (_kHeroScrollDistance - 50)) / 50).clamp(
+            0.0,
+            1.0,
+          );
           // Back + menu-dots fade in on the same curve as the title so the
           // whole bar emerges as one piece. IgnorePointer until they're
           // visible enough so the invisible chips don't absorb taps that
@@ -1158,7 +1266,9 @@ class _StickyHeader extends StatelessWidget {
                             border: bgT > 0.9
                                 ? Border(
                                     bottom: BorderSide(
-                                        color: c.line, width: 0.5),
+                                      color: c.line,
+                                      width: 0.5,
+                                    ),
                                   )
                                 : null,
                           ),
@@ -1203,8 +1313,11 @@ class _StickyHeader extends StatelessWidget {
                   ignoring: titleT < 0.2,
                   child: Opacity(
                     opacity: titleT,
-                    child:
-                        _HeroBack(onBack: onBack, color: c.fg, onMenu: onMenu),
+                    child: _HeroBack(
+                      onBack: onBack,
+                      color: c.fg,
+                      onMenu: onMenu,
+                    ),
                   ),
                 ),
               ),
@@ -1286,45 +1399,55 @@ class _RelatedSection extends ConsumerWidget {
               ? Column(
                   children: [
                     SunohArt(
-                        id: item.id,
-                        imageUrl: item.artwork,
-                        size: w - 10,
-                        radius: 999),
+                      id: item.id,
+                      imageUrl: item.artwork,
+                      size: w - 10,
+                      radius: 999,
+                    ),
                     const SizedBox(height: 10),
-                    Text(item.title,
-                        textAlign: TextAlign.center,
-                        maxLines: 2,
-                        overflow: TextOverflow.ellipsis,
-                        style: SunohType.sans(
-                            fontSize: 12.5,
-                            fontWeight: FontWeight.w500,
-                            color: c.fg,
-                            height: 1.2)),
+                    Text(
+                      item.title,
+                      textAlign: TextAlign.center,
+                      maxLines: 2,
+                      overflow: TextOverflow.ellipsis,
+                      style: SunohType.sans(
+                        fontSize: 12.5,
+                        fontWeight: FontWeight.w500,
+                        color: c.fg,
+                        height: 1.2,
+                      ),
+                    ),
                   ],
                 )
               : Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     SunohArt(
-                        id: item.id,
-                        imageUrl: item.artwork,
-                        size: w,
-                        radius: 10),
+                      id: item.id,
+                      imageUrl: item.artwork,
+                      size: w,
+                      radius: 10,
+                    ),
                     const SizedBox(height: 8),
-                    Text(item.title,
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                        style: SunohType.sans(
-                            fontSize: 13.5,
-                            fontWeight: FontWeight.w500,
-                            color: c.fg,
-                            height: 1.2)),
+                    Text(
+                      item.title,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: SunohType.sans(
+                        fontSize: 13.5,
+                        fontWeight: FontWeight.w500,
+                        color: c.fg,
+                        height: 1.2,
+                      ),
+                    ),
                     if ((item.displaySubtitle ?? '').isNotEmpty) ...[
                       const SizedBox(height: 2),
-                      Text(item.displaySubtitle!,
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
-                          style: SunohType.sans(fontSize: 11.5, color: c.fgMute)),
+                      Text(
+                        item.displaySubtitle!,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: SunohType.sans(fontSize: 11.5, color: c.fgMute),
+                      ),
                     ],
                   ],
                 ),
@@ -1401,68 +1524,84 @@ class _ArtistBody extends ConsumerWidget {
                   radius: 0,
                   shadow: false,
                 ),
-              Positioned.fill(
-                child: DecoratedBox(
-                  decoration: BoxDecoration(
-                    gradient: LinearGradient(
-                      begin: Alignment.topCenter,
-                      end: Alignment.bottomCenter,
-                      // Transparent middle stop uses the tint's hue so the
-                      // fade into the tint band below stays clean — using
-                      // Colors.transparent (= black w/ alpha 0) here muddied
-                      // the gradient through dark grey.
-                      colors: [
-                        Colors.black.withValues(alpha: 0.35),
-                        tint.withValues(alpha: 0),
-                        tint.withValues(alpha: 0.18),
-                        c.bg,
-                      ],
-                      stops: const [0, 0.25, 0.75, 1],
+                Positioned.fill(
+                  child: DecoratedBox(
+                    decoration: BoxDecoration(
+                      gradient: LinearGradient(
+                        begin: Alignment.topCenter,
+                        end: Alignment.bottomCenter,
+                        // Transparent middle stop uses the tint's hue so the
+                        // fade into the tint band below stays clean — using
+                        // Colors.transparent (= black w/ alpha 0) here muddied
+                        // the gradient through dark grey.
+                        colors: [
+                          Colors.black.withValues(alpha: 0.35),
+                          tint.withValues(alpha: 0),
+                          tint.withValues(alpha: 0.18),
+                          c.bg,
+                        ],
+                        stops: const [0, 0.25, 0.75, 1],
+                      ),
                     ),
                   ),
                 ),
-              ),
-              Positioned(
-                top: topInset + 8,
-                left: 16,
-                right: 16,
-                child: _HeroBack(
-                  onBack: () => context.pop(),
-                  color: Colors.white,
-                  onMenu: () => showHeroMenuSheet(context,
+                Positioned(
+                  top: topInset + 8,
+                  left: 16,
+                  right: 16,
+                  child: _HeroBack(
+                    onBack: () => context.pop(),
+                    color: Colors.white,
+                    onMenu: () => showHeroMenuSheet(
+                      context,
                       entity: FeedItem(
                         id: artist.id,
                         title: artist.name,
                         type: 'artist',
                         image: artist.image,
                         source: artist.source,
-                      )),
+                      ),
+                    ),
+                  ),
                 ),
-              ),
-              Positioned(
-                left: 20,
-                right: 20,
-                bottom: 56,
-                child: Row(
-                  children: [
-                    Icon(SolarIconsBold.verifiedCheck, size: 18, color: accent),
-                    const SizedBox(width: 8),
-                    Text('Verified artist',
+                Positioned(
+                  left: 20,
+                  right: 20,
+                  bottom: 56,
+                  child: Row(
+                    children: [
+                      Icon(
+                        SolarIconsBold.verifiedCheck,
+                        size: 18,
+                        color: accent,
+                      ),
+                      const SizedBox(width: 8),
+                      Text(
+                        'Verified artist',
                         style: SunohType.sans(
-                            fontSize: 11, color: Colors.white.withValues(alpha: 0.85))),
-                  ],
+                          fontSize: 11,
+                          color: Colors.white.withValues(alpha: 0.85),
+                        ),
+                      ),
+                    ],
+                  ),
                 ),
-              ),
-              Positioned(
-                left: 20,
-                right: 20,
-                bottom: 16,
-                child: Text(artist.name,
+                Positioned(
+                  left: 20,
+                  right: 20,
+                  bottom: 16,
+                  child: Text(
+                    artist.name,
                     maxLines: 2,
                     overflow: TextOverflow.ellipsis,
                     style: SunohType.heading(
-                        fontSize: 40, color: Colors.white, height: 1, letterSpacing: -0.7)),
-              ),
+                      fontSize: 40,
+                      color: Colors.white,
+                      height: 1,
+                      letterSpacing: -0.7,
+                    ),
+                  ),
+                ),
               ],
             ),
           ),
@@ -1470,112 +1609,142 @@ class _ArtistBody extends ConsumerWidget {
             Padding(
               padding: const EdgeInsets.fromLTRB(20, 4, 20, 0),
               child: eyebrow(
-                  [
-                    if ((artist.followers ?? '').isNotEmpty) '${artist.followers} FOLLOWERS',
-                    if (tagsLine.isNotEmpty) tagsLine.toUpperCase(),
-                  ].join(' · '),
-                  c.fgMute,
-                  size: 10,
-                  letterSpacing: 1.2),
+                [
+                  if ((artist.followers ?? '').isNotEmpty)
+                    '${artist.followers} FOLLOWERS',
+                  if (tagsLine.isNotEmpty) tagsLine.toUpperCase(),
+                ].join(' · '),
+                c.fgMute,
+                size: 10,
+                letterSpacing: 1.2,
+              ),
             ),
           Padding(
             padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
             child: Row(
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
-                Consumer(builder: (ctx, ref, _) {
-                  final live = ref.watch(appStateProvider);
-                  final following = live.isSavedArtistId(artist.id);
-                  return GestureDetector(
-                    behavior: HitTestBehavior.opaque,
-                    onTap: () => live.toggleSaved(FeedItem(
-                      id: artist.id,
-                      title: artist.name,
-                      type: 'artist',
-                      image: artist.image,
-                      subtitle: artist.subtitle,
-                      source: artist.source,
-                    )),
-                    child: AnimatedContainer(
-                      duration: const Duration(milliseconds: 220),
-                      curve: Curves.easeOutCubic,
-                      padding: const EdgeInsets.symmetric(
-                          horizontal: 18, vertical: 8),
-                      decoration: BoxDecoration(
-                        borderRadius: BorderRadius.circular(999),
-                        color: following ? accent : Colors.transparent,
-                        border: Border.all(
-                            color: following ? accent : c.fgDim),
+                Consumer(
+                  builder: (ctx, ref, _) {
+                    final live = ref.watch(appStateProvider);
+                    final following = live.isSavedArtistId(artist.id);
+                    return GestureDetector(
+                      behavior: HitTestBehavior.opaque,
+                      onTap: () => live.toggleSaved(
+                        FeedItem(
+                          id: artist.id,
+                          title: artist.name,
+                          type: 'artist',
+                          image: artist.image,
+                          subtitle: artist.subtitle,
+                          source: artist.source,
+                        ),
                       ),
-                      child: Text(following ? 'Following' : 'Follow',
+                      child: AnimatedContainer(
+                        duration: const Duration(milliseconds: 220),
+                        curve: Curves.easeOutCubic,
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 18,
+                          vertical: 8,
+                        ),
+                        decoration: BoxDecoration(
+                          borderRadius: BorderRadius.circular(999),
+                          color: following ? accent : Colors.transparent,
+                          border: Border.all(
+                            color: following ? accent : c.fgDim,
+                          ),
+                        ),
+                        child: Text(
+                          following ? 'Following' : 'Follow',
                           style: SunohType.sans(
-                              fontSize: 12,
-                              fontWeight: FontWeight.w500,
-                              color: following ? _contrastOn(accent) : c.fg)),
-                    ),
-                  );
-                }),
+                            fontSize: 12,
+                            fontWeight: FontWeight.w500,
+                            color: following ? _contrastOn(accent) : c.fg,
+                          ),
+                        ),
+                      ),
+                    );
+                  },
+                ),
                 Row(
                   children: [
                     IconBtn(
-                        icon: SolarIconsOutline.share,
-                        color: c.fgDim,
-                        size: 18,
-                        width: 36,
-                        height: 36,
-                        onTap: () => shareSunohLink(
-                              kind: 'artist',
-                              id: artist.id,
-                              title: artist.name,
-                              subtitle: artist.subtitle,
-                              source: artist.source,
-                            )),
-                    IconBtn(icon: SolarIconsBold.menuDots, color: c.fgDim, size: 18, width: 36, height: 36, onTap: () => s.flashToast('More options coming soon')),
+                      icon: SolarIconsOutline.share,
+                      color: c.fgDim,
+                      size: 18,
+                      width: 36,
+                      height: 36,
+                      onTap: () => shareSunohLink(
+                        kind: 'artist',
+                        id: artist.id,
+                        title: artist.name,
+                        subtitle: artist.subtitle,
+                        source: artist.source,
+                      ),
+                    ),
+                    IconBtn(
+                      icon: SolarIconsBold.menuDots,
+                      color: c.fgDim,
+                      size: 18,
+                      width: 36,
+                      height: 36,
+                      onTap: () => s.flashToast('More options coming soon'),
+                    ),
                     const SizedBox(width: 6),
-                    Consumer(builder: (ctx, ref, _) {
-                      // Match the album/playlist hero behaviour — flip to
-                      // pause when this artist's top-songs queue IS the
-                      // active source, and tap toggles instead of restarting.
-                      final live = ref.watch(appStateProvider);
-                      final ref0 = live.apiSourceRef;
-                      final isHere = ref0?.kind == 'artist' &&
-                          ref0?.id == artist.id;
-                      final showPause = isHere && live.isPlaying;
-                      return GestureDetector(
-                        onTap: () {
-                          if (isHere) {
-                            live.playPause();
-                            return;
-                          }
-                          if (artist.topSongs.isNotEmpty) {
-                            live.playApiQueue(
-                              artist.topSongs,
-                              0,
-                              sourceLabel: 'TOP SONGS · ${artist.name}',
-                              sourceRef: DetailRef('artist', artist.id,
-                                  source: artist.source),
-                            );
-                          }
-                        },
-                        child: Container(
-                          width: 48,
-                          height: 48,
-                          decoration: BoxDecoration(
-                            color: accent,
-                            shape: BoxShape.circle,
-                            boxShadow: [
-                              BoxShadow(color: accent.withValues(alpha: 0.33), blurRadius: 18, offset: const Offset(0, 6)),
-                            ],
-                          ),
-                          child: Icon(
+                    Consumer(
+                      builder: (ctx, ref, _) {
+                        // Match the album/playlist hero behaviour — flip to
+                        // pause when this artist's top-songs queue IS the
+                        // active source, and tap toggles instead of restarting.
+                        final live = ref.watch(appStateProvider);
+                        final ref0 = live.apiSourceRef;
+                        final isHere =
+                            ref0?.kind == 'artist' && ref0?.id == artist.id;
+                        final showPause = isHere && live.isPlaying;
+                        return GestureDetector(
+                          onTap: () {
+                            if (isHere) {
+                              live.playPause();
+                              return;
+                            }
+                            if (artist.topSongs.isNotEmpty) {
+                              live.playApiQueue(
+                                artist.topSongs,
+                                0,
+                                sourceLabel: 'TOP SONGS · ${artist.name}',
+                                sourceRef: DetailRef(
+                                  'artist',
+                                  artist.id,
+                                  source: artist.source,
+                                ),
+                              );
+                            }
+                          },
+                          child: Container(
+                            width: 48,
+                            height: 48,
+                            decoration: BoxDecoration(
+                              color: accent,
+                              shape: BoxShape.circle,
+                              boxShadow: [
+                                BoxShadow(
+                                  color: accent.withValues(alpha: 0.33),
+                                  blurRadius: 18,
+                                  offset: const Offset(0, 6),
+                                ),
+                              ],
+                            ),
+                            child: Icon(
                               showPause
                                   ? PhosphorIconsFill.pause
                                   : PhosphorIconsFill.play,
                               size: 20,
-                              color: _contrastOn(accent)),
-                        ),
-                      );
-                    }),
+                              color: _contrastOn(accent),
+                            ),
+                          ),
+                        );
+                      },
+                    ),
                   ],
                 ),
               ],
@@ -1593,8 +1762,11 @@ class _ArtistBody extends ConsumerWidget {
                 colors: c,
                 accent: accent,
                 showArt: true,
-                onTap: () => s.playApiQueue(artist.topSongs, i,
-                    sourceLabel: 'TOP SONGS · ${artist.name}'),
+                onTap: () => s.playApiQueue(
+                  artist.topSongs,
+                  i,
+                  sourceLabel: 'TOP SONGS · ${artist.name}',
+                ),
               ),
           ],
           if (artist.albums.isNotEmpty) ...[
@@ -1604,20 +1776,32 @@ class _ArtistBody extends ConsumerWidget {
               items: artist.albums,
               width: 140,
               onTap: (a) => context.openRef(
-                  DetailRef(a.type, a.id, source: a.source ?? artist.source)),
+                DetailRef(a.type, a.id, source: a.source ?? artist.source),
+              ),
               builder: (a, w) => Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   SunohArt(id: a.id, imageUrl: a.artwork, size: w, radius: 10),
                   const SizedBox(height: 8),
-                  Text(a.title,
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                      style: SunohType.sans(
-                          fontSize: 13, fontWeight: FontWeight.w500, color: c.fg, height: 1.2)),
+                  Text(
+                    a.title,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: SunohType.sans(
+                      fontSize: 13,
+                      fontWeight: FontWeight.w500,
+                      color: c.fg,
+                      height: 1.2,
+                    ),
+                  ),
                   if ((a.displaySubtitle ?? '').isNotEmpty) ...[
                     const SizedBox(height: 3),
-                    eyebrow(a.displaySubtitle!, c.fgMute, size: 10, letterSpacing: 0.8),
+                    eyebrow(
+                      a.displaySubtitle!,
+                      c.fgMute,
+                      size: 10,
+                      letterSpacing: 0.8,
+                    ),
                   ],
                 ],
               ),
@@ -1633,13 +1817,25 @@ class _ArtistBody extends ConsumerWidget {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  SectionHeader(title: 'About', colors: c, padding: const EdgeInsets.only(bottom: 14)),
+                  SectionHeader(
+                    title: 'About',
+                    colors: c,
+                    padding: const EdgeInsets.only(bottom: 14),
+                  ),
                   Container(
                     padding: const EdgeInsets.all(16),
-                    decoration: squircleDecoration(radius: 12, color: c.surface, borderColor: c.line),
+                    decoration: squircleDecoration(
+                      radius: 12,
+                      color: c.surface,
+                      borderColor: c.line,
+                    ),
                     child: Text(
                       artist.bio!,
-                      style: SunohType.sans(fontSize: 13, color: c.fgDim, height: 1.55),
+                      style: SunohType.sans(
+                        fontSize: 13,
+                        color: c.fgDim,
+                        height: 1.55,
+                      ),
                     ),
                   ),
                 ],
@@ -1701,8 +1897,9 @@ class _OccasionScreenState extends ConsumerState<OccasionScreen> {
     final s = ref.watch(appStateProvider);
     final c = s.colors;
     final accent = s.resolvedAccent;
-    final async = ref.watch(occasionDetailProvider(
-        (slug: widget.slug, provider: widget.source)));
+    final async = ref.watch(
+      occasionDetailProvider((slug: widget.slug, provider: widget.source)),
+    );
 
     return ColoredBox(
       color: c.bg,
@@ -1729,16 +1926,14 @@ class _OccasionScreenState extends ConsumerState<OccasionScreen> {
                       padding: const EdgeInsets.fromLTRB(20, 32, 20, 32),
                       child: Text(
                         'Loading…',
-                        style:
-                            SunohType.sans(fontSize: 13, color: c.fgMute),
+                        style: SunohType.sans(fontSize: 13, color: c.fgMute),
                       ),
                     ),
                     error: (e, _) => Padding(
                       padding: const EdgeInsets.fromLTRB(20, 32, 20, 32),
                       child: Text(
                         'Couldn’t load “${widget.title}”.\n$e',
-                        style:
-                            SunohType.sans(fontSize: 13, color: c.fgMute),
+                        style: SunohType.sans(fontSize: 13, color: c.fgMute),
                       ),
                     ),
                     data: (sections) {
@@ -1747,12 +1942,13 @@ class _OccasionScreenState extends ConsumerState<OccasionScreen> {
                           .toList();
                       if (nonEmpty.isEmpty) {
                         return Padding(
-                          padding:
-                              const EdgeInsets.fromLTRB(20, 32, 20, 32),
+                          padding: const EdgeInsets.fromLTRB(20, 32, 20, 32),
                           child: Text(
                             'Nothing in this category right now.',
                             style: SunohType.sans(
-                                fontSize: 13, color: c.fgMute),
+                              fontSize: 13,
+                              color: c.fgMute,
+                            ),
                           ),
                         );
                       }
@@ -1761,10 +1957,7 @@ class _OccasionScreenState extends ConsumerState<OccasionScreen> {
                         children: [
                           for (var i = 0; i < nonEmpty.length; i++) ...[
                             const SizedBox(height: 28),
-                            _RelatedSection(
-                              section: nonEmpty[i],
-                              colors: c,
-                            ),
+                            _RelatedSection(section: nonEmpty[i], colors: c),
                           ],
                           const SizedBox(height: 24),
                         ],

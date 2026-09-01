@@ -59,10 +59,11 @@ class _YtScaffold extends StatelessWidget {
             child: Text(
               title,
               style: SunohType.heading(
-                  fontSize: 30,
-                  color: c.fg,
-                  height: 1.05,
-                  letterSpacing: -0.5),
+                fontSize: 30,
+                color: c.fg,
+                height: 1.05,
+                letterSpacing: -0.5,
+              ),
             ),
           ),
           ...children,
@@ -73,21 +74,20 @@ class _YtScaffold extends StatelessWidget {
 }
 
 Widget _loading(SunohColors c) => Padding(
-      padding: const EdgeInsets.symmetric(vertical: 60),
-      child: Center(
-        child: SizedBox(
-          width: 22,
-          height: 22,
-          child: CircularProgressIndicator(strokeWidth: 2, color: c.fgMute),
-        ),
-      ),
-    );
+  padding: const EdgeInsets.symmetric(vertical: 60),
+  child: Center(
+    child: SizedBox(
+      width: 22,
+      height: 22,
+      child: CircularProgressIndicator(strokeWidth: 2, color: c.fgMute),
+    ),
+  ),
+);
 
 Widget _error(SunohColors c, String message) => Padding(
-      padding: const EdgeInsets.fromLTRB(20, 40, 20, 40),
-      child: Text(message,
-          style: SunohType.sans(fontSize: 13, color: c.fgMute)),
-    );
+  padding: const EdgeInsets.fromLTRB(20, 40, 20, 40),
+  child: Text(message, style: SunohType.sans(fontSize: 13, color: c.fgMute)),
+);
 
 // ── Playlist / album ───────────────────────────────────────────────────────
 
@@ -135,7 +135,7 @@ class YtPlaylistScreen extends ConsumerWidget {
           secondary: detail.tracks.isEmpty
               ? null
               : '${detail.tracks.length} track'
-                  '${detail.tracks.length == 1 ? '' : 's'}',
+                    '${detail.tracks.length == 1 ? '' : 's'}',
           description: detail.description,
           songs: detail.tracks,
           sections: const [],
@@ -164,7 +164,10 @@ class YtArtistScreen extends ConsumerWidget {
 
     return async.when(
       loading: () => _YtScaffold(
-          title: name ?? 'Artist', colors: c, children: [_loading(c)]),
+        title: name ?? 'Artist',
+        colors: c,
+        children: [_loading(c)],
+      ),
       error: (e, _) => _YtScaffold(
         title: name ?? 'Artist',
         colors: c,
@@ -209,7 +212,9 @@ class YtArtistScreen extends ConsumerWidget {
     final s = ref.read(appStateProvider);
     s.flashToast('Starting ${artist.name} radio\u2026');
     try {
-      final tracks = await ref.read(ytMusicApiProvider).radioQueue(
+      final tracks = await ref
+          .read(ytMusicApiProvider)
+          .radioQueue(
             videoId: artist.radioVideoId!,
             playlistId: artist.radioPlaylistId!,
           );
@@ -217,8 +222,11 @@ class YtArtistScreen extends ConsumerWidget {
         s.flashToast('No station available for ${artist.name}');
         return;
       }
-      await s.playApiQueue(tracks, 0,
-          sourceLabel: 'RADIO \u00b7 ${artist.name}');
+      await s.playApiQueue(
+        tracks,
+        0,
+        sourceLabel: 'RADIO \u00b7 ${artist.name}',
+      );
     } catch (e) {
       s.flashToast('Couldn\u2019t start that station');
     }
@@ -237,8 +245,11 @@ class YtMoodsScreen extends ConsumerWidget {
     final async = ref.watch(ytMusicMoodsProvider);
 
     return async.when(
-      loading: () =>
-          _YtScaffold(title: 'Moods & genres', colors: c, children: [_loading(c)]),
+      loading: () => _YtScaffold(
+        title: 'Moods & genres',
+        colors: c,
+        children: [_loading(c)],
+      ),
       error: (e, _) => _YtScaffold(
         title: 'Moods & genres',
         colors: c,
@@ -307,7 +318,10 @@ class YtCategoryChipTile extends StatelessWidget {
         width: width,
         height: height,
         decoration: squircleDecoration(
-            radius: 12, color: c.surface, borderColor: c.line),
+          radius: 12,
+          color: c.surface,
+          borderColor: c.line,
+        ),
         child: Row(
           mainAxisSize: width == null ? MainAxisSize.min : MainAxisSize.max,
           children: [
@@ -319,7 +333,8 @@ class YtCategoryChipTile extends StatelessWidget {
               decoration: BoxDecoration(
                 color: stripe,
                 borderRadius: const BorderRadius.horizontal(
-                    left: Radius.circular(12)),
+                  left: Radius.circular(12),
+                ),
               ),
             ),
             const SizedBox(width: 12),
@@ -330,7 +345,10 @@ class YtCategoryChipTile extends StatelessWidget {
                 overflow: TextOverflow.ellipsis,
                 softWrap: false,
                 style: SunohType.sans(
-                    fontSize: 13, fontWeight: FontWeight.w500, color: c.fg),
+                  fontSize: 13,
+                  fontWeight: FontWeight.w500,
+                  color: c.fg,
+                ),
               ),
             ),
             const SizedBox(width: 12),
@@ -361,12 +379,16 @@ class YtCategoryScreen extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final s = ref.watch(appStateProvider);
     final c = s.colors;
-    final async = ref
-        .watch(ytMusicCategoryProvider((browseId: browseId, params: params)));
+    final async = ref.watch(
+      ytMusicCategoryProvider((browseId: browseId, params: params)),
+    );
 
     return async.when(
-      loading: () =>
-          _YtScaffold(title: name ?? 'Browse', colors: c, children: [_loading(c)]),
+      loading: () => _YtScaffold(
+        title: name ?? 'Browse',
+        colors: c,
+        children: [_loading(c)],
+      ),
       error: (e, _) => _YtScaffold(
         title: name ?? 'Browse',
         colors: c,
@@ -380,9 +402,14 @@ class YtCategoryScreen extends ConsumerWidget {
           for (final section in sections) ...[
             Padding(
               padding: const EdgeInsets.fromLTRB(20, 8, 20, 12),
-              child: Text(section.heading,
-                  style: SunohType.heading(
-                      fontSize: 19, color: c.fg, letterSpacing: -0.2)),
+              child: Text(
+                section.heading,
+                style: SunohType.heading(
+                  fontSize: 19,
+                  color: c.fg,
+                  letterSpacing: -0.2,
+                ),
+              ),
             ),
             SizedBox(
               height: 196,
@@ -411,20 +438,27 @@ class YtCategoryScreen extends ConsumerWidget {
                             ),
                           ),
                           const SizedBox(height: 8),
-                          Text(item.title,
+                          Text(
+                            item.title,
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: SunohType.sans(
+                              fontSize: 12.5,
+                              fontWeight: FontWeight.w600,
+                              color: c.fg,
+                            ),
+                          ),
+                          if ((item.subtitle ?? '').isNotEmpty) ...[
+                            const SizedBox(height: 2),
+                            Text(
+                              item.subtitle!,
                               maxLines: 1,
                               overflow: TextOverflow.ellipsis,
                               style: SunohType.sans(
-                                  fontSize: 12.5,
-                                  fontWeight: FontWeight.w600,
-                                  color: c.fg)),
-                          if ((item.subtitle ?? '').isNotEmpty) ...[
-                            const SizedBox(height: 2),
-                            Text(item.subtitle!,
-                                maxLines: 1,
-                                overflow: TextOverflow.ellipsis,
-                                style: SunohType.sans(
-                                    fontSize: 11, color: c.fgMute)),
+                                fontSize: 11,
+                                color: c.fgMute,
+                              ),
+                            ),
                           ],
                         ],
                       ),

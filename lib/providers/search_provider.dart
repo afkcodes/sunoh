@@ -20,20 +20,23 @@ import 'api_providers.dart';
 
 final searchProvider = FutureProvider.autoDispose
     .family<List<HomeSection>, String>((ref, query) async {
-  final link = ref.keepAlive();
-  Future<void>.delayed(const Duration(minutes: 5)).then((_) => link.close());
-  // One analytics call per distinct (debounced) query — the family key
-  // dedupes naturally because the same query gets the same cached
-  // FutureProvider instance.
-  if (query.trim().isNotEmpty) {
-    AnalyticsService.instance.logSearch(query);
-  }
-  final api = ref.watch(sunohApiProvider);
-  return api.fetchSearch(query);
-});
+      final link = ref.keepAlive();
+      Future<void>.delayed(
+        const Duration(minutes: 5),
+      ).then((_) => link.close());
+      // One analytics call per distinct (debounced) query — the family key
+      // dedupes naturally because the same query gets the same cached
+      // FutureProvider instance.
+      if (query.trim().isNotEmpty) {
+        AnalyticsService.instance.logSearch(query);
+      }
+      final api = ref.watch(sunohApiProvider);
+      return api.fetchSearch(query);
+    });
 
-final trendingSearchProvider =
-    FutureProvider.autoDispose<List<HomeSection>>((ref) async {
+final trendingSearchProvider = FutureProvider.autoDispose<List<HomeSection>>((
+  ref,
+) async {
   final link = ref.keepAlive();
   Future<void>.delayed(const Duration(hours: 1)).then((_) => link.close());
   final api = ref.watch(sunohApiProvider);
@@ -42,19 +45,21 @@ final trendingSearchProvider =
 
 final occasionsProvider = FutureProvider.autoDispose
     .family<List<FeedItem>, String>((ref, provider) async {
-  final link = ref.keepAlive();
-  Future<void>.delayed(const Duration(hours: 1)).then((_) => link.close());
-  final api = ref.watch(sunohApiProvider);
-  return api.fetchOccasions(provider: provider);
-});
+      final link = ref.keepAlive();
+      Future<void>.delayed(const Duration(hours: 1)).then((_) => link.close());
+      final api = ref.watch(sunohApiProvider);
+      return api.fetchOccasions(provider: provider);
+    });
 
 /// Detail payload for a single occasion (slug + provider).
 typedef OccasionRef = ({String slug, String provider});
 
 final occasionDetailProvider = FutureProvider.autoDispose
     .family<List<HomeSection>, OccasionRef>((ref, key) async {
-  final link = ref.keepAlive();
-  Future<void>.delayed(const Duration(minutes: 30)).then((_) => link.close());
-  final api = ref.watch(sunohApiProvider);
-  return api.fetchOccasionDetail(key.slug, provider: key.provider);
-});
+      final link = ref.keepAlive();
+      Future<void>.delayed(
+        const Duration(minutes: 30),
+      ).then((_) => link.close());
+      final api = ref.watch(sunohApiProvider);
+      return api.fetchOccasionDetail(key.slug, provider: key.provider);
+    });

@@ -15,33 +15,33 @@ import '../audio/download_store.dart';
 /// rebuild-worthy state (subscribe to its streams instead).
 final downloadManagerProvider = Provider<DownloadManager>(
   (_) => throw UnimplementedError(
-      'downloadManagerProvider must be overridden in main.dart'),
+    'downloadManagerProvider must be overridden in main.dart',
+  ),
 );
 
 /// Reactive list of every download in flight + on disk. Subscribes to
 /// `entryEvents` so add/remove/state transitions reach the UI immediately
 /// — but NOT per-byte progress (use [downloadProgressProvider] for that;
 /// rebuilding a list on every Dio chunk would tank the frame budget).
-final downloadEntriesProvider =
-    StreamProvider.autoDispose<List<DownloadEntry>>((ref) async* {
-  final mgr = ref.watch(downloadManagerProvider);
-  // Initial snapshot up front so the first frame has data.
-  yield mgr.snapshot();
-  await for (final _ in mgr.entryEvents) {
+final downloadEntriesProvider = StreamProvider.autoDispose<List<DownloadEntry>>(
+  (ref) async* {
+    final mgr = ref.watch(downloadManagerProvider);
+    // Initial snapshot up front so the first frame has data.
     yield mgr.snapshot();
-  }
-});
+    await for (final _ in mgr.entryEvents) {
+      yield mgr.snapshot();
+    }
+  },
+);
 
 /// Per-song live progress, throttled by Dio's chunk callback. Family key
 /// is the songId — widgets that show a progress ring on one row only
 /// listen to their own song.
-final downloadProgressProvider =
-    StreamProvider.autoDispose.family<DownloadProgress, String>(
-  (ref, songId) {
-    final mgr = ref.watch(downloadManagerProvider);
-    return mgr.progressStream.where((p) => p.songId == songId);
-  },
-);
+final downloadProgressProvider = StreamProvider.autoDispose
+    .family<DownloadProgress, String>((ref, songId) {
+      final mgr = ref.watch(downloadManagerProvider);
+      return mgr.progressStream.where((p) => p.songId == songId);
+    });
 
 /// Convenience accessor for the single entry of a song. UI rows use this
 /// to render the right glyph (cloud-download / spinner / check / retry).

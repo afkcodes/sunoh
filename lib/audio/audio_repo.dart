@@ -105,6 +105,7 @@ class AudioRepo {
     if (_restoreInProgress) return;
     unawaited(persistAll());
   }
+
   final SunohAudioHandler handler;
   final StreamResolver resolver;
   final PlaybackStateStore store;
@@ -124,6 +125,7 @@ class AudioRepo {
   List<FeedItem> get queue => _queue;
   int get currentIndex => _currentIndex;
   String? get sourceLabel => _sourceLabel;
+
   /// DetailRef of the queue's origin (album/playlist). Persisted alongside
   /// sourceLabel so the player's "Go to Album/Playlist" menu row survives
   /// a kill/restart. Null when the queue was started outside a detail
@@ -190,8 +192,9 @@ class AudioRepo {
     // That stream only emits when mpv's playlist INDEX changes, and
     // starting a fresh single-track queue leaves the index at 0 — so
     // tapping a search result would otherwise never trigger a lookup.
-    unawaited(sponsorBlock
-        .onTrackChanged(songs[startIndex.clamp(0, songs.length - 1)]));
+    unawaited(
+      sponsorBlock.onTrackChanged(songs[startIndex.clamp(0, songs.length - 1)]),
+    );
     await handler.setQueue(songs, startIndex);
 
     // Best-effort OS metadata push: full queue + the starting item.
@@ -224,8 +227,11 @@ class AudioRepo {
       _currentIndex = saved.currentIndex;
       _sourceLabel = saved.sourceLabel;
       _sourceRef = saved.sourceRef;
-      unawaited(sponsorBlock.onTrackChanged(
-          saved.queue[saved.currentIndex.clamp(0, saved.queue.length - 1)]));
+      unawaited(
+        sponsorBlock.onTrackChanged(
+          saved.queue[saved.currentIndex.clamp(0, saved.queue.length - 1)],
+        ),
+      );
       await handler.prepareQueue(
         saved.queue,
         saved.currentIndex,
@@ -270,7 +276,8 @@ class AudioRepo {
   Future<void> previous() => handler.skipToPrevious();
 
   /// Live queue listenable — UI watches this to render the queue sheet.
-  ValueListenable<List<FeedItem>> get queueListenable => handler.queueListenable;
+  ValueListenable<List<FeedItem>> get queueListenable =>
+      handler.queueListenable;
 
   /// Queue mutations (drag to reorder, × to remove, tap to jump).
   Future<void> jumpToIndex(int i) async {
@@ -344,7 +351,9 @@ class AudioRepo {
       album: '',
       artUri: (song.artwork ?? '').isEmpty ? null : Uri.tryParse(song.artwork!),
       duration:
-          duration ?? _announcedDuration[song.id] ?? _parseDuration(song.duration),
+          duration ??
+          _announcedDuration[song.id] ??
+          _parseDuration(song.duration),
       extras: {'source': song.source ?? ''},
     );
   }
