@@ -20,6 +20,7 @@ import '../data/user_playlist.dart';
 import '../overlays/track_menu_sheet.dart';
 import '../providers/app_state_provider.dart';
 import '../theme/tokens.dart';
+import '../widgets/download_glyph.dart';
 import '../widgets/ui.dart';
 
 class UserPlaylistScreen extends ConsumerStatefulWidget {
@@ -652,6 +653,7 @@ class _PlaylistTrackRow extends ConsumerWidget {
                 ],
               ),
             ),
+            DownloadGlyph(songId: song.id, colors: c),
             IconBtn(
               icon: SolarIconsBold.menuDots,
               color: colors.fgMute,

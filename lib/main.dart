@@ -133,6 +133,40 @@ Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
   SystemChrome.setEnabledSystemUIMode(SystemUiMode.edgeToEdge);
 
+  // Flutter's default decoded-image budget is 100 MiB, and this app blows
+  // through it on one screen. A home feed of ~20 shelves is a couple of
+  // hundred tiles, and a tile decoded at its 384 px cache tier costs
+  // 384*384*4 = 590 KB — call it 118 MB before a detail screen's 1200 px hero
+  // adds another 5.8 MB of its own.
+  //
+  // Past the limit Flutter evicts, so opening an album and coming back found
+  // the feed's bitmaps gone and re-decoded every one of them from disk. That
+  // is the "all the images re-render when I go back" symptom: not widget
+  // churn — SunohArt already handles that — but a cache too small to hold one
+  // screen's worth of art.
+  //
+  // Flutter's default is 100 MiB, which was marginal here for a reason worth
+  // recording: home tiles were decoding at the 720 rung and costing 2 MB each
+  // (see the tier ladder in widgets/album_art.dart), so the default held only
+  // about 48 images — less than one screen of feed plus a detail page.
+  //
+  // With the tier fixed a tile is under 1 MB, so this holds roughly 190. That
+  // is comfortably more than the working set: the sections on screen, plus
+  // whatever a detail screen decodes on top.
+  //
+  // Deliberately not larger. It was briefly 320 MiB while chasing a flicker on
+  // back-navigation, and measurement showed that was the wrong suspect — the
+  // cache sits pinned at whatever ceiling it is given, evicting constantly,
+  // and the flicker was an eager rebuild of the whole feed rather than a cache
+  // miss. Hundreds of MB of native bitmap buys nothing here and is how an app
+  // gets killed in the background on a mid-range phone.
+  //
+  // A ceiling, not an allocation: only what has actually been decoded is held,
+  // least-recently-used goes first, and Flutter drops all of it under memory
+  // pressure.
+  PaintingBinding.instance.imageCache.maximumSizeBytes = 128 << 20;
+  PaintingBinding.instance.imageCache.maximumSize = 1000;
+
   // Say so once, loudly, rather than letting the catalog screens fail with a
   // generic network error that looks like the backend is down.
   if (Env.missing.isNotEmpty) {

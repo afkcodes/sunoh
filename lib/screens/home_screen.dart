@@ -41,6 +41,25 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
   // next launch).
   String? _promptedVersion;
 
+  /// Drives the tab-change fade. The body used to be wrapped in a
+  /// TweenAnimationBuilder, which only worked because it was a box; the feed
+  /// is slivers now, so the fade moves to SliverAnimatedOpacity and this is
+  /// the value it animates towards.
+  double _tabFade = 1;
+  String? _shownTab;
+
+  /// Restart the fade when the tab actually changes. Called from build, so it
+  /// mutates directly and schedules the settle for the next frame rather than
+  /// calling setState mid-build.
+  void _noteTab(String tab) {
+    if (_shownTab == tab) return;
+    _shownTab = tab;
+    _tabFade = 0;
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted) setState(() => _tabFade = 1);
+    });
+  }
+
   @override
   Widget build(BuildContext context) {
     final s = ref.watch(appStateProvider);
@@ -59,58 +78,68 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
       });
     }
 
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Padding(
-          padding: const EdgeInsets.fromLTRB(20, 12, 20, 0),
-          child: Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-            children: [
-              Text(
-                'sunoh.',
-                style: SunohType.heading(
-                  fontSize: 22,
-                  color: c.fg,
-                  letterSpacing: -0.5,
+    _noteTab(s.topTab);
+
+    // Home owns its scrolling rather than sitting inside the shared
+    // _RootScroll, because that is a SingleChildScrollView and a
+    // SingleChildScrollView builds every one of its children. The music feed
+    // is over twenty sections, each with its own strip of artwork, so a single
+    // appStateProvider notification — the tint shifting back as you return
+    // from an album, say — rebuilt all of them at once. As slivers only the
+    // sections actually on screen get built.
+    return CustomScrollView(
+      slivers: [
+        SliverToBoxAdapter(
+          child: SizedBox(height: MediaQuery.of(context).padding.top),
+        ),
+        SliverToBoxAdapter(
+          child: Padding(
+            padding: const EdgeInsets.fromLTRB(20, 12, 20, 0),
+            child: Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                Text(
+                  'sunoh.',
+                  style: SunohType.heading(
+                    fontSize: 22,
+                    color: c.fg,
+                    letterSpacing: -0.5,
+                  ),
                 ),
-              ),
-              IconBtn(
-                icon: SolarIconsOutline.settings,
-                color: c.fgDim,
-                size: 18,
-                width: 32,
-                height: 32,
-                onTap: () => context.openSettings(),
-              ),
-            ],
-          ),
-        ),
-        SunohTabs(
-          tabs: const ['Music', 'Podcasts', 'Audiobooks'],
-          active: s.topTab,
-          onChange: s.setTopTab,
-          colors: c,
-        ),
-        const SizedBox(height: 22),
-        TweenAnimationBuilder<double>(
-          key: ValueKey('tab-${s.topTab}'),
-          tween: Tween(begin: 0, end: 1),
-          duration: const Duration(milliseconds: 260),
-          curve: Curves.easeOut,
-          builder: (_, v, child) => Opacity(
-            opacity: v,
-            child: Transform.translate(
-              offset: Offset(0, (1 - v) * 6),
-              child: child,
+                IconBtn(
+                  icon: SolarIconsOutline.settings,
+                  color: c.fgDim,
+                  size: 18,
+                  width: 32,
+                  height: 32,
+                  onTap: () => context.openSettings(),
+                ),
+              ],
             ),
           ),
-          child: switch (s.topTab) {
-            'Podcasts' => PodcastsTab(colors: c),
-            'Audiobooks' => AudiobooksTab(colors: c),
+        ),
+        SliverToBoxAdapter(
+          child: SunohTabs(
+            tabs: const ['Music', 'Podcasts', 'Audiobooks'],
+            active: s.topTab,
+            onChange: s.setTopTab,
+            colors: c,
+          ),
+        ),
+        const SliverToBoxAdapter(child: SizedBox(height: 22)),
+        SliverAnimatedOpacity(
+          opacity: _tabFade,
+          duration: const Duration(milliseconds: 260),
+          curve: Curves.easeOut,
+          sliver: switch (s.topTab) {
+            'Podcasts' => SliverToBoxAdapter(child: PodcastsTab(colors: c)),
+            'Audiobooks' => SliverToBoxAdapter(child: AudiobooksTab(colors: c)),
             _ => MusicTab(colors: c),
           },
         ),
+        // Clears the mini player and nav bar, which the shell paints over the
+        // last 140 logical pixels of every screen.
+        const SliverToBoxAdapter(child: SizedBox(height: 140)),
       ],
     );
   }
@@ -433,21 +462,26 @@ class MusicTab extends ConsumerWidget {
     final gap = 40 * s.density.scale;
 
     return feedAsync.when(
-      loading: () => const _LoadingFeed(),
-      error: (e, _) => _ErrorFeed(
-        message: 'Couldn’t load the home feed.',
-        detail: '$e',
-        onRetry: () => ref.invalidate(homeFeedProvider(s.selectedLanguagesCsv)),
-        colors: c,
+      loading: () => const SliverToBoxAdapter(child: _LoadingFeed()),
+      error: (e, _) => SliverToBoxAdapter(
+        child: _ErrorFeed(
+          message: 'Couldn’t load the home feed.',
+          detail: '$e',
+          onRetry: () =>
+              ref.invalidate(homeFeedProvider(s.selectedLanguagesCsv)),
+          colors: c,
+        ),
       ),
       data: (sections) {
         final nonEmpty = sections.where((s) => s.items.isNotEmpty).toList();
         if (nonEmpty.isEmpty) {
-          return _ErrorFeed(
-            message: 'Nothing in the feed right now.',
-            colors: c,
-            onRetry: () =>
-                ref.invalidate(homeFeedProvider(s.selectedLanguagesCsv)),
+          return SliverToBoxAdapter(
+            child: _ErrorFeed(
+              message: 'Nothing in the feed right now.',
+              colors: c,
+              onRetry: () =>
+                  ref.invalidate(homeFeedProvider(s.selectedLanguagesCsv)),
+            ),
           );
         }
         // YouTube Music rows. Watched separately (not awaited alongside the
@@ -467,20 +501,39 @@ class MusicTab extends ConsumerWidget {
           everyN: _kYtInterleaveEvery,
         );
 
-        return Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            for (var i = 0; i < merged.length; i++) ...[
-              if (i > 0) SizedBox(height: gap),
+        // Widget instances, not built widgets. Constructing twenty-odd of
+        // these is nothing; it is their build methods — each resolving a
+        // strip of artwork — that cost, and the delegate below only calls
+        // those for rows actually on screen.
+        final rows = <Widget>[];
+        for (var i = 0; i < merged.length; i++) {
+          rows.add(
+            Padding(
+              padding: EdgeInsets.only(top: i == 0 ? 0 : gap),
               // First section gets the big feature-tile treatment (matches the
               // prototype's "Editorial picks" hierarchy).
-              _ApiSection(section: merged[i], colors: c, featured: i == 0),
-              // Moods & genres sits after the first couple of rows — high
-              // enough to be discoverable, not so high it displaces the feed.
-              if (i == 1) ...[SizedBox(height: gap), _MoodsRow(colors: c)],
-            ],
-            const SizedBox(height: 20),
-          ],
+              child: _ApiSection(
+                section: merged[i],
+                colors: c,
+                featured: i == 0,
+              ),
+            ),
+          );
+          // Moods & genres sits after the first couple of rows — high enough
+          // to be discoverable, not so high it displaces the feed.
+          if (i == 1) {
+            rows.add(
+              Padding(
+                padding: EdgeInsets.only(top: gap),
+                child: _MoodsRow(colors: c),
+              ),
+            );
+          }
+        }
+
+        return SliverList.builder(
+          itemCount: rows.length,
+          itemBuilder: (_, i) => rows[i],
         );
       },
     );
