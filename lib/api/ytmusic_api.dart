@@ -14,6 +14,7 @@
 // upstream should cost us a missing row, not an exception.
 
 import 'package:dio/dio.dart';
+import 'package:flutter/foundation.dart';
 
 import '../config/env.dart';
 import 'dto.dart';
@@ -118,6 +119,12 @@ class YtArtistDetail {
   bool get hasRadio =>
       (radioPlaylistId ?? '').isNotEmpty && (radioVideoId ?? '').isNotEmpty;
 }
+
+/// How far past the first page of the personalized home feed to read.
+///
+/// Four is enough to reach the rows a signed-in account actually recognises as
+/// theirs without turning one home render into a dozen requests.
+const int _kHomeExtraPages = 4;
 
 class YtMusicApi {
   YtMusicApi(this._dio, {this.locale = YtLocale.fallback, AuthHeaders? auth})
@@ -267,7 +274,10 @@ class YtMusicApi {
   /// than failing the feed.
   Future<List<HomeSection>> home() async {
     final pages = await Future.wait([
-      _browseSections('FEmusic_home'),
+      // Only the personalized page is paged. The editorial ones below are
+      // fixed shelves that do not grow with scrolling, so a continuation
+      // would cost a round trip to learn there is nothing more.
+      _browseSections('FEmusic_home', extraPages: _kHomeExtraPages),
       _browseSections('FEmusic_explore'),
       _browseSections('FEmusic_charts'),
       _browseSections('FEmusic_new_releases'),
@@ -288,11 +298,44 @@ class YtMusicApi {
     return out;
   }
 
-  Future<List<HomeSection>> _browseSections(String browseId) async {
+  /// One browse page, plus up to [extraPages] continuations.
+  ///
+  /// YouTube Music serves its home feed a few shelves at a time and the web
+  /// client fetches the rest as the page is scrolled. Reading only the first
+  /// response is why this returned three rows where music.youtube.com shows
+  /// thirty.
+  ///
+  /// Paging is capped rather than exhaustive. The feed is effectively endless,
+  /// each page is a network round trip, and rows nobody scrolls to cost the
+  /// same as rows they do. A page that fails ends the walk and keeps what came
+  /// before it, so a flaky continuation costs the tail of the feed rather than
+  /// the whole thing.
+  Future<List<HomeSection>> _browseSections(
+    String browseId, {
+    int extraPages = 0,
+  }) async {
     try {
       final body = await _post('browse', {..._context, 'browseId': browseId});
       if (body == null) return const [];
-      return _carouselSections(_singleColumnShelves(body));
+      final sections = [..._carouselSections(_singleColumnShelves(body))];
+
+      var token = extraPages > 0 ? _continuationOf(body) : null;
+      for (var page = 0; page < extraPages && token != null; page++) {
+        final next = await _post('browse', {
+          ..._context,
+          'continuation': token,
+        });
+        if (next == null) break;
+        final shelves = _continuationShelves(next);
+        if (shelves.isEmpty) break;
+        sections.addAll(_carouselSections(shelves));
+        token = _continuationOf(next);
+      }
+      debugPrint(
+        '[ytmusic] $browseId: ${sections.length} sections '
+        'over ${extraPages > 0 ? 'up to ${extraPages + 1}' : '1'} page(s)',
+      );
+      return sections;
     } catch (_) {
       return const [];
     }
