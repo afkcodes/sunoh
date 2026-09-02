@@ -1,0 +1,15 @@
+Sync your library between two phones - liked songs, playlists, podcasts and
+settings - with no account. sunoh writes an encrypted file into a folder you
+pick, and whatever already syncs that folder moves it.
+
+Choose which folders on your phone count as music, so ringtones and voice
+notes stay out of your library. Pick nothing and you get everything.
+
+Optionally sign in to YouTube Music for your own recommendations and library.
+It uses Google's own sign-in page, the app never sees your password, and the
+session stays encrypted on your phone. Everything works without it.
+
+The YouTube home feed now shows everything it has rather than a fraction.
+
+A faster home screen, artwork that no longer flickers on the way back from an
+album, and download progress on the song row.
