@@ -3,6 +3,7 @@
 // or throws, in-app playback is untouched.
 
 import 'dart:async';
+import 'dart:io';
 
 import 'package:audio_service/audio_service.dart';
 import 'package:flutter/foundation.dart';
@@ -194,6 +195,19 @@ class SunohAudioServiceBridge extends BaseAudioHandler {
     String parentMediaId, [
     Map<String, dynamic>? options,
   ]) async {
+    // Android asks for the "recent" root to decide whether to offer a media
+    // resumption card in Quick Settings — the one that outlives the app being
+    // swiped away and offers to start it again. Answering with nothing opts
+    // out of it, which is what "close the app and it's closed" means.
+    //
+    // Distinct from the browsable root Android Auto uses, so the car's browse
+    // tree is untouched. The cost is that the system can no longer cold-start
+    // playback from that card; the app has to be opened.
+    if (parentMediaId == _kRecentRoot) {
+      debugPrint('[auto] declining the resumption root');
+      return const [];
+    }
+
     final browse = _browse;
     if (browse == null) return const [];
     try {
@@ -258,13 +272,67 @@ class SunohAudioServiceBridge extends BaseAudioHandler {
     }
   }
 
+  /// audio_service's id for the resumption root — `RECENT_ROOT_ID` in its
+  /// AudioService.java. Hardcoded because the plugin does not export it.
+  static const _kRecentRoot = 'recent';
+
+  /// Flush anything that must outlive the process. Set from main once the
+  /// repo exists; the bridge is built before it.
+  Future<void> Function()? onBeforeShutdown;
+
   /// Android fires this when the user swipes the app from the recents list.
-  /// We pause instead of stopping so the queue + saved position stay intact
-  /// in memory + on disk. The OS handles winding down the foreground service
-  /// after we pause (with `androidStopForegroundOnPause: true` in main.dart).
+  ///
+  /// Pausing alone left the process running, because the foreground service
+  /// is configured to survive a pause. Reopening then landed on the same
+  /// screen with the same state, which is not what dismissing an app from
+  /// recents is understood to mean.
+  ///
+  /// So: pause, flush the queue and position to disk, then shut down.
+  /// Deliberately not this class's own [stop] — that seeks to zero, which
+  /// would throw away the resume position the flush just saved.
+  ///
+  /// This shuts down unconditionally. An earlier version skipped the exit
+  /// whenever a media browser had ever queried us, on the theory that a
+  /// connected car should not be taken down with the phone's task. That flag
+  /// was set by the first `getChildren` and never cleared — and the system's
+  /// media browser framework calls it, not only Android Auto — so in practice
+  /// one stale query left the process alive forever, which is precisely the
+  /// bug this method exists to fix. If the car case turns out to matter it
+  /// needs a signal that actually tracks a live connection, not a latch.
   @override
   Future<void> onTaskRemoved() async {
-    debugPrint('[audio-svc] onTaskRemoved — pausing');
-    await pause();
+    debugPrint('[audio-svc] onTaskRemoved — saving and shutting down');
+
+    // Every step is time-boxed. The first version of this awaited each in
+    // turn and never reached the exit: the task is being torn down around us,
+    // and a call that normally returns can simply not come back. A shutdown
+    // path that can hang is worse than one that gives up on a step — the
+    // process staying alive is the exact bug this exists to fix.
+    await _step('pause', pause());
+    if (onBeforeShutdown != null) {
+      await _step('save', onBeforeShutdown!());
+    }
+    await _step('stop', super.stop());
+
+    // Only actually exiting gives a cold start: a stopped service leaves an
+    // empty cached process that Android happily reuses, restoring the very
+    // screen the user just dismissed. Safe here — the UI is gone and the save
+    // above has either finished or had its chance.
+    debugPrint('[audio-svc] exiting');
+    exit(0);
+  }
+
+  /// Await [work], but never for longer than [limit], and never fatally.
+  static Future<void> _step(
+    String name,
+    Future<void> work, {
+    Duration limit = const Duration(seconds: 2),
+  }) async {
+    try {
+      await work.timeout(limit);
+      debugPrint('[audio-svc] shutdown: $name ok');
+    } catch (e) {
+      debugPrint('[audio-svc] shutdown: $name skipped ($e)');
+    }
   }
 }

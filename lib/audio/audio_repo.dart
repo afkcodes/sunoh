@@ -215,18 +215,52 @@ class AudioRepo {
 
   // ── Persistence ───────────────────────────────────────────────────────
 
-  /// Restore the last saved queue + position into mpv WITHOUT auto-playing.
-  /// Returns the loaded state (null if nothing was saved) so callers can
-  /// reflect it in the UI (mini player, expanded player).
-  Future<SavedPlaybackState?> restore() async {
+  /// Wait for mpv's playlist to reach [expected] entries.
+  ///
+  /// Polled rather than awaited on a stream: the queue listenable is a plain
+  /// ValueListenable with no completion signal, and the interesting condition
+  /// is a length rather than an event. Capped, because a queue that never
+  /// arrives must not leave restore suppressed forever — a stale guard would
+  /// stop persisting real changes for the rest of the session.
+  Future<void> _queueSettled(int expected) async {
+    const step = Duration(milliseconds: 50);
+    const limit = Duration(seconds: 5);
+    var waited = Duration.zero;
+    while (waited < limit) {
+      if (handler.queueListenable.value.length >= expected) return;
+      await Future<void>.delayed(step);
+      waited += step;
+    }
+    debugPrint('[audio] queue did not settle at $expected — releasing guard');
+  }
+
+  /// The last saved queue + position, read from disk.
+  ///
+  /// Split from [prepareSaved] because the two have wildly different costs.
+  /// This is a Hive read; that one opens the file in mpv, which resolves a
+  /// stream URL over the network. They used to be one method, so the mini
+  /// player sat empty until a round trip to a CDN had completed — the saved
+  /// track and its position arrived seconds after the app was already on
+  /// screen. Callers show this result immediately and prepare in the
+  /// background.
+  Future<SavedPlaybackState?> loadSaved() async {
+    final saved = await store.load();
+    if (saved == null) return null;
+    _queue = saved.queue;
+    _currentIndex = saved.currentIndex;
+    _sourceLabel = saved.sourceLabel;
+    _sourceRef = saved.sourceRef;
+    return saved;
+  }
+
+  /// Hand the saved queue to mpv, paused and seeked, ready for a tap on play.
+  ///
+  /// [_restoreInProgress] covers exactly this: `prepareQueue` emits
+  /// track-change and queue events before mpv has loaded the file, and
+  /// persisting on those would write position 0 over the saved one.
+  Future<void> prepareSaved(SavedPlaybackState saved) async {
     _restoreInProgress = true;
     try {
-      final saved = await store.load();
-      if (saved == null) return null;
-      _queue = saved.queue;
-      _currentIndex = saved.currentIndex;
-      _sourceLabel = saved.sourceLabel;
-      _sourceRef = saved.sourceRef;
       unawaited(
         sponsorBlock.onTrackChanged(
           saved.queue[saved.currentIndex.clamp(0, saved.queue.length - 1)],
@@ -237,6 +271,13 @@ class AudioRepo {
         saved.currentIndex,
         seekTo: Duration(seconds: saved.positionSec),
       );
+      // prepareQueue returning does not mean mpv has finished building its
+      // playlist. It keeps emitting queue events as the entries land, and
+      // each one drives _onHandlerQueueChanged -> persistAll with a partial
+      // queue and position 0 — which overwrote the very state just restored.
+      // Measured on a device: sixteen writes, the queue growing 15 -> 52,
+      // every one of them stamping pos=0s over a saved 202s.
+      await _queueSettled(saved.queue.length);
       final bridge = _bridge;
       if (bridge != null) {
         bridge.announceQueue(
@@ -244,7 +285,6 @@ class AudioRepo {
           startIndex: saved.currentIndex,
         );
       }
-      return saved;
     } finally {
       _restoreInProgress = false;
     }

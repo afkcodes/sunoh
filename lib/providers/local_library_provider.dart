@@ -12,6 +12,10 @@ import '../audio/local_library.dart';
 
 final localLibraryProvider = ChangeNotifierProvider<LocalLibrary>((ref) {
   final library = LocalLibrary();
+  // Rescan when music is copied onto or removed from the phone, so the
+  // library keeps up without a pull-to-refresh. Guarded inside so it only
+  // acts once there is a library to keep up to date.
+  library.watchDevice();
   // Scan only if access is already granted — never prompt from here. This
   // provider is watched by the Library tab's device row, and raising a system
   // permission dialog because someone opened Library is both startling and

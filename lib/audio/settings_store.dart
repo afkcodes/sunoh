@@ -21,6 +21,7 @@ class SavedAppearance {
     this.tintFromArt,
     this.tintIntensity,
     this.theme,
+    this.showCast,
   });
   final int? accentValue; // ARGB int (Color.value)
   final String? density; // 'compact' / 'regular' / 'comfy'
@@ -30,6 +31,9 @@ class SavedAppearance {
   /// predate light mode, which resolve to dark: the app shipped dark-only, so
   /// that is what an existing user already has on screen.
   final String? theme;
+
+  /// Null on installs that predate the toggle, which resolve to shown.
+  final bool? showCast;
 }
 
 class SavedPlayback {
@@ -78,6 +82,10 @@ class SettingsStore {
   static const _kTheme = 'appearance.theme';
   static const _kTintIntensity = 'appearance.tint_intensity';
 
+  /// Whether the Cast button is shown. Appearance rather than playback: it
+  /// changes what the UI offers, not how anything plays.
+  static const _kShowCast = 'appearance.show_cast';
+
   // Playback
   static const _kStreamQuality = 'playback.stream_quality';
   // `_kCrossfadeSec` retired with the crossfade feature 2026-05-26 — old
@@ -107,6 +115,12 @@ class SettingsStore {
   /// different phones, so one device's folder choice is meaningless on another
   /// and would silently hide the wrong music.
   static const _kFolderRules = 'local.folder_rules';
+
+  /// How the on-device library is ordered. Per-device like the folder rules
+  /// and for the same reason — it describes this phone's library, not the
+  /// user's taste — so it is not synced either.
+  static const _kLocalSort = 'local.sort';
+  static const _kLocalSortAsc = 'local.sort_ascending';
 
   static const _kSyncTree = 'sync.tree_uri';
   static const _kSyncKey = 'sync.key';
@@ -211,6 +225,7 @@ class SettingsStore {
     bool? tintFromArt,
     double? tintIntensity,
     Object? theme, // SunohTheme; caller passes the enum
+    bool? showCast,
   }) async {
     final box = await _box();
     final map = <String, dynamic>{};
@@ -228,6 +243,7 @@ class SettingsStore {
     if (tintFromArt != null) map[_kTintFromArt] = tintFromArt;
     if (tintIntensity != null) map[_kTintIntensity] = tintIntensity;
     if (theme != null) map[_kTheme] = theme.toString().split('.').last;
+    if (showCast != null) map[_kShowCast] = showCast;
     if (map.isEmpty) return;
     await box.putAll(map);
     await box.flush();
@@ -240,6 +256,7 @@ class SettingsStore {
       return SavedAppearance(
         accentValue: box.get(_kAccent) as int?,
         theme: box.get(_kTheme) as String?,
+        showCast: box.get(_kShowCast) as bool?,
         density: box.get(_kDensity) as String?,
         tintFromArt: box.get(_kTintFromArt) as bool?,
         tintIntensity: (box.get(_kTintIntensity) as num?)?.toDouble(),
@@ -373,6 +390,7 @@ extension SyncSettings on SettingsStore {
     'appearance.tint_from_art',
     'appearance.tint_intensity',
     'appearance.theme',
+    'appearance.show_cast',
     'playback.stream_quality',
     'playback.repeat_mode',
     'playback.languages',
@@ -391,6 +409,29 @@ extension SyncSettings on SettingsStore {
     } catch (e) {
       debugPrint('[settings-store] loadFolderRules failed: $e');
       return const FolderRules();
+    }
+  }
+
+  Future<(String?, bool)> loadLocalSort() async {
+    try {
+      final box = await _box();
+      final key = box.get(SettingsStore._kLocalSort);
+      final asc = box.get(SettingsStore._kLocalSortAsc);
+      return (key is String ? key : null, asc is bool ? asc : false);
+    } catch (e) {
+      debugPrint('[settings-store] loadLocalSort failed: $e');
+      return (null, false);
+    }
+  }
+
+  Future<void> saveLocalSort(String key, {required bool ascending}) async {
+    try {
+      final box = await _box();
+      await box.put(SettingsStore._kLocalSort, key);
+      await box.put(SettingsStore._kLocalSortAsc, ascending);
+      await box.flush();
+    } catch (e) {
+      debugPrint('[settings-store] saveLocalSort failed: $e');
     }
   }
 

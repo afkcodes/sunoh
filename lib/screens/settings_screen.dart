@@ -135,6 +135,15 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
                 colors: c,
               ),
               _ToggleRow(
+                label: 'Show Cast button',
+                summary:
+                    'The cast icon beside the player controls. Turn it off if '
+                    'you have nothing to cast to.',
+                value: s.showCastButton,
+                onChange: s.setShowCastButton,
+                colors: c,
+              ),
+              _ToggleRow(
                 label: 'Skip non-music parts',
                 summary:
                     'Uses SponsorBlock to jump sponsor reads, intros and '

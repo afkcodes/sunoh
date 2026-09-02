@@ -2,8 +2,12 @@ package codes.afk.sunoh.localmedia
 
 import android.content.ContentUris
 import android.content.Context
+import android.database.ContentObserver
 import android.database.Cursor
 import android.net.Uri
+import android.os.Handler
+import android.os.Looper
+import android.media.MediaMetadataRetriever
 import android.os.Build
 import android.provider.MediaStore
 import android.util.Log
@@ -42,6 +46,44 @@ object LocalMediaBridge {
     private const val ART_DIR = "local_album_art"
     private const val ART_SIZE = 512
 
+    /** See [observeChanges] for why a copy needs settling time. */
+    private const val CHANGE_DEBOUNCE_MS = 1_000L
+
+    /**
+     * Fires when the device's audio collection changes, so music copied onto
+     * the phone shows up without a pull-to-refresh.
+     *
+     * Debounced, because a file copy is not one notification: MediaStore emits
+     * per row, and a folder of forty tracks would otherwise queue forty scans
+     * of the entire library. One rescan a second after things go quiet is what
+     * the user actually wants.
+     */
+    private var observer: ContentObserver? = null
+
+    fun observeChanges(context: Context, onChanged: () -> Unit) {
+        if (observer != null) return
+        val handler = Handler(Looper.getMainLooper())
+        val debounce = Runnable { onChanged() }
+        val obs = object : ContentObserver(handler) {
+            override fun onChange(selfChange: Boolean, uri: Uri?) {
+                handler.removeCallbacks(debounce)
+                handler.postDelayed(debounce, CHANGE_DEBOUNCE_MS)
+            }
+        }
+        context.contentResolver.registerContentObserver(
+            MediaStore.Audio.Media.EXTERNAL_CONTENT_URI,
+            true,
+            obs,
+        )
+        observer = obs
+        Log.i(TAG, "watching MediaStore for changes")
+    }
+
+    fun stopObserving(context: Context) {
+        observer?.let { context.contentResolver.unregisterContentObserver(it) }
+        observer = null
+    }
+
     /**
      * Every audio file MediaStore considers music, newest first.
      *
@@ -61,6 +103,16 @@ object LocalMediaBridge {
             MediaStore.Audio.Media.TRACK,
             MediaStore.Audio.Media.YEAR,
             MediaStore.Audio.Media.DATE_ADDED,
+            // GENRE arrived in API 30 and minSdk is 24, so it is asked for
+            // only where it exists. Querying a column the platform does not
+            // have throws rather than returning null.
+            *(
+                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
+                    arrayOf(MediaStore.Audio.Media.GENRE)
+                } else {
+                    emptyArray()
+                }
+            ),
         )
 
         // IS_MUSIC excludes ringtones, alarms and notifications, which
@@ -101,6 +153,8 @@ object LocalMediaBridge {
             val trackCol = c.getColumnIndexOrThrow(MediaStore.Audio.Media.TRACK)
             val yearCol = c.getColumnIndexOrThrow(MediaStore.Audio.Media.YEAR)
             val addedCol = c.getColumnIndexOrThrow(MediaStore.Audio.Media.DATE_ADDED)
+            // getColumnIndex, not OrThrow: absent below API 30 by design.
+            val genreCol = c.getColumnIndex(MediaStore.Audio.Media.GENRE)
 
             while (c.moveToNext()) {
                 val id = c.getLong(idCol)
@@ -111,7 +165,13 @@ object LocalMediaBridge {
                 if (path.isNullOrEmpty() || !File(path).exists()) continue
 
                 val albumId = c.getLong(albumIdCol)
-                val art = artByAlbum.getOrPut(albumId) { albumArtPath(context, albumId) }
+                // Album art first, then the file's own embedded picture. A
+                // track MediaStore never indexed art for is common with loose
+                // files, and falling back means they show a cover instead of
+                // the painted placeholder.
+                val art = artByAlbum.getOrPut(albumId) {
+                    albumArtPath(context, albumId) ?: embeddedArtPath(context, albumId, path)
+                }
 
                 out.add(
                     mapOf(
@@ -127,6 +187,9 @@ object LocalMediaBridge {
                         "track" to c.getInt(trackCol),
                         "year" to c.getInt(yearCol),
                         "dateAdded" to c.getLong(addedCol),
+                        "genre" to (
+                            if (genreCol >= 0) c.getString(genreCol) else null
+                        ),
                         "artPath" to art,
                     )
                 )
@@ -180,6 +243,37 @@ object LocalMediaBridge {
             // Write a zero-byte marker so the next scan skips the attempt
             // instead of paying for the same exception again.
             markMissing(file)
+        }
+    }
+
+    /**
+     * The picture embedded in the file itself, cached like album art.
+     *
+     * MediaStore only indexes album art it has decided an album has, which
+     * leaves loose files — a single dropped in Download, anything with tags
+     * MediaStore did not group — showing the painted placeholder despite
+     * carrying a perfectly good cover.
+     *
+     * Cached under the same album id and marked missing the same way, so a
+     * file with no embedded picture costs one retriever open, once, ever.
+     * MediaMetadataRetriever is expensive enough that paying it per scan would
+     * be felt on a large library.
+     */
+    private fun embeddedArtPath(context: Context, albumId: Long, path: String): String? {
+        val dir = File(context.cacheDir, ART_DIR).apply { mkdirs() }
+        val file = File(dir, "embedded-$albumId.jpg")
+        if (file.exists()) return if (file.length() > 0) file.absolutePath else null
+
+        val retriever = MediaMetadataRetriever()
+        return try {
+            retriever.setDataSource(path)
+            val bytes = retriever.embeddedPicture ?: return markMissing(file)
+            FileOutputStream(file).use { out -> out.write(bytes) }
+            file.absolutePath
+        } catch (e: Exception) {
+            markMissing(file)
+        } finally {
+            runCatching { retriever.release() }
         }
     }
 

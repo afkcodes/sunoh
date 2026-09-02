@@ -51,6 +51,9 @@ class _CastButtonState extends ConsumerState<CastButton> {
     final c = s.colors;
     final accent = s.resolvedAccent;
     final connected = s.isCasting;
+    // Hidden by preference — but never while a cast is actually running, or
+    // there would be no way back off the TV except from the notification.
+    if (!s.showCastButton && !connected) return const SizedBox.shrink();
     return IconBtn(
       icon: connected
           ? SolarIconsBold.screencast
