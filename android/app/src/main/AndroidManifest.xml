@@ -88,16 +88,22 @@
                 <category android:name="android.intent.category.BROWSABLE"/>
                 <data android:scheme="sunoh"/>
             </intent-filter>
-            <!-- App Links: https://sunoh.online/* — autoVerify=true so
-                 Android skips the chooser when the assetlinks.json at
-                 https://sunoh.online/.well-known/assetlinks.json is reachable
-                 and lists this package + signing fingerprint. Until then the
-                 user sees a "open with…" sheet but the wiring still works. -->
+            <!-- App Links for the web host, which comes from env.json via a
+                 manifest placeholder rather than being written here — the
+                 same reason the Dart endpoints do. autoVerify=true so Android
+                 skips the chooser when that host serves a
+                 /.well-known/assetlinks.json listing this package and signing
+                 fingerprint. Until then the user sees an "open with…" sheet
+                 but the wiring still works.
+
+                 A build with no host configured falls back to a placeholder
+                 that resolves nothing, which is correct: an unconfigured
+                 build should not claim links it cannot serve. -->
             <intent-filter android:autoVerify="true">
                 <action android:name="android.intent.action.VIEW"/>
                 <category android:name="android.intent.category.DEFAULT"/>
                 <category android:name="android.intent.category.BROWSABLE"/>
-                <data android:scheme="https" android:host="sunoh.online"/>
+                <data android:scheme="https" android:host="${sunohWebHost}"/>
             </intent-filter>
         </activity>
         <!-- Android Auto. Points at res/xml/automotive_app_desc.xml, which
