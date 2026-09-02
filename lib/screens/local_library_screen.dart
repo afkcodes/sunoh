@@ -18,6 +18,7 @@ import 'package:solar_icons/solar_icons.dart';
 import '../api/dto.dart';
 import '../api/local_media_channel.dart';
 import '../audio/local_library.dart';
+import '../overlays/local_sort_sheet.dart';
 import '../providers/app_state_provider.dart';
 import '../providers/local_library_provider.dart';
 import '../router/router.dart';
@@ -28,7 +29,26 @@ import '../widgets/top_tabs.dart';
 import '../widgets/ui.dart';
 import 'local_track_row.dart';
 
-const List<String> _kTabs = ['Songs', 'Albums', 'Artists'];
+/// The tab content. See the file header there.
+part 'local_library_lists.dart';
+
+const String _kSongs = 'Songs';
+const String _kAlbums = 'Albums';
+const String _kArtists = 'Artists';
+const String _kGenres = 'Genres';
+const String _kFolders = 'Folders';
+
+/// Genres and Folders only appear when there is something in them. MediaStore
+/// has no GENRE column below Android 11, and a library of loose files in one
+/// directory has nothing to browse by folder — an always-present tab holding
+/// one bucket is worse than no tab.
+List<String> _tabsFor(LocalLibrary lib) => [
+  _kSongs,
+  _kAlbums,
+  _kArtists,
+  if (lib.genres.isNotEmpty) _kGenres,
+  if (lib.folderGroups.length > 1) _kFolders,
+];
 
 class LocalLibraryScreen extends ConsumerStatefulWidget {
   const LocalLibraryScreen({super.key});
@@ -38,7 +58,9 @@ class LocalLibraryScreen extends ConsumerStatefulWidget {
 
 class _LocalLibraryScreenState extends ConsumerState<LocalLibraryScreen> {
   final PageController _pages = PageController();
+  final TextEditingController _search = TextEditingController();
   int _index = 0;
+  bool _searching = false;
 
   @override
   void initState() {
@@ -54,8 +76,16 @@ class _LocalLibraryScreenState extends ConsumerState<LocalLibraryScreen> {
 
   @override
   void dispose() {
+    _search.dispose();
     _pages.dispose();
     super.dispose();
+  }
+
+  void _toggleSearch() {
+    setState(() {
+      _searching = !_searching;
+      if (!_searching) _search.clear();
+    });
   }
 
   void _select(int i) {
@@ -74,38 +104,71 @@ class _LocalLibraryScreenState extends ConsumerState<LocalLibraryScreen> {
     final c = s.colors;
     final lib = ref.watch(localLibraryProvider);
 
+    final tabs = _tabsFor(lib);
+    final index = _index.clamp(0, tabs.length - 1);
+    final query = _searching ? _search.text.trim() : '';
+
     return ColoredBox(
       color: c.bg,
       child: Column(
         children: [
-          _Header(library: lib, colors: c),
-          if (lib.hasMusic)
-            SunohTabs(
-              tabs: _kTabs,
-              active: _kTabs[_index],
+          _Header(
+            library: lib,
+            colors: c,
+            searching: _searching,
+            onToggleSearch: _toggleSearch,
+          ),
+          if (_searching)
+            _SearchField(
+              controller: _search,
               colors: c,
-              onChange: (t) => _select(_kTabs.indexOf(t)),
+              onChanged: (_) => setState(() {}),
+            ),
+          if (lib.hasMusic && !_searching)
+            SunohTabs(
+              tabs: tabs,
+              active: tabs[index],
+              colors: c,
+              onChange: (t) => _select(tabs.indexOf(t)),
             ),
           Expanded(
             child: !lib.hasMusic
                 ? SingleChildScrollView(
                     child: _EmptyState(library: lib, colors: c),
                   )
+                // Search replaces the tabs rather than filtering within one:
+                // looking for a song by name should not require first knowing
+                // whether it lives under Albums or Artists.
+                : _searching
+                ? _SongList(songs: lib.search(query), state: s, colors: c)
                 : PageView(
                     controller: _pages,
                     onPageChanged: (i) => setState(() => _index = i),
                     children: [
-                      _SongList(songs: lib.songs, state: s, colors: c),
-                      _CollectionList(
-                        collections: lib.albums,
-                        album: true,
-                        colors: c,
-                      ),
-                      _CollectionList(
-                        collections: lib.artists,
-                        album: false,
-                        colors: c,
-                      ),
+                      for (final tab in tabs)
+                        switch (tab) {
+                          _kAlbums => _CollectionList(
+                            collections: lib.albums,
+                            album: true,
+                            colors: c,
+                          ),
+                          _kArtists => _CollectionList(
+                            collections: lib.artists,
+                            album: false,
+                            colors: c,
+                          ),
+                          _kGenres => _CollectionList(
+                            collections: lib.genres,
+                            album: true,
+                            colors: c,
+                          ),
+                          _kFolders => _CollectionList(
+                            collections: lib.folderGroups,
+                            album: true,
+                            colors: c,
+                          ),
+                          _ => _SongList(songs: lib.songs, state: s, colors: c),
+                        },
                     ],
                   ),
           ),
@@ -116,9 +179,16 @@ class _LocalLibraryScreenState extends ConsumerState<LocalLibraryScreen> {
 }
 
 class _Header extends StatelessWidget {
-  const _Header({required this.library, required this.colors});
+  const _Header({
+    required this.library,
+    required this.colors,
+    required this.searching,
+    required this.onToggleSearch,
+  });
   final LocalLibrary library;
   final SunohColors colors;
+  final bool searching;
+  final VoidCallback onToggleSearch;
 
   @override
   Widget build(BuildContext context) {
@@ -157,200 +227,22 @@ class _Header extends StatelessWidget {
             )
           else ...[
             IconBtn(
+              icon: SolarIconsOutline.magnifier,
+              color: searching ? c.accent : c.fgDim,
+              size: 18,
+              onTap: onToggleSearch,
+            ),
+            IconBtn(
+              icon: SolarIconsOutline.sort,
+              color: c.fgDim,
+              size: 18,
+              onTap: () => showLocalSortSheet(context),
+            ),
+            IconBtn(
               icon: SolarIconsOutline.folder,
               color: c.fgDim,
               size: 18,
               onTap: () => context.openLocalFolders(),
-            ),
-            IconBtn(
-              icon: SolarIconsOutline.refresh,
-              color: c.fgDim,
-              size: 18,
-              onTap: () => library.load(force: true),
-            ),
-          ],
-        ],
-      ),
-    );
-  }
-}
-
-class _SongList extends StatelessWidget {
-  const _SongList({
-    required this.songs,
-    required this.state,
-    required this.colors,
-  });
-  final List<FeedItem> songs;
-  final AppState state;
-  final SunohColors colors;
-
-  @override
-  Widget build(BuildContext context) {
-    // Lazy: a device library runs to thousands of tracks, and an eager Column
-    // would build and lay out every one of them.
-    return ListView.builder(
-      padding: const EdgeInsets.only(top: 8, bottom: 140),
-      itemCount: songs.length,
-      itemBuilder: (context, i) => LocalTrackRow(
-        song: songs[i],
-        colors: colors,
-        onTap: () =>
-            state.playApiQueue(songs, i, sourceLabel: 'ON THIS DEVICE'),
-      ),
-    );
-  }
-}
-
-class _CollectionList extends StatelessWidget {
-  const _CollectionList({
-    required this.collections,
-    required this.album,
-    required this.colors,
-  });
-  final List<LocalCollection> collections;
-  final bool album;
-  final SunohColors colors;
-
-  @override
-  Widget build(BuildContext context) {
-    return ListView.builder(
-      padding: const EdgeInsets.only(top: 8, bottom: 140),
-      itemCount: collections.length,
-      itemBuilder: (context, i) {
-        final col = collections[i];
-        return GestureDetector(
-          onTap: () => context.openLocalCollection(col.id, album: album),
-          behavior: HitTestBehavior.opaque,
-          child: Padding(
-            padding: const EdgeInsets.fromLTRB(20, 6, 20, 6),
-            child: Row(
-              children: [
-                SunohArt(
-                  id: col.id,
-                  size: 48,
-                  // Artists read as circles throughout the app; albums square.
-                  radius: album ? 8 : 999,
-                  imageUrl: col.artwork,
-                  shadow: false,
-                ),
-                const SizedBox(width: 12),
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      Text(
-                        col.name,
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                        style: SunohType.sans(
-                          fontSize: 14,
-                          fontWeight: FontWeight.w500,
-                          color: colors.fg,
-                        ),
-                      ),
-                      const SizedBox(height: 2),
-                      Text(
-                        col.subtitle ?? '${col.songs.length} songs',
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                        style: SunohType.sans(
-                          fontSize: 12,
-                          color: colors.fgMute,
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-              ],
-            ),
-          ),
-        );
-      },
-    );
-  }
-}
-
-/// The ways this screen can be empty, each with the action that fixes it.
-class _EmptyState extends StatelessWidget {
-  const _EmptyState({required this.library, required this.colors});
-  final LocalLibrary library;
-  final SunohColors colors;
-
-  @override
-  Widget build(BuildContext context) {
-    final (title, body, action, onTap) = switch (library.status) {
-      LocalLibraryStatus.denied => (
-        'Access needed',
-        'sunoh needs permission to read audio files on this device.',
-        'Grant access',
-        () => library.load(force: true),
-      ),
-      LocalLibraryStatus.permanentlyDenied => (
-        'Access blocked',
-        'Audio access was turned off for sunoh. Enable it in system '
-            'settings to see music stored on this device.',
-        'Open settings',
-        library.openSettings,
-      ),
-      LocalLibraryStatus.scanning => (
-        'Scanning…',
-        'Reading music stored on this device.',
-        null,
-        null,
-      ),
-      _ => (
-        'No music on this device',
-        'Copy some audio files onto the phone and they will show up here.',
-        'Scan again',
-        () => library.load(force: true),
-      ),
-    };
-
-    return Padding(
-      padding: const EdgeInsets.fromLTRB(32, 80, 32, 40),
-      child: Column(
-        children: [
-          Icon(SolarIconsOutline.smartphone, size: 34, color: colors.fgMute),
-          const SizedBox(height: 16),
-          Text(
-            title,
-            textAlign: TextAlign.center,
-            style: SunohType.heading(fontSize: 18, color: colors.fg),
-          ),
-          const SizedBox(height: 8),
-          Text(
-            body,
-            textAlign: TextAlign.center,
-            style: SunohType.sans(
-              fontSize: 13,
-              color: colors.fgMute,
-              height: 1.5,
-            ),
-          ),
-          if (action != null && onTap != null) ...[
-            const SizedBox(height: 20),
-            GestureDetector(
-              onTap: onTap,
-              child: Container(
-                padding: const EdgeInsets.symmetric(
-                  horizontal: 18,
-                  vertical: 10,
-                ),
-                decoration: squircleDecoration(
-                  radius: 999,
-                  color: colors.accent,
-                ),
-                child: Text(
-                  action,
-                  style: SunohType.sans(
-                    fontSize: 13,
-                    fontWeight: FontWeight.w600,
-                    color: colors.onAccent,
-                  ),
-                ),
-              ),
             ),
           ],
         ],

@@ -10,11 +10,14 @@
 // raw MediaStore columns are still separate; this class only holds the result
 // and owns the permission dance.
 
+import 'dart:async';
+
 import 'package:flutter/foundation.dart';
 import 'package:permission_handler/permission_handler.dart';
 
 import '../api/dto.dart';
 import '../api/local_media_channel.dart';
+import '../api/local_sort.dart';
 import 'settings_store.dart';
 
 /// Why the local library is empty, when it is.
@@ -46,6 +49,14 @@ class LocalLibrary extends ChangeNotifier {
 
   FolderRules _rules = const FolderRules();
 
+  LocalSort _sort = LocalSort.dateAdded;
+  bool _sortAscending = false;
+
+  /// How the songs list is ordered. Albums and artists are unaffected —
+  /// inside an album, track order wins regardless (see [sortAlbumTracks]).
+  LocalSort get sort => _sort;
+  bool get sortAscending => _sortAscending;
+
   /// Which folders the library takes music from.
   FolderRules get folderRules => _rules;
 
@@ -63,6 +74,28 @@ class LocalLibrary extends ChangeNotifier {
   /// separate columns, and rebuilding them from already-mapped items would
   /// mean parsing a display string back apart. The scan is cheap on a warm
   /// album-art cache.
+  /// Change the order. No rescan: [songs] sorts what is already in memory.
+  /// Rescan when music is added to or removed from the phone.
+  ///
+  /// Only while there is already a library loaded: a change notification is
+  /// not a reason to ask for storage permission, and scanning before the user
+  /// has opened the library once would be work nobody asked for.
+  void watchDevice() {
+    _channel.onLibraryChanged(() {
+      if (_scan.songs.isEmpty && _status != LocalLibraryStatus.ready) return;
+      debugPrint('[local] device library changed — rescanning');
+      unawaited(load(force: true));
+    });
+  }
+
+  Future<void> setSort(LocalSort sort, {required bool ascending}) async {
+    if (_sort == sort && _sortAscending == ascending) return;
+    _sort = sort;
+    _sortAscending = ascending;
+    notifyListeners();
+    await _settings.saveLocalSort(sort.key, ascending: ascending);
+  }
+
   Future<void> setFolderRules(FolderRules rules) async {
     if (rules.sameAs(_rules)) return;
     _rules = rules;
@@ -76,8 +109,67 @@ class LocalLibrary extends ChangeNotifier {
 
   LocalScan _scan = const LocalScan.empty();
 
+  /// Genre and folder groupings, built once per scan.
+  ///
+  /// Derived rather than scanned: both are a regroup of songs we already have,
+  /// and doing it on every read would put an O(n) walk inside `build`.
+  List<LocalCollection> _genres = const [];
+  List<LocalCollection> _folderGroups = const [];
+
+  /// Songs grouped by tag genre. Empty below Android 11, where MediaStore has
+  /// no GENRE column at all — the tab hides itself rather than showing one
+  /// bogus "Unknown" bucket holding the entire library.
+  List<LocalCollection> get genres => _genres;
+
+  /// Songs grouped by the folder they sit in — the way a library organised on
+  /// disk rather than by tags is actually navigated.
+  List<LocalCollection> get folderGroups => _folderGroups;
+
+  void _regroup() {
+    final byGenre = <String, List<FeedItem>>{};
+    final byFolder = <String, List<FeedItem>>{};
+    for (final song in _scan.songs) {
+      final genre = _scan.meta[song.id]?.genre;
+      if (genre != null && genre.isNotEmpty) {
+        (byGenre[genre] ??= []).add(song);
+      }
+      final folder = folderOf(song.url ?? '');
+      if (folder.isNotEmpty) (byFolder[folder] ??= []).add(song);
+    }
+    _genres = [
+      for (final e in byGenre.entries)
+        LocalCollection(
+          id: e.key,
+          name: e.key,
+          subtitle: '${e.value.length} songs',
+          songs: e.value,
+        ),
+    ]..sort((a, b) => b.songs.length.compareTo(a.songs.length));
+    _folderGroups = [
+      for (final e in byFolder.entries)
+        LocalCollection(
+          id: e.key,
+          name: folderNameOf(e.key),
+          subtitle: folderLocation(e.key),
+          songs: e.value,
+        ),
+    ]..sort((a, b) => a.name.toLowerCase().compareTo(b.name.toLowerCase()));
+  }
+
   /// Every on-device track, newest first.
-  List<FeedItem> get songs => _scan.songs;
+  /// Sorted on read rather than at scan time: changing the order should not
+  /// cost a MediaStore query, and the scan's own order is the raw material
+  /// every ordering is derived from.
+  List<FeedItem> get songs => sortLocalSongs(
+    _scan.songs,
+    _scan.meta,
+    by: _sort,
+    ascending: _sortAscending,
+  );
+
+  /// Unsorted, in scan order. For anything that wants "most recently added"
+  /// without inheriting whatever the user picked.
+  List<FeedItem> get songsByDateAdded => _scan.songs;
   List<LocalCollection> get albums => _scan.albums;
   List<LocalCollection> get artists => _scan.artists;
 
@@ -115,7 +207,11 @@ class LocalLibrary extends ChangeNotifier {
     if (_status == LocalLibraryStatus.scanning) return;
     _set(LocalLibraryStatus.scanning);
     _rules = await _settings.loadFolderRules();
+    final (sortKey, asc) = await _settings.loadLocalSort();
+    _sort = LocalSortLabel.fromKey(sortKey);
+    _sortAscending = asc;
     _scan = await _channel.scan(rules: _rules);
+    _regroup();
     _set(LocalLibraryStatus.ready);
   }
 

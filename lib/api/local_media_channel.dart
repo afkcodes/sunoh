@@ -12,6 +12,7 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter/services.dart';
 
 import 'dto.dart';
+import 'local_sort.dart';
 
 /// A group of on-device tracks sharing an album or an artist.
 ///
@@ -71,16 +72,21 @@ class LocalScan {
     required this.albums,
     required this.artists,
     this.folders = const [],
+    this.meta = const {},
   });
   const LocalScan.empty()
     : songs = const [],
       albums = const [],
       artists = const [],
-      folders = const [];
+      folders = const [],
+      meta = const {};
 
   final List<FeedItem> songs;
   final List<LocalCollection> albums;
   final List<LocalCollection> artists;
+
+  /// Sortable per-track fields, keyed by song id. See [LocalTrackMeta].
+  final Map<String, LocalTrackMeta> meta;
 
   /// Every folder the scan saw, **including ones left out**, largest first.
   ///
@@ -114,6 +120,48 @@ String folderLocation(String path) {
   final i = p.lastIndexOf('/');
   final parent = i <= 0 ? '' : p.substring(1, i);
   return parent.isEmpty ? 'Internal storage' : parent;
+}
+
+/// Sortable fields MediaStore gives us that [FeedItem] has no room for.
+///
+/// Kept beside the songs rather than added to FeedItem: that DTO is shared by
+/// every source, and a track number means nothing to a YouTube result. Keyed
+/// by song id in [LocalScan.meta].
+class LocalTrackMeta {
+  const LocalTrackMeta({
+    required this.disc,
+    required this.track,
+    required this.dateAdded,
+    this.genre,
+  });
+
+  /// Disc number, 1 when the file does not say.
+  final int disc;
+
+  /// Track number within the disc, 0 when the file does not say.
+  final int track;
+
+  /// Epoch seconds, as MediaStore reports it.
+  final int dateAdded;
+
+  final String? genre;
+
+  /// MediaStore packs multi-disc albums into one integer as
+  /// `disc * 1000 + track`, so track 1 of disc 2 arrives as 2001. Anything
+  /// below 1000 is a plain track number on a single-disc release.
+  factory LocalTrackMeta.fromRow(Map<Object?, Object?> row) {
+    final raw = _intOf(row['track']);
+    final genre = (row['genre'] ?? '').toString().trim();
+    return LocalTrackMeta(
+      disc: raw >= 1000 ? raw ~/ 1000 : 1,
+      track: raw >= 1000 ? raw % 1000 : raw,
+      dateAdded: _intOf(row['dateAdded']),
+      genre: genre.isEmpty ? null : genre,
+    );
+  }
+
+  static int _intOf(Object? v) =>
+      v is int ? v : int.tryParse((v ?? '').toString()) ?? 0;
 }
 
 /// Which folders the on-device library takes music from.
@@ -239,6 +287,12 @@ class FolderRules {
   }
 }
 
+/// The last segment of a folder path — what a person calls the folder.
+String folderNameOf(String path) {
+  final i = path.lastIndexOf('/');
+  return i < 0 ? path : path.substring(i + 1);
+}
+
 /// The directory part of a file path, or empty when there isn't one.
 String folderOf(String path) {
   final i = path.lastIndexOf('/');
@@ -254,6 +308,16 @@ const String kLocalSource = 'local';
 class LocalMediaChannel {
   LocalMediaChannel._();
   static final LocalMediaChannel instance = LocalMediaChannel._();
+
+  /// Called when the device's audio collection changes. The native side
+  /// debounces the burst a file copy produces, so this fires once per settled
+  /// change rather than once per file.
+  void onLibraryChanged(void Function() handler) {
+    if (!_supported) return;
+    _channel.setMethodCallHandler((call) async {
+      if (call.method == 'libraryChanged') handler();
+    });
+  }
 
   static const MethodChannel _channel = MethodChannel(
     'codes.afk.sunoh/localmedia',
@@ -303,6 +367,7 @@ class LocalMediaChannel {
     final artistNames = <String, String>{};
     // Counted over every row, included or not — see LocalScan.folders.
     final folderCounts = <String, int>{};
+    final meta = <String, LocalTrackMeta>{};
 
     for (final row in rows) {
       if (row is! Map) continue;
@@ -319,6 +384,7 @@ class LocalMediaChannel {
       if (!rules.allows(folder)) continue;
 
       songs.add(song);
+      meta[song.id] = LocalTrackMeta.fromRow(r);
 
       final artist = _clean((r['artist'] ?? '').toString());
       final album = _clean((r['album'] ?? '').toString());
@@ -366,6 +432,7 @@ class LocalMediaChannel {
                 'default ${rules.defaultIncluded ? 'in' : 'out'}'})',
     );
     return LocalScan(
+      meta: meta,
       songs: songs,
       albums: [
         for (final e in albums.entries)
@@ -373,7 +440,12 @@ class LocalMediaChannel {
             id: e.key,
             name: albumNames[e.key] ?? '',
             subtitle: _albumArtist(albumArtistSets[e.key]),
-            songs: e.value,
+            // Track order is not a preference inside an album: the scan
+            // returns rows newest-file-first, so an album opened from the
+            // device library was listing its songs in the order they were
+            // copied onto the phone. Applied here so every consumer gets it —
+            // the detail screen, Android Auto, "play album".
+            songs: sortAlbumTracks(e.value, meta),
           ),
       ],
       artists: [

@@ -113,8 +113,15 @@ class MainActivity : AudioServiceActivity() {
         // The device's own music library. Off the main thread: a MediaStore
         // query over a few thousand tracks, resolving album art per album,
         // takes long enough to drop frames if run inline.
-        MethodChannel(flutterEngine.dartExecutor.binaryMessenger, LOCAL_CHANNEL)
-            .setMethodCallHandler { call, result ->
+        val localChannel =
+            MethodChannel(flutterEngine.dartExecutor.binaryMessenger, LOCAL_CHANNEL)
+        // Music copied onto the phone should appear on its own. The bridge
+        // debounces the burst of per-row notifications a file copy produces
+        // and calls back once; Dart decides whether a rescan is worth it.
+        LocalMediaBridge.observeChanges(applicationContext) {
+            localChannel.invokeMethod("libraryChanged", null)
+        }
+        localChannel.setMethodCallHandler { call, result ->
                 when (call.method) {
                     "scan" -> {
                         localScope.launch {
