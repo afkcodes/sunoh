@@ -14,6 +14,7 @@ import '../api/dto.dart';
 import '../overlays/track_menu_sheet.dart';
 import '../providers/app_state_provider.dart';
 import '../theme/tokens.dart';
+import '../widgets/download_glyph.dart';
 import '../widgets/ui.dart';
 
 class LikedSongsScreen extends ConsumerStatefulWidget {
@@ -376,6 +377,7 @@ class _LikedTrackRow extends ConsumerWidget {
                 ],
               ),
             ),
+            DownloadGlyph(songId: song.id, colors: c),
             IconBtn(
               icon: SolarIconsBold.heart,
               color: accent,

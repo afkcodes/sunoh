@@ -77,8 +77,7 @@ GoRouter buildRouter() {
             routes: [
               GoRoute(
                 path: '/home',
-                pageBuilder: (c, s) =>
-                    _fade(const _RootScroll(HomeScreen()), s),
+                pageBuilder: (c, s) => _fade(const HomeScreen(), s),
                 routes: _detailRoutes(),
               ),
             ],
@@ -340,6 +339,11 @@ List<RouteBase> _detailRoutes() => [
 ];
 
 /// Scroll + safe-area padding for the non-scrolling tab screens (Column roots).
+///
+/// Home is deliberately not one of them: it owns a CustomScrollView so its
+/// feed can be lazy. A SingleChildScrollView builds every child it is given,
+/// which for a twenty-section feed meant rebuilding all of it on any theme
+/// change.
 class _RootScroll extends StatelessWidget {
   const _RootScroll(this.child);
   final Widget child;

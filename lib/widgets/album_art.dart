@@ -157,12 +157,23 @@ class SunohArt extends StatelessWidget {
     // (~1008px of actual surface) and looking soft no matter how large the
     // source was. 1200 matches the largest art the CDN serves.
     //
-    // Only the hero reaches the top tier — home tiles stay at 192/384, so
-    // this doesn't undo the scroll work.
+    // The 512 rung exists because the ladder used to jump 384 -> 720, and the
+    // comment here used to claim home tiles stayed at 192/384. That was only
+    // true at 2x. A ~148pt card on a 1080-wide phone needs ~390-444px, which
+    // cleared 384 and landed on 720 — a 2.07 MB bitmap for a tile that wants
+    // 0.79 MB. Measured on a device: 390 images holding 318 MiB, which is why
+    // the feed's art was being evicted and re-decoded on every trip into a
+    // detail screen. Rounding those to 512 is ~1.05 MB instead.
+    //
+    // The rungs stay coarse on purpose: their job is to make several display
+    // sizes of one URL share a single decoded bitmap, and every extra rung is
+    // one more way for two cards to miss each other.
     final cacheTier = largest <= 192
         ? 192
         : largest <= 384
         ? 384
+        : largest <= 512
+        ? 512
         : largest <= 720
         ? 720
         : 1200;

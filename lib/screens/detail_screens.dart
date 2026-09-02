@@ -26,6 +26,7 @@ import '../router/router.dart';
 import '../share/share_link.dart';
 import '../theme/tokens.dart';
 import '../widgets/album_art.dart';
+import '../widgets/download_glyph.dart';
 import '../widgets/playing_bars.dart';
 import '../widgets/ui.dart';
 
@@ -515,7 +516,7 @@ class _ApiTrackRow extends ConsumerWidget {
                 // download entry by song id; renders nothing for songs
                 // without a download (the common case), so empty rows
                 // stay clean.
-                _RowDownloadGlyph(songId: song.id, colors: c),
+                DownloadGlyph(songId: song.id, colors: c),
                 if (durationLabel != null) ...[
                   const SizedBox(width: 8),
                   Text(
@@ -600,49 +601,6 @@ String _stripHtml(String raw) {
 /// otherwise. Watches [downloadEntriesProvider] via the helper so it
 /// rebuilds on state transitions without bothering with per-chunk
 /// progress.
-class _RowDownloadGlyph extends ConsumerWidget {
-  const _RowDownloadGlyph({required this.songId, required this.colors});
-  final String songId;
-  final SunohColors colors;
-
-  @override
-  Widget build(BuildContext context, WidgetRef ref) {
-    final entry = watchDownloadEntry(ref, songId);
-    final state = entry?.state;
-    if (state == null) return const SizedBox.shrink();
-    return Padding(
-      padding: const EdgeInsets.only(left: 6),
-      child: switch (state) {
-        DownloadState.done => Icon(
-          SolarIconsBold.checkCircle,
-          size: 13,
-          color: colors.accent,
-        ),
-        DownloadState.downloading => Icon(
-          SolarIconsOutline.downloadMinimalistic,
-          size: 13,
-          color: colors.fgMute,
-        ),
-        DownloadState.queued => Icon(
-          SolarIconsOutline.clockCircle,
-          size: 13,
-          color: colors.fgMute,
-        ),
-        DownloadState.paused => Icon(
-          SolarIconsOutline.pauseCircle,
-          size: 13,
-          color: colors.fgMute,
-        ),
-        DownloadState.failed => Icon(
-          SolarIconsOutline.dangerCircle,
-          size: 13,
-          color: colors.fgMute,
-        ),
-      },
-    );
-  }
-}
-
 /// track row, tracking `position / duration`. Direct port of the RN
 /// `ActiveSongProgress` (album/ActiveSongProgress.tsx) — same six-stop
 /// low-alpha gradient. Listens to AppState's 1 Hz `positionTick` so only
@@ -840,7 +798,7 @@ class AlbumScreen extends ConsumerWidget {
       // Keep the loader up until the palette has resolved too — otherwise
       // the hero would briefly render with the deterministic accent and then
       // snap to the extracted tint, which reads as a half-loaded page.
-      if (!_paletteSettled(ref, pl.artwork)) {
+      if (!paletteSettled(ref, pl.artwork)) {
         return DetailLoading(colors: c);
       }
       return AlbumLikeBody(
@@ -870,7 +828,7 @@ class AlbumScreen extends ConsumerWidget {
       );
     }
     final al = async.requireValue;
-    if (!_paletteSettled(ref, al.artwork)) {
+    if (!paletteSettled(ref, al.artwork)) {
       return DetailLoading(colors: c);
     }
     return AlbumLikeBody(
@@ -896,7 +854,15 @@ class AlbumScreen extends ConsumerWidget {
 /// returned a palette, returned null, errored out, or there's no URL to
 /// extract from in the first place). Used by detail screens to delay reveal
 /// until the immersive hero can render in its final tinted state.
-bool _paletteSettled(WidgetRef ref, String? url) {
+/// Whether the artwork's palette has been extracted yet.
+///
+/// Detail screens hold their loader until this is true. Rendering the hero
+/// before it resolves means painting with the deterministic accent and then
+/// snapping to the extracted tint, which reads as a half-loaded page.
+///
+/// Public because the YouTube screens reuse [AlbumLikeBody] and therefore need
+/// to wait on exactly the same thing.
+bool paletteSettled(WidgetRef ref, String? url) {
   if (url == null || url.isEmpty) return true;
   return !ref.watch(artPaletteProvider(url)).isLoading;
 }
@@ -1479,7 +1445,7 @@ class ArtistScreen extends ConsumerWidget {
       );
     }
     final artist = async.requireValue;
-    if (!_paletteSettled(ref, artist.artwork)) {
+    if (!paletteSettled(ref, artist.artwork)) {
       return DetailLoading(colors: c, round: true);
     }
     return _ArtistBody(colors: c, artist: artist);

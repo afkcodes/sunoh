@@ -18,7 +18,7 @@ import '../router/router.dart';
 import '../theme/tokens.dart';
 import '../widgets/album_art.dart';
 import '../widgets/ui.dart';
-import 'detail_screens.dart' show AlbumLikeBody;
+import 'detail_screens.dart' show AlbumLikeBody, DetailLoading, paletteSettled;
 
 /// Shared chrome: back chip + big title, matching SectionScreen.
 class _YtScaffold extends StatelessWidget {
@@ -103,11 +103,12 @@ class YtPlaylistScreen extends ConsumerWidget {
     final async = ref.watch(ytMusicPlaylistProvider(browseId));
 
     return async.when(
-      loading: () => _YtScaffold(
-        title: name ?? 'Playlist',
-        colors: c,
-        children: [_loading(c)],
-      ),
+      // DetailLoading, not the title-only scaffold this used to show. The
+      // data state below is AlbumLikeBody — a scroll-shrink hero — so a
+      // heading-and-spinner loader meant the screen visibly changed shape
+      // once the response landed. saavn and gaana never did that because
+      // they use this skeleton, which is the shape of what is coming.
+      loading: () => DetailLoading(colors: c),
       error: (e, _) => _YtScaffold(
         title: name ?? 'Playlist',
         colors: c,
@@ -120,6 +121,10 @@ class YtPlaylistScreen extends ConsumerWidget {
             colors: c,
             children: [_error(c, 'This playlist isn\u2019t available.')],
           );
+        }
+        // Same wait the saavn/gaana screens do — see paletteSettled.
+        if (!paletteSettled(ref, detail.artwork)) {
+          return DetailLoading(colors: c);
         }
         // Reuse the album/playlist body the rest of the app uses, rather
         // than a bespoke layout — that's what gives YouTube playlists the

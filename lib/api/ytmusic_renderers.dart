@@ -423,3 +423,73 @@ Object? _dig(Map<String, dynamic>? node, List<String> path) {
   }
   return cur;
 }
+
+/// The token for the next page of a browse response, or null at the end.
+///
+/// YouTube Music serves its home feed a few shelves at a time and the web
+/// client fetches the rest as you scroll, which is why reading only the first
+/// response gets three rows where the website shows thirty.
+///
+/// Two shapes, because InnerTube is mid-migration and a given response can use
+/// either: the older `continuations[].nextContinuationData`, and the newer
+/// `continuationItemRenderer` that arrives as the last entry in `contents`.
+String? _continuationOf(Map<String, dynamic> body) {
+  // Legacy: continuations[].nextContinuationData.continuation
+  for (final node in _deepList(body, 'continuations')) {
+    final token = _dig(_asMap(node), ['nextContinuationData', 'continuation']);
+    if (token is String && token.isNotEmpty) return token;
+  }
+  // Current: a continuationItemRenderer at the end of the contents.
+  final item = _findRenderer(body, 'continuationItemRenderer');
+  final token = _dig(item, [
+    'continuationEndpoint',
+    'continuationCommand',
+    'token',
+  ]);
+  return token is String && token.isNotEmpty ? token : null;
+}
+
+/// Shelves out of a continuation response, which nests them differently from
+/// the first page.
+List<Map<String, dynamic>> _continuationShelves(Map<String, dynamic> body) {
+  final out = <Map<String, dynamic>>[];
+  for (final key in const [
+    ['continuationContents', 'sectionListContinuation', 'contents'],
+    ['continuationContents', 'musicShelfContinuation', 'contents'],
+  ]) {
+    for (final raw in _asList(_dig(body, key))) {
+      final m = _asMap(raw);
+      if (m != null) out.add(m);
+    }
+  }
+  // Newer responses append through an action rather than a continuation body.
+  for (final action in _asList(body['onResponseReceivedActions'])) {
+    for (final raw in _asList(
+      _dig(_asMap(action), [
+        'appendContinuationItemsAction',
+        'continuationItems',
+      ]),
+    )) {
+      final m = _asMap(raw);
+      if (m != null) out.add(m);
+    }
+  }
+  return out;
+}
+
+/// Every value stored under [key] anywhere in the tree, flattened.
+List<Object?> _deepList(Object? node, String key, [int depth = 0]) {
+  if (depth > 8) return const [];
+  final out = <Object?>[];
+  if (node is Map) {
+    for (final entry in node.entries) {
+      if (entry.key == key) out.addAll(_asList(entry.value));
+      out.addAll(_deepList(entry.value, key, depth + 1));
+    }
+  } else if (node is List) {
+    for (final value in node) {
+      out.addAll(_deepList(value, key, depth + 1));
+    }
+  }
+  return out;
+}
