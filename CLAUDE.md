@@ -19,12 +19,19 @@ web and desktop builds cannot resolve YouTube streams.
 
 ```sh
 flutter pub get
-flutter run                                  # Android device or emulator
+cp env.example.json env.json                 # then fill it in — see below
+flutter run --dart-define-from-file=env.json # Android device or emulator
 flutter analyze                              # see "Before finishing" below
 dart fix --apply                             # mechanical lint fixes
 dart format lib/path/you/touched.dart        # NOT `dart format .` — see below
-flutter build apk --split-per-abi --release
+flutter build apk --split-per-abi --release --dart-define-from-file=env.json
 ```
+
+Endpoints are **not** hardcoded: they come from `env.json` at compile time
+(`lib/config/env.dart`), and `env.json` is gitignored so a public repo carries
+no private base URL. A build without it still runs — the on-device library and
+the YouTube tier need nothing from sunoh-api — but the catalog screens render
+their error state. `scripts/release.sh` refuses to build without it.
 
 `flutter test` runs 30 tests covering the Android Auto surface
 (`auto_browse`, `auto_media_id`). The rest of the app is uncovered — see

@@ -22,8 +22,9 @@
 import 'package:dio/dio.dart';
 import 'package:flutter/foundation.dart';
 
-const String _kUpdatesUrl =
-    'https://sunoh.online/.well-known/sunoh-updates.json';
+import '../config/env.dart';
+
+const String _kUpdatesUrl = Env.updateManifest;
 
 class UpdateInfo {
   const UpdateInfo({

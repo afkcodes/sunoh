@@ -27,6 +27,8 @@
 import 'package:dio/dio.dart';
 import 'package:flutter/foundation.dart';
 
+import '../config/env.dart';
+
 /// A resolved (region, language) pair plus where it came from, so the UI
 /// can show "Auto (India)" rather than pretending the user chose it.
 @immutable
@@ -175,7 +177,7 @@ class YtLocaleResolver {
     if (_freshCachedCountry() != null) return _cachedCountry;
     try {
       final res = await _dio.get<Map<String, dynamic>>(
-        'https://ipwho.is/',
+        Env.geoIpBase,
         options: Options(
           responseType: ResponseType.json,
           receiveTimeout: const Duration(seconds: 6),

@@ -33,6 +33,7 @@ import 'audio/playback_state_store.dart';
 import 'audio/settings_store.dart';
 import 'audio/sponsorblock_skipper.dart';
 import 'cast/cast_service.dart';
+import 'config/env.dart';
 import 'providers/app_state_provider.dart';
 import 'providers/downloads_provider.dart';
 import 'providers/ytmusic_provider.dart';
@@ -131,6 +132,16 @@ class _LooseClampingScrollPhysics extends ClampingScrollPhysics {
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
   SystemChrome.setEnabledSystemUIMode(SystemUiMode.edgeToEdge);
+
+  // Say so once, loudly, rather than letting the catalog screens fail with a
+  // generic network error that looks like the backend is down.
+  if (Env.missing.isNotEmpty) {
+    debugPrint(
+      '[env] built without ${Env.missing.join(', ')} — '
+      'copy env.example.json to env.json and pass '
+      '--dart-define-from-file=env.json',
+    );
+  }
 
   // Local persistence (queue + future library/history/settings boxes).
   await Hive.initFlutter();

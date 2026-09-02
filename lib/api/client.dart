@@ -3,16 +3,15 @@
 
 import 'package:dio/dio.dart';
 
-class SunohApiEnv {
-  static const prod = 'https://api.sunoh.online';
-  // Android emulator → 10.0.2.2 maps to the host machine's localhost.
-  // On iOS simulator: use 'http://localhost:3600'.
-  // On a real device on the same Wi-Fi: use 'http://<host-LAN-ip>:3600'.
-  static const localEmulator = 'http://10.0.2.2:3600';
-  static const localHost = 'http://localhost:3600';
+import '../config/env.dart';
 
-  // Active base URL. Change this single line when switching environments.
-  static const baseUrl = prod;
+class SunohApiEnv {
+  /// Set by `--dart-define-from-file=env.json` — see lib/config/env.dart.
+  ///
+  /// Pointing at a local server is a matter of changing env.json rather than
+  /// editing this file: `http://10.0.2.2:3600` for an Android emulator (which
+  /// maps to the host's localhost), or the host's LAN IP for a real device.
+  static const baseUrl = Env.apiBase;
 }
 
 Dio buildSunohDio() {

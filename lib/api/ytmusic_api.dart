@@ -15,6 +15,7 @@
 
 import 'package:dio/dio.dart';
 
+import '../config/env.dart';
 import 'dto.dart';
 import 'yt_auth_channel.dart';
 import 'yt_locale.dart';
@@ -32,7 +33,7 @@ typedef AuthHeaders = Future<Map<String, String>> Function();
 /// The YouTube Music web client. No API key or auth needed for search/browse.
 const _kClientName = 'WEB_REMIX';
 const _kClientVersion = '1.20260101.01.00';
-const _kBase = 'https://music.youtube.com/youtubei/v1';
+const _kBase = Env.ytMusicBase;
 
 /// `params` filters pinning search to one result type. Opaque
 /// protobuf-derived values from the web client.
@@ -148,6 +149,9 @@ class YtMusicApi {
       'Content-Type': 'application/json',
       'X-Youtube-Client-Name': '67',
       'X-Youtube-Client-Version': _kClientVersion,
+      // Not configuration: InnerTube validates the origin, and the SAPISIDHASH
+      // is computed over this exact string on the native side. It is part of
+      // the request contract rather than something a build points elsewhere.
       'Origin': 'https://music.youtube.com',
       ...auth,
     },
