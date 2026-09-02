@@ -163,6 +163,7 @@ class AppState extends ChangeNotifier with WidgetsBindingObserver {
           );
         }
         if (app.tintFromArt != null) tintFromArt = app.tintFromArt!;
+        if (app.showCast != null) showCastButton = app.showCast!;
         final savedTheme = app.theme;
         if (savedTheme != null) {
           for (final t in SunohTheme.values) {
@@ -239,7 +240,7 @@ class AppState extends ChangeNotifier with WidgetsBindingObserver {
     final repo = audioRepo;
     if (repo == null) return;
     try {
-      final saved = await repo.restore();
+      final saved = await repo.loadSaved();
       if (saved == null) return;
       final song = saved.queue[saved.currentIndex];
       apiSourceLabel = saved.sourceLabel;
@@ -259,6 +260,11 @@ class AppState extends ChangeNotifier with WidgetsBindingObserver {
       _restoredPositionGuard = saved.positionSec;
       notifyListeners();
       debugPrint('[audio] restored "${song.title}" @ ${saved.positionSec}s');
+      // Only now hand it to mpv. Loading the file resolves a stream URL over
+      // the network, and the UI has no reason to wait on that — everything
+      // above is already on screen, and the engine just has to be ready
+      // before the user taps play.
+      unawaited(repo.prepareSaved(saved));
     } catch (e) {
       debugPrint('[audio] restore failed: $e');
     }
@@ -381,11 +387,21 @@ class AppState extends ChangeNotifier with WidgetsBindingObserver {
   /// When true, the moment the active track is the last in the queue the
   /// player fires a radio_station prime seeded by it and appends the
   /// returned songs. Off by default; persisted in settings.
-  bool endlessAutoplay = false;
+  /// On by default: a queue that ends in silence reads as the app stopping
+  /// working, and seeding a radio is the behaviour people expect from every
+  /// other music app. Saved installs keep whatever they already chose.
+  bool endlessAutoplay = true;
 
   /// Skip non-music segments (sponsor reads, intros/outros, talking
   /// sections) on YouTube tracks using community SponsorBlock data.
   bool sponsorBlockEnabled = true;
+
+  /// Whether the Cast button appears at all.
+  ///
+  /// Visible by default — hiding a feature people paid attention to find is
+  /// the wrong default. The toggle exists for people with no cast devices,
+  /// for whom the button is permanent clutter beside the transport controls.
+  bool showCastButton = true;
 
   /// Explicit YouTube region / interface language, or empty for auto.
   /// `gl` decides which charts and home rows YouTube returns, so this is
@@ -1332,6 +1348,16 @@ class AppState extends ChangeNotifier with WidgetsBindingObserver {
 
   /// Mirror a FeedItem into the legacy Track stub the player UI reads from.
   void _applySong(FeedItem song) {
+    // Re-applying the track that is already current is not a track change.
+    //
+    // `prepareQueue` emits a track-change event before mpv has loaded the
+    // file, so restoring a saved session called this twice for the same song:
+    // once from the restore itself, once from that event. The second call ran
+    // the reset below and wiped the restored position back to zero, taking the
+    // guard with it — so the scrubber sat empty until mpv finished resolving a
+    // stream URL and reported a real position, seconds later. Measured: 122s
+    // at +400ms, 0 at +800ms, 122 again only at +2800ms.
+    final sameTrack = currentApiSong?.id == song.id;
     currentApiSong = song;
     // Artist fallback chain: artists[].name → subtitle → empty (let UI
     // hide). The old "Unknown artist" literal was the wrong default for
@@ -1360,15 +1386,17 @@ class AppState extends ChangeNotifier with WidgetsBindingObserver {
       duration: durSec,
       plays: song.playCount ?? '',
     );
-    // mpv will report fresh duration as the next file loads; clear the
-    // stale value so the player doesn't briefly show the previous track's
-    // duration for the new one.
-    _engineDurationSec = 0;
-    position = 0;
-    // Track change invalidates any pending restore guard — we're past the
-    // restored track now and subsequent 0-reports from mpv (e.g. a new
-    // track loading paused) shouldn't be filtered.
-    _restoredPositionGuard = 0;
+    if (!sameTrack) {
+      // mpv will report fresh duration as the next file loads; clear the
+      // stale value so the player doesn't briefly show the previous track's
+      // duration for the new one.
+      _engineDurationSec = 0;
+      position = 0;
+      // A real track change invalidates any pending restore guard — we're
+      // past the restored track now and subsequent 0-reports from mpv (e.g. a
+      // new track loading paused) shouldn't be filtered.
+      _restoredPositionGuard = 0;
+    }
     _refreshExtractedAccent(song.artwork);
     // Episode resume: when an episode becomes active and we have a
     // saved position for it, seek there. The seek queues against
@@ -2148,6 +2176,13 @@ class AppState extends ChangeNotifier with WidgetsBindingObserver {
     // immediately so the queue extends without waiting for the next
     // track-change event (which only fires on advance).
     if (enabled) _maybeAutoplayPrime();
+  }
+
+  Future<void> setShowCastButton(bool show) async {
+    if (showCastButton == show) return;
+    showCastButton = show;
+    notifyListeners();
+    await audioRepo?.settings.saveAppearance(showCast: show);
   }
 
   Future<void> setSponsorBlock(bool enabled) async {

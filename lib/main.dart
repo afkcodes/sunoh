@@ -282,6 +282,10 @@ Future<void> main() async {
     _tryWireAudioService(handler, autoBrowse).then((bridge) {
       if (bridge != null) {
         repo.attachBridge(bridge);
+        // Swiping the app from recents shuts the process down, and the queue
+        // and position have to reach disk before it goes. The bridge is built
+        // before the repo exists, so the hook is handed over here.
+        bridge.onBeforeShutdown = repo.persistAll;
       }
     }),
   );
