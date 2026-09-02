@@ -523,6 +523,34 @@ class SunohAudioHandler {
   final Map<String, int> _loadFailRetries = {};
   static const _maxRetries = 2;
 
+  /// The song playback stopped on because it would not load, and the backoff
+  /// that keeps trying it.
+  ///
+  /// Without this, a track that cannot load lets mpv advance to the next one —
+  /// which, when the reason is "there is no network", cannot load either. The
+  /// result was the whole queue flicking past in a couple of seconds and
+  /// landing on silence at the end. Stopping on the track that failed is both
+  /// the honest thing to show and the only state you can resume from.
+  String? _stalledSongId;
+  Timer? _stallRetry;
+  int _stallAttempts = 0;
+
+  /// Backoff between retries, then every minute. Retrying is how the network
+  /// coming back is noticed: a resolve that succeeds is a connection, and no
+  /// connectivity plugin has to be added to learn it.
+  static const _stallBackoff = [
+    Duration(seconds: 5),
+    Duration(seconds: 10),
+    Duration(seconds: 20),
+    Duration(seconds: 30),
+    Duration(minutes: 1),
+  ];
+
+  /// After this many the timer stops and playback waits for a tap on play.
+  /// Roughly a quarter of an hour of trying, which is long enough to cover a
+  /// tunnel and short enough not to poll all night on a dead connection.
+  static const _maxStallRetries = 18;
+
   void _onError(MpvPlayerError err) {
     // ignore: avoid_print
     print('[mpv error] $err');
@@ -532,12 +560,8 @@ class SunohAudioHandler {
 
     final tries = _loadFailRetries[song.id] ?? 0;
     if (tries >= _maxRetries) {
-      // ignore: avoid_print
-      print(
-        '[audio] giving up on ${song.id} ("${song.title}") '
-        'after $tries retries — mpv will auto-advance to next',
-      );
       _loadFailRetries.remove(song.id);
+      _stallOn(song);
       return;
     }
     _loadFailRetries[song.id] = tries + 1;
@@ -547,6 +571,56 @@ class SunohAudioHandler {
       '(try ${tries + 1}/$_maxRetries) — force-refresh',
     );
     unawaited(_refreshCurrentTrack());
+  }
+
+  /// Stop on [song] rather than letting mpv walk the rest of the queue.
+  ///
+  /// Called once the per-song retries are spent. Pausing is what stops the
+  /// cascade: mpv advances on a load failure, and every following track fails
+  /// for the same reason.
+  void _stallOn(FeedItem song) {
+    if (_stalledSongId == song.id) {
+      _stallAttempts++;
+    } else {
+      _stalledSongId = song.id;
+      _stallAttempts = 0;
+    }
+    // ignore: avoid_print
+    print(
+      '[audio] cannot load ${song.id} ("${song.title}") — stopping here '
+      '(attempt $_stallAttempts), will retry',
+    );
+    unawaited(_player.pause());
+    _scheduleStallRetry();
+  }
+
+  void _scheduleStallRetry() {
+    _stallRetry?.cancel();
+    if (_stallAttempts >= _maxStallRetries) {
+      // ignore: avoid_print
+      print('[audio] giving up retrying — waiting for play');
+      return;
+    }
+    final delay =
+        _stallBackoff[_stallAttempts.clamp(0, _stallBackoff.length - 1)];
+    _stallRetry = Timer(delay, () {
+      final id = _stalledSongId;
+      if (id == null) return;
+      // Fresh per-song tries, so a retry that half-works still gets its own
+      // couple of goes before stalling again.
+      _loadFailRetries.remove(id);
+      unawaited(_refreshCurrentTrack());
+    });
+  }
+
+  /// Playback is healthy again — drop the stall so a later failure starts its
+  /// own backoff rather than inheriting this one's.
+  void _clearStall() {
+    if (_stalledSongId == null && _stallRetry == null) return;
+    _stalledSongId = null;
+    _stallAttempts = 0;
+    _stallRetry?.cancel();
+    _stallRetry = null;
   }
 
   // ── on_load hook (decomposed) ─────────────────────────────────────────
@@ -563,6 +637,8 @@ class SunohAudioHandler {
       if (resolved == null) return;
       await _applyResolvedHeaders(resolved.httpHeaders);
       await _applyResolvedUrl(resolved.url);
+      // Resolved and handed to mpv, so whatever was wrong is over.
+      _clearStall();
       _mergeEnrichmentIfAny(song.id, resolved.enriched);
       await _applyPendingStartPosition(song.id);
       _urlRefresh.schedule(songId: song.id, resolvedUrl: resolved.url);
@@ -710,6 +786,7 @@ class SunohAudioHandler {
       _byId[s.id] = s;
     }
     _loadFailRetries.clear();
+    _clearStall();
     _userPlaying = true;
     _pausedForInterruption = false;
     await _activateSession();
@@ -735,6 +812,7 @@ class SunohAudioHandler {
       _byId[s.id] = s;
     }
     _loadFailRetries.clear();
+    _clearStall();
     _userPlaying = false;
     _pendingStartPosition = seekTo;
     // Tag the target song so the load hook only consumes the pending
@@ -764,6 +842,7 @@ class SunohAudioHandler {
     // Manual play overrides any pending auto-resume from an interruption.
     _pausedForInterruption = false;
     _loadFailRetries.clear();
+    _clearStall();
     await _activateSession();
 
     // Resume safety net for long pauses. Background timers can be
@@ -779,6 +858,15 @@ class SunohAudioHandler {
       // ignore: avoid_print
       print('[audio] play() refreshing ${song.id} ("${song.title}")');
       await _refreshCurrentTrack();
+    }
+
+    // An explicit try-again: the backoff may have run out while the phone was
+    // somewhere with no signal, and a tap on play should not be ignored
+    // because of that.
+    if (_stalledSongId != null) {
+      _loadFailRetries.remove(_stalledSongId);
+      _stallAttempts = 0;
+      _scheduleStallRetry();
     }
 
     await _player.play();
@@ -884,6 +972,7 @@ class SunohAudioHandler {
 
   Future<void> clearQueue() async {
     _loadFailRetries.clear();
+    _clearStall();
     await _player.clearPlaylist();
     // Pre-clear our mirrors — the playlist stream will sync them too but
     // we want subsequent reads in the same microtask to see empty.
@@ -938,6 +1027,7 @@ class SunohAudioHandler {
   // ── Cleanup ────────────────────────────────────────────────────────────
   Future<void> dispose() async {
     _urlRefresh.dispose();
+    _stallRetry?.cancel();
     for (final s in _subs) {
       await s.cancel();
     }
