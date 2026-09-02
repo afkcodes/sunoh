@@ -22,6 +22,23 @@ if (keystorePropertiesFile.exists()) {
     keystoreProperties.load(FileInputStream(keystorePropertiesFile))
 }
 
+// The web host for App Links comes from the same env.json the Dart side reads,
+// so there is one place to change it and neither copy can drift. Parsed here
+// rather than duplicated into gradle.properties for that reason.
+//
+// Absent, it falls back to a host that resolves nothing. An unconfigured build
+// must not register itself as a handler for links it cannot serve — that would
+// put a stranger's build in the "open with" sheet for someone else's domain.
+val sunohWebHost: String = run {
+    val envFile = rootProject.file("../env.json")
+    if (!envFile.exists()) return@run "invalid.localhost"
+    val raw = groovy.json.JsonSlurper().parse(envFile) as? Map<*, *>
+        ?: return@run "invalid.localhost"
+    val web = raw["SUNOH_WEB_BASE"]?.toString().orEmpty()
+    if (web.isBlank()) "invalid.localhost"
+    else web.substringAfter("://").substringBefore("/").ifBlank { "invalid.localhost" }
+}
+
 android {
     // Same applicationId as the RN sunoh app — same keystore (see
     // [[sunoh-android-signing]]) means installing this Flutter build over
@@ -40,6 +57,7 @@ android {
 
     defaultConfig {
         applicationId = "codes.afk.sunoh"
+        manifestPlaceholders["sunohWebHost"] = sunohWebHost
         // You can update the following values to match your application needs.
         // For more information, see: https://flutter.dev/to/review-gradle-config.
         // Bumped from flutter default (21) to 24 — mpv_audio_kit (libmpv)

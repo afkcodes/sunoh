@@ -154,14 +154,33 @@ UPI VPA: `afkcodes@ybl` — both are also in the app under
 
 ```sh
 flutter pub get
-flutter run
+cp env.example.json env.json   # then fill in the endpoints
+flutter run --dart-define-from-file=env.json
 ```
 
 Release builds, split per ABI:
 
 ```sh
-flutter build apk --split-per-abi --release
+flutter build apk --split-per-abi --release --dart-define-from-file=env.json
 ```
+
+### Endpoints
+
+Every endpoint the app talks to lives in `env.json`, which is **gitignored** —
+this repository carries no base URL of its own. `env.example.json` documents
+the shape; the third-party ones (LRCLIB, SponsorBlock, InnerTube) are filled in
+there because they are public, and the sunoh-specific ones are blank.
+
+A build without `env.json` still runs. The on-device library and the YouTube
+tier need nothing from sunoh-api, so they keep working; the catalog screens
+render their normal error state. `scripts/release.sh` refuses to build a
+release without it.
+
+This is configuration, not secrecy. A compile-time define is baked into the
+APK, so anyone with the file can read every URL out of it — and anyone running
+the app can watch them go past in a proxy. The point is that a public
+repository does not carry a private backend URL, and that a fork or a
+self-hoster can repoint the app without editing code.
 
 Requires the Flutter SDK (Dart `^3.11.5`) and the Android SDK. The YouTube
 extraction path and the on-device library are native Kotlin under

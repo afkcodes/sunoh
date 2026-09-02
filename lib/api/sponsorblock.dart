@@ -14,6 +14,8 @@ import 'dart:convert';
 import 'package:crypto/crypto.dart';
 import 'package:dio/dio.dart';
 
+import '../config/env.dart';
+
 /// A segment worth skipping.
 class SkipSegment {
   const SkipSegment({
@@ -56,7 +58,7 @@ class SponsorBlockClient {
   SponsorBlockClient(this._dio);
   final Dio _dio;
 
-  static const _kBase = 'https://sponsor.ajay.app/api/skipSegments';
+  static const _kBase = Env.sponsorBlockBase;
 
   /// Segments for [videoId], or an empty list when there are none (by far
   /// the common case) or the lookup fails. Never throws: missing segment

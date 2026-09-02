@@ -64,3 +64,7 @@ ios/.symlinks/
 macos/Pods/
 macos/.symlinks/
 **/Podfile.lock
+
+# Build-time endpoint configuration. The values this build talks to are not
+# committed; env.example.json documents the shape. See lib/config/env.dart.
+/env.json

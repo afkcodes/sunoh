@@ -295,15 +295,24 @@ PY
 fi
 
 # ── Build APK(s) ───────────────────────────────────────────────────────────
+# Endpoints come from env.json (gitignored) rather than from source. A release
+# built without it would ship pointing at nothing, so this is fatal here even
+# though a contributor's debug build degrades quietly.
+ENV_FILE="env.json"
+if [[ ! -f $ENV_FILE ]]; then
+  die "$ENV_FILE not found — copy env.example.json and fill it in"
+fi
+DART_DEFINE="--dart-define-from-file=$ENV_FILE"
+
 log "running flutter build apk --release$([[ $SPLIT_APKS == 1 ]] && echo ' --split-per-abi')"
 if (( SPLIT_APKS )); then
-  run "flutter build apk --release --split-per-abi"
+  run "flutter build apk --release --split-per-abi $DART_DEFINE"
   # The universal APK ships alongside the splits, not instead of them.
   # Third-party repositories that mirror GitHub releases (IzzyOnDroid) take one
   # artifact per version and cannot choose between three ABIs; Obtainium can,
   # but falls back to this for any ABI we did not split for. Splits stay first
   # in the list so they remain the obvious download for a human.
-  run "flutter build apk --release"
+  run "flutter build apk --release $DART_DEFINE"
   APKS=(
     "build/app/outputs/flutter-apk/app-arm64-v8a-release.apk"
     "build/app/outputs/flutter-apk/app-armeabi-v7a-release.apk"
@@ -311,7 +320,7 @@ if (( SPLIT_APKS )); then
     "build/app/outputs/flutter-apk/app-release.apk"
   )
 else
-  run "flutter build apk --release"
+  run "flutter build apk --release $DART_DEFINE"
   APKS=( "build/app/outputs/flutter-apk/app-release.apk" )
 fi
 

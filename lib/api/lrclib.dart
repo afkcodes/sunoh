@@ -22,20 +22,22 @@ import 'dart:async';
 import 'package:dio/dio.dart';
 import 'package:flutter/foundation.dart';
 
+import '../config/env.dart';
+
 class LrcLibClient {
   LrcLibClient({Dio? dio})
     : _dio =
           dio ??
           Dio(
             BaseOptions(
-              baseUrl: 'https://lrclib.net',
+              baseUrl: Env.lrclibBase,
               connectTimeout: const Duration(seconds: 6),
               receiveTimeout: const Duration(seconds: 8),
               headers: const {
                 // LRCLIB asks integrators to identify themselves so they can
                 // troubleshoot traffic spikes. Polite and they recommend it
                 // in the docs.
-                'User-Agent': 'sunoh/1.0 (https://sunoh.online)',
+                'User-Agent': 'sunoh/1.0 (${Env.webBase})',
                 'Accept': 'application/json',
               },
               responseType: ResponseType.json,
