@@ -30,6 +30,7 @@ import 'package:path_provider/path_provider.dart';
 import '../api/dto.dart';
 import '../api/stream_resolver.dart';
 import 'download_store.dart';
+import 'hls_download.dart';
 
 /// Snapshot of a single in-flight download. Pushed onto [progressStream]
 /// on every Dio chunk callback (throttled to ~10 Hz to keep the UI
@@ -271,31 +272,48 @@ class DownloadManager implements LocalSourceProvider {
         ext = '.aac';
       } else if (urlForExt.contains('.opus')) {
         ext = '.opus';
-      } else if (urlForExt.contains('.m3u8') || urlForExt.contains('hls')) {
-        throw const _UnsupportedHlsException();
       }
+
+      // HLS is a playlist of segments rather than a file, so it takes a
+      // different path entirely — see hls_download.dart. MPEG-TS is the
+      // container the segments already are; concatenating them needs no
+      // remux.
+      final isHls = urlForExt.contains('.m3u8') || urlForExt.contains('hls');
+      if (isHls) ext = '.ts';
+
       final finalPath = '${entry.localPath}$ext';
       final partPath = '$finalPath.part';
 
       // Download to .part then rename atomically — the resolver checks
       // existence on the final path, so a half-written file is never
       // visible to playback.
-      await _dio.download(
-        url,
-        partPath,
-        cancelToken: cancel,
-        options: Options(responseType: ResponseType.bytes),
-        onReceiveProgress: (received, total) {
-          if (received <= 0) return;
-          _progressEvents.add(
-            DownloadProgress(
-              songId: entry.id,
-              received: received,
-              total: total,
-            ),
-          );
-        },
-      );
+      if (isHls) {
+        await HlsDownloader(_dio).download(
+          masterUrl: _bestHlsUrl(resolved, url),
+          toPath: partPath,
+          cancel: cancel,
+          onProgress: (done, total) => _progressEvents.add(
+            DownloadProgress(songId: entry.id, received: done, total: total),
+          ),
+        );
+      } else {
+        await _dio.download(
+          url,
+          partPath,
+          cancelToken: cancel,
+          options: Options(responseType: ResponseType.bytes),
+          onReceiveProgress: (received, total) {
+            if (received <= 0) return;
+            _progressEvents.add(
+              DownloadProgress(
+                songId: entry.id,
+                received: received,
+                total: total,
+              ),
+            );
+          },
+        );
+      }
 
       final partFile = File(partPath);
       final size = await partFile.length();
@@ -310,11 +328,10 @@ class DownloadManager implements LocalSourceProvider {
       _entries[entry.id] = entry;
       await store.put(entry);
       _entryEvents.add(entry);
-    } on _UnsupportedHlsException {
-      entry = entry.copyWith(
-        state: DownloadState.failed,
-        error: 'HLS streams aren’t downloadable yet',
-      );
+    } on HlsUnsupported catch (e) {
+      // A playlist we genuinely cannot turn into a file — encrypted, empty or
+      // unreadable. The reason reaches the row rather than a bare "failed".
+      entry = entry.copyWith(state: DownloadState.failed, error: e.reason);
       _entries[entry.id] = entry;
       await store.put(entry);
       _entryEvents.add(entry);
@@ -340,8 +357,23 @@ class DownloadManager implements LocalSourceProvider {
   }
 }
 
-class _UnsupportedHlsException implements Exception {
-  const _UnsupportedHlsException();
-  @override
-  String toString() => 'HLS playlists are not single-file downloadable';
+/// The best-quality HLS master among the qualities the API offered.
+///
+/// A download is kept, so it is worth its size in a way a stream on mobile
+/// data is not — this ignores the app's stream-quality setting on purpose.
+///
+/// `auto` and `high` masters both list the top variant (measured on gaana:
+/// ~200 kbps, against ~83 for `medium`), and [HlsDownloader] picks the highest
+/// bandwidth within whichever it is given. Falls back to the resolved URL when
+/// the response carried no alternatives.
+String _bestHlsUrl(ResolvedStream resolved, String fallback) {
+  final urls = resolved.enriched?.mediaUrls ?? const [];
+  for (final wanted in const ['auto', 'high']) {
+    for (final m in urls) {
+      if (m.quality.toLowerCase() == wanted && m.link.contains('.m3u8')) {
+        return m.link;
+      }
+    }
+  }
+  return fallback;
 }

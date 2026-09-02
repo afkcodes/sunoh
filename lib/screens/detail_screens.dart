@@ -1017,11 +1017,6 @@ class AlbumLikeBodyState extends ConsumerState<AlbumLikeBody> {
                       final isHere =
                           live.apiSourceRef?.kind == kind &&
                           live.apiSourceRef?.id == id;
-                      // Bulk-download surfaces (the heart-row icon + the
-                      // hero-menu "Download all") only matter for saavn
-                      // sources. Gaana songs are HLS, which we can't
-                      // single-file save yet.
-                      final isGaana = widget.sourceRef.source == 'gaana';
                       final dlEntries = ref
                           .watch(downloadEntriesProvider)
                           .asData
@@ -1033,7 +1028,6 @@ class AlbumLikeBodyState extends ConsumerState<AlbumLikeBody> {
                                 if (e.state == DownloadState.done) e.id,
                             };
                       final allDownloaded =
-                          !isGaana &&
                           songs.isNotEmpty &&
                           songs.every((sg) => dlIds.contains(sg.id));
                       return _HeroActions(
@@ -1077,7 +1071,7 @@ class AlbumLikeBodyState extends ConsumerState<AlbumLikeBody> {
                           if (!s.shuffle) s.toggleShuffle();
                         },
                         onLike: () => s.toggleSaved(heroItem),
-                        onDownload: isGaana || songs.isEmpty
+                        onDownload: songs.isEmpty
                             ? null
                             : () {
                                 ref

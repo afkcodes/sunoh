@@ -267,16 +267,12 @@ class _TrackMenuSheet extends ConsumerWidget {
                 },
                 colors: c,
               ),
-            // Download / Downloaded / Remove download — only saavn songs
-            // are downloadable today (gaana ships HLS playlists which we
-            // can't single-file save). The row hides entirely for gaana.
+            // Download / Downloaded / Remove download.
             //
-            // Some album/playlist detail responses don't restamp each
-            // song with its `source`, so fall back to the parent's
-            // sourceRef.source — otherwise a song fetched via gaana
-            // would show as downloadable because its own source is null.
-            if (_effectiveSource(song, sourceRef) != 'gaana')
-              _DownloadRow(song: song, colors: c),
+            // Gaana used to be excluded here because it ships HLS playlists
+            // rather than a file. It is downloadable now — the segments are
+            // concatenated into one MPEG-TS, see audio/hls_download.dart.
+            _DownloadRow(song: song, colors: c),
             if (sourceRef != null && sourceRef!.kind != 'artist')
               _MenuRow(
                 icon: sourceRef!.kind == 'album'
@@ -468,12 +464,6 @@ class _MenuRow extends StatelessWidget {
       ),
     );
   }
-}
-
-String? _effectiveSource(FeedItem song, DetailRef? sourceRef) {
-  final s = (song.source ?? '').trim();
-  if (s.isNotEmpty) return s;
-  return sourceRef?.source;
 }
 
 /// The Download row in the track-action sheet. Renders four states based

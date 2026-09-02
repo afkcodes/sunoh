@@ -172,10 +172,10 @@ class _HeroMenuSheet extends ConsumerWidget {
               ),
             // Bulk download for albums/playlists — fans every track out
             // to the download manager, capped at 2 concurrent by the
-            // manager's own queue. Hidden for gaana (HLS, can't single-
-            // file save) and for entity kinds without a flat song list
-            // (artist, etc — caller passes [] or omits `songs`).
-            if (entity.source != 'gaana' && songs.isNotEmpty)
+            // manager's own queue. Hidden only for entity kinds without a
+            // flat song list (artist, etc — caller passes [] or omits
+            // `songs`); gaana's HLS is handled in audio/hls_download.dart.
+            if (songs.isNotEmpty)
               _HeroMenuRow(
                 icon: SolarIconsOutline.downloadMinimalistic,
                 label: 'Download all (${songs.length})',
