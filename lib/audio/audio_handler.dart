@@ -311,6 +311,21 @@ class SunohAudioHandler {
     _subs.add(_player.stream.error.listen(_onError));
     _subs.add(_player.stream.log.listen(_onLog));
     _subs.add(_player.stream.hook.listen(_onHook));
+    // What is actually being decoded, and what actually reaches the hardware.
+    // The two are not the same thing on Android — see [audioFormatLine].
+    _subs.add(
+      _player.stream.audioParams.listen((p) {
+        _decoded = p;
+        decodedNotifier.value = p;
+        _logAudioFormat();
+      }),
+    );
+    _subs.add(
+      _player.stream.audioOutParams.listen((p) {
+        _output = p;
+        _logAudioFormat();
+      }),
+    );
     // URL refresh cancels itself whenever the active track changes.
     _subs.add(currentSongStream.listen((_) => _urlRefresh.cancel()));
   }
@@ -461,10 +476,48 @@ class SunohAudioHandler {
       await _player.setRawProperty('cache', 'yes');
       await _player.setRawProperty('cache-secs', '240');
       await _player.setRawProperty('demuxer-readahead-secs', '240');
+      // ── Byte caps, raised for lossless. ──────────────────────────────
+      // cache-secs asks for four minutes; the byte cap decides whether it
+      // gets them. A lossy stream is ~40 kB/s, so 240 s is ~10 MB and never
+      // came close to any limit. A 24-bit/96 kHz FLAC is closer to 500 kB/s —
+      // the same four minutes is ~120 MB, which runs straight into mpv's
+      // default cap and silently leaves the runway far shorter than asked
+      // for, on exactly the format that can least afford a refill mid-track.
+      //
+      // A cap, not an allocation: a lossy track still holds its ~10 MB.
+      await _player.setRawProperty('demuxer-max-bytes', '192MiB');
+      // Backwards cache, so a scrub back a few seconds replays from memory
+      // instead of re-fetching a range of a large file.
+      await _player.setRawProperty('demuxer-max-back-bytes', '48MiB');
+      // ── The audio device's own runway. ───────────────────────────────
+      // Separate from the cache above, which guards the *network*. This
+      // guards the gap between mpv's decoder and Android's AudioTrack, and
+      // it was never being set: the log below claimed 500ms while the code
+      // set nothing, leaving mpv's 200ms default. Underruns followed —
+      // "Audio device underrun detected" in mpv's own log, on a 500 Mbps
+      // connection, which is nothing to do with bandwidth.
+      //
+      // 200ms is thin for what this app asks of a phone. FLAC costs more to
+      // decode than AAC, every stream is resampled to the device rate on the
+      // way out, and both compete with a Flutter UI on a mid-range CPU. One
+      // second absorbs a scheduling hiccup without being enough latency to
+      // feel on pause or seek.
+      await _player.setRawProperty('audio-buffer', '1.0');
+      // Read back rather than trust the write. `audio-buffer` is an option,
+      // not a live property: mpv accepts it at any time but only honours it
+      // when the audio output is next initialised, and a silently-ignored
+      // write here would leave the 200ms default in place while the log
+      // claimed otherwise — which is exactly the trap the previous version of
+      // this line fell into.
+      final applied = await Future.wait([
+        _player.getRawProperty('audio-buffer'),
+        _player.getRawProperty('demuxer-max-bytes'),
+        _player.getRawProperty('cache-secs'),
+      ]);
       // ignore: avoid_print
       print(
-        '[audio] tuning applied: gapless=yes prefetch-playlist=yes '
-        'audio-buffer=500ms cache-secs=240 readahead-secs=240',
+        '[audio] tuning readback: audio-buffer=${applied[0]} '
+        'demuxer-max-bytes=${applied[1]} cache-secs=${applied[2]}',
       );
     } catch (e) {
       // ignore: avoid_print
@@ -517,6 +570,60 @@ class SunohAudioHandler {
         '(mpv will auto-advance)',
       );
     }
+  }
+
+  AudioParams? _decoded;
+  AudioParams? _output;
+
+  /// Fires when the decoder reports a new format.
+  ///
+  /// A plain field was not enough: the quality tag is derived from this, and
+  /// nothing else in the app rebuilds when mpv gets round to announcing what
+  /// it opened — which happens a second or two after the track changes. The
+  /// tag would have shown the previous track's answer until something else
+  /// happened to repaint.
+  final ValueNotifier<AudioParams?> decodedNotifier =
+      ValueNotifier<AudioParams?>(null);
+
+  /// What mpv opened: the decoder's own view of the file.
+  AudioParams? get decodedParams => _decoded;
+
+  /// What the audio device was actually configured for.
+  ///
+  /// Worth having separately from [decodedParams] because Android will happily
+  /// accept a 96 kHz stream and open its AudioTrack at 48 kHz, resampling on
+  /// the way. A player that reported "24-bit / 96 kHz" off the decoder alone
+  /// would be telling the truth about the file and a lie about the sound.
+  AudioParams? get outputParams => _output;
+
+  String? _lastFormatLine;
+
+  /// One line describing the whole chain, logged when either end changes.
+  ///
+  /// This is the answer to "how do I know lossless is actually playing": not
+  /// the badge, which only reflects what the resolver chose, but what the
+  /// decoder and the audio device each report.
+  void _logAudioFormat() {
+    final line = audioFormatLine;
+    if (line == null || line == _lastFormatLine) return;
+    _lastFormatLine = line;
+    debugPrint('[audio] $line');
+  }
+
+  /// e.g. `flac 96000 Hz s32 -> out 48000 Hz s16 (resampled)`.
+  String? get audioFormatLine {
+    final d = _decoded;
+    if (d == null || d.sampleRate == null) return null;
+    final codec = (d.codecName ?? d.codec ?? '?').toLowerCase();
+    final out = _output;
+    final buf = StringBuffer(
+      '$codec ${d.sampleRate} Hz ${d.format?.name ?? '?'}',
+    );
+    if (out?.sampleRate != null) {
+      buf.write(' -> out ${out!.sampleRate} Hz ${out.format?.name ?? '?'}');
+      if (out.sampleRate != d.sampleRate) buf.write(' (resampled)');
+    }
+    return buf.toString();
   }
 
   // Per-song-id retry counter for hard load errors.
@@ -1027,6 +1134,7 @@ class SunohAudioHandler {
   // ── Cleanup ────────────────────────────────────────────────────────────
   Future<void> dispose() async {
     _urlRefresh.dispose();
+    decodedNotifier.dispose();
     _stallRetry?.cancel();
     for (final s in _subs) {
       await s.cancel();

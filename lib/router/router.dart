@@ -557,7 +557,12 @@ extension SunohNav on BuildContext {
       case 'artist':
         openYtArtist(item.id, name: item.title);
       default:
-        break;
+        // Songs deliberately do not land here: playing one is the caller's
+        // job, because it needs the surrounding list to build a queue from
+        // and this extension only knows how to navigate. Logged rather than
+        // ignored — a silent `break` here is what made tapping a liked song
+        // do nothing at all, with no error to find.
+        debugPrint('[deeplink] openYtItem: nothing to open for ${item.type}');
     }
   }
 

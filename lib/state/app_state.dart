@@ -8,6 +8,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_chrome_cast/enums.dart';
 
 import '../api/dto.dart';
+import '../api/lossless_api.dart';
 import '../api/sunoh_api.dart';
 import '../audio/audio_repo.dart';
 import '../audio/eq_presets.dart';
@@ -1621,9 +1622,82 @@ class AppState extends ChangeNotifier with WidgetsBindingObserver {
     notifyListeners();
   }
 
+  /// What the current track's audio actually is, or null when there is
+  /// nothing worth saying.
+  ///
+  /// Two sources, each for the half it can be trusted on:
+  ///
+  ///   - **mpv decides whether it is lossless.** Its codec is ground truth —
+  ///     the file really was FLAC or it really was not. The lossless API can
+  ///     only report what it handed us, which would make the badge
+  ///     unfalsifiable and therefore useless as the one thing a listener would
+  ///     check.
+  ///   - **The catalog supplies the numbers.** mpv's `audio-params` is the
+  ///     format *after* the resampler, so it reads 48 kHz for everything on a
+  ///     device whose output runs at 48 kHz — an earlier version of this
+  ///     showed that as the file's rate, which was simply wrong.
+  ///
+  /// Lossy tracks get nothing rather than a bitrate: the question this answers
+  /// is "am I getting what I turned on", and an answer that is always present
+  /// answers nothing.
+  String? get currentQualityLabel {
+    final codec =
+        (audioRepo?.handler.decodedParams?.codecName ??
+                audioRepo?.handler.decodedParams?.codec ??
+                '')
+            .toLowerCase();
+    if (codec.isEmpty) return null;
+    const lossless = ['flac', 'alac', 'wav', 'pcm', 'ape', 'wavpack'];
+    if (!lossless.any(codec.contains)) return null;
+
+    final name = codec.contains('alac') ? 'ALAC' : codec.split(' ').first;
+    final id = currentApiSong?.id;
+    final detail = id == null
+        ? null
+        : audioRepo?.resolver.lossless?.labelFor(id);
+    return detail == null
+        ? name.toUpperCase()
+        : '${name.toUpperCase()} · $detail';
+  }
+
+  /// Everything the quality tag is derived from, as one thing to listen to.
+  ///
+  /// Two independent sources change at different moments — mpv announcing the
+  /// decoded format, and the lossless lookup moving between searching, found
+  /// and unavailable — and a widget watching only one of them shows a stale
+  /// answer whenever the other moves.
+  Listenable? get qualityListenable {
+    final repo = audioRepo;
+    if (repo == null) return null;
+    final lookup = repo.resolver.lossless?.status;
+    return Listenable.merge([repo.handler.decodedNotifier, ?lookup]);
+  }
+
+  /// Where the hi-res lookup for the current track has got to, or null when it
+  /// is not being attempted. Tagged by song id upstream, so a lookup running
+  /// ahead for the *next* track cannot relabel the one on screen.
+  LosslessLookup? get losslessLookup {
+    final api = audioRepo?.resolver.lossless;
+    final id = currentApiSong?.id;
+    if (api == null || id == null) return null;
+    // A request still in flight outranks the last published state. Playback
+    // stops waiting after a fraction of a second while the lookup carries on,
+    // and during that window the honest answer is "still looking" rather than
+    // whatever was last said about this track.
+    if (api.isLooking(id)) return LosslessLookup.searching;
+    final status = api.status.value;
+    if (status == null) return null;
+    return status.songId == id ? status.state : null;
+  }
+
   void setStreamQuality(String v) {
     streamQuality = v;
-    audioRepo?.resolver.setQualityFromString(v);
+    final resolver = audioRepo?.resolver;
+    resolver?.setQualityFromString(v);
+    // Switching back to lossless should re-ask about tracks previously
+    // answered "no": the catalog may have gained them since, and that
+    // negative cache lives only for the session.
+    if (v == 'lossless') resolver?.lossless?.reset();
     _persistPlayback();
     notifyListeners();
   }

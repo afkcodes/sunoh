@@ -46,7 +46,12 @@ class SavedPlayback {
     this.ytCountry,
     this.ytLanguage,
   });
-  final String? streamQuality; // 'auto' / 'high' / 'data'
+  /// 'auto' / 'high' / 'data' / 'lossless'.
+  ///
+  /// 'lossless' adds a hi-res tier ahead of the usual sources and otherwise
+  /// behaves like 'high'. Deliberately a choice rather than a default: a
+  /// 24-bit/96 kHz track is roughly 96 MB against ~10 MB for the usual stream.
+  final String? streamQuality;
   /// Persisted as the `LoopMode.name` ('off' / 'all' / 'one'). Null on
   /// fresh installs / older saves that predate this field.
   final String? repeatMode;

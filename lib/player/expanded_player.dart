@@ -30,6 +30,7 @@ import '../router/router.dart';
 import '../state/app_state.dart';
 import '../theme/tokens.dart';
 import '../widgets/album_art.dart';
+import '../widgets/quality_tag.dart';
 import '../widgets/ui.dart';
 import 'scrubber.dart';
 
@@ -301,6 +302,12 @@ class _ExpandedPlayerState extends ConsumerState<ExpandedPlayer>
                               color: c.fgDim,
                             ),
                           ),
+                          // Directly under the artist, where the rest of the
+                          // track's metadata already lives. Renders nothing
+                          // for an ordinary lossy track, so it costs no space
+                          // when there is nothing to say.
+                          const SizedBox(height: 7),
+                          QualityTag(colors: c),
                           if (lyricLine != null) ...[
                             const SizedBox(height: 8),
                             _LyricsTeaser(
