@@ -181,6 +181,32 @@ class UrlRefreshScheduler {
     unawaited(triggerRefresh(reason: 'pre-emptive timer'));
   }
 
+  /// A timestamp from a number whose unit nobody agreed on.
+  ///
+  /// Signed URLs and JSON payloads alike carry expiry as epoch milliseconds,
+  /// epoch seconds or a plain TTL, and which one depends on whose CDN minted
+  /// it. Guessing wrong is not a rounding error: reading seconds as
+  /// milliseconds lands in 1970, which every staleness check reads as "already
+  /// expired" and re-resolves on every play.
+  ///
+  /// Null for anything outside those three shapes, which callers treat as "no
+  /// expiry stated" rather than trusting it.
+  static DateTime? expiryFromNumber(Object? value) {
+    final n = value is int
+        ? value
+        : value is num
+        ? value.toInt()
+        : int.tryParse('${value ?? ''}');
+    if (n == null) return null;
+    if (n >= 1000000000000) return DateTime.fromMillisecondsSinceEpoch(n);
+    if (n >= 1000000000) return DateTime.fromMillisecondsSinceEpoch(n * 1000);
+    // A TTL in seconds, if it is within a week.
+    if (n > 0 && n < 86400 * 7) {
+      return DateTime.now().add(Duration(seconds: n));
+    }
+    return null;
+  }
+
   /// Best-effort parser for signed-URL expiry. Tries the common query-string
   /// conventions used by Gaana/Saavn/S3/CDNs. Returns null if no expiry
   /// parameter is present or parseable. Also consumed by `StreamResolver`
@@ -191,7 +217,18 @@ class UrlRefreshScheduler {
     if (uri == null) return null;
     // Walk every query param — gaana sometimes nests the token in the path
     // segments but the readable expiry is consistently in the query.
-    for (final key in const ['expires', 'expire', 'e', 'oe', 'exp', 'ttl']) {
+    // 'etsp' is the lossless CDN's name for the same thing. Without it a
+    // signed lossless URL parses as "no expiry", which the resolver cache
+    // reads as "never stale" and would hand mpv a dead URL an hour later.
+    for (final key in const [
+      'expires',
+      'expire',
+      'e',
+      'oe',
+      'exp',
+      'ttl',
+      'etsp',
+    ]) {
       final raw = uri.queryParameters[key];
       if (raw == null || raw.isEmpty) continue;
       final n = int.tryParse(raw);

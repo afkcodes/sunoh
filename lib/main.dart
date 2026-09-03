@@ -17,6 +17,7 @@ import 'package:mpv_audio_kit/mpv_audio_kit.dart';
 import 'package:permission_handler/permission_handler.dart';
 
 import 'api/client.dart';
+import 'api/lossless_api.dart';
 import 'api/sponsorblock.dart';
 import 'api/stream_resolver.dart';
 import 'api/sunoh_api.dart';
@@ -194,7 +195,10 @@ Future<void> main() async {
   print('[audio] MpvAudioKit ready');
 
   // Phase 1: synchronous mpv setup. Playback works after this line.
-  final resolver = StreamResolver(buildSunohDio());
+  // One Dio for both: the lossless lookup talks to the same sunoh-api host and
+  // benefits from the same base URL, interceptors and timeouts.
+  final sunohDio = buildSunohDio();
+  final resolver = StreamResolver(sunohDio)..lossless = LosslessApi(sunohDio);
   // Downloads — wire the offline tier before the handler is built so any
   // restored playback queue benefits from the local file lookup on the
   // very first resolve. Failures here MUST be swallowed: the manager

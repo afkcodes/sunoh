@@ -44,6 +44,10 @@ class AudioRepo {
       // skipper degrades to "no segments" on any failure, and playback
       // must never wait on a third-party lookup.
       unawaited(sponsorBlock.onTrackChanged(song));
+      // Ask the hi-res catalog about the *next* track now, while this one has
+      // a whole song's worth of time to answer in. Without it, pressing next
+      // met a cold lookup and waited out its budget before any sound.
+      _warmNextLossless();
       // Skip while restoring — `prepareQueue` emits a currentSong event
       // before mpv has actually loaded the file, so handler.position is
       // 0 even though the SAVED state had a non-zero seek target. Writing
@@ -287,6 +291,28 @@ class AudioRepo {
       }
     } finally {
       _restoreInProgress = false;
+    }
+  }
+
+  /// How far ahead the hi-res catalog is asked to look.
+  ///
+  /// Three covers the way people actually skip — a couple of taps to get past
+  /// something, not a scroll through the whole queue. Each is one small
+  /// request, answered once and then cached for the session, so the cost is
+  /// bounded even when someone skips through an album. Going deeper would
+  /// mostly buy lookups for tracks nobody reaches.
+  static const int _kLosslessWarmAhead = 3;
+
+  /// Start the hi-res lookups for the next few tracks.
+  ///
+  /// Cheap by construction: the API skips anything it already knows, already
+  /// ruled out, or is already fetching, so this settles to nothing while a
+  /// queue plays through in order.
+  void _warmNextLossless() {
+    for (var i = 1; i <= _kLosslessWarmAhead; i++) {
+      final at = _currentIndex + i;
+      if (at < 0 || at >= _queue.length) return;
+      resolver.warmLossless(_queue[at]);
     }
   }
 

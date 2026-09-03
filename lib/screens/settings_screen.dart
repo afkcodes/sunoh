@@ -98,6 +98,7 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
                   'auto': 'Auto',
                   'high': 'High',
                   'data': 'Data saver',
+                  'lossless': 'Lossless',
                 },
                 onChange: s.setStreamQuality,
                 colors: c,
@@ -555,57 +556,78 @@ class _RadioRow<T> extends StatelessWidget {
   final Map<T, String> options;
   final ValueChanged<T> onChange;
   final SunohColors colors;
+
+  /// Past three pills the segmented control no longer fits beside a label on a
+  /// phone — the label ellipsises to "Stream q…" and the control runs to the
+  /// screen edge. Rather than have callers remember, the row stacks itself and
+  /// gives the control its own full-width line. Three-option rows (theme,
+  /// density) keep the compact inline form.
+  bool get _stacked => options.length > 3;
+
+  Widget _pill(MapEntry<T, String> e, {required bool expand}) {
+    final selected = e.key == value;
+    final pill = GestureDetector(
+      onTap: () => onChange(e.key),
+      child: AnimatedContainer(
+        duration: const Duration(milliseconds: 150),
+        padding: EdgeInsets.symmetric(horizontal: expand ? 6 : 12, vertical: 6),
+        decoration: BoxDecoration(
+          color: selected ? colors.fg : Colors.transparent,
+          borderRadius: BorderRadius.circular(999),
+        ),
+        child: Text(
+          e.value,
+          textAlign: TextAlign.center,
+          maxLines: 1,
+          overflow: TextOverflow.ellipsis,
+          style: SunohType.sans(
+            fontSize: 12,
+            fontWeight: FontWeight.w500,
+            color: selected ? colors.bg : colors.fgMute,
+          ),
+        ),
+      ),
+    );
+    // Expanded shares the full width evenly once the control is on its own
+    // line, so the pills read as one segmented control rather than a huddle.
+    return expand ? Expanded(child: pill) : pill;
+  }
+
+  Widget _control({required bool expand}) => Container(
+    padding: const EdgeInsets.all(3),
+    decoration: BoxDecoration(
+      color: colors.surface,
+      borderRadius: BorderRadius.circular(999),
+      border: Border.all(color: colors.line, width: 0.5),
+    ),
+    child: Row(
+      mainAxisSize: expand ? MainAxisSize.max : MainAxisSize.min,
+      children: [for (final e in options.entries) _pill(e, expand: expand)],
+    ),
+  );
+
   @override
   Widget build(BuildContext context) {
-    final c = colors;
+    final text = Text(
+      label,
+      maxLines: 1,
+      overflow: TextOverflow.ellipsis,
+      style: SunohType.sans(fontSize: 14, color: colors.fgDim),
+    );
+
+    if (_stacked) {
+      return Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [text, const SizedBox(height: 10), _control(expand: true)],
+      );
+    }
+
     return Row(
       mainAxisAlignment: MainAxisAlignment.spaceBetween,
       children: [
-        Flexible(
-          child: Text(
-            label,
-            maxLines: 1,
-            overflow: TextOverflow.ellipsis,
-            style: SunohType.sans(fontSize: 14, color: c.fgDim),
-          ),
-        ),
+        Flexible(child: text),
         const SizedBox(width: 12),
-        Container(
-          padding: const EdgeInsets.all(3),
-          decoration: BoxDecoration(
-            color: c.surface,
-            borderRadius: BorderRadius.circular(999),
-            border: Border.all(color: c.line, width: 0.5),
-          ),
-          child: Row(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              for (final e in options.entries)
-                GestureDetector(
-                  onTap: () => onChange(e.key),
-                  child: AnimatedContainer(
-                    duration: const Duration(milliseconds: 150),
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: 12,
-                      vertical: 6,
-                    ),
-                    decoration: BoxDecoration(
-                      color: e.key == value ? c.fg : Colors.transparent,
-                      borderRadius: BorderRadius.circular(999),
-                    ),
-                    child: Text(
-                      e.value,
-                      style: SunohType.sans(
-                        fontSize: 12,
-                        fontWeight: FontWeight.w500,
-                        color: e.key == value ? c.bg : c.fgMute,
-                      ),
-                    ),
-                  ),
-                ),
-            ],
-          ),
-        ),
+        _control(expand: false),
       ],
     );
   }

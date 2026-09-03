@@ -25,13 +25,17 @@ import 'package:dio/dio.dart';
 import '../audio/url_refresh.dart';
 import 'dto.dart';
 import 'local_media_channel.dart';
+import 'lossless_api.dart';
 import 'ytmusic_channel.dart';
 
 /// User stream-quality preference. `auto` and `high` both prefer the highest
 /// available variant; the distinction is reserved for the future (e.g. `auto`
 /// could become network-adaptive). `data` caps the pick at the lowest
-/// available so cellular sessions don't burn through bandwidth.
-enum StreamQuality { auto, high, data }
+/// available so cellular sessions don't burn through bandwidth. `lossless`
+/// adds a hi-res tier ahead of everything else and otherwise behaves like
+/// `high`, so a track the lossless catalog lacks still plays at best quality
+/// rather than failing.
+enum StreamQuality { auto, high, data, lossless }
 
 /// Extension point for offline / downloaded sources. Implementations live
 /// in the downloads layer (not built yet); when wired, the resolver asks
@@ -57,6 +61,11 @@ class StreamResolver {
   /// before any network tier. Defaults to null (network-only). The
   /// downloads feature will set this once it lands.
   LocalSourceProvider? localSource;
+
+  /// Hi-res lossless lookup. Set by AppState from Settings; null means the
+  /// feature is compiled in but the user has not opted in, and the tier is
+  /// skipped entirely at zero cost.
+  LosslessApi? lossless;
 
   /// In-memory resolve cache keyed by song id. Populated on every successful
   /// resolve; consulted at the top of [resolve] for non-`forceRefresh` calls.
@@ -84,16 +93,35 @@ class StreamResolver {
     StreamQuality.high => 'high',
     StreamQuality.data => 'data',
     StreamQuality.auto => 'auto',
+    // The lossy tiers have no notion of lossless; asking them for the best
+    // they have is the right fallback when the hi-res catalog comes up empty.
+    StreamQuality.lossless => 'high',
   };
+
+  /// Ask the lossless catalog about [song] ahead of time.
+  ///
+  /// No-op unless the user chose lossless. Cheap enough to call on every track
+  /// change: the API skips anything it already knows or is already fetching.
+  void warmLossless(FeedItem song) {
+    if (quality != StreamQuality.lossless) return;
+    lossless?.warm(song, quality: _qualityParam());
+  }
 
   /// Convenience setter for the Hive-persisted string form used in the UI.
   /// Unknown values fall back to `auto`.
   void setQualityFromString(String value) {
+    final previous = quality;
     quality = switch (value) {
       'high' => StreamQuality.high,
       'data' => StreamQuality.data,
+      'lossless' => StreamQuality.lossless,
       _ => StreamQuality.auto,
     };
+    // Cached URLs were resolved at the old quality, and the cache is keyed by
+    // song id alone. Without this, turning Lossless on and pressing play on
+    // anything heard this session serves the lossy URL still sitting in the
+    // cache — and the setting looks broken.
+    if (quality != previous) _cache.clear();
   }
 
   /// Returns a playable URL for [song], or throws [StreamResolveException]
@@ -151,7 +179,43 @@ class StreamResolver {
       return ResolvedStream(path);
     }
 
-    // 0b) YouTube Music. Resolved natively (see lib/api/ytmusic_channel.dart
+    // 0b) A cached answer, before any tier that would go to the network.
+    //
+    //     Hoisted above the lossless and YouTube tiers rather than left at 1a:
+    //     both of those return unconditionally, so with the check further down
+    //     a track already resolved this session still paid a full round trip
+    //     to be told what the cache already held. On the on_load hook, the
+    //     pre-resolve tick and the Cast path, that is up to a second of
+    //     silence for nothing.
+    //
+    //     forceRefresh drops the entry instead — that path exists precisely
+    //     because the cached URL is suspected dead.
+    if (forceRefresh) {
+      _cache.remove(song.id);
+    } else {
+      final cached = _cache[song.id];
+      if (cached != null && !_isStale(cached)) return cached.stream;
+      if (cached != null) _cache.remove(song.id);
+    }
+
+    // 0c) Hi-res lossless, when chosen. Ahead of BOTH the YouTube and
+    //     inline-`mediaUrls` tiers because each of those returns
+    //     unconditionally — reaching either first would mean a track that
+    //     exists in hi-res never plays in hi-res, and the setting is global
+    //     so YouTube cannot be the exception. Non-throwing and time-bounded:
+    //     a miss falls through and plays from the song's own source.
+    //
+    //     LosslessApi answers from its own memory for anything looked up this
+    //     session, hit or miss, so this is a network call once per track.
+    final ll = lossless;
+    if (quality == StreamQuality.lossless && ll != null) {
+      final hit = await ll.resolve(song, quality: _qualityParam());
+      if (hit != null) {
+        return _store(song.id, ResolvedStream(hit.url), expiry: hit.expiresAt);
+      }
+    }
+
+    // 0d) YouTube Music. Resolved natively (see lib/api/ytmusic_channel.dart
     //     for why it can't be done from Dart) and never cached here — the
     //     native side owns client selection and PO-token lifetime, and its
     //     URLs carry their own expiry which we surface to the refresh
@@ -170,23 +234,9 @@ class StreamResolver {
       return ResolvedStream(yt.url, httpHeaders: yt.headers);
     }
 
-    if (forceRefresh) {
-      // Stale-URL recovery path — drop any cached entry so the in-flight
-      // pre-resolve from a prior tick can't return a known-bad URL.
-      _cache.remove(song.id);
-    } else {
-      // 1a) Resolver cache hit (if still fresh) — populated by an earlier
-      //     resolve. Returns synchronously so the on_load hook is fast.
-      final cached = _cache[song.id];
-      if (cached != null && !_isStale(cached)) {
-        return cached.stream;
-      }
-      if (cached != null) {
-        // Cached URL is too close to expiry — drop it and re-resolve.
-        _cache.remove(song.id);
-      }
-
-      // 1b) Inline mediaUrls (fresh API responses include these).
+    // 1) Inline mediaUrls (fresh API responses include these). The cache was
+    //    consulted at 0b, above the network tiers.
+    if (!forceRefresh) {
       final embedded = _pick(song.mediaUrls);
       if (embedded != null) {
         return _store(song.id, ResolvedStream(embedded));
@@ -271,10 +321,16 @@ class StreamResolver {
     );
   }
 
-  ResolvedStream _store(String songId, ResolvedStream stream) {
+  /// [expiry] wins when the caller already knows it from the API response;
+  /// otherwise it is parsed back out of the signed URL.
+  ResolvedStream _store(
+    String songId,
+    ResolvedStream stream, {
+    DateTime? expiry,
+  }) {
     _cache[songId] = _CacheEntry(
       stream: stream,
-      expiry: UrlRefreshScheduler.parseExpiry(stream.url),
+      expiry: expiry ?? UrlRefreshScheduler.parseExpiry(stream.url),
     );
     return stream;
   }
@@ -315,8 +371,10 @@ class StreamResolver {
     return switch (quality) {
       // Cell-data saver: lowest available variant.
       StreamQuality.data => sorted.last.link,
-      // Default + 'high': highest available variant.
-      StreamQuality.auto || StreamQuality.high => sorted.first.link,
+      // Default, 'high', and the lossless fallback: highest available.
+      StreamQuality.auto ||
+      StreamQuality.high ||
+      StreamQuality.lossless => sorted.first.link,
     };
   }
 
