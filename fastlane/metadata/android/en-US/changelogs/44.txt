@@ -1,0 +1,20 @@
+Lossless streaming. Settings > Stream quality has a new Lossless option.
+When a track exists in a lossless catalog, sunoh streams it straight from
+that catalog - nothing passes through our servers. A small tag tells you
+what you are actually hearing, read from the player itself.
+
+Gaana tracks can now be downloaded. They are served as streaming
+playlists rather than files, which is why they were the one source you
+could not save.
+
+Your device library, properly: sort by date added, title, artist, album,
+duration or year, new Genres and Folders tabs, and search across
+everything on the phone. Albums now play in track order. Music you copy
+onto the phone shows up on its own.
+
+Playback fixes: audio was stuttering because the player's buffer was
+never being set. Playing offline now stops and waits for the connection
+instead of racing through the queue. Downloads show progress on the song
+row, and your saved position appears as soon as the app opens.
+
+Swiping the app away from recents now actually closes it.
