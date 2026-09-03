@@ -11,6 +11,7 @@ import '../providers/palette_provider.dart';
 import '../router/router.dart';
 import '../theme/tokens.dart';
 import '../widgets/album_art.dart';
+import '../widgets/quality_tag.dart';
 import 'scrubber.dart';
 
 class MiniPlayer extends ConsumerWidget {
@@ -69,11 +70,26 @@ class MiniPlayer extends ConsumerWidget {
                           color: c.fg,
                         ),
                       ),
-                      Text(
-                        track.artist,
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                        style: SunohType.sans(fontSize: 11.5, color: c.fgMute),
+                      Row(
+                        children: [
+                          Flexible(
+                            child: Text(
+                              track.artist,
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                              style: SunohType.sans(
+                                fontSize: 11.5,
+                                color: c.fgMute,
+                              ),
+                            ),
+                          ),
+                          // Compact form: a HI-RES mark and nothing else. The
+                          // mini player has one line to spare and no room to
+                          // explain itself, so the full label and the
+                          // fallback copy stay in the expanded player.
+                          const SizedBox(width: 8),
+                          QualityTag(colors: c, compact: true),
+                        ],
                       ),
                     ],
                   ),
