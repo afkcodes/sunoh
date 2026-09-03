@@ -10,8 +10,10 @@
 // otherwise. The invitation lives in Settings, once.
 
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../api/dto.dart';
+import '../providers/app_state_provider.dart';
 import '../router/router.dart';
 import '../theme/tokens.dart';
 import '../widgets/album_art.dart';
@@ -45,7 +47,11 @@ class LibraryYouTubeSection extends StatelessWidget {
             eyebrowText: 'YOUTUBE MUSIC',
             padding: const EdgeInsets.fromLTRB(20, 0, 20, 12),
           ),
-          _Strip(items: section.items, colors: colors),
+          _Strip(
+            items: section.items,
+            heading: section.heading,
+            colors: colors,
+          ),
           const SizedBox(height: 22),
         ],
       ],
@@ -53,14 +59,19 @@ class LibraryYouTubeSection extends StatelessWidget {
   }
 }
 
-class _Strip extends StatelessWidget {
-  const _Strip({required this.items, required this.colors});
+class _Strip extends ConsumerWidget {
+  const _Strip({
+    required this.items,
+    required this.heading,
+    required this.colors,
+  });
 
   final List<FeedItem> items;
+  final String heading;
   final SunohColors colors;
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
     const width = 116.0;
     final shown = items.take(_kPreviewCount).toList();
     return SizedBox(
@@ -70,17 +81,39 @@ class _Strip extends StatelessWidget {
         padding: const EdgeInsets.symmetric(horizontal: 20),
         itemCount: shown.length,
         separatorBuilder: (_, _) => const SizedBox(width: 12),
-        itemBuilder: (context, i) => _Tile(item: shown[i], colors: colors),
+        itemBuilder: (context, i) => _Tile(
+          item: shown[i],
+          colors: colors,
+          // A song plays; an album, playlist or artist opens. Routing every
+          // tap through openYtItem was the bug: its default case is `break`,
+          // so tapping a liked song did nothing at all — no navigation, no
+          // playback, and nothing in the log to show for it.
+          onTap: () {
+            final item = shown[i];
+            if (item.type == 'song') {
+              ref
+                  .read(appStateProvider)
+                  .playApiQueue(
+                    items,
+                    items.indexOf(item),
+                    sourceLabel: 'YOUTUBE · $heading',
+                  );
+            } else {
+              context.openYtItem(item);
+            }
+          },
+        ),
       ),
     );
   }
 }
 
 class _Tile extends StatelessWidget {
-  const _Tile({required this.item, required this.colors});
+  const _Tile({required this.item, required this.colors, required this.onTap});
 
   final FeedItem item;
   final SunohColors colors;
+  final VoidCallback onTap;
 
   @override
   Widget build(BuildContext context) {
@@ -90,7 +123,7 @@ class _Tile extends StatelessWidget {
     // home feed follows, so a shelf does not change shape between tabs.
     final round = item.type == 'artist';
     return GestureDetector(
-      onTap: () => context.openYtItem(item),
+      onTap: onTap,
       behavior: HitTestBehavior.opaque,
       child: SizedBox(
         width: width,
