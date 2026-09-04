@@ -658,31 +658,62 @@ class YtMusicApi {
     final two = _asMap(
       _dig(body, ['contents', 'twoColumnBrowseResultsRenderer']),
     );
-    if (two == null) return null;
+    if (two == null) {
+      // Auto-generated playlists have been seen coming back single-column.
+      // Worth naming: the screen's own fallback for a null detail is a page
+      // titled "Playlist" with nothing on it, which looks like a parse bug
+      // rather than a shape this code has never handled.
+      debugPrint(
+        '[ytmusic] $browseId: not a two-column playlist. top-level: '
+        '${_asMap(body['contents'])?.keys.toList()}',
+      );
+      return null;
+    }
 
-    // Header — primary column.
+    // Header — searched for by renderer name rather than walked to down a
+    // fixed path.
+    //
+    // A playlist you made and one YouTube generated for you — a recap, a mix —
+    // do not use the same header. Reading only `musicResponsiveHeaderRenderer`
+    // out of the primary column's section list found the first and missed the
+    // second, so a recap opened with no artwork and the word "Playlist" where
+    // its name should be.
     String title = '';
     String? subtitle;
     String? description;
     String? artwork;
-    final tabs = _asList(two['tabs']);
-    for (final tab in tabs) {
-      final contents = _asList(
-        _dig(_asMap(tab), [
-          'tabRenderer',
-          'content',
-          'sectionListRenderer',
-          'contents',
-        ]),
-      );
-      for (final sec in contents) {
-        final h = _asMap(_asMap(sec)?['musicResponsiveHeaderRenderer']);
-        if (h == null) continue;
-        title = _runsText(_asMap(h['title']));
-        subtitle = _runsText(_asMap(h['subtitle']));
-        description = _runsText(_asMap(h['description']));
-        artwork = _largestArt(_thumbnails(h));
+    for (final name in const [
+      'musicResponsiveHeaderRenderer',
+      'musicDetailHeaderRenderer',
+      'musicEditablePlaylistDetailHeaderRenderer',
+      'musicImmersiveHeaderRenderer',
+    ]) {
+      final h = _findRenderer(body, name);
+      if (h == null) continue;
+      final found = _runsText(_asMap(h['title']));
+      if (found.isEmpty) continue;
+      title = found;
+      subtitle = _runsText(_asMap(h['subtitle']));
+      description = _runsText(_asMap(h['description']));
+      artwork = _largestArt(_thumbnails(h));
+      break;
+    }
+
+    // Last resort: the microformat, which every browse response carries and
+    // which names the page for a link preview. It has no subtitle and no
+    // description, but a title and a cover beat neither.
+    if (title.isEmpty) {
+      final micro = _findRenderer(body, 'microformatDataRenderer');
+      if (micro != null) {
+        title = (micro['title'] as String?) ?? '';
+        artwork ??= _largestArt(_thumbnails(micro));
       }
+    }
+    if (title.isEmpty) {
+      debugPrint(
+        '[ytmusic] $browseId: no header matched. present: '
+        '${headerRendererNames(body)}',
+      );
     }
 
     // Tracks — secondary column.
