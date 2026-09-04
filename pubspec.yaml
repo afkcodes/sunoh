@@ -130,6 +130,12 @@ dependencies:
   # send only the first 4 chars of sha256(videoId) so the server can't tell
   # which track is playing. Transitive already; declared because we import it.
   crypto: ^3.0.6
+  # Apple Music publishes its word-timed lyrics as TTML, an XML dialect where
+  # the syllable timings hang off nested <span> attributes. Regex cannot read
+  # that shape — the nesting is the format — and Dart has no XML parser in the
+  # SDK. Cost is one pure-Dart package used by the lyric parser alone; it is
+  # never on a scroll or playback path.
+  xml: ^6.5.0
   open_filex: ^4.7.0
   device_info_plus: ^12.4.0
 

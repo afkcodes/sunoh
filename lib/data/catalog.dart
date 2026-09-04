@@ -426,26 +426,26 @@ const List<Mix> kMixes = [
   Mix(id: 'm04', title: 'Time Capsule', sub: 'Songs you loved in 2019'),
 ];
 
-// Karaoke-style lyric lines keyed by track id. Each line has a start time (s).
+// Karaoke-style lyric lines keyed by track id. Each line has a start time (ms).
 const Map<String, List<LyricLine>> kLyrics = {
   't01': [
     LyricLine(0, 'It starts with a slow sky,'),
-    LyricLine(6, 'velour at the edges,'),
-    LyricLine(11, 'a city not yet awake.'),
-    LyricLine(17, ''),
-    LyricLine(21, 'You said ‘wait,’'),
-    LyricLine(26, 'so I waited a year'),
-    LyricLine(31, 'and the sky did the same.'),
-    LyricLine(37, ''),
-    LyricLine(41, 'Velour sky, velour sky,'),
-    LyricLine(47, 'I will meet you halfway,'),
-    LyricLine(53, 'half a sun, half a song.'),
-    LyricLine(60, ''),
-    LyricLine(65, 'It ends with a slow sky,'),
-    LyricLine(71, 'soft as a closing door,'),
-    LyricLine(77, 'a city going home.'),
-    LyricLine(85, ''),
-    LyricLine(90, '— instrumental —'),
+    LyricLine(6000, 'velour at the edges,'),
+    LyricLine(11000, 'a city not yet awake.'),
+    LyricLine(17000, ''),
+    LyricLine(21000, 'You said ‘wait,’'),
+    LyricLine(26000, 'so I waited a year'),
+    LyricLine(31000, 'and the sky did the same.'),
+    LyricLine(37000, ''),
+    LyricLine(41000, 'Velour sky, velour sky,'),
+    LyricLine(47000, 'I will meet you halfway,'),
+    LyricLine(53000, 'half a sun, half a song.'),
+    LyricLine(60000, ''),
+    LyricLine(65000, 'It ends with a slow sky,'),
+    LyricLine(71000, 'soft as a closing door,'),
+    LyricLine(77000, 'a city going home.'),
+    LyricLine(85000, ''),
+    LyricLine(90000, '— instrumental —'),
   ],
 };
 

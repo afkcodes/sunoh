@@ -1,29 +1,36 @@
-// Lyrics state — fetched from LRCLIB, parsed into LyricLine[].
+// Lyrics state — looked up across every source in `lib/api/lyrics/`.
 //
 // Family key is intentionally compact (track + artist + duration) so two
-// queues pointing at the same song share one fetch. Result auto-caches for
-// 24 h because lyrics don't change — and LRCLIB asks integrators to be
-// gentle with the catalog.
+// queues pointing at the same song share one fetch. The result auto-caches for
+// 24 h because lyrics don't change — and because six third-party services are
+// asked at once, which is not something to repeat on every sheet-open.
 
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
-import '../api/lrclib.dart';
-import '../audio/lrc_parser.dart';
-import '../data/models.dart';
+import '../api/lyrics/lrc_parser.dart';
+import '../api/lyrics/lrclib_source.dart';
+import '../api/lyrics/lyrics_repository.dart';
+import '../api/lyrics/lyrics_source.dart';
+import '../data/lyric_line.dart';
 
-/// Compact, hash-friendly identity for a lyrics fetch. Two queries are
-/// equal when their (lower-cased) track + artist + duration agree.
+/// Compact, hash-friendly identity for a lyrics fetch. Two queries are equal
+/// when their (lower-cased) track + artist + duration agree.
 class LyricsQuery {
   const LyricsQuery({
     required this.track,
     required this.artist,
     this.album,
     this.durationSec,
+    this.videoId = '',
   });
   final String track;
   final String artist;
   final String? album;
   final int? durationSec;
+
+  /// SimpMusic matches on this rather than on the title, so it alone can never
+  /// return a different edit. Empty for anything that isn't a YouTube track.
+  final String videoId;
 
   @override
   bool operator ==(Object other) =>
@@ -31,7 +38,8 @@ class LyricsQuery {
       other.track.toLowerCase() == track.toLowerCase() &&
       other.artist.toLowerCase() == artist.toLowerCase() &&
       other.album?.toLowerCase() == album?.toLowerCase() &&
-      other.durationSec == durationSec;
+      other.durationSec == durationSec &&
+      other.videoId == videoId;
 
   @override
   int get hashCode => Object.hash(
@@ -39,6 +47,7 @@ class LyricsQuery {
     artist.toLowerCase(),
     album?.toLowerCase(),
     durationSec,
+    videoId,
   );
 }
 
@@ -48,21 +57,29 @@ class LyricsResult {
     required this.synced,
     required this.instrumental,
     required this.found,
+    this.source,
   });
   final List<LyricLine> lines;
 
-  /// True iff the lines carry real per-line timing (from LRC). False when
-  /// we synthesised them from plain text — the UI uses this to decide
-  /// whether to drive active-line highlighting from playback position.
+  /// True iff the lines carry real timing. False when we synthesised them from
+  /// plain text — the UI uses this to decide whether to drive highlighting
+  /// from playback position at all.
   final bool synced;
 
-  /// LRCLIB explicitly marked the song as instrumental. UI shows a
-  /// dedicated "instrumental" state rather than a blank screen.
+  /// LRCLIB explicitly marked the song as instrumental. UI shows a dedicated
+  /// "instrumental" state rather than a blank screen.
   final bool instrumental;
 
-  /// False when the catalog had nothing for us (404 + fuzzy miss). UI
-  /// renders a "no lyrics yet" hint.
+  /// False when no source had anything. UI renders a "no lyrics yet" hint.
   final bool found;
+
+  /// Which source won, for the credit line under the lyrics. Null for the
+  /// plain-text fallback, which came from no synced source at all.
+  final LyricsSource? source;
+
+  /// True when the winning source carried per-word timings, which is what the
+  /// karaoke sweep needs — a line-synced result highlights whole lines.
+  bool get wordSynced => lines.any((l) => l.isWordSynced);
 
   static const empty = LyricsResult(
     lines: [],
@@ -72,24 +89,42 @@ class LyricsResult {
   );
 }
 
-final _lrcLibClientProvider = Provider((_) => LrcLibClient());
-
 final lyricsProvider = FutureProvider.autoDispose
     .family<LyricsResult, LyricsQuery>((ref, query) async {
-      // Keep the entry warm for a day after every consumer has unsubscribed
-      // so re-opening the lyrics sheet for the same track doesn't refetch.
+      // Keep the entry warm for a day after every consumer has unsubscribed so
+      // re-opening the lyrics sheet for the same track doesn't refetch.
       final link = ref.keepAlive();
       Future.delayed(const Duration(hours: 24), link.close);
 
-      final client = ref.read(_lrcLibClientProvider);
-      final r = await client.fetch(
-        trackName: query.track,
-        artistName: query.artist,
-        albumName: query.album,
+      final durationMs = (query.durationSec ?? 0) * 1000;
+      final hit = await fetchLyrics(
+        title: query.track,
+        artist: query.artist,
+        album: query.album,
+        durationMs: durationMs,
+        videoId: query.videoId,
+      );
+      if (hit != null) {
+        return LyricsResult(
+          lines: hit.lines,
+          synced: true,
+          instrumental: false,
+          found: true,
+          source: hit.source,
+        );
+      }
+
+      // Nothing synced anywhere. LRCLIB is the only source that distinguishes
+      // "instrumental" from "not on file", and it may still hold plain text
+      // for a song none of the synced sources had — both are worth one more
+      // look at a response it has already cached.
+      final plain = await lookupLrcLib(
+        title: query.track,
+        artist: query.artist,
+        album: query.album,
         durationSec: query.durationSec,
       );
-      if (!r.found) return LyricsResult.empty;
-      if (r.instrumental) {
+      if (plain.instrumental) {
         return const LyricsResult(
           lines: [],
           synced: false,
@@ -97,24 +132,16 @@ final lyricsProvider = FutureProvider.autoDispose
           found: true,
         );
       }
-      if (r.hasSynced) {
-        final lines = parseLrc(r.syncedLyrics!);
-        return LyricsResult(
-          lines: lines,
-          synced: lines.isNotEmpty,
-          instrumental: false,
-          found: true,
-        );
-      }
-      if (r.hasPlain) {
+      if (plain.hasPlain) {
         return LyricsResult(
           lines: plainLyricsAsLines(
-            r.plainLyrics!,
+            plain.plainLyrics!,
             totalSec: query.durationSec ?? 180,
           ),
           synced: false,
           instrumental: false,
           found: true,
+          source: LyricsSource.lrcLib,
         );
       }
       return LyricsResult.empty;

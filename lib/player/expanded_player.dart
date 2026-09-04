@@ -528,13 +528,14 @@ class _ExpandedPlayerState extends ConsumerState<ExpandedPlayer>
     final id = s.currentApiSong?.id ?? s.current.id;
     final lines = kLyrics[id];
     if (lines == null || lines.isEmpty) return null;
-    final pos = s.position;
+    // kLyrics is stamped in milliseconds; AppState.position is seconds.
+    final posMs = s.position * 1000;
     LyricLine? active;
     for (final l in lines) {
-      if (l.t > pos) break;
-      if (l.line.trim().isNotEmpty) active = l;
+      if (l.timeMs > posMs) break;
+      if (l.text.trim().isNotEmpty) active = l;
     }
-    return active?.line;
+    return active?.text;
   }
 }
 

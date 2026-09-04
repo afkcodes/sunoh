@@ -27,7 +27,7 @@ Companion documents:
                                 │                       │
           ┌─────────────────────┴─────┐     ┌───────────┴───────────────────┐
    Domain │ audio/audio_repo.dart     │     │ api/ sunoh_api  ytmusic_api   │
-          │ audio/audio_handler.dart  │     │     lrclib      sponsorblock  │
+          │ audio/audio_handler.dart  │     │     lyrics/     sponsorblock  │
           └─────────────┬─────────────┘     └───────────┬───────────────────┘
                         │                               │
           ┌─────────────┴─────────────┐     ┌───────────┴───────────────────┐

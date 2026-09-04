@@ -1,6 +1,11 @@
 // Domain models for the sunoh. catalog.
 // Ported from the design prototype's data.jsx — fictional placeholder content.
 
+// LyricLine moved out to carry word-level timing and grew too big to sit in a
+// grab-bag of models. Re-exported so the many `import 'data/models.dart'` call
+// sites keep working.
+export 'lyric_line.dart';
+
 class Track {
   const Track({
     required this.id,
@@ -115,12 +120,6 @@ class Mix {
   final String id;
   final String title;
   final String sub;
-}
-
-class LyricLine {
-  const LyricLine(this.t, this.line);
-  final int t; // start time in seconds
-  final String line;
 }
 
 /// A navigation destination pushed onto the detail stack.
