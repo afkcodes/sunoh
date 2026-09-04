@@ -40,12 +40,25 @@ class ExpandedPlayer extends ConsumerStatefulWidget {
   ConsumerState<ExpandedPlayer> createState() => _ExpandedPlayerState();
 }
 
-/// Reserved height for the title block. Sized so 2-line title + artist fits
-/// without forcing the cover or scrubber below to shift on track change.
+/// Reserved height for the title block. Sized so a 2-line title, the artist
+/// and the quality tag all fit without forcing the cover or scrubber below to
+/// shift on track change.
+///
+/// Measured, not guessed: a 2-line title is 58, the artist 14, the two gaps
+/// 11, and the quality tag 32 — a HI-RES wordmark of about 17 with its
+/// numbers set underneath. 115, plus slack for a font whose own line height
+/// runs taller than the test harness's.
+///
+/// This was 78 — enough for the title and artist alone, which is what the
+/// block held when the number was written. The quality tag was added
+/// underneath afterwards and pushed 15 past the end, so a 2-line title clipped
+/// the tag away entirely. It is a minimum now rather than a fixed height, so
+/// the next thing added here is laid out wrong-looking instead of invisible.
+///
 /// Lyric teaser (rare — synced lyrics only ship with the dummy catalog) is
-/// allowed to push layout slightly when present rather than reserving empty
-/// space for it in the common case.
-const double _titleBlockHeight = 78;
+/// allowed to push layout when present rather than reserving empty space for
+/// it in the common case.
+const double _titleBlockHeight = 122;
 
 class _ExpandedPlayerState extends ConsumerState<ExpandedPlayer>
     with TickerProviderStateMixin {
@@ -272,8 +285,8 @@ class _ExpandedPlayerState extends ConsumerState<ExpandedPlayer>
             // line lyric teaser; shorter content top-aligns inside the box.
             Padding(
               padding: const EdgeInsets.symmetric(horizontal: 24),
-              child: SizedBox(
-                height: _titleBlockHeight,
+              child: ConstrainedBox(
+                constraints: const BoxConstraints(minHeight: _titleBlockHeight),
                 child: Row(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
