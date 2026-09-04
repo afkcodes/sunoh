@@ -88,7 +88,9 @@ GoRouter buildRouter() {
               GoRoute(
                 path: '/search',
                 pageBuilder: (c, s) =>
-                    _fade(const _RootScroll(SearchScreen()), s),
+                    // Not wrapped in _RootScroll: SearchScreen is its own
+                    // CustomScrollView so its field and pills can pin.
+                    _fade(const SearchScreen(), s),
                 routes: _detailRoutes(),
               ),
             ],

@@ -1,5 +1,13 @@
 // Search — input + debounced live results from /music/search?type=all.
 // Browse view (recent + genre tiles) takes over when the query is empty.
+//
+// The screen owns its scrolling rather than sitting inside the router's
+// `_RootScroll`, for two reasons that turn out to be the same reason. The
+// search field and the section-jump pills have to stay put while results
+// move under them — pills that scroll away are a shortcut you can only use
+// before you need it — and pinning anything at all requires slivers. Slivers
+// then also make the results build as they are reached, where the shared
+// `SingleChildScrollView` laid out every row of every section at once.
 
 import 'dart:async';
 
@@ -8,24 +16,30 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:solar_icons/solar_icons.dart';
 
 import '../api/dto.dart';
-import '../data/models.dart';
-import '../overlays/track_menu_sheet.dart';
 import '../providers/app_state_provider.dart';
-import '../providers/audiobook_provider.dart';
-import '../providers/podcast_provider.dart';
-import '../providers/search_provider.dart';
-import '../providers/ytmusic_provider.dart';
 import '../router/deep_links.dart';
-import '../router/router.dart';
-import '../state/app_state.dart';
 import '../theme/tokens.dart';
-import '../widgets/album_art.dart';
 import '../widgets/ui.dart';
+import 'search_browse.dart';
+import 'search_results.dart';
 
 /// Debounce window between the user typing and us actually firing the
 /// `/music/search` request. 280 ms feels responsive for mobile typing
 /// without spamming the API on every keystroke.
 const _kDebounce = Duration(milliseconds: 280);
+
+/// The pinned header's two parts. Kept as numbers because a persistent
+/// header has to state its height before it builds — it cannot measure the
+/// field and the pills and then report what it found.
+const double _kFieldExtent = 78; // 16 + 52 + 10
+const double _kPillsExtent = 44; // 36 + 8
+
+/// A short fade below the pinned block.
+///
+/// Results pass underneath it, and against a flat edge that reads as rows
+/// being sliced in half rather than as content going behind something. The
+/// fade is part of the header's own height so nothing has to overlap.
+const double _kHeaderFade = 14;
 
 class SearchScreen extends ConsumerStatefulWidget {
   const SearchScreen({super.key});
@@ -49,6 +63,7 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
   // section-pills row can ensureVisible the right slot. Cleared on
   // `_clear()` to release keys for headings that no longer appear.
   final Map<String, GlobalKey> _sectionKeys = {};
+  final _scroll = ScrollController();
   GlobalKey _keyForSection(String heading) =>
       _sectionKeys.putIfAbsent(heading, GlobalKey.new);
 
@@ -67,6 +82,7 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
     _debounce?.cancel();
     controller.dispose();
     _searchFocus.dispose();
+    _scroll.dispose();
     super.dispose();
   }
 
@@ -95,6 +111,24 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
     });
   }
 
+  /// Enter, or a tap on a recent search: run the query now rather than
+  /// waiting out the debounce.
+  void _submit(String value) {
+    _debounce?.cancel();
+    final trimmed = value.trim();
+    if (trimmed.isNotEmpty) {
+      ref.read(appStateProvider).pushSearchRecent(trimmed);
+    }
+    setState(() => _activeQuery = trimmed);
+  }
+
+  /// A recent search, picked from the browse view.
+  void _useQuery(String value) {
+    controller.text = value;
+    setState(() => q = value);
+    _submit(value);
+  }
+
   /// Animated scroll so the section under [heading] lands roughly a
   /// third of the way down the viewport. `Scrollable.ensureVisible`
   /// walks the closest `Scrollable` ancestor — works with the router-
@@ -103,22 +137,41 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
   void _jumpToSection(String heading) {
     final ctx = _sectionKeys[heading]?.currentContext;
     if (ctx == null) return;
+    // The header is pinned over the list, and `ensureVisible` knows nothing
+    // about that — it aligns within the whole viewport, so a section put near
+    // the top lands underneath the field. Push the target down by exactly the
+    // header's height, plus a little air, expressed as the fraction of the
+    // viewport that is.
+    final viewport = _scroll.hasClients
+        ? _scroll.position.viewportDimension
+        : 0.0;
+    // Pills are the only way here, and pills mean the header is at full
+    // height.
+    final clear = _headerExtent(withPills: true) + 12;
+    final alignment = viewport <= clear
+        ? 0.25
+        : (clear / viewport).clamp(0.0, 0.4);
     Scrollable.ensureVisible(
       ctx,
-      alignment: 0.25,
+      alignment: alignment,
       duration: const Duration(milliseconds: 320),
       curve: Curves.easeOutCubic,
     );
   }
+
+  /// Height of the pinned header: the field, plus the pills when there are
+  /// enough sections to be worth jumping between.
+  double _headerExtent({required bool withPills}) =>
+      _kFieldExtent + (withPills ? _kPillsExtent : 0) + _kHeaderFade;
 
   @override
   Widget build(BuildContext context) {
     final s = ref.watch(appStateProvider);
     final c = s.colors;
     // Listen for a deep-link query handed off by DeepLinkRouter. We can't
-    // touch the provider in initState (the screen may not be the active
-    // tab yet at cold-start), so consume it on every build — once consumed
-    // it stays null until the next deep link arrives.
+    // touch the provider in initState (the screen may not be the active tab
+    // yet at cold-start), so consume it on every build — once consumed it
+    // stays null until the next deep link arrives.
     ref.listen<String?>(pendingSearchProvider, (_, next) {
       if (next == null || next.isEmpty) return;
       final pending = ref.read(pendingSearchProvider.notifier).consume();
@@ -131,13 +184,21 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
         _activeQuery = pending;
       });
     });
+
     final hasQuery = q.trim().isNotEmpty;
     final hasFocus = _searchFocus.hasFocus;
+    // The pills belong to the results, so they exist only once a search has
+    // come back with more than one section to jump between.
+    final sections = hasQuery && _activeQuery.isNotEmpty
+        ? watchSearch(ref, _activeQuery).sections
+        : const <HomeSection>[];
+    final pills = sections.length > 1 ? sections : null;
+
     // Back-button policy on this tab:
     //   1. Keyboard up → unfocus (dismiss keyboard).
     //   2. Query typed → clear back to the browse view.
-    //   3. Otherwise → let the system handle it (which exits the app
-    //      since Search is at the root of its branch navigator).
+    //   3. Otherwise → let the system handle it (which exits the app since
+    //      Search is at the root of its branch navigator).
     // Without this, back from a focused search field punted straight to
     // "exit app" — really annoying.
     final intercept = hasFocus || hasQuery;
@@ -152,766 +213,57 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
         }
         if (hasQuery) _clear();
       },
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          // No voice button: it was wired to an empty onTap and had never done
-          // anything. An affordance that does nothing when tapped is worse
-          // than an absent one.
-          Padding(
-            padding: const EdgeInsets.fromLTRB(20, 12, 20, 0),
-            child: Text(
-              'Search',
-              style: SunohType.heading(
-                fontSize: 28,
-                color: c.fg,
-                letterSpacing: -0.4,
-              ),
-            ),
-          ),
-          Padding(
-            padding: const EdgeInsets.fromLTRB(20, 16, 20, 10),
-            child: Container(
-              height: 52,
-              padding: const EdgeInsets.symmetric(horizontal: 16),
-              decoration: squircleDecoration(
-                radius: 14,
-                color: c.surface,
-                borderColor: c.line,
-              ),
-              child: Row(
-                children: [
-                  Icon(SolarIconsOutline.magnifier, size: 19, color: c.fgMute),
-                  const SizedBox(width: 12),
-                  Expanded(
-                    child: TextField(
-                      controller: controller,
-                      focusNode: _searchFocus,
-                      onChanged: _onChanged,
-                      onSubmitted: (_) {
-                        _debounce?.cancel();
-                        final trimmed = q.trim();
-                        if (trimmed.isNotEmpty) {
-                          ref.read(appStateProvider).pushSearchRecent(trimmed);
-                        }
-                        setState(() => _activeQuery = trimmed);
-                      },
-                      cursorColor: c.accent,
-                      textInputAction: TextInputAction.search,
-                      style: SunohType.sans(fontSize: 15.5, color: c.fg),
-                      decoration: InputDecoration(
-                        isCollapsed: true,
-                        border: InputBorder.none,
-                        hintText: 'Artists, songs, podcasts, audiobooks…',
-                        hintStyle: SunohType.sans(
-                          fontSize: 15,
-                          color: c.fgMute,
-                        ),
-                      ),
-                    ),
-                  ),
-                  if (q.isNotEmpty)
-                    GestureDetector(
-                      onTap: _clear,
-                      child: Container(
-                        width: 26,
-                        height: 26,
-                        decoration: BoxDecoration(
-                          color: Colors.white.withValues(alpha: 0.08),
-                          shape: BoxShape.circle,
-                        ),
-                        child: Icon(
-                          SolarIconsOutline.closeCircle,
-                          size: 14,
-                          color: c.fg,
-                        ),
-                      ),
-                    ),
-                ],
-              ),
-            ),
-          ),
-          if (!hasQuery) _browse(c) else _liveResults(c, s),
-          const SizedBox(height: 20),
-        ],
-      ),
-    );
-  }
-
-  /// Browse view: trending sections (horizontal carousels) followed by the
-  /// live Explore Categories grid (occasions). Both are fetched on first
-  /// open and cached for 1 hour (matches the RN reference's staleTime).
-  /// Tapping a trending item routes via [_routeFeedItem]; tapping a
-  /// category opens the occasion section detail (currently stubbed —
-  /// `/music/occasions/:slug` wiring is a separate follow-up).
-  Widget _browse(SunohColors c) {
-    final trending = ref.watch(trendingSearchProvider);
-    final occasions = ref.watch(occasionsProvider('gaana'));
-    final recents = ref.watch(appStateProvider).searchRecents;
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        const SizedBox(height: 12),
-        if (recents.isNotEmpty)
-          _RecentSearches(
-            colors: c,
-            recents: recents,
-            onTap: (q) {
-              controller.text = q;
-              _debounce?.cancel();
-              ref.read(appStateProvider).pushSearchRecent(q);
-              setState(() {
-                this.q = q;
-                _activeQuery = q;
-              });
-            },
-            onClear: () => ref.read(appStateProvider).clearSearchRecents(),
-          ),
-        if (recents.isNotEmpty) const SizedBox(height: 28),
-        // ── Trending — same shape as home, horizontal carousels per section.
-        trending.when(
-          loading: () => const _TrendingSkeleton(),
-          error: (e, _) => const SizedBox.shrink(),
-          data: (sections) {
-            final nonEmpty = sections.where((s) => s.items.isNotEmpty).toList();
-            if (nonEmpty.isEmpty) return const SizedBox.shrink();
-            return Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                for (var i = 0; i < nonEmpty.length; i++) ...[
-                  if (i > 0) const SizedBox(height: 24),
-                  _TrendingRow(section: nonEmpty[i], colors: c),
-                ],
-                const SizedBox(height: 28),
-              ],
-            );
-          },
-        ),
-        // ── Explore Categories grid — live occasions.
-        // Uses the default SectionHeader padding so the header→content gap
-        // matches the home-feed sections (Recently Played etc.).
-        SectionHeader(title: 'Explore Categories', colors: c),
-        occasions.when(
-          loading: () => const _OccasionsSkeleton(),
-          error: (e, _) => const SizedBox.shrink(),
-          data: (items) {
-            if (items.isEmpty) return const SizedBox.shrink();
-            return Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 20),
-              child: GridView.count(
-                crossAxisCount: 2,
-                shrinkWrap: true,
-                physics: const NeverScrollableScrollPhysics(),
-                crossAxisSpacing: 10,
-                mainAxisSpacing: 10,
-                childAspectRatio: 171 / 110,
-                children: [
-                  for (final item in items)
-                    _OccasionTile(item: item, colors: c),
-                ],
-              ),
-            );
-          },
-        ),
-      ],
-    );
-  }
-
-  /// Live `/music/search?type=all` results — sections of FeedItems mirroring
-  /// the home feed shape. When `_activeQuery` is empty (typing in-flight),
-  /// shows a lightweight "Searching…" hint while the user is still typing.
-  Widget _liveResults(SunohColors c, AppState s) {
-    // Typed but debounce hasn't fired yet → show the same skeleton as the
-    // request would. Smooth handoff into the real loading state.
-    if (_activeQuery.isEmpty) {
-      return const _ResultsSkeleton();
-    }
-    final async = ref.watch(searchProvider(_activeQuery));
-    // Parallel podcast + audiobook searches. The providers fire
-    // independently; we merge results when the music search resolves.
-    // Either side failing degrades gracefully — its section just
-    // doesn't appear in the list.
-    final podcastAsync = ref.watch(podcastSearchProvider(_activeQuery));
-    final audiobookAsync = ref.watch(audiobookSearchProvider(_activeQuery));
-    final ytAsync = ref.watch(ytMusicSearchProvider(_activeQuery));
-    final ytArtistsAsync = ref.watch(ytMusicArtistSearchProvider(_activeQuery));
-    final ytAlbumsAsync = ref.watch(ytMusicAlbumSearchProvider(_activeQuery));
-    return async.when(
-      loading: () => const _ResultsSkeleton(),
-      error: (e, _) => _SearchHint(
-        colors: c,
-        label: 'Couldn’t reach search. Try again.',
-        detail: '$e',
-      ),
-      data: (sections) {
-        final nonEmpty = sections.where((sec) => sec.items.isNotEmpty).toList();
-        // Merge podcast + audiobook results in as HomeSection-shaped
-        // rows so the existing _ResultsSection renderer can draw the
-        // tiles unchanged. Their `type` discriminators (`podcast`,
-        // `audiobook`) already route correctly in _ResultsSection.
-        final podcasts = podcastAsync.asData?.value ?? const <FeedItem>[];
-        if (podcasts.isNotEmpty) {
-          nonEmpty.add(HomeSection(heading: 'Podcasts', items: podcasts));
-        }
-        final audiobooks = audiobookAsync.asData?.value ?? const <FeedItem>[];
-        if (audiobooks.isNotEmpty) {
-          nonEmpty.add(HomeSection(heading: 'Audiobooks', items: audiobooks));
-        }
-        // YouTube Music songs. These carry source='youtube', which routes
-        // them to the native resolver tier on tap — the rest of the row
-        // rendering and the `song` tap case need no special casing.
-        final ytSongs = ytAsync.asData?.value ?? const <FeedItem>[];
-        if (ytSongs.isNotEmpty) {
-          nonEmpty.add(
-            HomeSection(
-              heading: 'YouTube Music',
-              items: ytSongs,
-              source: 'youtube',
-            ),
-          );
-        }
-        final ytArtists = ytArtistsAsync.asData?.value ?? const <FeedItem>[];
-        if (ytArtists.isNotEmpty) {
-          nonEmpty.add(
-            HomeSection(
-              heading: 'YouTube artists',
-              items: ytArtists,
-              source: 'youtube',
-            ),
-          );
-        }
-        final ytAlbums = ytAlbumsAsync.asData?.value ?? const <FeedItem>[];
-        if (ytAlbums.isNotEmpty) {
-          nonEmpty.add(
-            HomeSection(
-              heading: 'YouTube albums',
-              items: ytAlbums,
-              source: 'youtube',
-            ),
-          );
-        }
-        if (nonEmpty.isEmpty) {
-          return _SearchHint(
-            colors: c,
-            label: 'Nothing yet.',
-            detail: 'No results for “$_activeQuery”',
-          );
-        }
-        // Pin "Top Results" / "Topquery" (whichever the active provider
-        // returns) to the top — those carry the richest cross-provider
-        // matches and are usually what the user actually wants.
-        final ordered = [...nonEmpty]
-          ..sort((a, b) => _topPriority(b.heading) - _topPriority(a.heading));
-        return Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            // Section-jump pills. Horizontal scrollable row above all
-            // results — tap a pill, the matching section scrolls
-            // smoothly into view (alignment 0.25 = "upper quarter" of
-            // the viewport so the section's eyebrow sits below the
-            // search field, not under it).
-            if (ordered.length > 1) ...[
-              const SizedBox(height: 8),
-              _SectionPills(
-                sections: ordered,
-                colors: c,
-                onTap: _jumpToSection,
-              ),
-            ],
-            const SizedBox(height: 4),
-            for (var i = 0; i < ordered.length; i++) ...[
-              Container(
-                key: _keyForSection(ordered[i].heading),
-                child: _ResultsSection(
-                  section: ordered[i],
-                  colors: c,
-                  onPlay: (song) => s.playApiSong(
-                    song,
-                    sourceLabel: 'SEARCH · $_activeQuery',
-                  ),
-                ),
-              ),
-              if (i < ordered.length - 1) const SizedBox(height: 20),
-            ],
-          ],
-        );
-      },
-    );
-  }
-
-  /// Higher = render earlier. Top results / topquery first; everything
-  /// else preserves the order the API returned in.
-  static int _topPriority(String heading) {
-    final h = heading.toLowerCase();
-    if (h.contains('top result') || h == 'topquery' || h == 'top results') {
-      return 100;
-    }
-    return 0;
-  }
-}
-
-class _SearchHint extends StatelessWidget {
-  const _SearchHint({required this.colors, required this.label, this.detail});
-  final SunohColors colors;
-  final String label;
-  final String? detail;
-  @override
-  Widget build(BuildContext context) {
-    final c = colors;
-    return Padding(
-      padding: const EdgeInsets.fromLTRB(20, 40, 20, 40),
-      child: Center(
-        child: Column(
-          children: [
-            Text(label, style: SunohType.heading(fontSize: 22, color: c.fgDim)),
-            if (detail != null) ...[
-              const SizedBox(height: 8),
-              Text(
-                detail!,
-                textAlign: TextAlign.center,
-                style: SunohType.sans(fontSize: 13, color: c.fgMute),
-              ),
-            ],
-          ],
-        ),
-      ),
-    );
-  }
-}
-
-/// Horizontal scrollable row of "jump to section" pills, rendered
-/// above the first section in `_liveResults`. Tap a pill and the
-/// matching `_ResultsSection` scrolls into view (alignment 0.25, so
-/// the section's heading lands in the upper quarter rather than at
-/// the very top — leaves visual room for the search field above).
-///
-/// Hidden when there's only one section (single result = no useful
-/// jump targets, just visual chrome).
-class _SectionPills extends StatelessWidget {
-  const _SectionPills({
-    required this.sections,
-    required this.colors,
-    required this.onTap,
-  });
-  final List<HomeSection> sections;
-  final SunohColors colors;
-  final void Function(String heading) onTap;
-
-  @override
-  Widget build(BuildContext context) {
-    final c = colors;
-    return SizedBox(
-      height: 36,
-      child: ListView.separated(
-        scrollDirection: Axis.horizontal,
-        padding: const EdgeInsets.symmetric(horizontal: 20),
-        itemCount: sections.length,
-        separatorBuilder: (_, _) => const SizedBox(width: 8),
-        itemBuilder: (context, i) {
-          final s = sections[i];
-          final label = _shortLabel(s.heading);
-          return GestureDetector(
-            onTap: () => onTap(s.heading),
-            behavior: HitTestBehavior.opaque,
-            child: Container(
-              padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
-              decoration: squircleDecoration(
-                radius: 999,
-                color: c.surface,
-                borderColor: c.line,
-              ),
-              child: Center(
+      // The status bar inset goes on the scroll view, not on the first sliver.
+      // Put it on the sliver and it scrolls away with it — leaving the pinned
+      // header to pin at y=0, under the clock and the battery.
+      child: SafeArea(
+        bottom: false,
+        child: CustomScrollView(
+          controller: _scroll,
+          slivers: [
+            SliverToBoxAdapter(
+              // The title scrolls away. The field directly beneath it already
+              // says what the screen is, and keeping it would cost this much
+              // of every screenful of results for the rest of the session.
+              child: Padding(
+                padding: const EdgeInsets.fromLTRB(20, 12, 20, 0),
                 child: Text(
-                  label,
-                  style: SunohType.sans(
-                    fontSize: 12.5,
-                    fontWeight: FontWeight.w500,
+                  'Search',
+                  style: SunohType.heading(
+                    fontSize: 28,
                     color: c.fg,
+                    letterSpacing: -0.4,
                   ),
                 ),
               ),
             ),
-          );
-        },
-      ),
-    );
-  }
-
-  /// Compact display label for a section heading. Most headings come
-  /// straight from the upstream API ("Songs", "Artists") and read
-  /// fine; the longer / casing-inconsistent ones get normalised.
-  static String _shortLabel(String heading) {
-    final h = heading.trim();
-    final lower = h.toLowerCase();
-    if (lower.contains('top result') || lower == 'topquery') return 'Top';
-    if (lower.contains('podcast')) return 'Podcasts';
-    return h.isEmpty ? '—' : h[0].toUpperCase() + h.substring(1);
-  }
-}
-
-/// One section from `/music/search` (Songs / Albums / Artists / Playlists
-/// / Topquery). Renders an eyebrow heading + a vertical list of result
-/// rows. Tap behavior depends on item type — songs play, the rest open
-/// the matching detail screen.
-class _ResultsSection extends StatelessWidget {
-  const _ResultsSection({
-    required this.section,
-    required this.colors,
-    required this.onPlay,
-  });
-  final HomeSection section;
-  final SunohColors colors;
-  final void Function(FeedItem song) onPlay;
-
-  @override
-  Widget build(BuildContext context) {
-    final c = colors;
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Padding(
-          padding: const EdgeInsets.fromLTRB(20, 0, 20, 6),
-          child: eyebrow(section.heading.toUpperCase(), c.fgMute),
-        ),
-        for (final item in section.items.take(8))
-          _ResultRow(
-            colors: c,
-            item: item,
-            onTap: () {
-              // YouTube ids are browse ids that sunoh-api can't resolve —
-              // route them to the YouTube screens instead.
-              if ((item.source ?? section.source) == 'youtube' &&
-                  item.type != 'song') {
-                context.openYtItem(item);
-                return;
-              }
-              switch (item.type) {
-                case 'song':
-                  onPlay(item);
-                case 'audiobook':
-                  // Open the book detail screen — chapter list lives
-                  // there; tapping a chapter row plays it via the
-                  // standard track queue.
-                  context.openAudiobook(item.id, item: item);
-                case 'album':
-                case 'playlist':
-                case 'artist':
-                case 'podcast':
-                  context.openRef(
-                    DetailRef(
-                      item.type,
-                      item.id,
-                      source: item.source ?? section.source,
-                    ),
-                  );
-                default:
-                  // Unknown type — fall through to a no-op so we don't
-                  // route somewhere invalid.
-                  break;
-              }
-            },
-          ),
-      ],
-    );
-  }
-}
-
-class _ResultRow extends StatelessWidget {
-  const _ResultRow({
-    required this.colors,
-    required this.item,
-    required this.onTap,
-  });
-  final SunohColors colors;
-  final FeedItem item;
-  final VoidCallback onTap;
-
-  @override
-  Widget build(BuildContext context) {
-    final c = colors;
-    final isArtist = item.type == 'artist';
-    final isSong = item.type == 'song';
-    return GestureDetector(
-      onTap: onTap,
-      behavior: HitTestBehavior.opaque,
-      child: Padding(
-        padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 8),
-        child: Row(
-          children: [
-            SunohArt(
-              id: item.id,
-              imageUrl: item.artwork,
-              size: 42,
-              radius: isArtist ? 999 : 4,
-            ),
-            const SizedBox(width: 12),
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    item.title,
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                    style: SunohType.sans(
-                      fontSize: 14,
-                      fontWeight: FontWeight.w500,
-                      color: c.fg,
-                    ),
-                  ),
-                  if (_subFor(item).isNotEmpty) ...[
-                    const SizedBox(height: 1),
-                    Text(
-                      _subFor(item),
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                      style: SunohType.sans(fontSize: 12, color: c.fgMute),
-                    ),
-                  ],
-                ],
+            SliverPersistentHeader(
+              pinned: true,
+              delegate: _SearchHeader(
+                extent: _headerExtent(withPills: pills != null),
+                colors: c,
+                controller: controller,
+                focus: _searchFocus,
+                showClear: q.isNotEmpty,
+                onChanged: _onChanged,
+                onSubmitted: _submit,
+                onClear: _clear,
+                pills: pills,
+                onJumpToSection: _jumpToSection,
               ),
             ),
-            if (isSong)
-              GestureDetector(
-                onTap: () => showTrackMenuSheet(
-                  context,
-                  song: item,
-                  sourceLabel: 'SEARCH',
-                ),
-                behavior: HitTestBehavior.opaque,
-                child: SizedBox(
-                  width: 32,
-                  height: 32,
-                  child: Icon(
-                    SolarIconsBold.menuDots,
-                    size: 18,
-                    color: c.fgMute,
-                  ),
-                ),
-              )
+            if (!hasQuery)
+              SearchBrowse(colors: c, onPickRecent: _useQuery)
             else
-              Icon(SolarIconsOutline.altArrowRight, size: 18, color: c.fgMute),
-          ],
-        ),
-      ),
-    );
-  }
-
-  /// Compact subtitle line — only returns *meaningful* text so the UI can
-  /// skip the row entirely when nothing useful is available. Generic type
-  /// labels ("Song" / "Album") are deliberately suppressed because saavn
-  /// search returns subtitle:null + artists:[] for many songs and showing
-  /// the bare word "Song" under every row reads as broken.
-  String _subFor(FeedItem item) {
-    final fromApi = (item.subtitle ?? '').trim();
-    if (fromApi.isNotEmpty) return fromApi;
-    final names = (item.artists ?? const [])
-        .map((a) => a.name.trim())
-        .where((n) => n.isNotEmpty)
-        .take(2)
-        .toList();
-    if (names.isNotEmpty) return names.join(', ');
-    return '';
-  }
-}
-
-/// Horizontal carousel of trending items for one section heading. Mirrors
-/// the home-feed `_ApiSection` pattern — uses the same `HCardRow` and
-/// per-item card chrome so trending feels at home with everything else.
-class _TrendingRow extends ConsumerWidget {
-  const _TrendingRow({required this.section, required this.colors});
-  final HomeSection section;
-  final SunohColors colors;
-
-  @override
-  Widget build(BuildContext context, WidgetRef ref) {
-    final c = colors;
-    final s = ref.read(appStateProvider);
-    final isArtistRow = section.items.every((it) => it.type == 'artist');
-    final width = isArtistRow ? 96.0 : 140.0;
-    final gap = isArtistRow ? 18.0 : 12.0;
-    final items = section.items.take(10).toList();
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        SectionHeader(title: section.heading, colors: c),
-        HCardRow<FeedItem>(
-          items: items,
-          width: width,
-          gap: gap,
-          onTap: (item) {
-            if ((item.source ?? section.source) == 'youtube' &&
-                item.type != 'song') {
-              context.openYtItem(item);
-              return;
-            }
-            switch (item.type) {
-              case 'song':
-                // Songs play immediately — tapping a song in a "trending"
-                // carousel should never open a song-detail screen.
-                s.playApiSong(
-                  item,
-                  sourceLabel: 'TRENDING · ${section.heading}',
-                );
-              case 'audiobook':
-                context.openAudiobook(item.id, item: item);
-              case 'album':
-              case 'playlist':
-              case 'artist':
-              case 'podcast':
-                context.openRef(
-                  DetailRef(
-                    item.type,
-                    item.id,
-                    source: item.source ?? section.source,
-                  ),
-                );
-              default:
-                break;
-            }
-          },
-          builder: (item, w) => isArtistRow
-              ? Column(
-                  children: [
-                    SunohArt(
-                      id: item.id,
-                      imageUrl: item.artwork,
-                      size: w - 10,
-                      radius: 999,
-                    ),
-                    const SizedBox(height: 10),
-                    Text(
-                      item.title,
-                      textAlign: TextAlign.center,
-                      maxLines: 2,
-                      overflow: TextOverflow.ellipsis,
-                      style: SunohType.sans(
-                        fontSize: 12.5,
-                        fontWeight: FontWeight.w500,
-                        color: c.fg,
-                        height: 1.2,
-                      ),
-                    ),
-                  ],
-                )
-              : Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    SunohArt(
-                      id: item.id,
-                      imageUrl: item.artwork,
-                      size: w,
-                      radius: 10,
-                    ),
-                    const SizedBox(height: 8),
-                    Text(
-                      item.title,
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                      style: SunohType.sans(
-                        fontSize: 13,
-                        fontWeight: FontWeight.w500,
-                        color: c.fg,
-                        height: 1.2,
-                      ),
-                    ),
-                    if ((item.displaySubtitle ?? '').isNotEmpty) ...[
-                      const SizedBox(height: 3),
-                      // One line, matching the home shelves: a wrapped
-                      // subtitle leaves neighbouring cards at different
-                      // heights down the row.
-                      eyebrow(
-                        item.displaySubtitle!,
-                        c.fgMute,
-                        size: 10,
-                        letterSpacing: 0.8,
-                        maxLines: 1,
-                      ),
-                    ],
-                  ],
-                ),
-        ),
-      ],
-    );
-  }
-}
-
-// ── Skeleton loaders ────────────────────────────────────────────────────────
-// Same `Pulse` + `SkeletonBar` building blocks as the home feed (promoted to
-// widgets/ui.dart 2026-05-24). Shape matches each section's real layout so
-// the visual handoff to loaded data is smooth.
-
-/// One horizontal carousel of card placeholders — matches the live
-/// `_TrendingRow` shape (140 px squircle cover + 2 text lines).
-class _TrendingSkeleton extends StatelessWidget {
-  const _TrendingSkeleton();
-  @override
-  Widget build(BuildContext context) {
-    const tile = 140.0;
-    return Pulse(
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          const Padding(
-            padding: EdgeInsets.fromLTRB(20, 0, 20, 14),
-            child: SkeletonBar(height: 22, width: 160, radius: 6),
-          ),
-          SingleChildScrollView(
-            scrollDirection: Axis.horizontal,
-            physics: const NeverScrollableScrollPhysics(),
-            padding: const EdgeInsets.symmetric(horizontal: 20),
-            child: Row(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                for (var i = 0; i < 4; i++) ...[
-                  if (i > 0) const SizedBox(width: 12),
-                  const SizedBox(
-                    width: tile,
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        SkeletonBar(height: tile, width: tile, radius: 10),
-                        SizedBox(height: 8),
-                        SkeletonBar(height: 13, width: tile * 0.85, radius: 4),
-                        SizedBox(height: 3),
-                        SkeletonBar(height: 11, width: tile * 0.55, radius: 4),
-                      ],
-                    ),
-                  ),
-                ],
-              ],
-            ),
-          ),
-          const SizedBox(height: 28),
-        ],
-      ),
-    );
-  }
-}
-
-/// 2-column grid of occasion-tile placeholders — same aspect ratio as the
-/// real `_OccasionTile` (171:110).
-class _OccasionsSkeleton extends StatelessWidget {
-  const _OccasionsSkeleton();
-  @override
-  Widget build(BuildContext context) {
-    return Pulse(
-      child: Padding(
-        padding: const EdgeInsets.symmetric(horizontal: 20),
-        child: GridView.count(
-          crossAxisCount: 2,
-          shrinkWrap: true,
-          physics: const NeverScrollableScrollPhysics(),
-          crossAxisSpacing: 10,
-          mainAxisSpacing: 10,
-          childAspectRatio: 171 / 110,
-          children: [
-            for (var i = 0; i < 6; i++)
-              const SkeletonBar(
-                height: double.infinity,
-                width: double.infinity,
-                radius: 14,
+              SearchResults(
+                query: _activeQuery,
+                colors: c,
+                sectionKey: _keyForSection,
+                onPlay: (song) =>
+                    s.playApiSong(song, sourceLabel: 'SEARCH · $_activeQuery'),
               ),
+            // Clears the mini player and the nav bar.
+            const SliverToBoxAdapter(child: SizedBox(height: 140)),
           ],
         ),
       ),
@@ -919,197 +271,150 @@ class _OccasionsSkeleton extends StatelessWidget {
   }
 }
 
-/// List-row placeholders for live search results — matches `_ResultRow`
-/// layout (small art + two text lines).
-class _ResultsSkeleton extends StatelessWidget {
-  const _ResultsSkeleton();
-  @override
-  Widget build(BuildContext context) {
-    return Pulse(
-      child: Padding(
-        padding: const EdgeInsets.only(top: 12),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            const Padding(
-              padding: EdgeInsets.fromLTRB(20, 0, 20, 8),
-              child: SkeletonBar(height: 11, width: 90, radius: 4),
-            ),
-            for (var i = 0; i < 6; i++)
-              const Padding(
-                padding: EdgeInsets.symmetric(horizontal: 20, vertical: 8),
-                child: Row(
-                  children: [
-                    SkeletonBar(height: 42, width: 42, radius: 4),
-                    SizedBox(width: 12),
-                    Expanded(
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          SkeletonBar(height: 13, width: 180, radius: 4),
-                          SizedBox(height: 6),
-                          SkeletonBar(height: 11, width: 120, radius: 4),
-                        ],
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-          ],
-        ),
-      ),
-    );
-  }
-}
-
-/// Live "Explore Categories" tile backed by an occasion FeedItem — image
-/// background, dark-bottom-up gradient for text readability, title on top.
-/// Tapping is currently a toast — the occasion-detail route + endpoint
-/// isn't wired yet (separate follow-up). The visual stays useful as a
-/// browse affordance even without the detail screen.
-class _OccasionTile extends StatelessWidget {
-  const _OccasionTile({required this.item, required this.colors});
-  final FeedItem item;
-  final SunohColors colors;
-
-  @override
-  Widget build(BuildContext context) {
-    final url = item.artwork ?? '';
-    return GestureDetector(
-      onTap: () => context.openOccasion(item),
-      child: squircleClip(
-        radius: 14,
-        child: Stack(
-          fit: StackFit.expand,
-          children: [
-            // Image background — falls back to the painted album-art if no URL.
-            SunohArt(id: item.id, imageUrl: url, size: 220, radius: 0),
-            // Dark gradient (bottom-up) keeps the title legible regardless
-            // of the cover's brightness.
-            const Positioned.fill(
-              child: DecoratedBox(
-                decoration: BoxDecoration(
-                  gradient: LinearGradient(
-                    begin: Alignment.topCenter,
-                    end: Alignment.bottomCenter,
-                    colors: [
-                      Color(0x00000000),
-                      Color(0x66000000),
-                      Color(0xCC000000),
-                    ],
-                    stops: [0.35, 0.75, 1],
-                  ),
-                ),
-              ),
-            ),
-            Positioned(
-              left: 12,
-              right: 12,
-              bottom: 10,
-              child: Text(
-                item.title,
-                maxLines: 2,
-                overflow: TextOverflow.ellipsis,
-                style: SunohType.heading(
-                  fontSize: 15,
-                  color: Colors.white,
-                  letterSpacing: -0.1,
-                  height: 1.1,
-                ),
-              ),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-}
-
-/// "Recent" header + horizontal chip row of the user's most recently
-/// submitted queries. Persisted via SettingsStore, capped at
-/// SettingsStore.kSearchRecentsMax. Tap a chip to rerun the query;
-/// tap "Clear" in the header to wipe all.
-class _RecentSearches extends StatelessWidget {
-  const _RecentSearches({
+/// The pinned block: the search field, and the jump pills when results have
+/// come back with more than one section.
+///
+/// Its height changes when the pills appear, which a persistent header is
+/// allowed to do as long as [shouldRebuild] says so — otherwise the list keeps
+/// reserving the old extent and the first section hides underneath.
+class _SearchHeader extends SliverPersistentHeaderDelegate {
+  _SearchHeader({
+    required this.extent,
     required this.colors,
-    required this.recents,
-    required this.onTap,
+    required this.controller,
+    required this.focus,
+    required this.showClear,
+    required this.onChanged,
+    required this.onSubmitted,
     required this.onClear,
+    required this.pills,
+    required this.onJumpToSection,
   });
 
+  final double extent;
   final SunohColors colors;
-  final List<String> recents;
-  final ValueChanged<String> onTap;
+  final TextEditingController controller;
+  final FocusNode focus;
+  final bool showClear;
+  final ValueChanged<String> onChanged;
+  final ValueChanged<String> onSubmitted;
   final VoidCallback onClear;
+  final List<HomeSection>? pills;
+  final void Function(String heading) onJumpToSection;
 
   @override
-  Widget build(BuildContext context) {
+  double get minExtent => extent;
+
+  @override
+  double get maxExtent => extent;
+
+  @override
+  Widget build(BuildContext context, double shrinkOffset, bool overlapped) {
     final c = colors;
     return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
+      mainAxisSize: MainAxisSize.min,
       children: [
-        Padding(
-          padding: const EdgeInsets.fromLTRB(20, 0, 20, 12),
-          child: Row(
+        // Opaque, because results scroll underneath: anything translucent
+        // here would show them sliding behind the field.
+        ColoredBox(
+          color: c.bg,
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
             children: [
-              eyebrow('RECENT', c.fgMute),
-              const Spacer(),
-              GestureDetector(
-                behavior: HitTestBehavior.opaque,
-                onTap: onClear,
-                child: Text(
-                  'Clear',
-                  style: SunohType.sans(
-                    fontSize: 11,
-                    fontWeight: FontWeight.w500,
-                    color: c.fgMute,
+              Padding(
+                padding: const EdgeInsets.fromLTRB(20, 16, 20, 10),
+                child: Container(
+                  height: 52,
+                  padding: const EdgeInsets.symmetric(horizontal: 16),
+                  decoration: squircleDecoration(
+                    radius: 14,
+                    color: c.surface,
+                    borderColor: c.line,
+                  ),
+                  child: Row(
+                    children: [
+                      Icon(
+                        SolarIconsOutline.magnifier,
+                        size: 19,
+                        color: c.fgMute,
+                      ),
+                      const SizedBox(width: 12),
+                      Expanded(
+                        child: TextField(
+                          controller: controller,
+                          focusNode: focus,
+                          onChanged: onChanged,
+                          onSubmitted: onSubmitted,
+                          cursorColor: c.accent,
+                          textInputAction: TextInputAction.search,
+                          style: SunohType.sans(fontSize: 15.5, color: c.fg),
+                          decoration: InputDecoration(
+                            isCollapsed: true,
+                            border: InputBorder.none,
+                            hintText: 'Artists, songs, podcasts, audiobooks…',
+                            hintStyle: SunohType.sans(
+                              fontSize: 15,
+                              color: c.fgMute,
+                            ),
+                          ),
+                        ),
+                      ),
+                      if (showClear)
+                        GestureDetector(
+                          onTap: onClear,
+                          child: Container(
+                            width: 26,
+                            height: 26,
+                            decoration: BoxDecoration(
+                              color: c.fg.withValues(alpha: 0.08),
+                              shape: BoxShape.circle,
+                            ),
+                            child: Icon(
+                              SolarIconsOutline.closeCircle,
+                              size: 14,
+                              color: c.fg,
+                            ),
+                          ),
+                        ),
+                    ],
                   ),
                 ),
               ),
+              if (pills != null)
+                Padding(
+                  padding: const EdgeInsets.only(bottom: 8),
+                  child: SectionPills(
+                    sections: pills!,
+                    colors: c,
+                    onTap: onJumpToSection,
+                  ),
+                ),
             ],
           ),
         ),
-        SingleChildScrollView(
-          scrollDirection: Axis.horizontal,
-          padding: const EdgeInsets.symmetric(horizontal: 20),
-          child: Row(
-            children: [
-              for (var i = 0; i < recents.length; i++) ...[
-                if (i > 0) const SizedBox(width: 8),
-                GestureDetector(
-                  behavior: HitTestBehavior.opaque,
-                  onTap: () => onTap(recents[i]),
-                  child: Container(
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: 14,
-                      vertical: 8,
-                    ),
-                    decoration: squircleDecoration(
-                      radius: 999,
-                      color: c.surface,
-                      borderColor: c.line,
-                    ),
-                    child: Row(
-                      children: [
-                        Icon(
-                          SolarIconsOutline.clockCircle,
-                          size: 13,
-                          color: c.fgMute,
-                        ),
-                        const SizedBox(width: 6),
-                        Text(
-                          recents[i],
-                          style: SunohType.sans(fontSize: 13, color: c.fg),
-                        ),
-                      ],
-                    ),
-                  ),
-                ),
-              ],
-            ],
+        // Drawn by the header rather than laid over the list, so it travels
+        // with the header and adds nothing to the scrolling content. Sits
+        // outside the opaque box above — it has to fade into something.
+        SizedBox(
+          height: _kHeaderFade,
+          child: DecoratedBox(
+            decoration: BoxDecoration(
+              gradient: LinearGradient(
+                begin: Alignment.topCenter,
+                end: Alignment.bottomCenter,
+                colors: [c.bg, c.bg.withValues(alpha: 0)],
+              ),
+            ),
           ),
         ),
       ],
     );
   }
+
+  @override
+  bool shouldRebuild(_SearchHeader old) =>
+      old.extent != extent ||
+      old.colors != colors ||
+      old.showClear != showClear ||
+      old.pills != pills;
 }
