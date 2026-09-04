@@ -38,6 +38,13 @@ const _kBase = Env.ytMusicBase;
 
 /// `params` filters pinning search to one result type. Opaque
 /// protobuf-derived values from the web client.
+/// How many continuation pages a list will follow before giving up.
+///
+/// A track list pages 100 rows at a time, so this is a few thousand tracks —
+/// past any playlist a person actually keeps, while still bounding a walk
+/// that has to be made one blocking round trip at a time.
+const _kMaxContinuationPages = 25;
+
 const _kSongsOnlyParams = 'EgWKAQIIAWoKEAoQAxAEEAkQBQ%3D%3D';
 const _kArtistsOnlyParams = 'EgWKAQIgAWoKEAoQAxAEEAkQBQ%3D%3D';
 const _kAlbumsOnlyParams = 'EgWKAQIYAWoKEAoQAxAEEAkQBQ%3D%3D';
@@ -339,6 +346,40 @@ class YtMusicApi {
     } catch (_) {
       return const [];
     }
+  }
+
+  /// Every row behind a continuation token, following the chain to its end.
+  ///
+  /// InnerTube serves a track list 100 rows at a time and hands back a token
+  /// for the next hundred; the website fetches them as you scroll. Reading
+  /// only the first response is why a 250-track playlist opened with 100
+  /// tracks in it and no sign that anything was missing.
+  ///
+  /// Capped, because a page is a network round trip taken one after another —
+  /// each token only arrives with the page before it, so these cannot be run
+  /// in parallel. [_kMaxContinuationPages] pages is a few thousand rows, past
+  /// any real playlist, and the cap is logged when it bites so a truncated
+  /// list is never silent again.
+  Future<List<Map<String, dynamic>>> _continuationRows(String? token) async {
+    final rows = <Map<String, dynamic>>[];
+    var next = token;
+    for (var page = 0; page < _kMaxContinuationPages && next != null; page++) {
+      final body = await _post('browse', {..._context, 'continuation': next});
+      if (body == null) break;
+      final items = _continuationShelves(body);
+      // A page that unwraps to nothing ends the walk rather than spinning on
+      // a token that keeps being handed back.
+      if (items.isEmpty) break;
+      rows.addAll(items);
+      next = _continuationOf(body);
+    }
+    if (next != null) {
+      debugPrint(
+        '[ytmusic] stopped after $_kMaxContinuationPages continuation pages '
+        '(${rows.length} rows) with more still to come',
+      );
+    }
+    return rows;
   }
 
   /// An artist page: header, top songs, and the discography carousels.
@@ -649,6 +690,7 @@ class YtMusicApi {
     final secContents = _asList(
       _dig(two, ['secondaryContents', 'sectionListRenderer', 'contents']),
     );
+    String? more;
     for (final sec in secContents) {
       final shelf =
           _asMap(_asMap(sec)?['musicPlaylistShelfRenderer']) ??
@@ -658,6 +700,14 @@ class YtMusicApi {
         final item = _parseResponsiveItem(_asMap(raw));
         if (item != null) tracks.add(item);
       }
+      // Read off the shelf rather than off the whole response: a playlist page
+      // carries other continuations (the related-playlists rail for one), and
+      // following one of those instead would page in somebody else's list.
+      more ??= _continuationOf(shelf);
+    }
+    for (final raw in await _continuationRows(more)) {
+      final item = _parseResponsiveItem(_asMap(raw));
+      if (item != null) tracks.add(item);
     }
 
     // Album and playlist track rows carry no thumbnail of their own — the

@@ -59,7 +59,22 @@ extension YtMusicAccount on YtMusicApi {
     try {
       final body = await _post('browse', {..._context, 'browseId': browseId});
       if (body == null) return null;
-      final items = _libraryItems(_singleColumnShelves(body));
+      final shelves = _singleColumnShelves(body);
+      final items = _libraryItems(shelves);
+      // Same 100-row ceiling the playlist screen hit: a library with more
+      // liked songs than that served the first hundred and stopped. The token
+      // is read off the shelf that holds the rows rather than off the page,
+      // which on these pages also carries the sidebar's own continuations.
+      String? more;
+      for (final shelf in shelves) {
+        more ??= _continuationOf(shelf);
+      }
+      for (final raw in await _continuationRows(more)) {
+        final m = _asMap(raw);
+        if (m == null) continue;
+        final item = _parseTwoRowItem(m) ?? _parseResponsiveItem(m);
+        if (item != null) items.add(item);
+      }
       if (items.isEmpty) return null;
       return HomeSection(heading: heading, items: items, source: 'youtube');
     } catch (_) {
