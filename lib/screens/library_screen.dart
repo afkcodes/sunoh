@@ -11,7 +11,6 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:solar_icons/solar_icons.dart';
 
 import '../api/dto.dart';
-import '../audio/local_library.dart';
 import '../data/models.dart';
 import '../providers/app_state_provider.dart';
 import '../providers/downloads_provider.dart';

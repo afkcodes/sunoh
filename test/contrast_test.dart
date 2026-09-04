@@ -92,20 +92,14 @@ void main() {
         test('accent $i is usable as a UI colour', () {
           // Accents underline the active tab, tint the scrubber and colour
           // icons — non-text UI, so 3:1.
-          final c = SunohColors.resolve(
-            accent: kAccentOptions[i],
-            brightness: brightness,
-          );
+          final c = SunohColors.resolve(accent: accent, brightness: brightness);
           expect(contrast(c.accent, c.bg), greaterThanOrEqualTo(_aaLarge));
         });
 
         test('accent $i carries its own label', () {
           // The filled play button draws onAccent on top of accent. Getting
           // this pair wrong is the commonest way an accent goes unreadable.
-          final c = SunohColors.resolve(
-            accent: kAccentOptions[i],
-            brightness: brightness,
-          );
+          final c = SunohColors.resolve(accent: accent, brightness: brightness);
           expect(contrast(c.onAccent, c.accent), greaterThanOrEqualTo(_aaText));
         });
       }

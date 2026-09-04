@@ -19,6 +19,7 @@ import '../data/models.dart';
 import '../data/user_playlist.dart';
 import '../theme/tokens.dart';
 import '../widgets/album_art.dart';
+import 'reorder.dart';
 
 enum LoopMode { off, all, one }
 
@@ -965,15 +966,10 @@ class AppState extends ChangeNotifier with WidgetsBindingObserver {
     final current = userPlaylistById(playlistId);
     if (current == null) return;
     if (from < 0 || from >= current.songs.length) return;
-    if (to < 0 || to > current.songs.length) return;
-    final reordered = [...current.songs];
-    final moved = reordered.removeAt(from);
-    // ReorderableListView reports `to` as the index AFTER removal — the
-    // semantics match List.insert directly only when moving up. When
-    // moving down, the framework passes a `to` that's one too high. The
-    // canonical idiom is to subtract 1 in that case.
-    final insertAt = from < to ? to - 1 : to;
-    reordered.insert(insertAt, moved);
+    // `to` is an index into the list with the dragged song already taken
+    // out, so the last valid slot is one short of the current length.
+    if (to < 0 || to >= current.songs.length) return;
+    final reordered = movedItem(current.songs, from, to);
     final updated = current.copyWith(
       songs: reordered,
       updatedAt: DateTime.now(),
@@ -1826,9 +1822,6 @@ class AppState extends ChangeNotifier with WidgetsBindingObserver {
   // position sync from the receiver are v2.
 
   bool _isCasting = false;
-  // Stamp the moment a cast session goes live so logCastDisconnect can
-  // attach a session length when it fires later. Null while no session.
-  DateTime? _castConnectedAt;
   String? _castDeviceName;
 
   bool get isCasting => _isCasting;
@@ -1871,7 +1864,6 @@ class AppState extends ChangeNotifier with WidgetsBindingObserver {
           playing: isPlaying,
           position: Duration(seconds: position),
         );
-        _castConnectedAt = DateTime.now();
         await _handOffToCast();
       } else if (wasCasting && !nowConnected) {
         // Just disconnected → drop cast-override (bridge resumes
@@ -1881,8 +1873,6 @@ class AppState extends ChangeNotifier with WidgetsBindingObserver {
           playing: isPlaying,
           position: Duration(seconds: position),
         );
-        final connectedAt = _castConnectedAt;
-        _castConnectedAt = null;
         await _resumeOnPhone();
       }
       notifyListeners();
@@ -2173,12 +2163,10 @@ class AppState extends ChangeNotifier with WidgetsBindingObserver {
     notifyListeners();
   }
 
+  /// Drop handler for the dummy-catalog queue list. [newIndex] arrives
+  /// already adjusted for the removal — see `state/reorder.dart`.
   void reorderQueue(int oldIndex, int newIndex) {
-    final list = [...queue];
-    if (newIndex > oldIndex) newIndex -= 1;
-    final item = list.removeAt(oldIndex);
-    list.insert(newIndex, item);
-    queue = list;
+    queue = movedItem(queue, oldIndex, newIndex);
     notifyListeners();
   }
 
@@ -2214,13 +2202,14 @@ class AppState extends ChangeNotifier with WidgetsBindingObserver {
   Future<void> apiReorderUpNext(int oldIndex, int newIndex) async {
     final repo = audioRepo;
     if (repo == null) return;
-    // ReorderableList and mpv's `playlist-move from to` use the SAME
-    // "take the place of entry at <to>" convention — `to` is a
-    // BEFORE-removal index. No offset is needed; pass through directly.
-    // (We previously subtracted 1 here for Dart's `list.insert`, but
-    // with mpv driving the playlist that semantic flipped.)
+    // mpv's `playlist-move from to` takes `to` as a BEFORE-removal index,
+    // which is the convention the old `onReorder` callback used and the one
+    // `onReorderItem` adjusts away. Put it back — see `state/reorder.dart`.
     final base = repo.currentIndex + 1;
-    await repo.moveInQueue(base + oldIndex, base + newIndex);
+    await repo.moveInQueue(
+      base + oldIndex,
+      base + mpvMoveTarget(oldIndex, newIndex),
+    );
     notifyListeners();
   }
 
@@ -2533,15 +2522,12 @@ class AppState extends ChangeNotifier with WidgetsBindingObserver {
   }
 
   void cancelSleepTimer({bool silent = false}) {
-    final wasArmed = sleepArmed;
     _sleepTickTimer?.cancel();
     _sleepTickTimer = null;
     sleepRemaining = null;
     sleepAtTrackEnd = false;
     _sleepCapturedSongId = null;
     if (!silent) notifyListeners();
-    // Only log a cancel when something WAS armed — silent re-arm cycles
-    // call cancelSleepTimer(silent:true) under the hood.
   }
 
   // Called from the `currentSongStream` listener (in _bindAudio) when the

@@ -11,7 +11,6 @@ import 'package:solar_icons/solar_icons.dart';
 import '../data/user_playlist.dart';
 import '../router/router.dart';
 import '../theme/tokens.dart';
-import '../widgets/album_art.dart';
 import '../widgets/ui.dart';
 
 class UserPlaylistsStrip extends StatelessWidget {
