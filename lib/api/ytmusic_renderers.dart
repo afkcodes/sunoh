@@ -449,13 +449,22 @@ String? _continuationOf(Map<String, dynamic> body) {
   return token is String && token.isNotEmpty ? token : null;
 }
 
-/// Shelves out of a continuation response, which nests them differently from
-/// the first page.
+/// The contents of a continuation response, which nest differently from the
+/// first page.
+///
+/// What comes back depends on what was being paged: shelves for the home
+/// feed, track rows for a playlist, cards for a library grid. They arrive
+/// through the same envelope, so unwrapping is one job and the caller parses
+/// whatever it asked for.
 List<Map<String, dynamic>> _continuationShelves(Map<String, dynamic> body) {
   final out = <Map<String, dynamic>>[];
   for (final key in const [
     ['continuationContents', 'sectionListContinuation', 'contents'],
     ['continuationContents', 'musicShelfContinuation', 'contents'],
+    // A playlist's own track list, which is the one that runs past 100.
+    ['continuationContents', 'musicPlaylistShelfContinuation', 'contents'],
+    // Library grids — albums, playlists, artists — page as `items`.
+    ['continuationContents', 'gridContinuation', 'items'],
   ]) {
     for (final raw in _asList(_dig(body, key))) {
       final m = _asMap(raw);

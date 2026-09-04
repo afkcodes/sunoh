@@ -33,8 +33,9 @@ no private base URL. A build without it still runs — the on-device library and
 the YouTube tier need nothing from sunoh-api — but the catalog screens render
 their error state. `scripts/release.sh` refuses to build without it.
 
-`flutter test` runs 30 tests covering the Android Auto surface
-(`auto_browse`, `auto_media_id`). The rest of the app is uncovered — see
+`flutter test` runs 217 tests: the Android Auto surface (`auto_browse`,
+`auto_media_id`), the lyric parsers (`lyrics_parser`) and the reorder index
+conventions (`reorder`). The rest of the app is uncovered — see
 `docs/ENGINEERING.md` section 9 for the order to extend it in.
 
 ## Priorities, in order
@@ -104,11 +105,11 @@ comment above them first.
   nowhere else.
 - **Never hand-build an Auto media id.** Go through `AutoMediaId`
   (`lib/audio/auto_media_id.dart`) or encode and decode drift apart.
-- **The three `onReorder` call sites do not share index semantics.**
-  `apiReorderUpNext` passes `newIndex` through unadjusted because mpv's
-  `playlist-move` matches `onReorder`'s convention; the other two apply the
-  `List.insert` correction themselves. Do not blanket-migrate them to
-  `onReorderItem` — see `ARCHITECTURE.md` section 9.
+- **Reorder indices come in two conventions and `state/reorder.dart` names
+  both.** A list wants `onReorderItem`'s adjusted index (`movedItem`); mpv's
+  `playlist-move` wants the before-removal one (`mpvMoveTarget`). Reach for
+  those rather than writing a `± 1` at a call site — that is what made the
+  three drag handlers disagree with each other for as long as they did.
 
 ## Known debt
 
@@ -118,9 +119,10 @@ section 9.
 `AppState` is 2440 lines across six concerns. Nineteen files exceed 400 lines.
 The fictional placeholder catalog (`data/catalog.dart`) is still seeded in the
 `AppState` constructor and `queue_screen.dart` still carries a parallel dummy
-rendering path. Test coverage reaches only the Android Auto
-surface. There are zero `.select()` calls against 150 bare `ref.watch` sites,
-and 90 raw `print` calls.
+rendering path. Test coverage reaches the Android Auto surface, the lyric
+parsers and the reorder index conventions; the rest of the app is uncovered.
+There are zero `.select()` calls against 150 bare `ref.watch` sites, and 90
+raw `print` calls.
 
 ## Conventions
 
@@ -146,8 +148,8 @@ and 90 raw `print` calls.
 
 ## Before finishing
 
-`flutter analyze` reports nothing you introduced — there are exactly three
-known-failing issues (the `onReorder` deprecations above) and nothing else.
+`flutter analyze` reports **nothing at all** — the tree is clean, so anything
+it prints is yours.
 Only the files you touched formatted — **never `dart format .`**, which
 rewrites 89 of 92 files because the repo predates Dart 3.11's tall-style
 formatter. No file grown past 400 lines. No new

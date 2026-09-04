@@ -27,7 +27,7 @@ Companion documents:
                                 │                       │
           ┌─────────────────────┴─────┐     ┌───────────┴───────────────────┐
    Domain │ audio/audio_repo.dart     │     │ api/ sunoh_api  ytmusic_api   │
-          │ audio/audio_handler.dart  │     │     lrclib      sponsorblock  │
+          │ audio/audio_handler.dart  │     │     lyrics/     sponsorblock  │
           └─────────────┬─────────────┘     └───────────┬───────────────────┘
                         │                               │
           ┌─────────────┴─────────────┐     ┌───────────┴───────────────────┐
@@ -366,17 +366,18 @@ standards these violate.
 | 90 raw `print(` calls | across `lib/` | Ships log noise in release builds. |
 | Compile-time base URL | `api/client.dart` | No runtime environment switch. |
 | Saavn artist radio 400s server-side | `/music/radio/<stationId>` | The whole "Recommended Artist Stations" shelf. The car falls back to `/music/recommend`; the **phone does not**, so its radio tiles still fail. Fix belongs in sunoh-api. |
-| 3 `onReorder` deprecations | `overlays/queue_screen.dart` (x2), `screens/user_playlist_screen.dart` | The only failing `flutter analyze` issues. Migration is per-site, not mechanical — see below. |
 
-**On the `onReorder` migration.** `onReorderItem` adjusts `newIndex` for the
-removed item; `onReorder` does not. The three call sites do not agree on what
-they expect, so a blanket rename corrupts ordering:
+**The `onReorder` migration is done.** All three sites are on `onReorderItem`
+and `flutter analyze` reports nothing. The two conventions that made it
+non-mechanical now live in `state/reorder.dart` rather than in comments:
 
-- `AppState.apiReorderUpNext` passes the index through **unadjusted on
-  purpose** — mpv's `playlist-move from to` treats `to` as a before-removal
-  index, matching `onReorder` exactly. Switching to `onReorderItem` double-adjusts.
-- `AppState.reorderQueue` and `AppState.moveSongInUserPlaylist` both apply the
-  `List.insert` correction themselves; under `onReorderItem` that correction
-  must be deleted.
+- `movedItem` takes `onReorderItem`'s already-adjusted index, so
+  `AppState.reorderQueue` and `AppState.moveSongInUserPlaylist` no longer
+  carry their own `List.insert` correction.
+- `mpvMoveTarget` puts the adjustment *back*, because mpv's
+  `playlist-move from to` wants a before-removal index — which is what
+  `AppState.apiReorderUpNext` had been relying on the old callback for.
 
-Migrate one site at a time, with a test.
+`test/reorder_test.dart` drives both through the framework's own adjustment
+rule for every drag on a five-item list, so the pair is checked against what
+`ReorderableList` actually does rather than against a restatement of it.

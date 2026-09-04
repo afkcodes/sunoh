@@ -103,7 +103,7 @@ class _UserPlaylistScreenState extends ConsumerState<UserPlaylistScreen> {
                       physics: const NeverScrollableScrollPhysics(),
                       buildDefaultDragHandles: false,
                       itemCount: songs.length,
-                      onReorder: (from, to) =>
+                      onReorderItem: (from, to) =>
                           s.moveSongInUserPlaylist(playlist.id, from, to),
                       itemBuilder: (context, i) => _PlaylistTrackRow(
                         key: ValueKey('${songs[i].id}:$i'),

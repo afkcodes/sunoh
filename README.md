@@ -86,7 +86,8 @@ itself and can install them in-app, so either route keeps you current.
   non-music segments. Only a short hash prefix of the video id is sent, never
   the id itself.
 - Equalizer, sleep timer, and Chromecast.
-- Synced lyrics via [LRCLIB](https://lrclib.net).
+- Word-by-word synced lyrics, looked up across six databases at once —
+  Apple Music timings where they exist, whole lines where they don't.
 - Media notification with a working seekbar, and full background playback.
 
 ### Android Auto
@@ -168,8 +169,11 @@ flutter build apk --split-per-abi --release --dart-define-from-file=env.json
 
 Every endpoint the app talks to lives in `env.json`, which is **gitignored** —
 this repository carries no base URL of its own. `env.example.json` documents
-the shape; the third-party ones (LRCLIB, SponsorBlock, InnerTube) are filled in
-there because they are public, and the sunoh-specific ones are blank.
+the shape; the third-party ones (the lyrics databases, SponsorBlock,
+InnerTube) are filled in there because they are public, and the
+sunoh-specific ones are blank. `MUSIXMATCH_SECRET` is blank too: it is that
+service's own signing key, read from their web bundle, and this repository
+does not republish it. A build without it simply has one fewer lyrics source.
 
 A build without `env.json` still runs. The on-device library and the YouTube
 tier need nothing from sunoh-api, so they keep working; the catalog screens
@@ -200,6 +204,7 @@ new code is held to are in [`docs/ENGINEERING.md`](docs/ENGINEERING.md).
 | Path | |
 |---|---|
 | `lib/api/` | source clients — `ytmusic_api`, `sunoh_api`, `local_media_channel`, `sponsorblock`, `lrclib` |
+| `lib/api/lyrics/` | the six lyrics databases, their parsers, and the race between them |
 | `lib/audio/` | playback repository, queue, downloads, Android Auto, on-device library |
 | `lib/providers/` | Riverpod providers |
 | `lib/screens/`, `lib/overlays/`, `lib/player/` | UI |
@@ -246,6 +251,8 @@ Chromecast firmware accepts. That trade-off is unresolved;
   the YouTube Music home feed and PO tokens this follows.
 - [SponsorBlock](https://sponsor.ajay.app) and [LRCLIB](https://lrclib.net) for
   their open APIs.
+- [BitChord](https://github.com/kushagrasinghx/BitChord), whose multi-source
+  lyrics lookup and word-timing parsers this ports.
 
 ---
 

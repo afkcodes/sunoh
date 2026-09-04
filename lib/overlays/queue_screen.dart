@@ -174,7 +174,7 @@ class _ApiQueueBody extends StatelessWidget {
             if (upNext.isNotEmpty)
               SliverReorderableList(
                 itemCount: upNext.length,
-                onReorder: s.apiReorderUpNext,
+                onReorderItem: s.apiReorderUpNext,
                 itemBuilder: (context, i) {
                   final song = upNext[i];
                   return _ApiQueueRow(
@@ -499,7 +499,7 @@ class _DummyQueueBody extends StatelessWidget {
         ),
         SliverReorderableList(
           itemCount: s.queue.length,
-          onReorder: s.reorderQueue,
+          onReorderItem: s.reorderQueue,
           itemBuilder: (context, i) {
             final t = s.queue[i];
             return Container(
