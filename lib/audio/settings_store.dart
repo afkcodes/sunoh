@@ -9,9 +9,14 @@ import 'package:hive_ce_flutter/hive_flutter.dart';
 import '../api/local_media_channel.dart';
 
 class SavedEqState {
-  const SavedEqState({required this.bands, this.presetId});
+  const SavedEqState({required this.bands, this.presetId, this.enabled = true});
   final List<double> bands;
   final String? presetId;
+
+  /// Whether the curve is actually applied. Kept separately from the bands so
+  /// switching the EQ off preserves the curve the listener built — turning it
+  /// back on restores their settings rather than a flat line.
+  final bool enabled;
 }
 
 class SavedAppearance {
@@ -46,12 +51,14 @@ class SavedPlayback {
     this.ytCountry,
     this.ytLanguage,
   });
+
   /// 'auto' / 'high' / 'data' / 'lossless'.
   ///
   /// 'lossless' adds a hi-res tier ahead of the usual sources and otherwise
   /// behaves like 'high'. Deliberately a choice rather than a default: a
   /// 24-bit/96 kHz track is roughly 96 MB against ~10 MB for the usual stream.
   final String? streamQuality;
+
   /// Persisted as the `LoopMode.name` ('off' / 'all' / 'one'). Null on
   /// fresh installs / older saves that predate this field.
   final String? repeatMode;
@@ -79,6 +86,7 @@ class SettingsStore {
   // EQ
   static const _kEqBands = 'eq_bands';
   static const _kEqPresetId = 'eq_preset_id';
+  static const _kEqEnabled = 'eq_enabled';
 
   // Appearance
   static const _kAccent = 'appearance.accent';
@@ -197,9 +205,14 @@ class SettingsStore {
   Future<void> saveEq({
     required List<double> bands,
     required String? presetId,
+    required bool enabled,
   }) async {
     final box = await _box();
-    await box.putAll({_kEqBands: bands, _kEqPresetId: presetId});
+    await box.putAll({
+      _kEqBands: bands,
+      _kEqPresetId: presetId,
+      _kEqEnabled: enabled,
+    });
     // Force fsync — without flush, Hive buffers writes and a fast process
     // kill (adb install, app swipe, etc.) drops them silently. Settings
     // were lost across upgrades for exactly this reason.
@@ -215,7 +228,11 @@ class SettingsStore {
       final bands = raw.whereType<num>().map((n) => n.toDouble()).toList();
       if (bands.length != 10) return null;
       final presetId = box.get(_kEqPresetId) as String?;
-      return SavedEqState(bands: bands, presetId: presetId);
+      // Absent for anyone upgrading from before the switch existed, and their
+      // EQ was on, so default to true rather than silently muting a curve
+      // they had already tuned.
+      final enabled = box.get(_kEqEnabled) as bool? ?? true;
+      return SavedEqState(bands: bands, presetId: presetId, enabled: enabled);
     } catch (e) {
       debugPrint('[settings-store] loadEq failed: $e');
       return null;
