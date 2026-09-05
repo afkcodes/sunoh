@@ -486,6 +486,32 @@ List<Map<String, dynamic>> _continuationShelves(Map<String, dynamic> body) {
   return out;
 }
 
+/// The names of every `*HeaderRenderer` in a response.
+///
+/// Only ever used to log what a page actually contained when none of the
+/// headers we know about matched. YouTube renames and reshuffles these, and
+/// the alternative to naming them is guessing at a shape nobody can see.
+List<String> headerRendererNames(Object? node, [int depth = 0]) {
+  final found = <String>{};
+  void walk(Object? n, int d) {
+    if (d > 12) return;
+    if (n is Map) {
+      for (final entry in n.entries) {
+        final key = entry.key;
+        if (key is String && key.endsWith('HeaderRenderer')) found.add(key);
+        walk(entry.value, d + 1);
+      }
+    } else if (n is List) {
+      for (final v in n) {
+        walk(v, d + 1);
+      }
+    }
+  }
+
+  walk(node, depth);
+  return found.toList()..sort();
+}
+
 /// Every value stored under [key] anywhere in the tree, flattened.
 List<Object?> _deepList(Object? node, String key, [int depth = 0]) {
   if (depth > 8) return const [];

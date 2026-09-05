@@ -138,6 +138,20 @@ dependencies:
   xml: ^6.5.0
   open_filex: ^4.7.0
   device_info_plus: ^12.4.0
+  # Opts the window into 90/120/144 Hz. Android renders an app at 60 Hz unless
+  # it asks otherwise, so on a high-refresh phone every animation this app has
+  # was being displayed at half the rate it was drawn at — the swept lyric line
+  # repaints per frame and was capped at 60 of them, and so was scrolling.
+  # Priority 1 in CLAUDE.md is frame rate, and this is the cheapest place to
+  # buy some.
+  #
+  # Cost is a plugin with an Android/iOS/web native side, and its Android half
+  # is one `WindowManager.LayoutParams` write guarded by `activity?.window`, so
+  # a failure is a no-op rather than a crash. minSdk 21 against our 24, no
+  # permissions, no manifest entry. It also ships an FPS/Hz debug overlay and a
+  # benchmarking session API — neither is used here, and neither runs unless
+  # called.
+  refresh_rate: ^1.0.2
 
 dev_dependencies:
   flutter_test:

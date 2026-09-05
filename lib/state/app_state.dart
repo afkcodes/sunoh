@@ -228,7 +228,8 @@ class AppState extends ChangeNotifier with WidgetsBindingObserver {
       if (saved == null) return;
       eqBands = List<double>.from(saved.bands);
       currentEqPresetId = saved.presetId;
-      await repo.handler.setEqBands(eqBands);
+      eqEnabled = saved.enabled;
+      await repo.handler.setEqBands(eqBands, enabled: eqEnabled);
       notifyListeners();
     } catch (e) {
       debugPrint('[audio] eq restore failed: $e');
@@ -1716,11 +1717,31 @@ class AppState extends ChangeNotifier with WidgetsBindingObserver {
   }
 
   // ── EQ setters ────────────────────────────────────────────────────────
+
+  /// Whether the curve in [eqBands] is applied at all.
+  ///
+  /// Separate from the bands so switching off preserves the listener's curve;
+  /// switching back on restores it rather than a flat line.
+  bool eqEnabled = true;
+
+  /// The single place the player is told about the EQ. Every setter goes
+  /// through here so none of them can forget the switch.
+  void _pushEq() => audioRepo?.handler.setEqBands(eqBands, enabled: eqEnabled);
+
+  /// Turn the whole equaliser on or off, leaving the curve intact.
+  void setEqEnabled(bool value) {
+    if (eqEnabled == value) return;
+    eqEnabled = value;
+    _pushEq();
+    _persistEq();
+    notifyListeners();
+  }
+
   void setEqBand(int index, double db) {
     if (index < 0 || index >= eqBands.length) return;
     eqBands = [...eqBands]..[index] = db.clamp(-12.0, 12.0);
     currentEqPresetId = null; // manual tweak → presets deselect
-    audioRepo?.handler.setEqBands(eqBands);
+    _pushEq();
     _persistEq();
     notifyListeners();
   }
@@ -1728,7 +1749,7 @@ class AppState extends ChangeNotifier with WidgetsBindingObserver {
   void applyEqPreset(EqPreset preset) {
     eqBands = preset.gains.map((g) => g.toDouble()).toList();
     currentEqPresetId = preset.id;
-    audioRepo?.handler.setEqBands(eqBands);
+    _pushEq();
     _persistEq();
     notifyListeners();
   }
@@ -1736,7 +1757,7 @@ class AppState extends ChangeNotifier with WidgetsBindingObserver {
   void resetEq() {
     eqBands = List<double>.filled(10, 0);
     currentEqPresetId = 'flat';
-    audioRepo?.handler.setEqBands(eqBands);
+    _pushEq();
     _persistEq();
     notifyListeners();
   }
@@ -1746,7 +1767,11 @@ class AppState extends ChangeNotifier with WidgetsBindingObserver {
     if (repo == null) return;
     // Fire and forget — Hive writes are fast enough that we don't gate
     // anything on completion. Errors are logged inside the store.
-    repo.settings.saveEq(bands: eqBands, presetId: currentEqPresetId);
+    repo.settings.saveEq(
+      bands: eqBands,
+      presetId: currentEqPresetId,
+      enabled: eqEnabled,
+    );
   }
 
   bool get eqActive => eqBands.any((g) => g.abs() > 0.001);

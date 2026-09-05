@@ -1,24 +1,79 @@
 // 10-band graphic equalizer sheet — opened from the tweaks panel.
-// Vertical band sliders (one per ISO frequency 32 Hz..16 kHz) + a category-
-// grouped preset chip list. mpv's 18-band superequalizer is the actual
-// engine; we map bands 4b..13b through SunohAudioHandler.setEqBands.
+//
+// Gains go to SunohAudioHandler.setEqBands, which builds the mpv filter chain
+// in `audio/eq_filters.dart`. Not mpv's superequalizer, despite what an older
+// comment here claimed — that is explicitly disabled.
+//
+// ## Why the layout is shaped like this
+//
+// The sheet used to be a `DraggableScrollableSheet` wrapping a `ListView`, with
+// the band rack as one of its children. Dragging a band therefore scrolled the
+// sheet away instead of moving the band: three widgets wanted the same downward
+// swipe and the sliders were the innermost and weakest.
+//
+// The fix is structural rather than a cleverer gesture. The rack no longer sits
+// inside anything that scrolls — the sheet is a fixed column of a header, a
+// rack that does not move, and a preset list that scrolls on its own below. A
+// drag on a band cannot reach a scrollable because there is no longer one above
+// it. The sheet still drags to dismiss from its header and its preset list,
+// because that is what a bottom sheet should do; the rack is carved out of
+// that by the recogniser in `eq_slider.dart`, which takes a drag beginning on
+// a band before the sheet can claim it.
 
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
-import '../audio/eq_presets.dart';
 import '../providers/app_state_provider.dart';
 import '../theme/tokens.dart';
-import '../widgets/ui.dart';
+import 'eq_presets_wall.dart';
+import 'eq_slider.dart';
+
+/// Frequency labels, matching the band centres in `audio/eq_filters.dart`.
+const List<String> kEqLabels = [
+  '31',
+  '63',
+  '125',
+  '250',
+  '500',
+  '1k',
+  '2k',
+  '4k',
+  '8k',
+  '16k',
+];
+
+const double _kMinGain = -12;
+const double _kMaxGain = 12;
+
+/// Height of the slider travel.
+///
+/// Fixed rather than flexible: it is the dimension a listener aims at, and a
+/// rack that stretched to fill the screen would make the same drag mean
+/// different amounts of gain on different phones.
+const double _kTrackHeight = 196;
+
+/// Width of the dB gutter, and of the matching blank under it.
+const double _kScaleWidth = 26;
 
 void showEqSheet(BuildContext context) {
   showModalBottomSheet(
     context: context,
     backgroundColor: Colors.transparent,
     isScrollControlled: true,
-    // Open at full height — the band rack + preset wall use the whole screen
-    // comfortably and partial-height felt cramped.
     useSafeArea: true,
+    // Drags to dismiss from anywhere except the rack. That exception is won
+    // per pointer by the recogniser in `eq_slider.dart`, which claims a drag
+    // starting on a band before the sheet can have it.
+    enableDrag: true,
+    // Material's default is a 250 ms decelerate both ways, which opens
+    // sluggishly and closes softly. Closing is shortened and eased out so it
+    // leaves at speed and settles at the end.
+    sheetAnimationStyle: const AnimationStyle(
+      duration: Duration(milliseconds: 300),
+      curve: Curves.fastEaseInToSlowEaseOut,
+      reverseDuration: Duration(milliseconds: 220),
+      reverseCurve: Curves.easeOutCubic,
+    ),
     builder: (_) => const _EqSheet(),
   );
 }
@@ -28,92 +83,34 @@ class _EqSheet extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final s = ref.watch(appStateProvider);
-    final c = s.colors;
-    final accent = s.resolvedAccent;
+    final c = ref.watch(appStateProvider).colors;
+    // Deliberately *not* `resolvedAccent`. The accent follows the current
+    // album's artwork, and an equaliser that changed colour with every track
+    // read as decoration rather than instrumentation — the same reason the
+    // HI-RES badge stopped using it. Emphasis here comes from the foreground
+    // token, which is stable whatever is playing.
+    final highlight = c.fg;
 
-    return DraggableScrollableSheet(
-      initialChildSize: 1.0,
-      minChildSize: 0.6,
-      maxChildSize: 1.0,
-      expand: false,
-      builder: (_, controller) => DecoratedBox(
+    return Padding(
+      padding: EdgeInsets.only(top: MediaQuery.paddingOf(context).top + 8),
+      child: DecoratedBox(
         decoration: BoxDecoration(
           color: c.bgSoft,
-          borderRadius: const BorderRadius.vertical(top: Radius.circular(24)),
+          borderRadius: const BorderRadius.vertical(top: Radius.circular(28)),
           border: Border.all(color: c.line, width: 0.5),
         ),
-        child: ListView(
-          controller: controller,
-          padding: const EdgeInsets.fromLTRB(20, 12, 20, 32),
+        child: Column(
           children: [
-            Center(
-              child: Container(
-                width: 40,
-                height: 4,
-                margin: const EdgeInsets.only(bottom: 16),
-                decoration: BoxDecoration(
-                  color: c.fgMute,
-                  borderRadius: BorderRadius.circular(2),
-                ),
-              ),
+            _Handle(colors: c),
+            _Header(colors: c, accent: highlight),
+            _Rack(colors: c, accent: highlight),
+            const SizedBox(height: 10),
+            Divider(height: 1, thickness: 0.5, color: c.line),
+            // The only scrolling region, and the only part that needs help to
+            // move the sheet — a drag anywhere else is already the sheet's.
+            Expanded(
+              child: EqPresetsWall(colors: c, accent: highlight),
             ),
-            Row(
-              crossAxisAlignment: CrossAxisAlignment.end,
-              children: [
-                Expanded(
-                  child: Text(
-                    'Equalizer',
-                    style: SunohType.heading(
-                      fontSize: 26,
-                      color: c.fg,
-                      letterSpacing: -0.3,
-                    ),
-                  ),
-                ),
-                GestureDetector(
-                  onTap: s.resetEq,
-                  child: Padding(
-                    padding: const EdgeInsets.only(bottom: 4),
-                    child: Text(
-                      'Reset',
-                      style: SunohType.sans(
-                        fontSize: 12,
-                        fontWeight: FontWeight.w500,
-                        color: c.fgMute,
-                      ),
-                    ),
-                  ),
-                ),
-              ],
-            ),
-            const SizedBox(height: 22),
-            _BandRack(colors: c, accent: accent),
-            const SizedBox(height: 24),
-            for (final entry in kEqPresetCategories.entries) ...[
-              eyebrow(
-                entry.key.toUpperCase(),
-                c.fgMute,
-                size: 10,
-                letterSpacing: 1.4,
-              ),
-              const SizedBox(height: 10),
-              Wrap(
-                spacing: 8,
-                runSpacing: 8,
-                children: [
-                  for (final id in entry.value)
-                    _PresetChip(
-                      preset: eqPresetById(id)!,
-                      selected: s.currentEqPresetId == id,
-                      colors: c,
-                      accent: accent,
-                      onTap: () => s.applyEqPreset(eqPresetById(id)!),
-                    ),
-                ],
-              ),
-              const SizedBox(height: 18),
-            ],
           ],
         ),
       ),
@@ -121,112 +118,196 @@ class _EqSheet extends ConsumerWidget {
   }
 }
 
-/// The 10 vertical band sliders. Drag vertically on any column to adjust
-/// its gain. Lightly haptic to match the design system feel.
-class _BandRack extends ConsumerWidget {
-  const _BandRack({required this.colors, required this.accent});
+/// The grab handle. Purely an affordance — the sheet's own drag does the work.
+class _Handle extends StatelessWidget {
+  const _Handle({required this.colors});
+  final SunohColors colors;
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 12),
+      child: Center(
+        child: Container(
+          width: 40,
+          height: 4,
+          decoration: BoxDecoration(
+            color: colors.fgMute,
+            borderRadius: BorderRadius.circular(2),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _Header extends ConsumerWidget {
+  const _Header({required this.colors, required this.accent});
   final SunohColors colors;
   final Color accent;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final s = ref.watch(appStateProvider);
-    return SizedBox(
-      height: 220,
+    final c = colors;
+    final on = s.eqEnabled;
+    final active = s.eqBands.where((g) => g.abs() > 0.05).length;
+
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(20, 0, 14, 6),
       child: Row(
-        crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          for (var i = 0; i < 10; i++)
-            Expanded(
-              child: _BandColumn(
-                index: i,
-                label: SunohState.eqLabels[i],
-                gain: s.eqBands[i],
-                onChanged: (db) => s.setEqBand(i, db),
-                colors: colors,
-                accent: accent,
-              ),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Text(
+                  'Equalizer',
+                  style: SunohType.heading(
+                    fontSize: 24,
+                    color: on ? c.fg : c.fgDim,
+                    letterSpacing: -0.3,
+                  ),
+                ),
+                const SizedBox(height: 2),
+                // Says what "off" actually means, because the distinction
+                // matters to whoever went looking for this switch: bypassing
+                // is not a flat curve, it is no filter in the chain at all, so
+                // a lossless stream reaches the output untouched.
+                Text(
+                  on
+                      ? (active == 0
+                            ? 'Flat — nothing being changed'
+                            : '$active ${active == 1 ? 'band' : 'bands'} shaping')
+                      : 'Bypassed — audio passes through untouched',
+                  style: SunohType.sans(
+                    fontSize: 11,
+                    color: on ? c.fgMute : accent,
+                  ),
+                ),
+              ],
             ),
+          ),
+          Switch.adaptive(
+            value: on,
+            onChanged: s.setEqEnabled,
+            activeThumbColor: c.bg,
+            activeTrackColor: accent,
+            inactiveThumbColor: c.fgMute,
+            inactiveTrackColor: c.surface,
+            trackOutlineColor: WidgetStatePropertyAll(c.line),
+            materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
+          ),
         ],
       ),
     );
   }
 }
 
-/// Static config helper — frequency labels matching the audio_x topology
-/// the handler implements (lowshelf 31 Hz, peaking 63–8000 Hz, highshelf 16 kHz).
-class SunohState {
-  static const eqLabels = [
-    '31',
-    '63',
-    '125',
-    '250',
-    '500',
-    '1k',
-    '2k',
-    '4k',
-    '8k',
-    '16k',
-  ];
-}
-
-class _BandColumn extends StatelessWidget {
-  const _BandColumn({
-    required this.index,
-    required this.label,
-    required this.gain,
-    required this.onChanged,
-    required this.colors,
-    required this.accent,
-  });
-  final int index;
-  final String label;
-  final double gain;
-  final ValueChanged<double> onChanged;
+/// The rack: a dB gutter, ten sliders, and their readouts.
+///
+/// Deliberately not scrollable and deliberately fixed height — that is the
+/// whole point, see the file header.
+class _Rack extends ConsumerWidget {
+  const _Rack({required this.colors, required this.accent});
   final SunohColors colors;
   final Color accent;
 
-  static const double _min = -12;
-  static const double _max = 12;
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final s = ref.watch(appStateProvider);
+    final c = colors;
+    final on = s.eqEnabled;
+
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(12, 2, 12, 0),
+      child: AnimatedOpacity(
+        // Dimmed rather than hidden when off: the curve is still the
+        // listener's, and seeing it is how they decide whether to switch back
+        // on. Collapsing the rack would also make the sheet jump.
+        opacity: on ? 1 : 0.4,
+        duration: const Duration(milliseconds: 180),
+        child: Column(
+          children: [
+            SizedBox(
+              height: _kTrackHeight,
+              child: Row(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  _Scale(colors: c),
+                  for (var i = 0; i < kEqLabels.length; i++)
+                    Expanded(
+                      child: EqBandSlider(
+                        gain: s.eqBands[i],
+                        min: _kMinGain,
+                        max: _kMaxGain,
+                        enabled: on,
+                        onChanged: (db) => s.setEqBand(i, db),
+                        colors: c,
+                        accent: accent,
+                      ),
+                    ),
+                ],
+              ),
+            ),
+            const SizedBox(height: 8),
+            Row(
+              children: [
+                // Blank matching the gutter, so labels stay under their bands.
+                const SizedBox(width: _kScaleWidth),
+                for (var i = 0; i < kEqLabels.length; i++)
+                  Expanded(
+                    child: _BandLabel(
+                      gain: s.eqBands[i],
+                      label: kEqLabels[i],
+                      colors: c,
+                      accent: accent,
+                    ),
+                  ),
+              ],
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _BandLabel extends StatelessWidget {
+  const _BandLabel({
+    required this.gain,
+    required this.label,
+    required this.colors,
+    required this.accent,
+  });
+
+  final double gain;
+  final String label;
+  final SunohColors colors;
+  final Color accent;
 
   @override
   Widget build(BuildContext context) {
-    final c = colors;
-    final readout = gain.abs() < 0.05
-        ? '0'
-        : '${gain >= 0 ? '+' : ''}${gain.toStringAsFixed(0)}';
+    final touched = gain.abs() > 0.05;
     return Column(
       children: [
-        SizedBox(
-          height: 18,
-          child: Center(
-            child: Text(
-              readout,
-              style: SunohType.mono(
-                fontSize: 10,
-                color: gain.abs() > 0.05 ? c.fg : c.fgMute,
-                letterSpacing: 0.5,
-              ),
-            ),
-          ),
-        ),
-        Expanded(
-          child: _VerticalSlider(
-            gain: gain,
-            min: _min,
-            max: _max,
-            onChanged: onChanged,
-            colors: c,
-            accent: accent,
-          ),
-        ),
-        const SizedBox(height: 8),
         Text(
-          label,
+          touched ? '${gain > 0 ? '+' : ''}${gain.toStringAsFixed(0)}' : '0',
+          textAlign: TextAlign.center,
           style: SunohType.mono(
             fontSize: 9.5,
-            color: c.fgMute,
-            letterSpacing: 0.6,
+            color: touched ? accent : colors.fgMute,
+          ),
+        ),
+        const SizedBox(height: 3),
+        Text(
+          label,
+          textAlign: TextAlign.center,
+          style: SunohType.mono(
+            fontSize: 9,
+            color: colors.fgMute,
+            letterSpacing: 0.4,
           ),
         ),
       ],
@@ -234,147 +315,31 @@ class _BandColumn extends StatelessWidget {
   }
 }
 
-/// Custom vertical slider. Tap or drag along the track to set gain.
-class _VerticalSlider extends StatelessWidget {
-  const _VerticalSlider({
-    required this.gain,
-    required this.min,
-    required this.max,
-    required this.onChanged,
-    required this.colors,
-    required this.accent,
-  });
-  final double gain;
-  final double min;
-  final double max;
-  final ValueChanged<double> onChanged;
+/// The dB gutter down the left of the rack.
+///
+/// Without it the sliders are ten bars with no units: you can see one is higher
+/// than another but not by how much, and +12 dB is a very different promise
+/// from +3.
+class _Scale extends StatelessWidget {
+  const _Scale({required this.colors});
   final SunohColors colors;
-  final Color accent;
 
   @override
   Widget build(BuildContext context) {
-    final c = colors;
-    return LayoutBuilder(
-      builder: (context, constraints) {
-        final h = constraints.maxHeight;
-
-        // gain → fraction 0..1 from bottom of column.
-        // 0 dB sits in the middle.
-        double gainToY(double g) {
-          final t = (g - min) / (max - min); // 0 at min, 1 at max
-          return (1 - t) * h;
-        }
-
-        void apply(Offset local) {
-          final clamped = local.dy.clamp(0.0, h);
-          final t = 1 - (clamped / h);
-          final value = min + t * (max - min);
-          // Snap to whole dB so the visuals feel detented.
-          onChanged(value.roundToDouble());
-        }
-
-        final centerY = gainToY(0);
-        final thumbY = gainToY(gain);
-        // Fill rectangle between 0 dB line and current gain (positive or negative).
-        final fillTop = thumbY < centerY ? thumbY : centerY;
-        final fillHeight = (thumbY - centerY).abs();
-
-        return GestureDetector(
-          behavior: HitTestBehavior.opaque,
-          onTapDown: (d) => apply(d.localPosition),
-          onPanUpdate: (d) => apply(d.localPosition),
-          child: Stack(
-            alignment: Alignment.center,
-            children: [
-              // Background track.
-              Container(
-                width: 4,
-                decoration: BoxDecoration(
-                  color: c.surface,
-                  borderRadius: BorderRadius.circular(2),
-                ),
-              ),
-              // 0-dB tick (subtle horizontal line).
-              Positioned(
-                top: centerY - 0.5,
-                left: 6,
-                right: 6,
-                child: Container(height: 1, color: c.line),
-              ),
-              // Fill from center to current gain.
-              Positioned(
-                top: fillTop,
-                child: Container(
-                  width: 4,
-                  height: fillHeight.clamp(0, h),
-                  decoration: BoxDecoration(
-                    color: accent,
-                    borderRadius: BorderRadius.circular(2),
-                  ),
-                ),
-              ),
-              // Thumb.
-              Positioned(
-                top: thumbY - 6,
-                child: Container(
-                  width: 14,
-                  height: 12,
-                  decoration: BoxDecoration(
-                    color: c.fg,
-                    borderRadius: BorderRadius.circular(3),
-                    boxShadow: [
-                      BoxShadow(
-                        color: Colors.black.withValues(alpha: 0.35),
-                        blurRadius: 6,
-                        offset: const Offset(0, 2),
-                      ),
-                    ],
-                  ),
-                ),
-              ),
-            ],
-          ),
-        );
-      },
+    TextStyle style(bool strong) => SunohType.mono(
+      fontSize: 8.5,
+      color: strong ? colors.fgDim : colors.fgMute,
     );
-  }
-}
-
-class _PresetChip extends StatelessWidget {
-  const _PresetChip({
-    required this.preset,
-    required this.selected,
-    required this.colors,
-    required this.accent,
-    required this.onTap,
-  });
-  final EqPreset preset;
-  final bool selected;
-  final SunohColors colors;
-  final Color accent;
-  final VoidCallback onTap;
-
-  @override
-  Widget build(BuildContext context) {
-    final c = colors;
-    return GestureDetector(
-      onTap: onTap,
-      child: AnimatedContainer(
-        duration: const Duration(milliseconds: 140),
-        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
-        decoration: BoxDecoration(
-          color: selected ? accent : c.surface,
-          borderRadius: BorderRadius.circular(999),
-          border: Border.all(color: selected ? accent : c.line, width: 0.5),
-        ),
-        child: Text(
-          preset.name,
-          style: SunohType.sans(
-            fontSize: 12,
-            fontWeight: FontWeight.w500,
-            color: selected ? const Color(0xFF0B0B0D) : c.fg,
-          ),
-        ),
+    return SizedBox(
+      width: _kScaleWidth,
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.end,
+        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+        children: [
+          Text('+12', style: style(false)),
+          Text('0', style: style(true)),
+          Text('−12', style: style(false)),
+        ],
       ),
     );
   }
