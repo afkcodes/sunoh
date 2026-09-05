@@ -15,6 +15,7 @@ import 'package:go_router/go_router.dart';
 import 'package:hive_ce_flutter/hive_flutter.dart';
 import 'package:mpv_audio_kit/mpv_audio_kit.dart';
 import 'package:permission_handler/permission_handler.dart';
+import 'package:refresh_rate/refresh_rate.dart';
 
 import 'api/client.dart';
 import 'api/lossless_api.dart';
@@ -133,6 +134,25 @@ class _LooseClampingScrollPhysics extends ClampingScrollPhysics {
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
   SystemChrome.setEnabledSystemUIMode(SystemUiMode.edgeToEdge);
+
+  // Ask the window for the panel's full refresh rate.
+  //
+  // Android runs an app at 60 Hz unless it says otherwise, whatever the panel
+  // can do — so on a 120 Hz phone everything here was drawn at 120 and shown
+  // at 60. That is a strange thing to leave on the table given frame rate is
+  // priority 1: the lyric sweep repaints every frame by design and was losing
+  // half of them, and so was every scroll.
+  //
+  // Safe to call this early: plugins attach to the activity during
+  // `configureFlutterEngine`, which the embedder runs before it starts this
+  // entrypoint. If that ever stops holding the plugin reads `activity?.window`
+  // and no-ops rather than throwing, so the failure mode is 60 Hz, not a
+  // crash — which is also what happens on a 60 Hz phone, where this is free.
+  //
+  // `enable()` rather than `preferMax()`: on Android both land on the same
+  // native call, and this one is the honest name for "use the device's own
+  // maximum" instead of implying we pick a number.
+  RefreshRate.enable();
 
   // Flutter's default decoded-image budget is 100 MiB, and this app blows
   // through it on one screen. A home feed of ~20 shelves is a couple of
