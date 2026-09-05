@@ -39,6 +39,7 @@ import 'package:mpv_audio_kit/mpv_audio_kit.dart';
 import '../api/dto.dart';
 import '../api/stream_resolver.dart';
 import '../state/app_state.dart' show LoopMode;
+import 'eq_filters.dart';
 import 'url_refresh.dart';
 
 /// Placeholder scheme — mpv asks us to resolve this in the on_load hook.
@@ -1090,39 +1091,27 @@ class SunohAudioHandler {
   }
 
   // ── 10-band graphic EQ ────────────────────────────────────────────────
-  static const eqFrequencies = [
-    31,
-    63,
-    125,
-    250,
-    500,
-    1000,
-    2000,
-    4000,
-    8000,
-    16000,
-  ];
+  //
+  // The maths lives in `eq_filters.dart` — building a chain that delivers the
+  // curve it was asked for is a real problem (bands overlap, and boosts clip),
+  // and it is worth being able to unit-test the answer instead of listening
+  // for it. This is only the wiring.
+  static const eqFrequencies = kEqFrequencies;
 
-  Future<void> setEqBands(List<double> gains) async {
+  /// Push [gains] to the player, or bypass entirely when [enabled] is false.
+  ///
+  /// Bypassing sends an empty filter list rather than a flat curve, so the
+  /// samples reach the output having passed through no filter at all. That
+  /// distinction is the whole point of the switch: a 24-bit master should be
+  /// bit-identical from decoder to DAC unless the listener asked otherwise,
+  /// and ten biquads at 0 dB still round every sample ten times.
+  Future<void> setEqBands(List<double> gains, {bool enabled = true}) async {
     assert(
       gains.length == eqFrequencies.length,
       'expected ${eqFrequencies.length} bands, got ${gains.length}',
     );
-    final anyNonZero = gains.any((g) => g.abs() > 0.001);
-    final filters = <String>[];
-    if (anyNonZero) {
-      for (var i = 0; i < eqFrequencies.length; i++) {
-        final g = gains[i].toStringAsFixed(3);
-        final f = eqFrequencies[i];
-        if (i == 0) {
-          filters.add('lavfi-bass=f=$f:width_type=q:width=1.2:g=$g');
-        } else if (i == eqFrequencies.length - 1) {
-          filters.add('lavfi-treble=f=$f:width_type=q:width=1.2:g=$g');
-        } else {
-          filters.add('lavfi-equalizer=f=$f:width_type=q:width=1.2:g=$g');
-        }
-      }
-    }
+    // Also empty when every band sits at zero — an untouched EQ costs nothing.
+    final filters = enabled ? buildEqFilters(gains) : const <String>[];
     await _player.updateAudioEffects(
       (e) => e.copyWith(
         custom: filters,
