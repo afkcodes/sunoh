@@ -8,7 +8,7 @@
 // ## Layout
 //
 //   Downloads · Liked Songs · Recently Played · Playlists   the library
-//   Music · Podcasts · Audiobooks                           the home feeds
+//   Music · Podcasts                                        the home feeds
 //
 // Downloads leads on purpose. A car is the one place where the network
 // reliably drops mid-song, and downloaded tracks are the only tier that
@@ -138,7 +138,7 @@ class AutoBrowseTree {
     return const [];
   }
 
-  /// Library tabs first, then the three home feeds. The library is what a
+  /// Library tabs first, then the home feeds. The library is what a
   /// driver reaches for by reflex; the feeds are for browsing.
   List<MediaItem> _root() => [
     for (final t in _Tab.values)

@@ -123,6 +123,10 @@ double _contrast(Color a, Color b) {
 }
 
 const Color _darkBg = Color(0xFF0B0B0D);
+
+/// The one error red. Clears 4.5:1 on the dark page as it is; the light
+/// palette darkens it by the same rule as the accents.
+const Color _danger = Color(0xFFE05656);
 // Warm off-white rather than near-white. #FAFAF9 read as a bright screen
 // rather than paper, which is the opposite of the editorial feel the dark
 // palette has; this carries a little more warmth and drops the luminance
@@ -144,6 +148,7 @@ class SunohColors {
     required this.fgMute,
     required this.accent,
     required this.onAccent,
+    required this.danger,
   });
 
   final Color bg;
@@ -160,6 +165,11 @@ class SunohColors {
   /// Black on the dark palette, white on the light one; picking the wrong one
   /// is the commonest way an accent becomes unreadable.
   final Color onAccent;
+
+  /// Errors and destructive actions — a failed update, Delete. Separate from
+  /// the accent because a user who picks the red accent would otherwise lose
+  /// the difference between "play" and "this went wrong".
+  final Color danger;
 
   /// Build the dark palette from the accent, optionally tinting the background
   /// toward an artwork accent (the "Tint from artwork" tweak).
@@ -192,6 +202,7 @@ class SunohColors {
       fgMute: const Color(0xFFFAFAFA).withValues(alpha: 0.46),
       accent: accent,
       onAccent: Colors.black,
+      danger: _danger,
     );
   }
 
@@ -222,30 +233,110 @@ class SunohColors {
       // The light accents are dark enough that white sits on them at 4.5:1;
       // black would not.
       onAccent: Colors.white,
+      danger: darkenForLight(_danger),
     );
   }
 }
 
-/// The font families, centralized so the choice is a one-line swap while type
-/// isn't finalized. Shipped as bundled assets (see pubspec.yaml) — no runtime
-/// fetch. A modern music-app voice: one clean grotesque + a mono data accent
-/// (no editorial serif).
+/// Ink and scrim for text laid over artwork.
+///
+/// Artwork does not follow the palette. A cover is as likely to be dark in
+/// light mode as in dark, so text drawn on one cannot take `fg` — on the light
+/// palette that is near-black, and it vanished into every dark sleeve. Media
+/// surfaces (the home hero cards, a backdrop) always lay a dark scrim under
+/// their text and set that text light, in either theme.
+abstract final class SunohMedia {
+  static const Color ink = Color(0xFFFAFAFA);
+  static const Color inkDim = Color(0xD9FAFAFA); // 85%
+  static const Color scrim = Color(0xFF0B0B0D);
+}
+
+/// Ink for text and glyphs drawn on an arbitrary colour — an artwork accent
+/// filling a play button, say — picked by that colour's luminance.
+///
+/// Above 0.55 the fill is light enough that black reads and white does not.
+/// It is the one rule for this; six screens used to carry their own copy of
+/// the same ternary, each with the two hex values written out.
+Color inkOn(Color fill) =>
+    fill.computeLuminance() > 0.55 ? SunohMedia.scrim : SunohMedia.ink;
+
+/// The corner scale. Every rounded thing in the app takes one of these, drawn
+/// as a squircle (`squircleBorder` and friends in widgets/ui.dart).
+///
+/// List-row art is the smallest, a tile's cover one step up, cards and the
+/// mini player one more, the big covers (player, album) larger again, and
+/// sheets the largest. A pill is half its own height.
+///
+/// Larger than the design prototype's figures (6 / 8 / 12 / 16 / 22) on
+/// purpose: a squircle's continuous curve only reads as a squircle once the
+/// radius is big enough to see it. At the prototype's 8 on a tile the corner
+/// looked square on a phone.
+abstract final class SunohRadius {
+  static const double xs = 4;
+  static const double row = 10;
+  static const double tile = 14;
+  static const double card = 18;
+  static const double cover = 22;
+  static const double sheet = 26;
+}
+
+/// Motion. Three curves and four durations cover the whole app, so a press, a
+/// sheet and a page all feel like the same hand moved them.
+abstract final class SunohMotion {
+  /// Long, settling ease-out for anything arriving: pages, sheets, the player.
+  static const Curve arrive = Cubic(0.16, 1, 0.3, 1);
+
+  /// Quick ease for small state changes: a chip filling, a press.
+  static const Curve ease = Cubic(0.2, 0.8, 0.2, 1);
+
+  /// Symmetric ease for things leaving under their own power.
+  static const Curve leave = Cubic(0.65, 0, 0.35, 1);
+
+  static const Duration press = Duration(milliseconds: 180);
+  static const Duration tab = Duration(milliseconds: 220);
+  static const Duration ui = Duration(milliseconds: 300);
+  static const Duration screen = Duration(milliseconds: 460);
+  static const Duration sheet = Duration(milliseconds: 480);
+  static const Duration player = Duration(milliseconds: 520);
+
+  /// Anything leaving: a page popped, a sheet or overlay closed.
+  static const Duration away = Duration(milliseconds: 360);
+}
+
+/// The font families, centralized so the choice is a one-line swap. Shipped as
+/// bundled assets (see pubspec.yaml) — no runtime fetch. A modern music-app
+/// voice: one clean geometric grotesque throughout, no editorial serif.
+///
+/// Geist was tried in the 2026 reskin and reverted: it read as generic, the
+/// face of a developer tool rather than a music app. If Gilroy's licence ever
+/// has to go, Figtree (SIL OFL) is the nearest free face in feel.
 ///   - [heading]: titles / large display text (heavier weights, no italic)
 ///   - [sans]:    UI / body text
 ///   - [mono]:    small data labels, eyebrows, timestamps
 class SunohFonts {
   static const String heading = 'Gilroy';
   static const String sans = 'Gilroy';
-  // Small tracked/uppercase data labels — also Gilroy now (no separate mono).
+  // Small tracked/uppercase data labels — also Gilroy (no separate mono).
   static const String mono = 'Gilroy';
 }
 
-/// Typography helpers — Gilroy throughout. `mono` keeps its name for small
-/// tracked label styles (eyebrows, timestamps) but renders in Gilroy too.
+/// Tracking for a heading of [fontSize] when the caller does not set one.
+///
+/// Gilroy's spacing is drawn for text sizes; at title sizes the gaps grow
+/// faster than the letters and a heading reads typed rather than set. One and
+/// a half percent of the size, from 16px up, closes that without crowding.
+/// Below 16 the face is left alone.
+double? _headingTracking(double? fontSize) =>
+    fontSize != null && fontSize >= 16 ? -0.015 * fontSize : null;
+
+/// Typography helpers — Gilroy throughout. `mono` keeps its name for the small
+/// tracked label styles (eyebrows, timestamps); it is the same face with
+/// tabular figures switched on, so a counting timestamp does not jitter.
 class SunohType {
   const SunohType._();
 
-  /// Display / heading text — clean grotesque, semibold by default.
+  /// Display / heading text — clean grotesque, semibold by default, tracked
+  /// in slightly as it grows (see [_headingTracking]).
   static TextStyle heading({
     double? fontSize,
     FontWeight fontWeight = FontWeight.w600,
@@ -258,7 +349,7 @@ class SunohType {
     fontWeight: fontWeight,
     color: color,
     height: height,
-    letterSpacing: letterSpacing,
+    letterSpacing: letterSpacing ?? _headingTracking(fontSize),
   );
 
   static TextStyle sans({
@@ -289,5 +380,6 @@ class SunohType {
     color: color,
     height: height,
     letterSpacing: letterSpacing,
+    fontFeatures: const [FontFeature.tabularFigures()],
   );
 }

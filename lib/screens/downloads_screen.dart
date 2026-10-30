@@ -1,19 +1,34 @@
-// Downloads tab — flat list of every song the user has cached on device,
-// plus the in-flight rows so tapping "Download" feels alive instead of
-// silent. Reuses `_TrackMenuSheet` for per-row actions (Play next /
-// Remove / etc) by routing through `s.playApiSong`.
+// Downloads — flat list of every song the user has cached on device, plus
+// the in-flight rows so tapping "Download" feels alive instead of silent.
+// A big page title, then list rows; the pinned bar takes the title over once
+// it scrolls away.
 
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:go_router/go_router.dart';
-import 'package:solar_icons/solar_icons.dart';
+import 'package:remixicon/remixicon.dart';
 
+import '../api/dto.dart';
 import '../audio/download_store.dart';
 import '../providers/app_state_provider.dart';
 import '../providers/downloads_provider.dart';
 import '../theme/tokens.dart';
 import '../widgets/album_art.dart';
+import '../widgets/motion.dart';
 import '../widgets/ui.dart';
+import 'detail_chrome.dart';
+import 'detail_hero.dart';
+
+const String _kLabel = 'DOWNLOADS';
+
+final Expando<List<FeedItem>> _playable = Expando('downloaded songs');
+
+/// The finished downloads, in list order: what Play, Shuffle and a row tap
+/// queue. Memoised on the entry list, which the provider replaces on change.
+List<FeedItem> _doneSongs(List<DownloadEntry> entries) =>
+    _playable[entries] ??= [
+      for (final e in entries)
+        if (e.state == DownloadState.done) e.song,
+    ];
 
 class DownloadsScreen extends ConsumerWidget {
   const DownloadsScreen({super.key});
@@ -24,62 +39,78 @@ class DownloadsScreen extends ConsumerWidget {
     final c = s.colors;
     final async = ref.watch(downloadEntriesProvider);
     final entries = async.asData?.value ?? const <DownloadEntry>[];
+    final songs = _doneSongs(entries);
+    // This list is the queue when it was started from here.
+    final here = s.apiSourceRef == null && s.apiSourceLabel == _kLabel;
 
-    return ColoredBox(
-      color: c.bg,
-      child: ListView(
-        padding: EdgeInsets.only(
-          top: MediaQuery.of(context).padding.top + 12,
-          bottom: 140,
-        ),
-        children: [
-          Padding(
-            padding: const EdgeInsets.fromLTRB(20, 8, 20, 16),
-            child: Row(
-              children: [
-                IconBtn(
-                  icon: SolarIconsOutline.altArrowLeft,
-                  color: c.fgDim,
-                  size: 18,
-                  onTap: () => context.pop(),
-                ),
-                const SizedBox(width: 4),
-                Text(
-                  'Downloads',
-                  style: SunohType.heading(
-                    fontSize: 24,
-                    color: c.fg,
-                    letterSpacing: -0.4,
-                  ),
-                ),
-                const Spacer(),
-                Text(
-                  '${entries.length}',
-                  style: SunohType.mono(fontSize: 13, color: c.fgMute),
-                ),
-              ],
+    return DetailPage(
+      colors: c,
+      colour: c.bg,
+      title: 'Downloads',
+      solidAt: PageTitle.solidAt,
+      builder: (_) => [
+        SliverToBoxAdapter(
+          child: PageTitle(
+            colors: c,
+            title: 'Downloads',
+            trailing: Padding(
+              padding: const EdgeInsets.only(bottom: 6),
+              child: Text(
+                '${entries.length}',
+                style: SunohType.mono(fontSize: 13, color: c.fgMute),
+              ),
             ),
           ),
-          if (entries.isEmpty)
-            _Empty(colors: c)
-          else
-            for (final e in entries)
-              _DownloadRow(entry: e, colors: c, accent: s.resolvedAccent),
+        ),
+        if (entries.isEmpty)
+          SliverToBoxAdapter(child: _Empty(colors: c))
+        else ...[
+          SliverToBoxAdapter(
+            child: DetailActions(
+              colors: c,
+              colour: c.accent,
+              playing: here && s.isPlaying,
+              onShuffle: songs.isEmpty
+                  ? null
+                  : () => s.playShuffled(songs, sourceLabel: _kLabel),
+              onPlay: songs.isEmpty
+                  ? null
+                  : () => here
+                        ? s.playPause()
+                        : s.playApiQueue(songs, 0, sourceLabel: _kLabel),
+            ),
+          ),
+          SliverList.builder(
+            itemCount: entries.length,
+            itemBuilder: (context, i) {
+              final row = _DownloadRow(
+                entry: entries[i],
+                colors: c,
+                queue: songs,
+              );
+              return i < 9 ? Entrance(index: 1 + i, child: row) : row;
+            },
+          ),
         ],
-      ),
+      ],
     );
   }
 }
 
+/// A downloaded (or downloading) song as a list row. Finished ones carry the
+/// downloaded badge before their artists; the rest say where they have got
+/// to, which is also what a tap does to them — play, or resume.
 class _DownloadRow extends ConsumerWidget {
   const _DownloadRow({
     required this.entry,
     required this.colors,
-    required this.accent,
+    required this.queue,
   });
   final DownloadEntry entry;
   final SunohColors colors;
-  final Color accent;
+
+  /// The finished downloads; a tap plays them from this song on.
+  final List<FeedItem> queue;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -87,30 +118,34 @@ class _DownloadRow extends ConsumerWidget {
     final s = ref.read(appStateProvider);
     final mgr = ref.read(downloadManagerProvider);
     final song = entry.song;
-    final artistsLabel = (song.artists ?? const [])
-        .map((a) => a.name.trim())
-        .where((n) => n.isNotEmpty)
-        .take(2)
-        .join(', ');
 
-    return GestureDetector(
-      behavior: HitTestBehavior.opaque,
+    return Pressable(
+      scale: 0.99,
       onTap: () {
         if (entry.state == DownloadState.done) {
-          // Play just the downloaded song. The handler/resolver will
-          // pick up file:// via LocalSourceProvider without going out
-          // to the network.
-          s.playApiSong(song, sourceLabel: 'DOWNLOADS');
+          // The downloads from this song on, like any other list. The
+          // resolver plays each from its file without the network.
+          s.playApiQueue(
+            queue,
+            queue.indexOf(song).clamp(0, queue.length - 1),
+            sourceLabel: _kLabel,
+          );
         } else if (entry.state == DownloadState.failed ||
             entry.state == DownloadState.paused) {
           mgr.resume(song.id);
         }
       },
       child: Padding(
-        padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 10),
+        padding: const EdgeInsets.fromLTRB(16, 8, 4, 8),
         child: Row(
           children: [
-            SunohArt(id: song.id, imageUrl: song.artwork, size: 46, radius: 6),
+            SunohArt(
+              id: song.id,
+              imageUrl: song.artwork,
+              size: 48,
+              radius: SunohRadius.row,
+              shadow: false,
+            ),
             const SizedBox(width: 12),
             Expanded(
               child: Column(
@@ -121,31 +156,21 @@ class _DownloadRow extends ConsumerWidget {
                     maxLines: 1,
                     overflow: TextOverflow.ellipsis,
                     style: SunohType.sans(
-                      fontSize: 14.5,
+                      fontSize: 15,
                       fontWeight: FontWeight.w500,
                       color: c.fg,
+                      height: 1.3,
                     ),
                   ),
-                  if (artistsLabel.isNotEmpty) ...[
-                    const SizedBox(height: 2),
-                    Text(
-                      artistsLabel,
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                      style: SunohType.sans(fontSize: 12, color: c.fgMute),
-                    ),
-                  ],
-                  const SizedBox(height: 4),
-                  _StateLine(entry: entry, colors: c, accent: accent),
+                  const SizedBox(height: 1),
+                  _Subtitle(entry: entry, colors: c),
                 ],
               ),
             ),
             IconBtn(
-              icon: SolarIconsOutline.trashBin2,
+              icon: RemixIcons.delete_bin_2_line,
               color: c.fgMute,
-              size: 16,
-              width: 36,
-              height: 36,
+              size: 18,
               onTap: () => mgr.remove(song.id),
             ),
           ],
@@ -155,61 +180,72 @@ class _DownloadRow extends ConsumerWidget {
   }
 }
 
-class _StateLine extends ConsumerWidget {
-  const _StateLine({
-    required this.entry,
-    required this.colors,
-    required this.accent,
-  });
+class _Subtitle extends ConsumerWidget {
+  const _Subtitle({required this.entry, required this.colors});
   final DownloadEntry entry;
   final SunohColors colors;
-  final Color accent;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final c = colors;
+    final artists = (entry.song.artists ?? const [])
+        .map((a) => a.name.trim())
+        .where((n) => n.isNotEmpty)
+        .take(2)
+        .join(', ');
+    final String state;
     switch (entry.state) {
       case DownloadState.done:
+        // The 14 accent square that marks a song as on the device.
         return Row(
           children: [
-            Icon(SolarIconsBold.checkCircle, size: 11, color: accent),
-            const SizedBox(width: 5),
-            Text(
-              'Saved on device',
-              style: SunohType.sans(fontSize: 11, color: c.fgMute),
+            Container(
+              width: 14,
+              height: 14,
+              margin: const EdgeInsets.only(right: 6),
+              decoration: squircleDecoration(
+                radius: SunohRadius.xs,
+                color: c.accent,
+              ),
+              child: Icon(
+                RemixIcons.download_2_line,
+                size: 10,
+                color: c.onAccent,
+              ),
+            ),
+            Flexible(
+              child: Text(
+                artists,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: SunohType.sans(fontSize: 13, color: c.fgDim),
+              ),
             ),
           ],
         );
       case DownloadState.queued:
-        return Text(
-          'Queued',
-          style: SunohType.sans(fontSize: 11, color: c.fgMute),
-        );
+        state = 'Queued';
       case DownloadState.downloading:
-        // Live percent. Falls back to "Downloading…" while we wait for
-        // the first Dio chunk (a hundred ms or so).
+        // Live percent. "Downloading…" until the first Dio chunk lands, a
+        // hundred ms or so in.
         final p = ref
             .watch(downloadProgressProvider(entry.song.id))
             .asData
             ?.value;
-        final pct = p == null ? null : (p.fraction * 100).round();
-        return Text(
-          pct == null ? 'Downloading…' : 'Downloading… $pct%',
-          style: SunohType.sans(fontSize: 11, color: c.fgMute),
-        );
+        state = p == null
+            ? 'Downloading…'
+            : 'Downloading… ${(p.fraction * 100).round()}%';
       case DownloadState.paused:
-        return Text(
-          'Paused — tap to resume',
-          style: SunohType.sans(fontSize: 11, color: c.fgMute),
-        );
+        state = 'Paused — tap to resume';
       case DownloadState.failed:
-        return Text(
-          'Failed — ${entry.error ?? "tap to retry"}',
-          maxLines: 1,
-          overflow: TextOverflow.ellipsis,
-          style: SunohType.sans(fontSize: 11, color: c.fgMute),
-        );
+        state = 'Failed — ${entry.error ?? "tap to retry"}';
     }
+    return Text(
+      artists.isEmpty ? state : '$state · $artists',
+      maxLines: 1,
+      overflow: TextOverflow.ellipsis,
+      style: SunohType.sans(fontSize: 13, color: c.fgMute),
+    );
   }
 }
 
@@ -221,15 +257,11 @@ class _Empty extends StatelessWidget {
   Widget build(BuildContext context) {
     final c = colors;
     return Padding(
-      padding: const EdgeInsets.fromLTRB(28, 80, 28, 80),
+      padding: const EdgeInsets.fromLTRB(16, 60, 16, 60),
       child: Center(
         child: Column(
           children: [
-            Icon(
-              SolarIconsOutline.downloadMinimalistic,
-              size: 36,
-              color: c.fgMute,
-            ),
+            Icon(RemixIcons.download_2_line, size: 36, color: c.fgMute),
             const SizedBox(height: 14),
             Text(
               'No downloads yet',

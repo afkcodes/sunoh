@@ -1,5 +1,11 @@
-// The app's tab strip: active tab as a large heading, the rest small and
-// muted, an accent underline beneath the active one.
+// The app's tab strip: a row of chips, the active one filled with the ink
+// colour.
+//
+// It used to set the active tab as a 22px heading with the others small and
+// muted beside it. That made the strip the loudest thing on Home, louder than
+// the feed it switches, and the width of a heading changed as you tapped along
+// so the row jumped. Chips hold their size, and the filled one says which tab
+// is open without needing an underline.
 //
 // Extracted from the Home screen so the device library uses the same control
 // rather than a lookalike. Two tab strips that drift apart is the exact
@@ -8,6 +14,7 @@
 import 'package:flutter/material.dart';
 
 import '../theme/tokens.dart';
+import 'ui.dart';
 
 class SunohTabs extends StatelessWidget {
   const SunohTabs({
@@ -16,8 +23,7 @@ class SunohTabs extends StatelessWidget {
     required this.active,
     required this.onChange,
     required this.colors,
-    this.padding = const EdgeInsets.fromLTRB(20, 8, 20, 14),
-    this.divider = true,
+    this.padding = const EdgeInsets.fromLTRB(20, 10, 20, 12),
   });
 
   final List<String> tabs;
@@ -26,78 +32,24 @@ class SunohTabs extends StatelessWidget {
   final SunohColors colors;
   final EdgeInsets padding;
 
-  /// The hairline under the strip. Home sits it against the feed; a screen
-  /// with its own header may not want it.
-  final bool divider;
-
   @override
   Widget build(BuildContext context) {
-    return Container(
+    return SingleChildScrollView(
+      scrollDirection: Axis.horizontal,
       padding: padding,
-      decoration: divider
-          ? BoxDecoration(
-              border: Border(
-                bottom: BorderSide(color: colors.line, width: 0.5),
-              ),
-            )
-          : null,
       child: Row(
         children: [
-          for (final t in tabs)
-            Padding(
-              padding: const EdgeInsets.only(right: 22),
-              child: GestureDetector(
-                onTap: () => onChange(t),
-                child: SunohTabLabel(
-                  label: t,
-                  active: t == active,
-                  colors: colors,
-                ),
-              ),
+          for (var i = 0; i < tabs.length; i++) ...[
+            if (i > 0) const SizedBox(width: 8),
+            SunohChip(
+              label: tabs[i],
+              selected: tabs[i] == active,
+              colors: colors,
+              onTap: () => onChange(tabs[i]),
             ),
+          ],
         ],
       ),
-    );
-  }
-}
-
-class SunohTabLabel extends StatelessWidget {
-  const SunohTabLabel({
-    super.key,
-    required this.label,
-    required this.active,
-    required this.colors,
-  });
-  final String label;
-  final bool active;
-  final SunohColors colors;
-
-  @override
-  Widget build(BuildContext context) {
-    return Column(
-      mainAxisSize: MainAxisSize.min,
-      children: [
-        Text(
-          label,
-          style: active
-              ? SunohType.heading(
-                  fontSize: 22,
-                  color: colors.fg,
-                  letterSpacing: -0.2,
-                )
-              : SunohType.sans(
-                  fontSize: 15,
-                  fontWeight: FontWeight.w500,
-                  color: colors.fgMute,
-                ),
-        ),
-        const SizedBox(height: 4),
-        Container(
-          height: 1.5,
-          width: 28,
-          color: active ? colors.accent : Colors.transparent,
-        ),
-      ],
     );
   }
 }

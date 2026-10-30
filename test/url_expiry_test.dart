@@ -49,13 +49,6 @@ void main() {
   });
 
   group('parseExpiry', () {
-    test('reads the lossless CDN etsp parameter', () {
-      final at = UrlRefreshScheduler.parseExpiry(
-        'https://cdn.example/track.flac?etsp=1788435705&hmac=abc',
-      )!;
-      expect(at.year, greaterThan(2020));
-    });
-
     test('a URL with no expiry parameter yields null', () {
       expect(
         UrlRefreshScheduler.parseExpiry('https://cdn.example/a.flac'),

@@ -3,10 +3,11 @@
 
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:solar_icons/solar_icons.dart';
+import 'package:remixicon/remixicon.dart';
 
 import '../providers/app_state_provider.dart';
 import '../theme/tokens.dart';
+import '../widgets/ui.dart';
 
 class BottomNav extends ConsumerWidget {
   const BottomNav({super.key, required this.currentIndex, required this.onTap});
@@ -17,17 +18,17 @@ class BottomNav extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final c = ref.watch(appStateProvider).colors;
-    // Tuple: (label, activeIcon, inactiveIcon). Active uses Solar bold,
+    // Tuple: (label, activeIcon, inactiveIcon). Active uses Remix fill,
     // inactive uses outline — bottom nav lights up when selected.
     final items = <(String, IconData, IconData)>[
-      ('Home', SolarIconsBold.homeAngle_2, SolarIconsOutline.homeAngle_2),
-      ('Search', SolarIconsBold.magnifier, SolarIconsOutline.magnifier),
-      ('Library', SolarIconsBold.musicLibrary, SolarIconsBold.musicLibrary),
+      ('Home', RemixIcons.home_5_fill, RemixIcons.home_5_line),
+      ('Search', RemixIcons.search_fill, RemixIcons.search_line),
+      ('Library', RemixIcons.music_2_fill, RemixIcons.music_2_line),
     ];
     final bottomInset = MediaQuery.of(context).padding.bottom;
 
     return Padding(
-      padding: EdgeInsets.only(bottom: 10 + bottomInset, top: 6),
+      padding: EdgeInsets.only(bottom: 6 + bottomInset, top: 6),
       child: Row(
         mainAxisAlignment: MainAxisAlignment.spaceAround,
         children: [
@@ -45,6 +46,8 @@ class BottomNav extends ConsumerWidget {
   }
 }
 
+/// One destination: a short bar above the icon marks the open tab, so the
+/// selection reads from the shape as well as the colour.
 class _NavItem extends StatelessWidget {
   const _NavItem({
     required this.label,
@@ -65,20 +68,32 @@ class _NavItem extends StatelessWidget {
     return GestureDetector(
       onTap: onTap,
       behavior: HitTestBehavior.opaque,
-      child: Padding(
-        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
+      child: SizedBox(
+        width: 84,
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            Icon(icon, size: 20, color: col),
-            const SizedBox(height: 3),
+            AnimatedContainer(
+              duration: SunohMotion.ui,
+              curve: SunohMotion.arrive,
+              width: active ? 18 : 0,
+              height: 2,
+              decoration: squircleDecoration(radius: 1, color: colors.fg),
+            ),
+            const SizedBox(height: 7),
+            AnimatedScale(
+              scale: active ? 1.06 : 1,
+              duration: SunohMotion.ui,
+              curve: SunohMotion.arrive,
+              child: Icon(icon, size: 24, color: col),
+            ),
+            const SizedBox(height: 4),
             Text(
               label,
               style: SunohType.sans(
-                fontSize: 10,
+                fontSize: 11,
                 fontWeight: active ? FontWeight.w600 : FontWeight.w500,
                 color: col,
-                letterSpacing: 0.2,
               ),
             ),
           ],

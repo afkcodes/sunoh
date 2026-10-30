@@ -88,6 +88,14 @@ class Env {
   /// YouTube's InnerTube API root.
   static const ytMusicBase = String.fromEnvironment('YTMUSIC_BASE');
 
+  /// PodcastIndex credentials for the on-device podcast backend. Requests are
+  /// signed with them, so unlike the URLs above these are genuine secrets;
+  /// they are compiled into the APK like everything else here.
+  static const podcastIndexKey = String.fromEnvironment('PODCASTINDEX_KEY');
+  static const podcastIndexSecret = String.fromEnvironment(
+    'PODCASTINDEX_SECRET',
+  );
+
   /// Names of the values this build is missing, for a one-line startup log.
   /// Not fatal — see the note above about contributor builds.
   static List<String> get missing => {
@@ -106,5 +114,7 @@ class Env {
     'SPONSORBLOCK_BASE': sponsorBlockBase,
     'GEOIP_BASE': geoIpBase,
     'YTMUSIC_BASE': ytMusicBase,
+    'PODCASTINDEX_KEY': podcastIndexKey,
+    'PODCASTINDEX_SECRET': podcastIndexSecret,
   }.entries.where((e) => e.value.isEmpty).map((e) => e.key).toList();
 }

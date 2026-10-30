@@ -138,8 +138,16 @@ class PlaybackStateStore {
       final queue = queueRaw
           .whereType<Map>()
           .map((m) => FeedItem.fromJson(m.cast<String, dynamic>()))
+          .where((s) => !s.isRetiredAudiobook)
           .toList();
-      if (queue.isEmpty) return null;
+      // Audiobooks were removed. A queue that was a book's chapter list is
+      // tagged with the 'audiobook' source ref (its chapters look like plain
+      // songs, so the per-item check can't see them) and could no longer be
+      // resolved or reopened, so start clean instead of restoring it.
+      if (queue.isEmpty || box.get(_kSourceRefKind) == 'audiobook') {
+        if (queue.isNotEmpty) await box.clear();
+        return null;
+      }
       // Live internet radio has been removed. A queue saved by an older
       // build can still hold a `sunoh-radio` station, and nothing
       // resolves those any more — restoring one would surface an

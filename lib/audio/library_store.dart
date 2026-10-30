@@ -242,6 +242,9 @@ class LibraryStore {
     return raw
         .whereType<Map>()
         .map((m) => FeedItem.fromJson(m.cast<String, dynamic>()))
+        // Audiobooks were removed; an old entry would open a screen that no
+        // longer exists. Writes go back through here, so they self-clean.
+        .where((i) => !i.isRetiredAudiobook)
         .toList(); // toList() is growable + modifiable
   }
 

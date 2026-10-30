@@ -11,7 +11,7 @@
 
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:solar_icons/solar_icons.dart';
+import 'package:remixicon/remixicon.dart';
 
 import '../providers/app_state_provider.dart';
 import '../theme/tokens.dart';
@@ -37,7 +37,6 @@ class _SignOutSheet extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final c = ref.watch(appStateProvider).colors;
     return SunohSheet(
-      icon: SolarIconsOutline.logout,
       title: 'Sign out of YouTube Music?',
       subtitle: accountName.isEmpty ? null : accountName,
       actions: SheetActions(
@@ -57,23 +56,23 @@ class _SignOutSheet extends ConsumerWidget {
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             _Point(
-              icon: SolarIconsOutline.playlistMinimalistic,
+              icon: RemixIcons.play_list_add_line,
               text:
                   'Your recommendations and YouTube library shelves go back '
                   'to the generic ones.',
               colors: c,
             ),
-            const SizedBox(height: 12),
+            const SizedBox(height: 14),
             _Point(
-              icon: SolarIconsOutline.heart,
+              icon: RemixIcons.heart_3_line,
               text:
                   'Everything you saved in sunoh stays. Nothing on your '
                   'YouTube account is changed.',
               colors: c,
             ),
-            const SizedBox(height: 12),
+            const SizedBox(height: 14),
             _Point(
-              icon: SolarIconsOutline.shieldCheck,
+              icon: RemixIcons.shield_check_line,
               text:
                   'The session is deleted from this phone. It was only ever '
                   'stored here, encrypted, and never sent anywhere.',
@@ -87,7 +86,9 @@ class _SignOutSheet extends ConsumerWidget {
 }
 
 /// One reassurance, with its own icon. A wall of prose in a confirmation is
-/// not read; three short lines with a mark against each are.
+/// not read; three short lines with a mark against each are. The icon takes
+/// the sheet row's size and ink, so the three read as the same family as the
+/// option rows on every other sheet.
 class _Point extends StatelessWidget {
   const _Point({required this.icon, required this.text, required this.colors});
 
@@ -101,15 +102,12 @@ class _Point extends StatelessWidget {
     return Row(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Padding(
-          padding: const EdgeInsets.only(top: 1),
-          child: Icon(icon, size: 16, color: c.fgMute),
-        ),
-        const SizedBox(width: 12),
+        Icon(icon, size: 22, color: c.fgDim),
+        const SizedBox(width: 16),
         Expanded(
           child: Text(
             text,
-            style: SunohType.sans(fontSize: 13, color: c.fgDim, height: 1.45),
+            style: SunohType.sans(fontSize: 14, color: c.fgDim, height: 1.45),
           ),
         ),
       ],

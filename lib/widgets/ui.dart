@@ -4,11 +4,21 @@ import 'package:flutter/material.dart';
 import 'package:smooth_corner/smooth_corner.dart';
 
 import '../theme/tokens.dart';
+import 'motion.dart';
 
 // ── Squircles ────────────────────────────────────────────────────────────────
 // iOS-style continuous (superellipse) corners. Used for all cards and cover
 // images so corners feel smooth rather than abruptly rounded.
 const double kSquircleSmoothness = 0.6;
+
+/// Space a scrolling page leaves under its last item so it clears the shell's
+/// bottom bar. The bar is the gradient lead-in (28) + mini player (62) + nav
+/// (about 63) = roughly 153 logical px, PLUS the system gesture/nav inset,
+/// which a fixed 140 ignored: the last row ended behind the mini player on
+/// every phone with a gesture bar. Computed from the inset, never cached, so
+/// it follows 3-button vs gesture navigation.
+double shellClearance(BuildContext context) =>
+    156 + MediaQuery.paddingOf(context).bottom;
 
 SmoothRectangleBorder squircleBorder(
   double radius, {
@@ -17,6 +27,13 @@ SmoothRectangleBorder squircleBorder(
   borderRadius: BorderRadius.circular(radius),
   smoothness: kSquircleSmoothness,
   side: side,
+);
+
+/// A squircle with only its top corners rounded — sheets attached to the
+/// bottom edge.
+SmoothRectangleBorder squircleTopBorder(double radius) => SmoothRectangleBorder(
+  borderRadius: BorderRadius.vertical(top: Radius.circular(radius)),
+  smoothness: kSquircleSmoothness,
 );
 
 /// A squircle surface decoration (replacement for BoxDecoration on cards).
@@ -125,13 +142,13 @@ class HCardRow<T> extends StatelessWidget {
   Widget build(BuildContext context) {
     return SingleChildScrollView(
       scrollDirection: Axis.horizontal,
-      padding: const EdgeInsets.symmetric(horizontal: 20),
+      padding: const EdgeInsets.symmetric(horizontal: 16),
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           for (var i = 0; i < items.length; i++) ...[
             if (i > 0) SizedBox(width: gap),
-            GestureDetector(
+            Pressable(
               onTap: onTap == null ? null : () => onTap!(items[i]),
               child: SizedBox(width: width, child: builder(items[i], width)),
             ),
@@ -142,7 +159,11 @@ class HCardRow<T> extends StatelessWidget {
   }
 }
 
-/// Section header — small serif italic title + optional eyebrow + "See all".
+/// Section header — title, optional eyebrow, optional "See all".
+///
+/// "See all" is a plain word now, not "See all →": the arrow doubled the
+/// affordance the row's own position already gives, and at 12px it read as a
+/// stray glyph. It sits on the title's baseline so the two scan as one line.
 class SectionHeader extends StatelessWidget {
   const SectionHeader({
     super.key,
@@ -150,7 +171,7 @@ class SectionHeader extends StatelessWidget {
     required this.colors,
     this.eyebrowText,
     this.onSeeAll,
-    this.padding = const EdgeInsets.fromLTRB(20, 0, 20, 14),
+    this.padding = const EdgeInsets.fromLTRB(16, 0, 16, 14),
   });
 
   final String title;
@@ -172,21 +193,17 @@ class SectionHeader extends StatelessWidget {
               mainAxisSize: MainAxisSize.min,
               children: [
                 if (eyebrowText != null) ...[
-                  eyebrow(
-                    eyebrowText!,
-                    colors.fgMute,
-                    size: 10,
-                    letterSpacing: 1.2,
-                  ),
-                  const SizedBox(height: 2),
+                  eyebrow(eyebrowText!, colors.fgMute, letterSpacing: 1.2),
+                  const SizedBox(height: 4),
                 ],
                 Text(
                   title,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
                   style: SunohType.heading(
-                    fontSize: 19,
+                    fontSize: 20,
                     color: colors.fg,
-                    height: 1.0,
-                    letterSpacing: -0.2,
+                    height: 1.1,
                   ),
                 ),
               ],
@@ -195,16 +212,79 @@ class SectionHeader extends StatelessWidget {
           if (onSeeAll != null)
             GestureDetector(
               onTap: onSeeAll,
-              child: Text(
-                'See all →',
-                style: SunohType.sans(
-                  fontSize: 12,
-                  fontWeight: FontWeight.w500,
-                  color: colors.fgMute,
+              behavior: HitTestBehavior.opaque,
+              child: Padding(
+                padding: const EdgeInsets.only(left: 12, top: 6),
+                child: Text(
+                  'See all',
+                  style: SunohType.sans(
+                    fontSize: 13,
+                    fontWeight: FontWeight.w500,
+                    color: colors.fgDim,
+                  ),
                 ),
               ),
             ),
         ],
+      ),
+    );
+  }
+}
+
+/// A filter or scope chip — the one control every chip row in the app uses.
+///
+/// Filled rather than outlined: an outlined pill on a near-black page is a
+/// hairline that reads as disabled, and on light it competes with the text
+/// inside it. The selected chip inverts to the ink colour, so selection is
+/// carried by a change of fill, not by a colour the user might not see.
+class SunohChip extends StatelessWidget {
+  const SunohChip({
+    super.key,
+    required this.label,
+    required this.selected,
+    required this.colors,
+    required this.onTap,
+    this.icon,
+  });
+
+  final String label;
+  final bool selected;
+  final SunohColors colors;
+  final VoidCallback onTap;
+  final IconData? icon;
+
+  @override
+  Widget build(BuildContext context) {
+    final fg = selected ? colors.bg : colors.fg;
+    return GestureDetector(
+      onTap: onTap,
+      behavior: HitTestBehavior.opaque,
+      child: AnimatedContainer(
+        duration: const Duration(milliseconds: 200),
+        curve: Curves.easeOut,
+        height: 32,
+        padding: const EdgeInsets.symmetric(horizontal: 13),
+        decoration: squircleDecoration(
+          radius: 16,
+          color: selected ? colors.fg : colors.surface2,
+        ),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            if (icon != null) ...[
+              Icon(icon, size: 15, color: fg),
+              const SizedBox(width: 6),
+            ],
+            Text(
+              label,
+              style: SunohType.sans(
+                fontSize: 13,
+                fontWeight: FontWeight.w500,
+                color: fg,
+              ),
+            ),
+          ],
+        ),
       ),
     );
   }

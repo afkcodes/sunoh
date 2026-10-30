@@ -107,7 +107,6 @@ delayed `link.close()`:
 | `searchProvider` | 5 min | Typed queries turn over fast. |
 | `occasionsProvider` / `trendingSearchProvider` | 1 h | Near-static. |
 | `languagesProvider` | 24 h | Effectively constant. |
-| `audiobookDetailProvider` | 24 h | Avoids 50 round-trips per category scroll. |
 | `ytMusicHomeProvider` | session | Large response, not autoDispose. |
 
 Family keys carry the provider hint (`({String id, String? source})`) so a
@@ -134,6 +133,28 @@ not three.
 
 The expanded player, queue, and lyrics are modal routes on the **root**
 navigator, layered above the shell.
+
+The app speaks **one navigation language**, and every timing in it comes
+from `SunohMotion` (`theme/tokens.dart`):
+
+- **Tabs** fade (`fadePage`, and `shell/branch_fade.dart` for switching,
+  same keep-alive model as an indexed stack).
+- **Every page** slides in over the full width while the page under it
+  drifts a quarter left and dims (`pushPage` in `router/transitions.dart`),
+  however it was opened. Swiping right anywhere on it, Android's back
+  gesture and the back button all run the same route controller back.
+- **A tapped cover** of an album or playlist flies into the page's cover
+  slot during that same slide (`widgets/cover_hero.dart`). The tile and the
+  tap agree on its tag through `feedHeroTag` / `feedHeroRef`
+  (`screens/feed_tiles.dart`), and a page is only handed a `CoverHeroRef`
+  when the tapped cover really carries that tag. There is no separate
+  "opened from a cover" route.
+- **The player** opens by clipping out of the mini player's rectangle
+  (`miniPlayerKey`) while the cover flies up as a Hero, and closes by sliding
+  down (`player/player_route.dart`). The queue and lyrics rise over it.
+- **Choices and confirmations** are bottom sheets (`overlays/sheet.dart`,
+  `showSunohSheet` with `kSheetMotion`; `overlays/confirm_sheet.dart` for
+  "are you sure?"). There are no centre-screen dialogs.
 
 Navigation is typed. Screens call `context.openRef(...)`, `context.openYtArtist(...)`,
 `context.openSection(...)` from the `SunohNav` extension in `router.dart`,
@@ -171,6 +192,32 @@ layer the UI drives, and is responsible for OS metadata (`MediaItem`),
 SponsorBlock dispatch, and persistence. The queue mirror is rebuilt reactively
 from mpv's playlist stream, never written directly — mpv is the source of
 truth for order and current index.
+
+### Waveform
+
+The player's scrubber draws the track's real waveform. mpv_audio_kit decodes
+it on a worker thread and reports a ~2000-bin envelope
+(`AudioRepo.waveform`, folded in `audio/waveform_peaks.dart`). The analyser is
+listener-gated, and `WaveformFeed` listens for the whole session, so it is
+armed before each file opens and the shape is ready when the player opens;
+measured on a phone it adds no network traffic over the engine's normal
+buffering.
+
+Waveforms are remembered per song (`audio/waveform_store.dart`, Hive box
+`waveforms`): 400 bins, one byte each, 255 meaning "not analysed", capped at
+300 songs with LRU eviction. A stored envelope is drawn the moment its song
+loads; engine envelopes are merged over it (filled beats unfilled, and a
+partial engine envelope never replaces a more complete stored one, and a
+complete stored one is drawn whole), so a Gaana song played halfway twice ends
+up complete. Gaana's HLS streams cannot be
+decoded ahead by mpv, so `audio/waveform_fetch.dart` downloads the lowest
+variant of the current and next Gaana track in the background, measures it
+natively (`WaveformBridge.kt`: MediaExtractor + MediaCodec, because the engine
+allows one waveform per process and a second file would clobber the playing
+one) and stores it. The lowest variant is still 3.5 to 6 MB, so the fetch-ahead
+is Wi-Fi only: it is skipped when Android reports the active network as
+metered (`isMetered` on the same channel; unknown counts as metered) and on
+the Data saver stream quality. The skip is logged once per session.
 
 ### Stream resolution ladder
 
@@ -259,7 +306,7 @@ Three things are required, and all three are load-bearing:
    Without them the car draws the tree but tapping a row does nothing.
 
 **Root**: the library first — Downloads, Liked Songs, Recently Played,
-Playlists — then the three home feeds, Music, Podcasts and Audiobooks, mirroring
+Playlists — then the two home feeds, Music and Podcasts, mirroring
 the phone's Home tabs. Downloads leads deliberately: a car is where the network
 drops mid-song, and downloaded tracks are the only tier that survives it.
 
@@ -351,6 +398,38 @@ links arrive from untrusted sources.
 
 ---
 
+## 8a. On-device backend (lib/backend)
+
+`lib/backend` is sunoh-api running on the phone. `LocalBackendInterceptor` is
+the first interceptor on every Dio from `buildSunohDio()`; it matches the
+request against `LocalRoutes` (registered in `backend/routes.dart`, one
+`register*Routes` per area) and answers with exactly the JSON envelope the
+server returns (`status/message/data/error/source`, HTTP 200; `LocalApiError`
+becomes the 400 failure envelope). `api/` and everything above it is
+unchanged. A route with no handler, or whose handler throws anything
+unexpected, falls through to the real server, which is how routes migrate one
+at a time. Upstream calls use `upstreamDio()`, which has no local interceptor.
+Parity tests that hit real upstreams carry the `live` tag and are skipped by
+default: `flutter test --run-skipped -t live`.
+
+**Caching and Gaana protection.** The server hid its heavy aggregations behind
+Redis; on the phone they would run per request. A route may declare a
+`CachePolicy(fresh, stale, persist)` in `LocalRoutes.get(..., cache:)`, and
+`ResponseCache` (`backend/response_cache.dart`) then serves a copy within
+`fresh`, serves it past `fresh` while refreshing in the background up to
+`stale`, and otherwise fetches. Key is method + pattern + sorted params + sorted
+query; failures are never stored; concurrent identical requests share one
+Future; `persist` keeps a JSON copy in the Hive box `local_api_cache` (capped
+at 40 entries, corrupt entries dropped) behind a memory layer. Policies:
+`/music/home` 30 min / 24 h, `/podcasts/home` 6 h / 3 d,
+`/music/occasions` 6 h, languages and categories 24 h. A request
+header `x-local-refresh` (`localRefreshHeader`) bypasses the copy. Gaana bans
+an IP for ~10 min after ~60 requests in seconds, so `gaana/request_gate.dart`
+caps Gaana at 4 in flight and 10 starts per second, and after a 403 "Access
+Denied" page fails Gaana calls fast for 2 minutes.
+
+---
+
 ## 9. Known debt
 
 Tracked honestly so it is not rediscovered. See `ENGINEERING.md` for the
@@ -359,7 +438,7 @@ standards these violate.
 | Item | Where | Impact |
 |---|---|---|
 | `AppState` is 2440 lines and owns six unrelated concerns | `state/app_state.dart` | Hard to test, hard to reason about, every screen watching it rebuilds on any change. |
-| Oversized files | 19 files above 500 lines; `detail_screens.dart` at 1793 | Navigation and review cost. |
+| Oversized files | 10 files above 500 lines; `app_state.dart` at 2659, `audio_handler.dart` at 1184. Of the UI only `podcast_show_screen.dart` (554) and `expanded_player.dart` (507) remain | Navigation and review cost. The 2026 redesign split the big screens along their seams (`detail_*`, `album_body`, `artist_*`, `home_*`, `feed_*`, `search_*`, `library_*`, `settings_*`, `queue_rows`, `eq_rack`, `lyrics_backdrop`). |
 | Placeholder catalog still live | `data/catalog.dart`, seeded in the `AppState` constructor; parallel `_DummyQueueBody` in `queue_screen.dart` | Two rendering paths for one screen; fictional data reachable in production. |
 | Thin test coverage | only `test/auto_browse_test.dart` + `test/auto_media_id_test.dart` (30 tests) | The Android Auto surface is covered; the rest of the app is not. |
 | `.select()` never used | 150 `ref.watch` call sites, 0 selects | Whole screens rebuild on unrelated `AppState` changes. |

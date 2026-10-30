@@ -3,6 +3,9 @@
 
 import 'package:dio/dio.dart';
 
+import '../backend/local_backend.dart';
+import '../backend/response_cache.dart';
+import '../backend/routes.dart';
 import '../config/env.dart';
 
 class SunohApiEnv {
@@ -13,6 +16,12 @@ class SunohApiEnv {
   /// maps to the host's localhost), or the host's LAN IP for a real device.
   static const baseUrl = Env.apiBase;
 }
+
+// One registry for the app, not one per Dio.
+final _localRoutes = buildLocalRoutes();
+// Shared too: de-duplication and the memory layer only work across Dios if
+// they all use one cache.
+final _responseCache = ResponseCache();
 
 Dio buildSunohDio() {
   final dio = Dio(
@@ -25,6 +34,11 @@ Dio buildSunohDio() {
       // the raw Map; no automatic type cast surprises.
       responseType: ResponseType.json,
     ),
+  );
+
+  // First, so a locally answered route never reaches the network.
+  dio.interceptors.add(
+    LocalBackendInterceptor(_localRoutes, cache: _responseCache),
   );
 
   // Minimal request logger (silent in release).

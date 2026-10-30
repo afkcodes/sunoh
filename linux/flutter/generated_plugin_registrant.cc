@@ -6,14 +6,18 @@
 
 #include "generated_plugin_registrant.h"
 
-#include <gtk/gtk_plugin.h>
+#include <app_links_linux/app_links_plugin_linux.h>
+#include <mpv_audio_kit/mpv_audio_kit_plugin.h>
 #include <refresh_rate/refresh_rate_plugin.h>
 #include <url_launcher_linux/url_launcher_plugin.h>
 
 void fl_register_plugins(FlPluginRegistry* registry) {
-  g_autoptr(FlPluginRegistrar) gtk_registrar =
-      fl_plugin_registry_get_registrar_for_plugin(registry, "GtkPlugin");
-  gtk_plugin_register_with_registrar(gtk_registrar);
+  g_autoptr(FlPluginRegistrar) app_links_linux_registrar =
+      fl_plugin_registry_get_registrar_for_plugin(registry, "AppLinksPluginLinux");
+  app_links_plugin_linux_register_with_registrar(app_links_linux_registrar);
+  g_autoptr(FlPluginRegistrar) mpv_audio_kit_registrar =
+      fl_plugin_registry_get_registrar_for_plugin(registry, "MpvAudioKitPlugin");
+  mpv_audio_kit_plugin_register_with_registrar(mpv_audio_kit_registrar);
   g_autoptr(FlPluginRegistrar) refresh_rate_registrar =
       fl_plugin_registry_get_registrar_for_plugin(registry, "RefreshRatePlugin");
   refresh_rate_plugin_register_with_registrar(refresh_rate_registrar);

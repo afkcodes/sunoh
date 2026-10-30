@@ -10,12 +10,15 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
-import 'package:solar_icons/solar_icons.dart';
+import 'package:remixicon/remixicon.dart';
 
 import '../providers/app_state_provider.dart';
 import '../state/app_state.dart';
 import '../theme/tokens.dart';
+import '../widgets/motion.dart';
 import '../widgets/ui.dart';
+import 'pill_button.dart';
+import 'sub_page_bar.dart';
 
 class SpotifyImportScreen extends ConsumerStatefulWidget {
   const SpotifyImportScreen({super.key});
@@ -75,199 +78,124 @@ class _SpotifyImportScreenState extends ConsumerState<SpotifyImportScreen> {
   Widget build(BuildContext context) {
     final s = ref.watch(appStateProvider);
     final c = s.colors;
-    final accent = s.resolvedAccent;
     final inFlight = s.spotifyImport.status == SpotifyImportStatus.fetching;
+    final locked = inFlight || _busy;
+    final ready = !locked && _looksLikeSpotifyUrl(_ctl.text);
     return ColoredBox(
       color: c.bg,
-      child: SafeArea(
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Padding(
-              padding: const EdgeInsets.fromLTRB(10, 12, 14, 4),
-              child: Row(
-                children: [
-                  IconBtn(
-                    icon: SolarIconsOutline.altArrowLeft,
-                    color: c.fg,
-                    size: 22,
-                    onTap: () => context.pop(),
-                  ),
-                  const SizedBox(width: 6),
-                  Text(
-                    'Import from Spotify',
-                    style: SunohType.heading(
-                      fontSize: 22,
-                      color: c.fg,
-                      letterSpacing: -0.3,
+      child: Column(
+        children: [
+          SubPageBar(title: 'Import from Spotify', colors: c),
+          Expanded(
+            // Scrolls so the keyboard can never push the Import button off a
+            // screen it has no way back onto.
+            child: ListView(
+              padding: const EdgeInsets.fromLTRB(16, 16, 16, 140),
+              children: [
+                FadeSlideIn(
+                  child: Text(
+                    'Paste a public Spotify playlist URL. We’ll find the best Saavn match for each track and save it as a new playlist in your library.',
+                    style: SunohType.sans(
+                      fontSize: 14,
+                      color: c.fgDim,
+                      height: 1.45,
                     ),
                   ),
-                ],
-              ),
-            ),
-            Padding(
-              padding: const EdgeInsets.fromLTRB(20, 8, 20, 18),
-              child: Text(
-                'Paste a public Spotify playlist URL. We’ll find the best Saavn match for each track and save it as a new playlist in your library.',
-                style: SunohType.sans(
-                  fontSize: 13,
-                  color: c.fgMute,
-                  height: 1.4,
                 ),
-              ),
-            ),
-            Padding(
-              padding: const EdgeInsets.fromLTRB(16, 0, 16, 14),
-              child: DecoratedBox(
-                decoration: squircleDecoration(
-                  radius: 16,
-                  color: c.surface,
-                  borderColor: c.line,
-                ),
-                child: Column(
-                  children: [
-                    Padding(
-                      padding: const EdgeInsets.fromLTRB(14, 12, 12, 0),
-                      child: Row(
-                        children: [
-                          Icon(
-                            SolarIconsOutline.link,
-                            size: 16,
-                            color: c.fgDim,
-                          ),
-                          const SizedBox(width: 8),
-                          Text(
-                            'Playlist URL',
-                            style: eyebrowStyle(c, accent: c.fgMute),
-                          ),
-                        ],
-                      ),
-                    ),
-                    Padding(
-                      padding: const EdgeInsets.fromLTRB(14, 4, 12, 4),
-                      child: TextField(
-                        controller: _ctl,
-                        autofocus: false,
-                        enabled: !inFlight && !_busy,
-                        keyboardType: TextInputType.url,
-                        autocorrect: false,
-                        enableSuggestions: false,
-                        style: SunohType.sans(fontSize: 14, color: c.fg),
-                        decoration: InputDecoration(
-                          isDense: true,
-                          contentPadding: EdgeInsets.zero,
-                          border: InputBorder.none,
-                          hintText: 'https://open.spotify.com/playlist/…',
-                          hintStyle: SunohType.sans(
-                            fontSize: 14,
-                            color: c.fgMute,
-                          ),
-                        ),
-                        onChanged: (_) => setState(() {}),
-                      ),
-                    ),
-                    Divider(color: c.line.withValues(alpha: 0.5), height: 1),
-                    Padding(
-                      padding: const EdgeInsets.fromLTRB(6, 6, 6, 6),
-                      child: Row(
-                        children: [
-                          TextButton.icon(
-                            onPressed: inFlight || _busy ? null : _onPaste,
-                            icon: Icon(
-                              SolarIconsOutline.clipboardText,
-                              size: 14,
-                              color: c.fg,
-                            ),
-                            label: Text(
-                              'Paste',
-                              style: SunohType.sans(
-                                fontSize: 12.5,
-                                fontWeight: FontWeight.w500,
-                                color: c.fg,
-                              ),
-                            ),
-                            style: TextButton.styleFrom(
-                              padding: const EdgeInsets.symmetric(
-                                horizontal: 10,
-                                vertical: 6,
-                              ),
-                              minimumSize: Size.zero,
-                              tapTargetSize: MaterialTapTargetSize.shrinkWrap,
-                            ),
-                          ),
-                          if (_ctl.text.isNotEmpty)
-                            TextButton.icon(
-                              onPressed: inFlight || _busy
-                                  ? null
-                                  : () => setState(_ctl.clear),
-                              icon: Icon(
-                                SolarIconsOutline.eraser,
-                                size: 14,
-                                color: c.fgDim,
-                              ),
-                              label: Text(
-                                'Clear',
-                                style: SunohType.sans(
-                                  fontSize: 12.5,
-                                  fontWeight: FontWeight.w500,
-                                  color: c.fgDim,
-                                ),
-                              ),
-                              style: TextButton.styleFrom(
-                                padding: const EdgeInsets.symmetric(
-                                  horizontal: 10,
-                                  vertical: 6,
-                                ),
-                                minimumSize: Size.zero,
-                                tapTargetSize: MaterialTapTargetSize.shrinkWrap,
-                              ),
-                            ),
-                        ],
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-            ),
-            Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 16),
-              child: SizedBox(
-                width: double.infinity,
-                child: GestureDetector(
-                  onTap: (inFlight || _busy || !_looksLikeSpotifyUrl(_ctl.text))
-                      ? null
-                      : _onImport,
-                  child: Container(
+                const SizedBox(height: 18),
+                FadeSlideIn(index: 1, child: _urlCard(c, locked)),
+                const SizedBox(height: 12),
+                FadeSlideIn(
+                  index: 2,
+                  // Not ready is the neutral pill, not a faded accent:
+                  // onAccent on a 35% accent is dark on dark, and hid the label.
+                  child: PillButton(
+                    label: inFlight ? 'Import in progress…' : 'Import',
+                    colors: c,
+                    primary: true,
                     height: 48,
-                    alignment: Alignment.center,
-                    decoration: squircleDecoration(
-                      radius: 14,
-                      color:
-                          (_looksLikeSpotifyUrl(_ctl.text) &&
-                              !inFlight &&
-                              !_busy)
-                          ? accent
-                          : accent.withValues(alpha: 0.35),
-                    ),
-                    child: Text(
-                      inFlight ? 'Import in progress…' : 'Import',
-                      style: SunohType.heading(
-                        fontSize: 15,
-                        color: Colors.white,
-                        letterSpacing: -0.1,
-                      ),
-                    ),
+                    expand: true,
+                    onTap: ready ? _onImport : null,
                   ),
                 ),
+                const SizedBox(height: 24),
+                FadeSlideIn(index: 3, child: _TipsBlock(colors: c)),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  /// The URL field on a card, with Paste and Clear under it as small pills.
+  /// No rule between field and pills: spacing separates them, as on every
+  /// other card.
+  Widget _urlCard(SunohColors c, bool locked) {
+    return Container(
+      padding: const EdgeInsets.fromLTRB(14, 12, 14, 12),
+      decoration: squircleDecoration(
+        radius: SunohRadius.card,
+        color: c.surface,
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Icon(RemixIcons.link, size: 16, color: c.fgDim),
+              const SizedBox(width: 8),
+              Text(
+                'Playlist URL',
+                style: SunohType.sans(
+                  fontSize: 12.5,
+                  fontWeight: FontWeight.w500,
+                  color: c.fgDim,
+                ),
               ),
+            ],
+          ),
+          const SizedBox(height: 6),
+          TextField(
+            controller: _ctl,
+            autofocus: false,
+            enabled: !locked,
+            keyboardType: TextInputType.url,
+            autocorrect: false,
+            enableSuggestions: false,
+            style: SunohType.sans(fontSize: 15, color: c.fg),
+            decoration: InputDecoration(
+              isDense: true,
+              contentPadding: const EdgeInsets.symmetric(vertical: 6),
+              border: InputBorder.none,
+              hintText: 'https://open.spotify.com/playlist/…',
+              hintStyle: SunohType.sans(fontSize: 15, color: c.fgMute),
             ),
-            const SizedBox(height: 14),
-            Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 20),
-              child: _TipsBlock(colors: c),
-            ),
-          ],
-        ),
+            onChanged: (_) => setState(() {}),
+          ),
+          const SizedBox(height: 10),
+          Row(
+            children: [
+              PillButton(
+                label: 'Paste',
+                icon: RemixIcons.clipboard_line,
+                colors: c,
+                height: 32,
+                onTap: locked ? null : _onPaste,
+              ),
+              if (_ctl.text.isNotEmpty) ...[
+                const SizedBox(width: 8),
+                PillButton(
+                  label: 'Clear',
+                  icon: RemixIcons.eraser_line,
+                  colors: c,
+                  height: 32,
+                  onTap: locked ? null : () => setState(_ctl.clear),
+                ),
+              ],
+            ],
+          ),
+        ],
       ),
     );
   }
@@ -279,7 +207,7 @@ class _TipsBlock extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final c = colors;
-    final tips = [
+    const tips = [
       'Works on any public Spotify playlist — yours or anyone else’s.',
       'Imports take ~1–2 minutes, depending on playlist size. You can keep using the app while it runs.',
       'Tracks that don’t exist on Saavn (e.g. region-locked indie) are skipped.',
@@ -287,14 +215,7 @@ class _TipsBlock extends StatelessWidget {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Text(
-          'TIPS',
-          style: SunohType.mono(
-            fontSize: 9,
-            color: c.fgMute,
-            letterSpacing: 1.4,
-          ),
-        ),
+        eyebrow('TIPS', c.fgMute, size: 10.5, letterSpacing: 0.84),
         const SizedBox(height: 8),
         for (final t in tips)
           Padding(
@@ -303,13 +224,13 @@ class _TipsBlock extends StatelessWidget {
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Padding(
-                  padding: const EdgeInsets.only(top: 6),
+                  padding: const EdgeInsets.only(top: 8),
                   child: Container(
                     width: 3,
                     height: 3,
                     decoration: BoxDecoration(
                       shape: BoxShape.circle,
-                      color: c.fgDim,
+                      color: c.fgMute,
                     ),
                   ),
                 ),
@@ -318,8 +239,8 @@ class _TipsBlock extends StatelessWidget {
                   child: Text(
                     t,
                     style: SunohType.sans(
-                      fontSize: 12,
-                      color: c.fgMute,
+                      fontSize: 13,
+                      color: c.fgDim,
                       height: 1.45,
                     ),
                   ),
@@ -331,9 +252,3 @@ class _TipsBlock extends StatelessWidget {
     );
   }
 }
-
-/// Forgiving eyebrow style accessor — the existing `eyebrow()` builder
-/// renders a Text widget, but here we want just the style for use inside
-/// a Row that has its own widgets.
-TextStyle eyebrowStyle(SunohColors c, {Color? accent}) =>
-    SunohType.mono(fontSize: 9, color: accent ?? c.fgMute, letterSpacing: 1.4);

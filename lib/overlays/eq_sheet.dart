@@ -1,4 +1,4 @@
-// 10-band graphic equalizer sheet — opened from the tweaks panel.
+// 10-band graphic equalizer sheet — opened from the player.
 //
 // Gains go to SunohAudioHandler.setEqBands, which builds the mpv filter chain
 // in `audio/eq_filters.dart`. Not mpv's superequalizer, despite what an older
@@ -12,48 +12,39 @@
 // swipe and the sliders were the innermost and weakest.
 //
 // The fix is structural rather than a cleverer gesture. The rack no longer sits
-// inside anything that scrolls — the sheet is a fixed column of a header, a
-// rack that does not move, and a preset list that scrolls on its own below. A
-// drag on a band cannot reach a scrollable because there is no longer one above
-// it. The sheet still drags to dismiss from its header and its preset list,
-// because that is what a bottom sheet should do; the rack is carved out of
-// that by the recogniser in `eq_slider.dart`, which takes a drag beginning on
-// a band before the sheet can claim it.
+// inside anything that scrolls — the sheet is a fixed column of a header, the
+// preset chips (which scroll on their own), the rack, and its two rows. The
+// order is the prototype's: presets above the rack, so a tapped chip and the
+// curve it bends sit next to each other. Only the chips scroll; with
+// thirty-four of them a single scrolling page would have pushed the rack off
+// the bottom of the screen, and put it back inside a scrollable besides.
+//
+// The sheet still drags to dismiss from its header and its rows, because that
+// is what a bottom sheet should do; the rack is carved out of that by the
+// recogniser in `eq_slider.dart`, which takes a drag beginning on a band
+// before the sheet can claim it.
 
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:remixicon/remixicon.dart';
 
+import '../audio/eq_presets.dart';
 import '../providers/app_state_provider.dart';
 import '../theme/tokens.dart';
+import '../widgets/motion.dart';
+import '../widgets/ui.dart';
 import 'eq_presets_wall.dart';
-import 'eq_slider.dart';
+import 'eq_rack.dart';
+import 'sheet.dart';
 
-/// Frequency labels, matching the band centres in `audio/eq_filters.dart`.
-const List<String> kEqLabels = [
-  '31',
-  '63',
-  '125',
-  '250',
-  '500',
-  '1k',
-  '2k',
-  '4k',
-  '8k',
-  '16k',
-];
+/// How far below the status bar the sheet starts: the player's header row
+/// stays visible above it, as in the prototype, so the equalizer reads as a
+/// layer over the song rather than a new page.
+const double _kTopGap = 52;
 
-const double _kMinGain = -12;
-const double _kMaxGain = 12;
-
-/// Height of the slider travel.
-///
-/// Fixed rather than flexible: it is the dimension a listener aims at, and a
-/// rack that stretched to fill the screen would make the same drag mean
-/// different amounts of gain on different phones.
-const double _kTrackHeight = 196;
-
-/// Width of the dB gutter, and of the matching blank under it.
-const double _kScaleWidth = 26;
+/// Below this the fixed layout would leave the chips no room: the header,
+/// rack and rows take about 500 between them.
+const double _kMinFixedHeight = 620;
 
 void showEqSheet(BuildContext context) {
   showModalBottomSheet(
@@ -65,15 +56,7 @@ void showEqSheet(BuildContext context) {
     // per pointer by the recogniser in `eq_slider.dart`, which claims a drag
     // starting on a band before the sheet can have it.
     enableDrag: true,
-    // Material's default is a 250 ms decelerate both ways, which opens
-    // sluggishly and closes softly. Closing is shortened and eased out so it
-    // leaves at speed and settles at the end.
-    sheetAnimationStyle: const AnimationStyle(
-      duration: Duration(milliseconds: 300),
-      curve: Curves.fastEaseInToSlowEaseOut,
-      reverseDuration: Duration(milliseconds: 220),
-      reverseCurve: Curves.easeOutCubic,
-    ),
+    sheetAnimationStyle: kSheetMotion,
     builder: (_) => const _EqSheet(),
   );
 }
@@ -84,56 +67,52 @@ class _EqSheet extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final c = ref.watch(appStateProvider).colors;
-    // Deliberately *not* `resolvedAccent`. The accent follows the current
-    // album's artwork, and an equaliser that changed colour with every track
-    // read as decoration rather than instrumentation — the same reason the
-    // HI-RES badge stopped using it. Emphasis here comes from the foreground
-    // token, which is stable whatever is playing.
-    final highlight = c.fg;
+    final bottom = MediaQuery.paddingOf(context).bottom;
 
     return Padding(
-      padding: EdgeInsets.only(top: MediaQuery.paddingOf(context).top + 8),
+      // `useSafeArea` has already taken the status bar off the top.
+      padding: const EdgeInsets.only(top: _kTopGap),
       child: DecoratedBox(
-        decoration: BoxDecoration(
+        // Full height and attached to the bottom edge, top corners only —
+        // the same sheet every other one in the app now is.
+        decoration: ShapeDecoration(
           color: c.bgSoft,
-          borderRadius: const BorderRadius.vertical(top: Radius.circular(28)),
-          border: Border.all(color: c.line, width: 0.5),
+          shape: squircleTopBorder(SunohRadius.sheet),
         ),
-        child: Column(
-          children: [
-            _Handle(colors: c),
-            _Header(colors: c, accent: highlight),
-            _Rack(colors: c, accent: highlight),
-            const SizedBox(height: 10),
-            Divider(height: 1, thickness: 0.5, color: c.line),
-            // The only scrolling region, and the only part that needs help to
-            // move the sheet — a drag anywhere else is already the sheet's.
-            Expanded(
-              child: EqPresetsWall(colors: c, accent: highlight),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-}
-
-/// The grab handle. Purely an affordance — the sheet's own drag does the work.
-class _Handle extends StatelessWidget {
-  const _Handle({required this.colors});
-  final SunohColors colors;
-
-  @override
-  Widget build(BuildContext context) {
-    return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 12),
-      child: Center(
-        child: Container(
-          width: 40,
-          height: 4,
-          decoration: BoxDecoration(
-            color: colors.fgMute,
-            borderRadius: BorderRadius.circular(2),
+        child: Padding(
+          padding: EdgeInsets.only(top: 8, bottom: bottom + 12),
+          child: LayoutBuilder(
+            builder: (context, box) {
+              final top = [SheetHandle(colors: c), _Header(colors: c)];
+              final bottom = [
+                const Padding(
+                  padding: EdgeInsets.fromLTRB(16, 20, 16, 0),
+                  child: EqRack(),
+                ),
+                _Rows(colors: c),
+              ];
+              // Too short to hold the rack, its rows and any chips at once —
+              // landscape, mostly. Everything scrolls together then, and the
+              // band recogniser's eager win is what keeps the rack usable.
+              if (box.maxHeight < _kMinFixedHeight) {
+                return ListView(
+                  children: [
+                    ...top,
+                    EqPresetsWall(colors: c, embedded: true),
+                    ...bottom,
+                  ],
+                );
+              }
+              return Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  ...top,
+                  // The only scrolling region — see the file header.
+                  Expanded(child: EqPresetsWall(colors: c)),
+                  ...bottom,
+                ],
+              );
+            },
           ),
         ),
       ),
@@ -142,9 +121,8 @@ class _Handle extends StatelessWidget {
 }
 
 class _Header extends ConsumerWidget {
-  const _Header({required this.colors, required this.accent});
+  const _Header({required this.colors});
   final SunohColors colors;
-  final Color accent;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -154,8 +132,9 @@ class _Header extends ConsumerWidget {
     final active = s.eqBands.where((g) => g.abs() > 0.05).length;
 
     return Padding(
-      padding: const EdgeInsets.fromLTRB(20, 0, 14, 6),
+      padding: const EdgeInsets.fromLTRB(16, 2, 12, 10),
       child: Row(
+        crossAxisAlignment: CrossAxisAlignment.end,
         children: [
           Expanded(
             child: Column(
@@ -164,39 +143,36 @@ class _Header extends ConsumerWidget {
               children: [
                 Text(
                   'Equalizer',
-                  style: SunohType.heading(
-                    fontSize: 24,
-                    color: on ? c.fg : c.fgDim,
-                    letterSpacing: -0.3,
-                  ),
+                  style: SunohType.heading(fontSize: 22, color: c.fg),
                 ),
                 const SizedBox(height: 2),
                 // Says what "off" actually means, because the distinction
                 // matters to whoever went looking for this switch: bypassing
                 // is not a flat curve, it is no filter in the chain at all, so
-                // a lossless stream reaches the output untouched.
+                // a lossless file reaches the output untouched.
                 Text(
                   on
                       ? (active == 0
                             ? 'Flat — nothing being changed'
                             : '$active ${active == 1 ? 'band' : 'bands'} shaping')
                       : 'Bypassed — audio passes through untouched',
-                  style: SunohType.sans(
-                    fontSize: 11,
-                    color: on ? c.fgMute : accent,
-                  ),
+                  style: SunohType.sans(fontSize: 12.5, color: c.fgDim),
                 ),
               ],
             ),
           ),
-          Switch.adaptive(
+          // The settings switch: accent track, onAccent thumb, no outline.
+          // The accent here is the palette's, which follows the artwork when
+          // tint-from-art is on — the prototype colours the whole equalizer
+          // with the song, curve included.
+          Switch(
             value: on,
             onChanged: s.setEqEnabled,
-            activeThumbColor: c.bg,
-            activeTrackColor: accent,
-            inactiveThumbColor: c.fgMute,
-            inactiveTrackColor: c.surface,
-            trackOutlineColor: WidgetStatePropertyAll(c.line),
+            activeTrackColor: c.accent,
+            activeThumbColor: c.onAccent,
+            inactiveTrackColor: c.surface2,
+            inactiveThumbColor: c.fgDim,
+            trackOutlineColor: const WidgetStatePropertyAll(Colors.transparent),
             materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
           ),
         ],
@@ -205,141 +181,91 @@ class _Header extends ConsumerWidget {
   }
 }
 
-/// The rack: a dB gutter, ten sliders, and their readouts.
-///
-/// Deliberately not scrollable and deliberately fixed height — that is the
-/// whole point, see the file header.
-class _Rack extends ConsumerWidget {
-  const _Rack({required this.colors, required this.accent});
+/// The settings-style rows under the rack: what the current preset is for,
+/// and the way back to flat.
+class _Rows extends ConsumerWidget {
+  const _Rows({required this.colors});
   final SunohColors colors;
-  final Color accent;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final s = ref.watch(appStateProvider);
-    final c = colors;
-    final on = s.eqEnabled;
+    final id = s.currentEqPresetId;
+    final preset = id == null ? null : eqPresetById(id);
 
     return Padding(
-      padding: const EdgeInsets.fromLTRB(12, 2, 12, 0),
-      child: AnimatedOpacity(
-        // Dimmed rather than hidden when off: the curve is still the
-        // listener's, and seeing it is how they decide whether to switch back
-        // on. Collapsing the rack would also make the sheet jump.
-        opacity: on ? 1 : 0.4,
-        duration: const Duration(milliseconds: 180),
-        child: Column(
-          children: [
-            SizedBox(
-              height: _kTrackHeight,
-              child: Row(
-                crossAxisAlignment: CrossAxisAlignment.stretch,
-                children: [
-                  _Scale(colors: c),
-                  for (var i = 0; i < kEqLabels.length; i++)
-                    Expanded(
-                      child: EqBandSlider(
-                        gain: s.eqBands[i],
-                        min: _kMinGain,
-                        max: _kMaxGain,
-                        enabled: on,
-                        onChanged: (db) => s.setEqBand(i, db),
-                        colors: c,
-                        accent: accent,
-                      ),
-                    ),
-                ],
-              ),
-            ),
-            const SizedBox(height: 8),
-            Row(
-              children: [
-                // Blank matching the gutter, so labels stay under their bands.
-                const SizedBox(width: _kScaleWidth),
-                for (var i = 0; i < kEqLabels.length; i++)
-                  Expanded(
-                    child: _BandLabel(
-                      gain: s.eqBands[i],
-                      label: kEqLabels[i],
-                      colors: c,
-                      accent: accent,
-                    ),
-                  ),
-              ],
-            ),
-          ],
-        ),
+      padding: const EdgeInsets.fromLTRB(16, 12, 16, 0),
+      child: Column(
+        children: [
+          // The descriptions were written with the presets and are the one
+          // thing a chip cannot carry, so the selected one's lives here.
+          _SetRow(
+            label: preset?.name ?? 'Custom',
+            helper: preset?.description ?? 'Custom curve — no preset selected.',
+            colors: colors,
+          ),
+          _SetRow(label: 'Reset to flat', onTap: s.resetEq, colors: colors),
+        ],
       ),
     );
   }
 }
 
-class _BandLabel extends StatelessWidget {
-  const _BandLabel({
-    required this.gain,
+/// A settings row: label, optional helper, a divider under it, and a chevron
+/// when it does something.
+class _SetRow extends StatelessWidget {
+  const _SetRow({
     required this.label,
     required this.colors,
-    required this.accent,
+    this.helper,
+    this.onTap,
   });
 
-  final double gain;
   final String label;
-  final SunohColors colors;
-  final Color accent;
-
-  @override
-  Widget build(BuildContext context) {
-    final touched = gain.abs() > 0.05;
-    return Column(
-      children: [
-        Text(
-          touched ? '${gain > 0 ? '+' : ''}${gain.toStringAsFixed(0)}' : '0',
-          textAlign: TextAlign.center,
-          style: SunohType.mono(
-            fontSize: 9.5,
-            color: touched ? accent : colors.fgMute,
-          ),
-        ),
-        const SizedBox(height: 3),
-        Text(
-          label,
-          textAlign: TextAlign.center,
-          style: SunohType.mono(
-            fontSize: 9,
-            color: colors.fgMute,
-            letterSpacing: 0.4,
-          ),
-        ),
-      ],
-    );
-  }
-}
-
-/// The dB gutter down the left of the rack.
-///
-/// Without it the sliders are ten bars with no units: you can see one is higher
-/// than another but not by how much, and +12 dB is a very different promise
-/// from +3.
-class _Scale extends StatelessWidget {
-  const _Scale({required this.colors});
+  final String? helper;
+  final VoidCallback? onTap;
   final SunohColors colors;
 
   @override
   Widget build(BuildContext context) {
-    TextStyle style(bool strong) => SunohType.mono(
-      fontSize: 8.5,
-      color: strong ? colors.fgDim : colors.fgMute,
-    );
-    return SizedBox(
-      width: _kScaleWidth,
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.end,
-        mainAxisAlignment: MainAxisAlignment.spaceBetween,
-        children: [
-          Text('+12', style: style(false)),
-          Text('0', style: style(true)),
-          Text('−12', style: style(false)),
-        ],
+    final c = colors;
+    return Pressable(
+      scale: 0.99,
+      onTap: onTap,
+      child: Container(
+        constraints: const BoxConstraints(minHeight: 56),
+        padding: const EdgeInsets.symmetric(vertical: 9),
+        decoration: BoxDecoration(
+          border: Border(bottom: BorderSide(color: c.line)),
+        ),
+        child: Row(
+          children: [
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Text(label, style: SunohType.sans(fontSize: 15, color: c.fg)),
+                  if (helper != null) ...[
+                    const SizedBox(height: 2),
+                    Text(
+                      helper!,
+                      maxLines: 2,
+                      overflow: TextOverflow.ellipsis,
+                      style: SunohType.sans(
+                        fontSize: 12.5,
+                        color: c.fgMute,
+                        height: 1.35,
+                      ),
+                    ),
+                  ],
+                ],
+              ),
+            ),
+            if (onTap != null)
+              Icon(RemixIcons.arrow_right_s_line, size: 16, color: c.fgMute),
+          ],
+        ),
       ),
     );
   }

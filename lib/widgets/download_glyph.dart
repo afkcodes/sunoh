@@ -13,7 +13,7 @@
 
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:solar_icons/solar_icons.dart';
+import 'package:remixicon/remixicon.dart';
 
 import '../audio/download_store.dart';
 import '../providers/downloads_provider.dart';
@@ -46,22 +46,22 @@ class DownloadGlyph extends ConsumerWidget {
           size: size,
         ),
         DownloadState.done => Icon(
-          SolarIconsBold.checkCircle,
+          RemixIcons.checkbox_circle_fill,
           size: size,
           color: colors.accent,
         ),
         DownloadState.queued => Icon(
-          SolarIconsOutline.clockCircle,
+          RemixIcons.time_line,
           size: size,
           color: colors.fgMute,
         ),
         DownloadState.paused => Icon(
-          SolarIconsOutline.pauseCircle,
+          RemixIcons.pause_circle_line,
           size: size,
           color: colors.fgMute,
         ),
         DownloadState.failed => Icon(
-          SolarIconsOutline.dangerCircle,
+          RemixIcons.error_warning_line,
           size: size,
           color: colors.fgMute,
         ),

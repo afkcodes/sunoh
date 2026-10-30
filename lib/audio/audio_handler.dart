@@ -41,6 +41,7 @@ import '../api/stream_resolver.dart';
 import '../state/app_state.dart' show LoopMode;
 import 'eq_filters.dart';
 import 'url_refresh.dart';
+import 'waveform_peaks.dart';
 
 /// Placeholder scheme — mpv asks us to resolve this in the on_load hook.
 const _placeholderScheme = 'sunoh-song://';
@@ -55,7 +56,7 @@ class SunohAudioHandler {
     // mpv tuning + audio session must run AFTER mpv's Player has finished
     // its own async init, so we sequence them. The mpv_audio_kit package
     // doesn't wire audio_session itself (host-app responsibility — see
-    // its README §7.6 and the absence of any audio_session import in
+    // its README section 7.6 and the absence of any audio_session import in
     // its `lib/`), so we own focus / interruption / becoming-noisy
     // handling.
     unawaited(_initAsync());
@@ -241,6 +242,10 @@ class SunohAudioHandler {
   Stream<Duration> get positionStream => _positionCtl.stream;
   Stream<Duration> get durationStream => _durationCtl.stream;
   Stream<bool> get playingStream => _playingCtl.stream;
+
+  /// The loaded track's waveform, listened to for the handler's whole life
+  /// so the analyser is armed before every file opens (waveform_peaks.dart).
+  late final WaveformFeed waveform;
   Stream<FeedItem?> get currentSongStream =>
       _currentSongCtl.stream.distinct((a, b) => a?.id == b?.id);
   void _emitCurrentSong() {
@@ -304,6 +309,10 @@ class SunohAudioHandler {
   final List<StreamSubscription<dynamic>> _subs = [];
 
   void _wirePlayerStreams() {
+    waveform = WaveformFeed(
+      _player.stream.waveform,
+      () => _idFromUri(_player.state.path),
+    );
     _subs.add(_player.stream.position.listen(_positionCtl.add));
     _subs.add(_player.stream.duration.listen(_durationCtl.add));
     _subs.add(_player.stream.playing.listen(_playingCtl.add));
@@ -488,14 +497,10 @@ class SunohAudioHandler {
       await _player.setRawProperty('cache', 'yes');
       await _player.setRawProperty('cache-secs', '240');
       await _player.setRawProperty('demuxer-readahead-secs', '240');
-      // ── Byte caps, raised for lossless. ──────────────────────────────
+      // ── Byte caps. ───────────────────────────────────────────────────
       // cache-secs asks for four minutes; the byte cap decides whether it
-      // gets them. A lossy stream is ~40 kB/s, so 240 s is ~10 MB and never
-      // came close to any limit. A 24-bit/96 kHz FLAC is closer to 500 kB/s —
-      // the same four minutes is ~120 MB, which runs straight into mpv's
-      // default cap and silently leaves the runway far shorter than asked
-      // for, on exactly the format that can least afford a refill mid-track.
-      //
+      // gets them. A lossy stream is ~10 MB for that; a 24-bit/96 kHz FLAC
+      // (local or downloaded) is ~120 MB and would hit mpv's default cap.
       // A cap, not an allocation: a lossy track still holds its ~10 MB.
       await _player.setRawProperty('demuxer-max-bytes', '192MiB');
       // Backwards cache, so a scrub back a few seconds replays from memory
@@ -628,9 +633,8 @@ class SunohAudioHandler {
 
   /// One line describing the whole chain, logged when either end changes.
   ///
-  /// This is the answer to "how do I know lossless is actually playing": not
-  /// the badge, which only reflects what the resolver chose, but what the
-  /// decoder and the audio device each report.
+  /// The answer to "what is actually playing": what the decoder and the audio
+  /// device each report, not what the resolver chose.
   void _logAudioFormat() {
     final line = audioFormatLine;
     if (line == null || line == _lastFormatLine) return;
@@ -686,10 +690,10 @@ class SunohAudioHandler {
   /// tunnel and short enough not to poll all night on a dead connection.
   static const _maxStallRetries = 18;
 
-  void _onError(MpvPlayerError err) {
+  void _onError(PlayerError err) {
     // ignore: avoid_print
     print('[mpv error] $err');
-    if (err is! MpvEndFileError || !err.isLoadingError) return;
+    if (err is! EndFileError || !err.isLoadingError) return;
     final song = currentSong;
     if (song == null) return;
 
@@ -800,12 +804,14 @@ class SunohAudioHandler {
     final fresh = _forceRefreshNextResolve;
     _forceRefreshNextResolve = false;
     debugPrint(
-      '[audio] hook resolving ${song.id}'
+      // A prefix only: for YouTube-sourced songs the id is a video id.
+      '[audio] hook resolving ${song.id.length > 4 ? '${song.id.substring(0, 4)}…' : song.id}'
       '${fresh ? ' (forceRefresh)' : ''}',
     );
     try {
       final resolved = await resolver.resolve(song, forceRefresh: fresh);
-      debugPrint('[audio] hook resolved → ${resolved.url}');
+      // The host only: the full URL carries a signed token (Akamai hdnts).
+      debugPrint('[audio] hook resolved → ${Uri.tryParse(resolved.url)?.host}');
       return resolved;
     } catch (e) {
       debugPrint('[audio] hook resolve failed: $e');
@@ -1147,16 +1153,16 @@ class SunohAudioHandler {
     // the way through — it is only the final conversion that matters, and this
     // sits before it.
     await _player.setVolumeGain(enabled ? -eqPreampDb(gains) : 0);
-    await _player.updateAudioEffects(
-      (e) => e.copyWith(
-        custom: filters,
-        superequalizer: const SuperequalizerSettings(enabled: false),
-      ),
-    );
+    // The whole rack is ours: nothing else in the app adds an effect, so the
+    // chain is replaced outright. Raw stages because the curve is built as
+    // lavfi strings (eq_filters.dart); mpv_audio_kit 0.5 dropped the old
+    // `custom` list and its superequalizer slot for this one list of stages.
+    await _player.setAudioEffects([for (final f in filters) RawAudioEffect(f)]);
   }
 
   // ── Cleanup ────────────────────────────────────────────────────────────
   Future<void> dispose() async {
+    await waveform.dispose();
     _urlRefresh.dispose();
     decodedNotifier.dispose();
     formatRevision.dispose();

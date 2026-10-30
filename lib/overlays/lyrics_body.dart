@@ -1,8 +1,6 @@
 // The scrolling lyric list, and the states it shows instead when there are
 // none. Split out of `lyrics_screen.dart` when word-level sync arrived — that
-// file is the sheet's chrome, this is what the sheet is for.
-
-import 'dart:ui' as ui;
+// file is the page's chrome, this is what the page is for.
 
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
@@ -15,9 +13,8 @@ import 'lyrics_parts.dart';
 
 /// Rough row height, used only to aim a jump at a line that isn't built yet.
 ///
-/// It is a poor estimate and always was: lines wrap to two rows, the playing
-/// one is drawn larger than the rest, and instrumental gaps are shorter than
-/// either. Scrolling by `index * this` therefore drifts further out with every
+/// It is a poor estimate and always was: lines wrap to two rows and
+/// instrumental gaps are shorter than either. Scrolling by `index * this` therefore drifts further out with every
 /// line, which is what walked the playing line off the bottom of the screen.
 /// The real scroll measures the line instead — see [_LyricsBodyState._centre].
 const double kLyricRowHeight = 52;
@@ -31,12 +28,10 @@ const double _kActiveAlignment = 0.3;
 
 /// How the handover moves, and for how long.
 ///
-/// Deliberately without overshoot, which is what the first pass had. An
-/// overshooting curve is fine on a position and wrong on a *type size*: the
-/// line grew past the size it was going to settle at, and because size is
-/// layout, every row underneath it bounced out and back. Two overshoots were
-/// running at once — this one and the scroll's — and together they read as the
-/// whole screen jumping at every line.
+/// Deliberately without overshoot, which is what the first pass had: it was
+/// running at once with the scroll's, and together they read as the whole
+/// screen jumping at every line. The handover is colour only now — nothing
+/// about it is layout — but an overshooting colour just flashes.
 const Duration _kSpringIn = Duration(milliseconds: 480);
 const Curve _kSpringCurve = Curves.easeOutCubic;
 
@@ -45,66 +40,16 @@ const Curve _kSpringCurve = Curves.easeOutCubic;
 /// other.
 const Curve _kScrollCurve = Curves.easeOutCubic;
 
-/// How visible a line is, by how far it sits from the one playing.
+/// One size for every line, large: the redesign sets lyrics as headings, the
+/// line being sung in ink and every other line in fgMute.
 ///
-/// A funnel rather than the two states this had before (playing, and
-/// everything else): the further a line is from the voice the further back it
-/// falls, so the eye is pulled to the middle without anything having to move.
-///
-/// Sung lines recede harder than upcoming ones at the same distance. They have
-/// been read already, and dropping them faster leans the whole screen forward
-/// into the words about to be sung.
-double _lineAlpha(int distance, {required bool past}) {
-  if (distance == 0) return 1;
-  const ahead = [0.55, 0.42, 0.32, 0.24];
-  const behind = [0.34, 0.24, 0.18, 0.14];
-  final scale = past ? behind : ahead;
-  return scale[(distance - 1).clamp(0, scale.length - 1)];
-}
-
-/// Type size: one step, and a small one.
-///
-/// Size is the only thing here that is *layout* — change it and every row
-/// below moves. There used to be three sizes (28, 21.5, 19.5), so a single
-/// line change resized four rows at once: the one taking over, the one
-/// handing off, and the two crossing the near/far boundary. All of that
-/// motion arrived on top of the scroll that was already running.
-///
-/// Two sizes four points apart resize exactly two rows, and the depth that
-/// third size was buying is carried by opacity and blur instead — neither of
-/// which moves anything.
-double _lineSize(int distance) => distance == 0 ? 26 : 22;
-
-/// How far out of focus a line is, by that same distance.
-///
-/// The depth is what makes a lyric screen read as one line being sung rather
-/// than a list with one row highlighted: the words either side are legibly
-/// *there* and plainly not the point. Opacity alone cannot say that — a dim
-/// line is still a sharp line, and the eye keeps landing on it.
-///
-/// Blur is expensive and this app has been burned by it before, so the shape
-/// of the cost matters. This is [ImageFiltered], which blurs one line's own
-/// layer, not [BackdropFilter], which samples everything painted behind it and
-/// is banned over scrolling content. Each blurred line sits behind a
-/// [RepaintBoundary], so its raster survives scrolling and is only redone when
-/// the line's own distance changes — a few times a song, not sixty times a
-/// second.
-///
-/// Kept gentle. The first pass ran to 4.4 at the far end and the screen read
-/// as smeared rather than deep — the words either side stopped being words.
-/// The opacity funnel is already doing most of the separating; this only has
-/// to add the softness that opacity cannot, so the line next to the one being
-/// sung stays almost readable and only the far edges really go.
-/// Nothing within one line of the voice is blurred, which is not only for
-/// looks: a blurred line cannot animate its size without re-running the blur
-/// every frame, and the lines either side of the handover are exactly the
-/// ones that need to animate. Sharp near, soft far, and the two never overlap.
-double _lineBlur(int distance) => switch (distance) {
-  0 || 1 => 0,
-  2 => 0.7,
-  3 => 1.2,
-  _ => 1.7,
-};
+/// One size because size is layout. This used to step the playing line up
+/// from its neighbours (and once ran three sizes), so every handover resized
+/// rows and moved everything under them on top of the scroll already running.
+/// A distance funnel of opacities and a blur on far lines carried the depth
+/// then; two inks carry it now, which is the prototype's look and costs no
+/// filter layers at all.
+const double _kLineSize = 26;
 
 class LyricsBody extends StatefulWidget {
   const LyricsBody({
@@ -234,12 +179,23 @@ class _LyricsBodyState extends State<LyricsBody> {
     final c = widget.colors;
     final lines = widget.lines;
     final source = widget.source;
+    final synced = widget.synced;
+    // The two inks, made once per line change rather than once per row.
+    final lit = SunohType.heading(
+      fontSize: _kLineSize,
+      height: 1.3,
+      color: c.fg,
+    );
+    final receded = lit.copyWith(color: c.fgMute);
+    // Running under the navigation bar now, so the last line and the credit
+    // have to clear it as well as the bottom fade.
+    final bottom = 80 + MediaQuery.paddingOf(context).bottom;
 
     return ValueListenableBuilder<int>(
       valueListenable: _active,
       builder: (context, idx, _) => ListView.builder(
         controller: widget.controller,
-        padding: const EdgeInsets.fromLTRB(24, 20, 24, 80),
+        padding: EdgeInsets.fromLTRB(24, 20, 24, bottom),
         // One past the lines for the credit at the end.
         itemCount: lines.length + (source == null ? 0 : 1),
         itemBuilder: (context, i) {
@@ -248,8 +204,6 @@ class _LyricsBodyState extends State<LyricsBody> {
           final line = lines[i];
           final key = _keyFor(i);
           final active = i == idx;
-          final past = i < idx;
-          final distance = (i - idx).abs();
 
           // An instrumental stretch. Marked rather than left blank, and while
           // it is the current one it counts itself down — otherwise a long
@@ -266,71 +220,32 @@ class _LyricsBodyState extends State<LyricsBody> {
             );
           }
 
-          final style =
-              SunohType.heading(
-                fontSize: _lineSize(distance),
-                height: 1.3,
-                letterSpacing: -0.3,
-              ).copyWith(
-                color: c.fg.withValues(alpha: _lineAlpha(distance, past: past)),
-              );
-
           // The line itself: swept when it is the one being sung and its
           // source gave word timings, plain text otherwise. Both sit inside
           // the same style wrapper below, so swapping between them changes
-          // what is painted and not how big it is.
+          // what is painted and not how it is set.
           final child = active && line.isWordSynced
               ? SweptLyricLine(line: line, clock: widget.clock)
               : LyricLineText(line: line);
 
-          final blur = _lineBlur(distance);
-          if (blur == 0) {
-            // Near the voice: the size and colour animate, because this is
-            // the transition anyone actually watches. One widget across the
-            // whole handover — it is not rebuilt when the line takes over,
-            // only re-parented — so it animates *through* the swap in both
-            // directions instead of the outgoing line snapping back.
-            return LyricRowTap(
-              key: key,
-              onTap: () => widget.onSeek(line.timeMs),
-              child: AnimatedDefaultTextStyle(
-                duration: _kSpringIn,
-                curve: _kSpringCurve,
-                style: style,
-                child: Padding(
-                  padding: const EdgeInsets.symmetric(vertical: 10),
-                  child: child,
-                ),
-              ),
-            );
-          }
-
-          // Far from the voice: blurred, and deliberately *not* animated.
-          // An ImageFiltered wrapping an animating subtree re-runs the blur
-          // on every frame of that animation, for every line at once — which
-          // is the spike that made a line change feel like a stutter. Static,
-          // it rasterises once behind the RepaintBoundary and is reused until
-          // this line's own blur step changes.
+          // Unsynced lyrics have no line being sung, so they read as plain
+          // text in ink rather than as a page of receded lines.
+          //
+          // The colour animates, because this is the transition anyone
+          // actually watches. One widget across the whole handover — it is
+          // not rebuilt when the line takes over, only re-parented — so it
+          // animates *through* the swap in both directions instead of the
+          // outgoing line snapping back.
           return LyricRowTap(
             key: key,
             onTap: () => widget.onSeek(line.timeMs),
-            child: RepaintBoundary(
-              child: ImageFiltered(
-                imageFilter: ui.ImageFilter.blur(
-                  sigmaX: blur,
-                  sigmaY: blur,
-                  // Without this the blur samples transparent black outside
-                  // the line's own bounds and the words come out rimmed in
-                  // shadow instead of softening into the page.
-                  tileMode: TileMode.decal,
-                ),
-                child: DefaultTextStyle(
-                  style: style,
-                  child: Padding(
-                    padding: const EdgeInsets.symmetric(vertical: 10),
-                    child: child,
-                  ),
-                ),
+            child: AnimatedDefaultTextStyle(
+              duration: _kSpringIn,
+              curve: _kSpringCurve,
+              style: active || !synced ? lit : receded,
+              child: Padding(
+                padding: const EdgeInsets.symmetric(vertical: 10),
+                child: child,
               ),
             ),
           );

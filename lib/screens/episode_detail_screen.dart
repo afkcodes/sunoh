@@ -1,21 +1,24 @@
-// Episode detail. Cover + show breadcrumb + title + meta + Play button +
-// show notes (HTML-stripped). Resume-from-saved-position is wired in
-// AppState — we just open the episode + call playApiSong; the seek to
-// the saved position fires when the episode actually loads.
+// Episode detail, laid out as an album page: the episode's cover hero with
+// the show as its byline, length and resume point in the meta line, then
+// queue and play, then the show notes (HTML-stripped). Resume-from-saved-
+// position is wired in AppState — we just call playApiSong; the seek to the
+// saved position fires when the episode actually loads.
 
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:go_router/go_router.dart';
-import 'package:phosphor_icons/phosphor_icons.dart';
-import 'package:solar_icons/solar_icons.dart';
+import 'package:remixicon/remixicon.dart';
 
 import '../api/dto.dart';
 import '../api/sunoh_api.dart';
 import '../providers/api_providers.dart';
 import '../providers/app_state_provider.dart';
+import '../providers/palette_provider.dart';
 import '../theme/tokens.dart';
-import '../widgets/album_art.dart';
+import '../widgets/motion.dart';
 import '../widgets/ui.dart';
+import 'detail_chrome.dart';
+import 'detail_hero.dart';
+import 'detail_loading.dart';
 
 class EpisodeDetailScreen extends ConsumerStatefulWidget {
   const EpisodeDetailScreen({super.key, required this.guid});
@@ -27,6 +30,8 @@ class EpisodeDetailScreen extends ConsumerStatefulWidget {
 
 class _EpisodeDetailScreenState extends ConsumerState<EpisodeDetailScreen> {
   FeedItem? _episode;
+  String? _art;
+  String _notes = '';
   String? _error;
   bool _loading = true;
 
@@ -43,6 +48,11 @@ class _EpisodeDetailScreenState extends ConsumerState<EpisodeDetailScreen> {
       if (!mounted) return;
       setState(() {
         _episode = ep;
+        // Worked out once here rather than on every rebuild.
+        if (ep != null) {
+          _art = ep.image.isNotEmpty ? ep.image.last.link : null;
+          _notes = _stripHtml(_episodeDescription(ep));
+        }
         _loading = false;
       });
     } on SunohApiException catch (e) {
@@ -58,186 +68,100 @@ class _EpisodeDetailScreenState extends ConsumerState<EpisodeDetailScreen> {
   Widget build(BuildContext context) {
     final s = ref.watch(appStateProvider);
     final c = s.colors;
-    return ColoredBox(
-      color: c.bg,
-      child: SafeArea(
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Padding(
-              padding: const EdgeInsets.fromLTRB(16, 12, 16, 8),
-              child: Row(
-                children: [
-                  IconBtn(
-                    icon: SolarIconsOutline.altArrowLeft,
-                    color: c.fg,
-                    size: 22,
-                    onTap: () => context.pop(),
-                  ),
-                  const SizedBox(width: 6),
-                  eyebrow('EPISODE', c.fgMute),
-                ],
-              ),
-            ),
-            Expanded(child: _body(c, s)),
-          ],
+    final ep = _episode;
+    if (_loading) return DetailLoading(colors: c);
+    if (_error != null || ep == null) return _failed(c);
+
+    final art = _art;
+    final palette = art == null
+        ? null
+        : ref.watch(artPaletteProvider(art)).value;
+    final accent = palette == null ? c.accent : s.themedAccent(palette.accent);
+    final dur = int.tryParse(ep.duration ?? '') ?? 0;
+    final resumeSec = s.episodeProgressSec(ep.id);
+    final resume = resumeSec != null && resumeSec > 30;
+    final here = s.currentApiSong?.id == ep.id;
+
+    return DetailPage(
+      colors: c,
+      colour: accent,
+      title: ep.title,
+      builder: (scroll) => [
+        SliverToBoxAdapter(
+          child: DetailHero(
+            colors: c,
+            colour: accent,
+            scroll: scroll,
+            cover: DetailCover(id: ep.id, imageUrl: art),
+            title: ep.title,
+            byline: ep.subtitle,
+            meta: joinMeta([
+              'Episode',
+              if (dur > 0) _fmtDuration(dur),
+              if (resume) 'resume at ${_fmtPos(resumeSec)}',
+            ]),
+          ),
         ),
-      ),
+        SliverToBoxAdapter(
+          child: FadeSlideIn(
+            index: 3,
+            child: DetailActions(
+              colors: c,
+              colour: accent,
+              playing: here && s.isPlaying,
+              shuffle: false,
+              leading: [
+                IconBtn(
+                  icon: RemixIcons.add_circle_line,
+                  color: c.fg,
+                  onTap: () => s.addApiSongToQueue(ep),
+                ),
+              ],
+              onPlay: () => here
+                  ? s.playPause()
+                  : s.playApiSong(
+                      ep,
+                      sourceLabel: 'PODCAST · ${ep.subtitle ?? "Episode"}',
+                    ),
+            ),
+          ),
+        ),
+        if (_notes.isNotEmpty)
+          SliverToBoxAdapter(
+            child: DetailNote(colors: c, text: _notes),
+          ),
+      ],
     );
   }
 
-  Widget _body(SunohColors c, dynamic s) {
-    if (_loading) {
-      return Center(
-        child: SizedBox(
-          width: 24,
-          height: 24,
-          child: CircularProgressIndicator(strokeWidth: 2, color: c.fgDim),
-        ),
-      );
-    }
-    if (_error != null || _episode == null) {
-      return Center(
-        child: Padding(
-          padding: const EdgeInsets.all(24),
-          child: Text(
-            'Couldn’t load this episode.\n${_error ?? ''}',
-            textAlign: TextAlign.center,
-            style: SunohType.sans(fontSize: 13, color: c.fgMute),
+  Widget _failed(SunohColors c) {
+    return ColoredBox(
+      color: c.bg,
+      child: Stack(
+        children: [
+          Center(
+            child: Padding(
+              padding: const EdgeInsets.all(24),
+              child: Text(
+                'Couldn’t load this episode.\n${_error ?? ''}',
+                textAlign: TextAlign.center,
+                style: SunohType.sans(fontSize: 13, color: c.fgMute),
+              ),
+            ),
           ),
-        ),
-      );
-    }
-    final ep = _episode!;
-    final accent = s.resolvedAccent as Color;
-    final dur = int.tryParse(ep.duration ?? '') ?? 0;
-    final notes = _stripHtml(_episodeDescription(ep));
-    final resumeSec = s.episodeProgressSec(ep.id) as int?;
-    return ListView(
-      padding: const EdgeInsets.fromLTRB(20, 8, 20, 140),
-      children: [
-        Row(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            squircleClip(
-              radius: 10,
-              child: SunohArt(
-                id: ep.id,
-                imageUrl: ep.image.isNotEmpty ? ep.image.last.link : null,
-                size: 96,
-                radius: 10,
-              ),
+          Positioned(
+            top: 0,
+            left: 0,
+            right: 0,
+            child: DetailBar(
+              colors: c,
+              colour: c.bg,
+              title: '',
+              solid: const FixedFlag(false),
             ),
-            const SizedBox(width: 14),
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  if ((ep.subtitle ?? '').isNotEmpty)
-                    Text(
-                      ep.subtitle!,
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                      style: SunohType.sans(fontSize: 12, color: c.fgMute),
-                    ),
-                  const SizedBox(height: 4),
-                  Text(
-                    ep.title,
-                    maxLines: 3,
-                    overflow: TextOverflow.ellipsis,
-                    style: SunohType.heading(
-                      fontSize: 18,
-                      color: c.fg,
-                      height: 1.2,
-                      letterSpacing: -0.2,
-                    ),
-                  ),
-                  if (dur > 0) ...[
-                    const SizedBox(height: 6),
-                    Text(
-                      _fmtDuration(dur) +
-                          (resumeSec != null && resumeSec > 30
-                              ? ' · resume at ${_fmtPos(resumeSec)}'
-                              : ''),
-                      style: SunohType.sans(fontSize: 12, color: c.fgDim),
-                    ),
-                  ],
-                ],
-              ),
-            ),
-          ],
-        ),
-        const SizedBox(height: 18),
-        Row(
-          children: [
-            GestureDetector(
-              onTap: () => s.playApiSong(
-                ep,
-                sourceLabel: 'PODCAST · ${ep.subtitle ?? "Episode"}',
-              ),
-              child: Container(
-                padding: const EdgeInsets.symmetric(
-                  horizontal: 22,
-                  vertical: 12,
-                ),
-                decoration: BoxDecoration(
-                  color: accent,
-                  borderRadius: BorderRadius.circular(999),
-                  boxShadow: [
-                    BoxShadow(
-                      color: accent.withValues(alpha: 0.33),
-                      blurRadius: 18,
-                      offset: const Offset(0, 6),
-                    ),
-                  ],
-                ),
-                child: Row(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    Icon(
-                      PhosphorIconsFill.play,
-                      size: 18,
-                      color: accent.computeLuminance() > 0.55
-                          ? const Color(0xFF0B0B0D)
-                          : const Color(0xFFFAFAFA),
-                    ),
-                    const SizedBox(width: 8),
-                    Text(
-                      resumeSec != null && resumeSec > 30 ? 'Resume' : 'Play',
-                      style: SunohType.sans(
-                        fontSize: 14,
-                        fontWeight: FontWeight.w600,
-                        color: accent.computeLuminance() > 0.55
-                            ? const Color(0xFF0B0B0D)
-                            : const Color(0xFFFAFAFA),
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-            ),
-            const SizedBox(width: 10),
-            IconBtn(
-              icon: SolarIconsOutline.addCircle,
-              color: c.fgDim,
-              size: 18,
-              width: 40,
-              height: 40,
-              background: c.surface,
-              onTap: () => s.addApiSongToQueue(ep),
-            ),
-          ],
-        ),
-        if (notes.isNotEmpty) ...[
-          const SizedBox(height: 24),
-          eyebrow('SHOW NOTES', c.fgMute),
-          const SizedBox(height: 8),
-          Text(
-            notes,
-            style: SunohType.sans(fontSize: 13, color: c.fgDim, height: 1.5),
           ),
         ],
-      ],
+      ),
     );
   }
 

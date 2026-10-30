@@ -1,30 +1,43 @@
-// Library tab — pinned shortcuts + filterable list of saved + liked.
+// Library tab — the user's own collections as one list, with shelves for
+// the music that lives elsewhere (this phone, a YouTube account, shows).
 //
-// Restored after a brief pared-down version: chips (All / Playlists / Albums
-// / Artists / Songs) + sort + grid/list toggle are back. The items list is
-// driven by REAL data now (LibraryStore-backed saved_albums /
-// saved_playlists / saved_artists / liked_songs) rather than the dummy
-// catalog. Pinned tiles: Liked Songs (count) + Recently Played (count).
+// Laid out as the prototype's Library: a title row, the filter chips, a sort
+// row, then a list whose first rows are the three fixed collections (Liked
+// songs, Recently played, Downloads — see library_rows.dart) followed by the
+// user's own playlists, so the top of the tab reads as one list. The shelves
+// come next and the saved items last, under a header of their own: under
+// "All" that list includes every liked song, and a shelf placed after it
+// would sit a thousand rows down.
+//
+// Everything is real data — the LibraryStore-backed saved albums, playlists,
+// artists and liked songs — never the placeholder catalog.
 
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:solar_icons/solar_icons.dart';
 
 import '../api/dto.dart';
 import '../data/models.dart';
+import '../data/user_playlist.dart';
+import '../overlays/playlist_name_sheet.dart';
 import '../providers/app_state_provider.dart';
-import '../providers/downloads_provider.dart';
 import '../providers/local_library_provider.dart';
 import '../providers/ytmusic_provider.dart';
 import '../router/router.dart';
 import '../state/app_state.dart';
 import '../theme/tokens.dart';
 import '../widgets/album_art.dart';
+import '../widgets/cover_hero.dart';
+import '../widgets/motion.dart';
 import '../widgets/ui.dart';
+import 'cover_tile.dart';
+import 'library_controls.dart';
 import 'library_device_section.dart';
+import 'library_filter.dart';
 import 'library_playlists.dart';
+import 'library_rows.dart';
+import 'library_saved.dart';
+import 'library_search_field.dart';
 import 'library_youtube_section.dart';
-import 'user_playlist_screen.dart';
 
 enum _LibFilter { all, playlists, albums, artists, songs }
 
@@ -35,6 +48,29 @@ extension on _LibFilter {
     _LibFilter.albums => 'Albums',
     _LibFilter.artists => 'Artists',
     _LibFilter.songs => 'Songs',
+  };
+
+  /// The header over the saved items, naming what the chip left in the list.
+  String get heading => switch (this) {
+    _LibFilter.all => 'Saved',
+    _LibFilter.playlists => 'Saved playlists',
+    _LibFilter.albums => 'Saved albums',
+    _LibFilter.artists => 'Followed artists',
+    _LibFilter.songs => 'Liked songs',
+  };
+
+  /// What the saved list says when the chip leaves nothing in it.
+  String get empty => switch (this) {
+    _LibFilter.all =>
+      'Save albums, playlists, or artists by tapping the heart on their page. Liked songs show up here too.',
+    _LibFilter.playlists =>
+      'No saved playlists yet. Tap the heart on a playlist to save it.',
+    _LibFilter.albums =>
+      'No saved albums yet. Tap the heart on an album to save it.',
+    _LibFilter.artists =>
+      'No followed artists yet. Tap the heart on an artist page to follow.',
+    _LibFilter.songs =>
+      'No liked songs yet. Tap the heart on any song to like it.',
   };
 }
 
@@ -47,642 +83,298 @@ class LibraryScreen extends ConsumerStatefulWidget {
 class _LibraryScreenState extends ConsumerState<LibraryScreen> {
   _LibFilter filter = _LibFilter.all;
   bool grid = false;
-  String sort = 'Recent'; // 'Recent' | 'A–Z'
+  String sort = 'Recents'; // 'Recents' | 'A–Z'
+
+  // The inline filter. `_query` is the folded text (see foldForSearch); the
+  // controller keeps what the user typed. Empty `_query` means not filtering.
+  bool _searching = false;
+  String _query = '';
+  final _searchCtl = TextEditingController();
+  final _searchFocus = FocusNode();
+  final _itemsMemo = LibraryListMemo<FeedItem>();
+  final _playlistsMemo = LibraryListMemo<UserPlaylist>();
+
+  @override
+  void dispose() {
+    _searchCtl.dispose();
+    _searchFocus.dispose();
+    super.dispose();
+  }
+
+  void _openSearch() => setState(() => _searching = true);
+
+  void _closeSearch() {
+    _searchCtl.clear();
+    _searchFocus.unfocus();
+    setState(() {
+      _searching = false;
+      _query = '';
+    });
+  }
 
   @override
   Widget build(BuildContext context) {
     final s = ref.watch(appStateProvider);
     final c = s.colors;
     final items = _itemsFor(s);
+    final playlists = _playlistsMemo.get([
+      s.userPlaylists,
+      _query,
+    ], () => filterLibraryPlaylists(s.userPlaylists, _query));
+    final filtering = _query.isNotEmpty;
 
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Padding(
-          padding: const EdgeInsets.fromLTRB(20, 12, 20, 0),
-          child: Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-            children: [
-              Text(
-                'Library',
-                style: SunohType.heading(
-                  fontSize: 28,
-                  color: c.fg,
-                  letterSpacing: -0.4,
-                ),
-              ),
-              Row(
-                children: [
-                  IconBtn(
-                    icon: SolarIconsOutline.magnifier,
-                    color: c.fgDim,
-                    size: 18,
-                    width: 32,
-                    height: 32,
-                    onTap: () {},
-                  ),
-                  IconBtn(
-                    icon: SolarIconsOutline.downloadMinimalistic,
-                    color: c.fgDim,
-                    size: 18,
-                    width: 32,
-                    height: 32,
-                    onTap: () => context.openSpotifyImport(),
-                  ),
-                  IconBtn(
-                    icon: SolarIconsOutline.addCircle,
-                    color: c.fgDim,
-                    size: 18,
-                    width: 32,
-                    height: 32,
-                    onTap: () async {
-                      final name = await promptForPlaylistName(context);
-                      if (name == null || name.isEmpty) return;
-                      if (!context.mounted) return;
-                      final p = await s.createUserPlaylist(name);
-                      if (context.mounted) {
-                        context.openUserPlaylist(p.id);
-                      }
-                    },
-                  ),
-                ],
-              ),
-            ],
-          ),
-        ),
-        // Filter chips — single horizontally-scrolling row.
-        SingleChildScrollView(
-          scrollDirection: Axis.horizontal,
-          padding: const EdgeInsets.fromLTRB(20, 14, 20, 10),
-          child: Row(
-            children: [
-              for (final f in _LibFilter.values)
-                Padding(
-                  padding: const EdgeInsets.only(right: 8),
-                  child: GestureDetector(
-                    onTap: () => setState(() => filter = f),
-                    child: AnimatedContainer(
-                      duration: const Duration(milliseconds: 150),
-                      padding: const EdgeInsets.symmetric(
-                        horizontal: 12,
-                        vertical: 6,
-                      ),
-                      decoration: BoxDecoration(
-                        color: f == filter ? c.fg : c.surface,
-                        borderRadius: BorderRadius.circular(999),
-                        border: f == filter
-                            ? null
-                            : Border.all(color: c.line, width: 0.5),
-                      ),
-                      child: Text(
-                        f.label,
-                        style: SunohType.sans(
-                          fontSize: 12,
-                          fontWeight: FontWeight.w500,
-                          color: f == filter ? c.bg : c.fgDim,
-                          letterSpacing: -0.1,
-                        ),
-                      ),
-                    ),
-                  ),
-                ),
-            ],
-          ),
-        ),
-        Padding(
-          padding: const EdgeInsets.fromLTRB(20, 6, 20, 16),
-          child: Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-            children: [
-              GestureDetector(
-                onTap: () =>
-                    setState(() => sort = sort == 'Recent' ? 'A–Z' : 'Recent'),
-                child: Row(
-                  children: [
-                    Icon(
-                      SolarIconsOutline.tuningSquare,
-                      size: 14,
-                      color: c.fgMute,
-                    ),
-                    const SizedBox(width: 6),
-                    eyebrow(
-                      'SORT · $sort',
-                      c.fgMute,
-                      size: 10,
-                      letterSpacing: 1.2,
-                    ),
-                  ],
-                ),
-              ),
-              Row(
-                children: [
-                  IconBtn(
-                    icon: SolarIconsOutline.list,
-                    color: !grid ? c.fg : c.fgMute,
-                    size: 16,
-                    width: 32,
-                    height: 32,
-                    background: !grid ? c.surface : null,
-                    onTap: () => setState(() => grid = false),
-                  ),
-                  const SizedBox(width: 4),
-                  IconBtn(
-                    icon: SolarIconsOutline.widget,
-                    color: grid ? c.fg : c.fgMute,
-                    size: 16,
-                    width: 32,
-                    height: 32,
-                    background: grid ? c.surface : null,
-                    onTap: () => setState(() => grid = true),
-                  ),
-                ],
-              ),
-            ],
-          ),
-        ),
-        // Pinned shortcuts — Liked Songs + Recently Played + Downloads.
-        // Each surfaces a real count and routes into its dedicated screen.
-        Padding(
-          padding: const EdgeInsets.fromLTRB(20, 0, 20, 22),
-          child: Row(
-            children: [
-              Expanded(
-                child: _PinnedTile(
-                  title: 'Liked Songs',
-                  sub:
-                      '${s.likedSongs.length} '
-                      '${s.likedSongs.length == 1 ? 'song' : 'songs'}',
-                  icon: SolarIconsBold.heart,
-                  gradient: [
-                    s.resolvedAccent.withValues(alpha: 0.85),
-                    s.resolvedAccent.withValues(alpha: 0.18),
-                  ],
-                  onTap: () => context.openLikedSongs(),
-                ),
-              ),
-              const SizedBox(width: 8),
-              Expanded(
-                child: _PinnedTile(
-                  title: 'Recently Played',
-                  sub: s.playedHistory.isEmpty
-                      ? 'No history yet'
-                      : '${s.playedHistory.length} '
-                            'recent ${s.playedHistory.length == 1 ? 'song' : 'songs'}',
-                  icon: SolarIconsOutline.clockCircle,
-                  gradient: const [Color(0xFF1D3A3A), Color(0xFF0E1818)],
-                  onTap: () => context.openRecentlyPlayed(),
-                ),
-              ),
-              const SizedBox(width: 8),
-              Expanded(
-                child: Consumer(
-                  builder: (ctx, innerRef, _) {
-                    // Use the live download list count so the subtitle
-                    // updates the moment a new download lands without
-                    // bouncing the whole library page through `s`.
-                    final dl = innerRef
-                        .watch(downloadEntriesProvider)
-                        .asData
-                        ?.value;
-                    final n = dl?.length ?? 0;
-                    return _PinnedTile(
-                      title: 'Downloads',
-                      sub: n == 0
-                          ? 'Tap a song to save'
-                          : '$n ${n == 1 ? 'song' : 'songs'}',
-                      icon: SolarIconsOutline.downloadMinimalistic,
-                      gradient: const [Color(0xFF2A1F3A), Color(0xFF13101C)],
-                      onTap: () => context.openDownloads(),
-                    );
-                  },
-                ),
-              ),
-            ],
-          ),
-        ),
-        // On-device music, previewed rather than linked — see
-        // LibraryDeviceSection for why covers earn their space here.
-        Consumer(
-          builder: (ctx, innerRef, _) => LibraryDeviceSection(
-            library: innerRef.watch(localLibraryProvider),
-            colors: c,
-          ),
-        ),
-        // A signed-in YouTube account's own shelves. Absent when signed out.
-        Consumer(
-          builder: (ctx, innerRef, _) => LibraryYouTubeSection(
-            sections:
-                innerRef.watch(ytMusicLibraryProvider).asData?.value ??
-                const <HomeSection>[],
-            colors: c,
-          ),
-        ),
-        if (s.userPlaylists.isNotEmpty) ...[
-          // Grid mode: horizontal carousel (existing strip).
-          // List mode: eyebrow + per-playlist rows that match the
-          // _ListRow visual below — so the "My playlists" bucket
-          // respects the same view toggle as everything else on the
-          // Library tab.
-          if (grid)
-            UserPlaylistsStrip(
-              playlists: s.userPlaylists,
+    // Each block arrives in turn (FadeSlideIn). The optional ones are keyed so
+    // a playlist appearing does not hand its neighbours' elements around and
+    // replay their entrance.
+    // Back closes the filter first rather than leaving the tab.
+    return PopScope(
+      canPop: !_searching,
+      onPopInvokedWithResult: (didPop, _) {
+        if (!didPop) _closeSearch();
+      },
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          if (_searching)
+            LibrarySearchRow(
               colors: c,
-              accent: s.resolvedAccent,
+              controller: _searchCtl,
+              focus: _searchFocus,
+              onChanged: (t) =>
+                  setState(() => _query = foldForSearch(t.trim())),
+              onClose: _closeSearch,
             )
           else
-            UserPlaylistsList(
-              playlists: s.userPlaylists,
-              colors: c,
-              accent: s.resolvedAccent,
+            FadeSlideIn(
+              child: LibraryTitleRow(
+                colors: c,
+                onNewPlaylist: () => _newPlaylist(s),
+                onSearch: _openSearch,
+              ),
             ),
-          const SizedBox(height: 18),
+          FadeSlideIn(
+            index: 1,
+            child: _FilterChips(
+              active: filter,
+              colors: c,
+              onChange: (f) => setState(() => filter = f),
+            ),
+          ),
+          FadeSlideIn(
+            index: 2,
+            child: LibrarySortRow(
+              sort: sort,
+              grid: grid,
+              colors: c,
+              onSort: () =>
+                  setState(() => sort = sort == 'Recents' ? 'A–Z' : 'Recents'),
+              onGrid: () => setState(() => grid = !grid),
+            ),
+          ),
+          // Fixed shortcuts and the device/YouTube/shows shelves are not
+          // searchable items, so they step aside while a query is active.
+          if (!filtering)
+            FadeSlideIn(
+              index: 3,
+              child: LibraryShortcuts(state: s, colors: c),
+            ),
+          if (playlists.isNotEmpty)
+            FadeSlideIn(
+              key: const ValueKey('playlists'),
+              index: 4,
+              child: grid
+                  ? UserPlaylistsStrip(
+                      playlists: playlists,
+                      colors: c,
+                      accent: s.resolvedAccent,
+                    )
+                  : UserPlaylistsList(
+                      playlists: playlists,
+                      colors: c,
+                      accent: s.resolvedAccent,
+                    ),
+            ),
+          // On-device music, previewed rather than linked — see
+          // LibraryDeviceSection for why covers earn their space here.
+          if (!filtering)
+            FadeSlideIn(
+              key: const ValueKey('device'),
+              index: 5,
+              child: Consumer(
+                builder: (ctx, innerRef, _) => LibraryDeviceSection(
+                  library: innerRef.watch(localLibraryProvider),
+                  colors: c,
+                ),
+              ),
+            ),
+          // A signed-in YouTube account's own shelves. Absent when signed out.
+          if (!filtering)
+            FadeSlideIn(
+              key: const ValueKey('youtube'),
+              index: 6,
+              child: Consumer(
+                builder: (ctx, innerRef, _) => LibraryYouTubeSection(
+                  sections:
+                      innerRef.watch(ytMusicLibraryProvider).asData?.value ??
+                      const <HomeSection>[],
+                  colors: c,
+                ),
+              ),
+            ),
+          if (!filtering && s.subscribedPodcasts.isNotEmpty)
+            FadeSlideIn(
+              key: const ValueKey('shows'),
+              index: 7,
+              child: _ShowsShelf(shows: s.subscribedPodcasts, colors: c),
+            ),
+          // Keyed on the filter as well, so a chip change brings the new list
+          // in the way the page arrived instead of swapping it in place.
+          // A matching playlist above already answers the query, so the saved
+          // list only shows its own "nothing matches" when it is the whole
+          // answer.
+          if (!filtering || items.isNotEmpty || playlists.isEmpty)
+            FadeSlideIn(
+              key: ValueKey(filter),
+              index: 8,
+              child: LibrarySavedList(
+                heading: filter.heading,
+                emptyMessage: filtering
+                    ? 'Nothing in your library matches ‘${_searchCtl.text.trim()}’'
+                    : filter.empty,
+                items: items,
+                grid: grid,
+                state: s,
+                colors: c,
+                onTap: _onItemTap,
+              ),
+            ),
+          const SizedBox(height: 20),
         ],
-        if (s.subscribedPodcasts.isNotEmpty) ...[
-          _SubscribedShowsStrip(shows: s.subscribedPodcasts, colors: c),
-          const SizedBox(height: 18),
-        ],
-        if (items.isEmpty)
-          _EmptyState(filter: filter, colors: c)
-        else if (grid)
-          _GridList(items: items, colors: c, onTap: _onItemTap)
-        else
-          for (final it in items)
-            _ListRow(item: it, colors: c, onTap: () => _onItemTap(it)),
-        const SizedBox(height: 20),
-      ],
+      ),
     );
   }
 
-  /// Items to render under the chips for the active filter, sorted per
-  /// the active sort key.
-  List<FeedItem> _itemsFor(AppState s) {
-    List<FeedItem> base;
-    switch (filter) {
-      case _LibFilter.all:
-        // Newest-first across the whole library, deduped by id+type so an
-        // album that's also queued doesn't appear twice. We append in
-        // the "natural" order each bucket wants (saved buckets are
-        // already newest-first via LibraryStore) and let the sort below
-        // re-sort if the user picked A-Z.
-        base = [
+  Future<void> _newPlaylist(AppState s) async {
+    final name = await promptForPlaylistName(context);
+    if (name == null || name.isEmpty || !mounted) return;
+    final p = await s.createUserPlaylist(name);
+    if (mounted) context.openUserPlaylist(p.id);
+  }
+
+  /// Items to render under the chips for the active filter, narrowed by the
+  /// search text and ordered per the active sort key. Memoised on the source
+  /// lists, chip, sort and query so build() does no sorting or matching.
+  List<FeedItem> _itemsFor(AppState s) => _itemsMemo.get(
+    [
+      s.savedAlbums,
+      s.savedPlaylists,
+      s.savedArtists,
+      s.likedSongs,
+      filter,
+      sort,
+      _query,
+    ],
+    () {
+      final base = switch (filter) {
+        // Appended in each bucket's natural (newest-first) order; the sort
+        // below re-orders for A-Z. Not deduped: the buckets are disjoint.
+        _LibFilter.all => [
           ...s.savedAlbums,
           ...s.savedPlaylists,
           ...s.savedArtists,
           ...s.likedSongs,
-        ];
-      case _LibFilter.playlists:
-        base = s.savedPlaylists;
-      case _LibFilter.albums:
-        base = s.savedAlbums;
-      case _LibFilter.artists:
-        base = s.savedArtists;
-      case _LibFilter.songs:
-        base = s.likedSongs;
-    }
-    if (sort == 'A–Z') {
-      final sorted = [
-        ...base,
+        ],
+        _LibFilter.playlists => s.savedPlaylists,
+        _LibFilter.albums => s.savedAlbums,
+        _LibFilter.artists => s.savedArtists,
+        _LibFilter.songs => s.likedSongs,
+      };
+      final hits = filterLibraryItems(base, _query);
+      if (sort != 'A–Z') return hits;
+      return [
+        ...hits,
       ]..sort((a, b) => a.title.toLowerCase().compareTo(b.title.toLowerCase()));
-      return sorted;
-    }
-    return base;
-  }
+    },
+  );
 
-  void _onItemTap(FeedItem item) {
-    final s = ref.read(appStateProvider);
-    if (item.type == 'song') {
-      s.playApiSong(item, sourceLabel: 'LIBRARY');
-      return;
-    }
-    if (item.type == 'album' ||
-        item.type == 'playlist' ||
-        item.type == 'artist') {
-      context.openRef(DetailRef(item.type, item.id, source: item.source));
+  void _onItemTap(FeedItem item, CoverHeroRef? hero) {
+    switch (item.type) {
+      case 'song':
+        ref.read(appStateProvider).playApiSong(item, sourceLabel: 'LIBRARY');
+      case 'album' || 'playlist' || 'artist':
+        final at = DetailRef(item.type, item.id, source: item.source);
+        context.openRef(at, hero: hero);
     }
   }
 }
 
-class _ListRow extends StatelessWidget {
-  const _ListRow({
-    required this.item,
+class _FilterChips extends StatelessWidget {
+  const _FilterChips({
+    required this.active,
     required this.colors,
-    required this.onTap,
+    required this.onChange,
   });
-  final FeedItem item;
+  final _LibFilter active;
   final SunohColors colors;
-  final VoidCallback onTap;
+  final ValueChanged<_LibFilter> onChange;
 
   @override
   Widget build(BuildContext context) {
-    final c = colors;
-    final isArtist = item.type == 'artist';
-    final isSong = item.type == 'song';
-    final sub = _subFor(item);
-    return GestureDetector(
-      onTap: onTap,
-      behavior: HitTestBehavior.opaque,
-      child: Padding(
-        padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 8),
-        child: Row(
-          children: [
-            SunohArt(
-              id: item.id,
-              imageUrl: item.artwork,
-              size: 50,
-              radius: isArtist ? 999 : (isSong ? 6 : 8),
-            ),
-            const SizedBox(width: 12),
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    item.title,
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                    style: SunohType.sans(
-                      fontSize: 14.5,
-                      fontWeight: FontWeight.w500,
-                      color: c.fg,
-                    ),
-                  ),
-                  if (sub.isNotEmpty) ...[
-                    const SizedBox(height: 2),
-                    Text(
-                      sub,
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                      style: SunohType.sans(fontSize: 11.5, color: c.fgMute),
-                    ),
-                  ],
-                ],
-              ),
+    return SingleChildScrollView(
+      scrollDirection: Axis.horizontal,
+      padding: const EdgeInsets.fromLTRB(16, 4, 16, 12),
+      child: Row(
+        children: [
+          for (final f in _LibFilter.values) ...[
+            if (f.index > 0) const SizedBox(width: 8),
+            SunohChip(
+              label: f.label,
+              selected: f == active,
+              colors: colors,
+              onTap: () => onChange(f),
             ),
           ],
-        ),
-      ),
-    );
-  }
-}
-
-class _GridList extends StatelessWidget {
-  const _GridList({
-    required this.items,
-    required this.colors,
-    required this.onTap,
-  });
-  final List<FeedItem> items;
-  final SunohColors colors;
-  final void Function(FeedItem) onTap;
-  @override
-  Widget build(BuildContext context) {
-    final c = colors;
-    return Padding(
-      padding: const EdgeInsets.fromLTRB(20, 0, 20, 20),
-      child: GridView.count(
-        crossAxisCount: 3,
-        shrinkWrap: true,
-        physics: const NeverScrollableScrollPhysics(),
-        crossAxisSpacing: 10,
-        mainAxisSpacing: 10,
-        childAspectRatio: 0.78,
-        children: [
-          for (final it in items)
-            GestureDetector(
-              onTap: () => onTap(it),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  AspectRatio(
-                    aspectRatio: 1,
-                    child: SunohArt(
-                      id: it.id,
-                      imageUrl: it.artwork,
-                      width: double.infinity,
-                      radius: it.type == 'artist' ? 999 : 6,
-                    ),
-                  ),
-                  const SizedBox(height: 6),
-                  Text(
-                    it.title,
-                    maxLines: 2,
-                    overflow: TextOverflow.ellipsis,
-                    style: SunohType.sans(
-                      fontSize: 11.5,
-                      fontWeight: FontWeight.w500,
-                      color: c.fg,
-                      height: 1.25,
-                    ),
-                  ),
-                ],
-              ),
-            ),
         ],
       ),
     );
   }
 }
 
-/// Subtitle picker — uses the FeedItem's displaySubtitle (which falls
-/// through artists → subtitle → kind label) but skips the literal
-/// "Song" / "Album" / etc. fallbacks so library rows don't read as
-/// broken under every entry.
-String _subFor(FeedItem item) {
-  final fromApi = (item.subtitle ?? '').trim();
-  if (fromApi.isNotEmpty) return fromApi;
-  final names = (item.artists ?? const <ApiArtistRef>[])
-      .map((a) => a.name.trim())
-      .where((n) => n.isNotEmpty)
-      .take(2)
-      .toList();
-  if (names.isNotEmpty) return names.join(', ');
-  switch (item.type) {
-    case 'song':
-      return 'Song';
-    case 'album':
-      return 'Album';
-    case 'playlist':
-      return 'Playlist';
-    case 'artist':
-      return 'Artist';
-    default:
-      return '';
-  }
-}
-
-class _EmptyState extends StatelessWidget {
-  const _EmptyState({required this.filter, required this.colors});
-  final _LibFilter filter;
-  final SunohColors colors;
-  @override
-  Widget build(BuildContext context) {
-    final c = colors;
-    final message = switch (filter) {
-      _LibFilter.all =>
-        'Save albums, playlists, or artists by tapping the heart on their page. Liked songs show up here too.',
-      _LibFilter.playlists =>
-        'No saved playlists yet. Tap the heart on a playlist to save it.',
-      _LibFilter.albums =>
-        'No saved albums yet. Tap the heart on an album to save it.',
-      _LibFilter.artists =>
-        'No followed artists yet. Tap the heart on an artist page to follow.',
-      _LibFilter.songs =>
-        'No liked songs yet. Tap the heart on any song to like it.',
-    };
-    return Padding(
-      padding: const EdgeInsets.fromLTRB(20, 24, 20, 24),
-      child: Text(
-        message,
-        style: SunohType.sans(fontSize: 12.5, color: c.fgMute, height: 1.5),
-      ),
-    );
-  }
-}
-
-class _PinnedTile extends StatelessWidget {
-  const _PinnedTile({
-    required this.title,
-    required this.sub,
-    required this.icon,
-    required this.gradient,
-    required this.onTap,
-  });
-  final String title;
-  final String sub;
-  final IconData icon;
-  final List<Color> gradient;
-  final VoidCallback onTap;
-
-  @override
-  Widget build(BuildContext context) {
-    return GestureDetector(
-      onTap: onTap,
-      child: Container(
-        height: 84,
-        padding: const EdgeInsets.fromLTRB(14, 12, 14, 12),
-        decoration: squircleDecoration(
-          radius: 14,
-          gradient: LinearGradient(
-            colors: gradient,
-            begin: Alignment.topLeft,
-            end: Alignment.bottomRight,
-          ),
-        ),
-        child: Row(
-          children: [
-            Icon(icon, size: 22, color: Colors.white.withValues(alpha: 0.95)),
-            const SizedBox(width: 12),
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: [
-                  Text(
-                    title,
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                    style: SunohType.sans(
-                      fontSize: 14,
-                      fontWeight: FontWeight.w600,
-                      color: Colors.white,
-                      letterSpacing: -0.1,
-                    ),
-                  ),
-                  const SizedBox(height: 4),
-                  eyebrow(
-                    sub,
-                    Colors.white.withValues(alpha: 0.6),
-                    size: 9,
-                    letterSpacing: 1.2,
-                    maxLines: 1,
-                  ),
-                ],
-              ),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-}
-
-/// Horizontal scroller of the user's playlists. Hidden when the list is
-/// empty (the "+" in the header is then the only entry point — no need
-/// to clutter the library with an empty section).
-class _SubscribedShowsStrip extends StatelessWidget {
-  const _SubscribedShowsStrip({required this.shows, required this.colors});
+/// Subscribed podcasts as a cover shelf. Only built when there are any.
+class _ShowsShelf extends StatelessWidget {
+  const _ShowsShelf({required this.shows, required this.colors});
   final List<FeedItem> shows;
   final SunohColors colors;
+
   @override
   Widget build(BuildContext context) {
-    final c = colors;
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Padding(
-          padding: const EdgeInsets.fromLTRB(20, 0, 20, 10),
-          child: eyebrow('MY SHOWS', c.fgMute, size: 10, letterSpacing: 1.4),
-        ),
-        SizedBox(
-          height: 158,
-          child: ListView.separated(
-            scrollDirection: Axis.horizontal,
-            padding: const EdgeInsets.symmetric(horizontal: 20),
-            itemCount: shows.length,
-            separatorBuilder: (_, _) => const SizedBox(width: 12),
-            itemBuilder: (context, i) {
-              final show = shows[i];
-              return GestureDetector(
-                onTap: () => context.openRef(
-                  DetailRef('podcast', show.id, source: show.source),
-                ),
-                behavior: HitTestBehavior.opaque,
-                child: SizedBox(
-                  width: 116,
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      squircleClip(
-                        radius: 10,
-                        child: SunohArt(
-                          id: show.id,
-                          imageUrl: show.artwork,
-                          size: 116,
-                          radius: 10,
-                        ),
-                      ),
-                      const SizedBox(height: 8),
-                      Text(
-                        show.title,
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                        style: SunohType.sans(
-                          fontSize: 13,
-                          fontWeight: FontWeight.w500,
-                          color: c.fg,
-                        ),
-                      ),
-                      if ((show.subtitle ?? '').isNotEmpty) ...[
-                        const SizedBox(height: 1),
-                        Text(
-                          show.subtitle!,
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
-                          style: SunohType.sans(fontSize: 11, color: c.fgMute),
-                        ),
-                      ],
-                    ],
-                  ),
-                ),
-              );
-            },
-          ),
+        const SizedBox(height: 30),
+        SectionHeader(title: 'My shows', colors: colors),
+        CoverShelf(
+          itemCount: shows.length,
+          itemBuilder: (context, i) {
+            final show = shows[i];
+            return CoverTile(
+              cover: SunohArt(
+                id: show.id,
+                imageUrl: show.artwork,
+                size: kCoverTileWidth,
+                radius: SunohRadius.tile,
+                shadow: false,
+              ),
+              title: show.title,
+              subtitle: show.subtitle,
+              colors: colors,
+              onTap: () => context.openRef(
+                DetailRef('podcast', show.id, source: show.source),
+              ),
+            );
+          },
         ),
       ],
     );
   }
 }
-
-/// Entry point to the on-device library. Deliberately unlike the pinned tiles
-/// above: those are shortcuts within the streaming library, this is a separate
-/// source, and the visual break is the point.

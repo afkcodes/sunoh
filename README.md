@@ -6,7 +6,7 @@
 interface.**
 
 YouTube Music, Gaana and Saavn behind a single search — plus the music already
-on your phone, podcasts, and audiobooks.
+on your phone, and podcasts.
 
 No ads. No analytics. No account of ours. Optional YouTube sign-in, kept on your phone.
 
@@ -93,7 +93,7 @@ itself and can install them in-app, so either route keeps you current.
 ### Android Auto
 
 Full browse and playback in the car: Downloads, Liked Songs, Recently Played
-and Playlists, plus the Music, Podcasts and Audiobooks feeds, radio stations,
+and Playlists, plus the Music and Podcasts feeds, radio stations,
 and voice search. Downloads lead deliberately — a car is where the network
 drops, and downloaded tracks are the only tier that survives it.
 
@@ -101,7 +101,7 @@ drops, and downloaded tracks are the only tier that survives it.
 
 - Liked songs, user playlists, recently played, and offline downloads.
 - Import your playlists from Spotify.
-- Podcasts and audiobooks alongside music.
+- Podcasts alongside music.
 
 ### Interface
 

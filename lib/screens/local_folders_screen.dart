@@ -23,8 +23,7 @@
 
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:go_router/go_router.dart';
-import 'package:solar_icons/solar_icons.dart';
+import 'package:remixicon/remixicon.dart';
 
 import '../api/local_media_channel.dart';
 import '../audio/local_library.dart';
@@ -32,7 +31,10 @@ import '../providers/app_state_provider.dart';
 import '../providers/local_library_provider.dart';
 import '../state/app_state.dart';
 import '../theme/tokens.dart';
+import '../widgets/motion.dart';
 import '../widgets/ui.dart';
+import 'pill_button.dart';
+import 'sub_page_bar.dart';
 
 class LocalFoldersScreen extends ConsumerStatefulWidget {
   const LocalFoldersScreen({super.key});
@@ -76,22 +78,37 @@ class _LocalFoldersScreenState extends ConsumerState<LocalFoldersScreen> {
       color: c.bg,
       child: Column(
         children: [
-          _Header(
+          SubPageBar(
+            title: 'Music folders',
             colors: c,
-            scanning: lib.isScanning,
-            canReset: !staged.isDefault,
-            onReset: () => setState(() => _staged = const FolderRules()),
+            actions: [
+              if (lib.isScanning)
+                Padding(
+                  padding: const EdgeInsets.all(12),
+                  child: SizedBox(
+                    width: 16,
+                    height: 16,
+                    child: CircularProgressIndicator(
+                      strokeWidth: 2,
+                      color: c.fgMute,
+                    ),
+                  ),
+                )
+              else if (!staged.isDefault)
+                PillButton(
+                  label: 'Reset',
+                  colors: c,
+                  height: 32,
+                  onTap: () => setState(() => _staged = const FolderRules()),
+                ),
+            ],
           ),
           Padding(
-            padding: const EdgeInsets.fromLTRB(20, 4, 20, 14),
+            padding: const EdgeInsets.fromLTRB(16, 16, 16, 8),
             child: Text(
               'Turn a folder off to leave it out. Everything inside it follows '
               'unless you turn one back on.',
-              style: SunohType.sans(
-                fontSize: 13,
-                color: c.fgMute,
-                height: 1.45,
-              ),
+              style: SunohType.sans(fontSize: 14, color: c.fgDim, height: 1.45),
             ),
           ),
           Expanded(
@@ -185,76 +202,6 @@ class _Row {
   final int depth;
 }
 
-class _Header extends StatelessWidget {
-  const _Header({
-    required this.colors,
-    required this.scanning,
-    required this.canReset,
-    required this.onReset,
-  });
-
-  final SunohColors colors;
-  final bool scanning;
-  final bool canReset;
-  final VoidCallback onReset;
-
-  @override
-  Widget build(BuildContext context) {
-    final c = colors;
-    return Padding(
-      padding: EdgeInsets.fromLTRB(
-        20,
-        MediaQuery.of(context).padding.top + 20,
-        20,
-        6,
-      ),
-      child: Row(
-        children: [
-          IconBtn(
-            icon: SolarIconsOutline.altArrowLeft,
-            color: c.fgDim,
-            size: 18,
-            onTap: () => context.pop(),
-          ),
-          const SizedBox(width: 4),
-          Expanded(
-            child: Text(
-              'Music folders',
-              style: SunohType.heading(
-                fontSize: 24,
-                color: c.fg,
-                letterSpacing: -0.4,
-              ),
-            ),
-          ),
-          if (scanning)
-            SizedBox(
-              width: 16,
-              height: 16,
-              child: CircularProgressIndicator(strokeWidth: 2, color: c.fgMute),
-            )
-          else if (canReset)
-            GestureDetector(
-              onTap: onReset,
-              behavior: HitTestBehavior.opaque,
-              child: Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 6),
-                child: Text(
-                  'Reset',
-                  style: SunohType.sans(
-                    fontSize: 13,
-                    fontWeight: FontWeight.w600,
-                    color: c.accent,
-                  ),
-                ),
-              ),
-            ),
-        ],
-      ),
-    );
-  }
-}
-
 /// The device itself, at the top of the tree. Every folder falls back to this,
 /// including folders that do not exist yet — which is the whole reason it is a
 /// row you can see and set rather than a hidden default.
@@ -274,11 +221,11 @@ class _DeviceRow extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final c = colors;
-    return GestureDetector(
+    return Pressable(
+      scale: 0.99,
       onTap: onTap,
-      behavior: HitTestBehavior.opaque,
       child: Padding(
-        padding: const EdgeInsets.fromLTRB(20, 10, 20, 14),
+        padding: const EdgeInsets.fromLTRB(16, 12, 16, 12),
         child: Row(
           children: [
             _Check(on: on, explicit: true, colors: c),
@@ -291,9 +238,10 @@ class _DeviceRow extends StatelessWidget {
                   Text(
                     'All music on this device',
                     style: SunohType.sans(
-                      fontSize: 14,
+                      fontSize: 15,
                       fontWeight: FontWeight.w600,
                       color: c.fg,
+                      height: 1.3,
                     ),
                   ),
                   const SizedBox(height: 2),
@@ -301,7 +249,7 @@ class _DeviceRow extends StatelessWidget {
                     on
                         ? 'New folders are included'
                         : 'New folders are left out',
-                    style: SunohType.sans(fontSize: 11.5, color: c.fgMute),
+                    style: SunohType.sans(fontSize: 13, color: c.fgDim),
                   ),
                 ],
               ),
@@ -309,7 +257,7 @@ class _DeviceRow extends StatelessWidget {
             const SizedBox(width: 10),
             Text(
               '$tracks',
-              style: SunohType.mono(fontSize: 12, color: c.fgDim),
+              style: SunohType.mono(fontSize: 12.5, color: c.fgDim),
             ),
           ],
         ),
@@ -337,17 +285,17 @@ class _FolderRow extends StatelessWidget {
   Widget build(BuildContext context) {
     final c = colors;
     final folder = row.folder;
-    return GestureDetector(
+    return Pressable(
+      scale: 0.99,
       onTap: onTap,
-      behavior: HitTestBehavior.opaque,
       child: Padding(
         // Indent is capped: a deeply nested folder still needs room for its
         // name, and past a few levels the extra offset stops meaning anything.
         padding: EdgeInsets.fromLTRB(
-          20.0 + 18 * (row.depth + 1).clamp(0, 4),
-          10,
-          20,
-          10,
+          16.0 + 18 * (row.depth + 1).clamp(0, 4),
+          9,
+          16,
+          9,
         ),
         child: Row(
           children: [
@@ -363,9 +311,10 @@ class _FolderRow extends StatelessWidget {
                     maxLines: 1,
                     overflow: TextOverflow.ellipsis,
                     style: SunohType.sans(
-                      fontSize: 14,
+                      fontSize: 15,
                       fontWeight: FontWeight.w500,
                       color: on ? c.fg : c.fgMute,
+                      height: 1.3,
                     ),
                   ),
                   const SizedBox(height: 2),
@@ -376,7 +325,7 @@ class _FolderRow extends StatelessWidget {
                     folderLocation(folder.path),
                     maxLines: 1,
                     overflow: TextOverflow.ellipsis,
-                    style: SunohType.sans(fontSize: 11.5, color: c.fgMute),
+                    style: SunohType.sans(fontSize: 13, color: c.fgDim),
                   ),
                 ],
               ),
@@ -384,7 +333,7 @@ class _FolderRow extends StatelessWidget {
             const SizedBox(width: 10),
             Text(
               '${folder.trackCount}',
-              style: SunohType.mono(fontSize: 12, color: c.fgMute),
+              style: SunohType.mono(fontSize: 12.5, color: c.fgMute),
             ),
           ],
         ),
@@ -415,30 +364,23 @@ class _Check extends StatelessWidget {
       curve: Curves.easeOut,
       width: 22,
       height: 22,
+      alignment: Alignment.center,
+      // Off is a filled well rather than a ring, like every other surface.
+      // On swaps the well for a filled check-circle, the same weight as the well.
       decoration: BoxDecoration(
-        color: on
-            ? (explicit ? c.accent : c.accent.withValues(alpha: 0.28))
-            : Colors.transparent,
+        color: on ? Colors.transparent : c.surface2,
         shape: BoxShape.circle,
-        border: on
-            ? null
-            : Border.all(
-                color: explicit ? c.fgMute : c.line,
-                width: explicit ? 1.8 : 1.5,
-              ),
       ),
       child: on
           ? Icon(
-              Icons.check_rounded,
-              size: 15,
-              color: explicit ? c.onAccent : c.fgDim,
+              RemixIcons.checkbox_circle_fill,
+              size: 24,
+              color: explicit ? c.accent : c.accent.withValues(alpha: 0.45),
             )
           // A folder turned off here gets a mark of its own, so a deliberate
           // exclusion is not mistaken for one that just follows its parent.
           : (explicit
-                ? Center(
-                    child: Container(width: 9, height: 1.8, color: c.fgMute),
-                  )
+                ? Container(width: 9, height: 1.8, color: c.fgMute)
                 : null),
     );
   }
@@ -463,35 +405,24 @@ class _ApplyBar extends StatelessWidget {
     final c = colors;
     return Container(
       margin: const EdgeInsets.fromLTRB(16, 8, 16, 148),
-      padding: const EdgeInsets.fromLTRB(16, 12, 12, 12),
+      padding: const EdgeInsets.fromLTRB(14, 12, 12, 12),
       decoration: squircleDecoration(
-        radius: 16,
+        radius: SunohRadius.card,
         color: c.surface,
-        borderColor: c.line,
       ),
       child: Row(
         children: [
           Expanded(
             child: Text(
               'Your library will be rescanned.',
-              style: SunohType.sans(fontSize: 12.5, color: c.fgMute),
+              style: SunohType.sans(fontSize: 13, color: c.fgDim),
             ),
           ),
-          GestureDetector(
+          PillButton(
+            label: busy ? 'Applying…' : 'Apply',
+            colors: c,
+            primary: true,
             onTap: busy ? null : onApply,
-            behavior: HitTestBehavior.opaque,
-            child: Container(
-              padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 10),
-              decoration: squircleDecoration(radius: 999, color: c.accent),
-              child: Text(
-                busy ? 'Applying…' : 'Apply',
-                style: SunohType.sans(
-                  fontSize: 13,
-                  fontWeight: FontWeight.w600,
-                  color: c.onAccent,
-                ),
-              ),
-            ),
           ),
         ],
       ),

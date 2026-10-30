@@ -59,33 +59,30 @@ class LyricInterlude extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final end = endMs;
-    // At rest: three dim dots, no painter and nothing listening.
-    if (!active || end == null || end <= startMs) {
-      return Padding(
-        padding: const EdgeInsets.symmetric(vertical: 14),
-        child: _InterludeDots(
-          color: colors.fg.withValues(alpha: 0.18),
-          filled: 0,
-        ),
-      );
-    }
+    // At rest the three dots take the receded lines' ink, fgMute, with no
+    // painter and nothing listening. Playing, they take the voice's ink and
+    // fill in turn.
+    final Widget dots = !active || end == null || end <= startMs
+        ? _InterludeDots(color: colors.fgMute, filled: 3)
+        : ValueListenableBuilder<int>(
+            valueListenable: clock,
+            builder: (context, positionMs, _) {
+              final through = ((positionMs - startMs) / (end - startMs)).clamp(
+                0.0,
+                1.0,
+              );
+              return _InterludeDots(
+                color: colors.fg,
+                // Rebuilt per frame but only three circles wide, and only
+                // while an interlude is actually playing — a few seconds a
+                // song.
+                filled: (through * 3).floor().clamp(0, 3),
+              );
+            },
+          );
     return Padding(
       padding: const EdgeInsets.symmetric(vertical: 14),
-      child: ValueListenableBuilder<int>(
-        valueListenable: clock,
-        builder: (context, positionMs, _) {
-          final through = ((positionMs - startMs) / (end - startMs)).clamp(
-            0.0,
-            1.0,
-          );
-          return _InterludeDots(
-            color: colors.fg.withValues(alpha: 0.6),
-            // Rebuilt per frame but only three circles wide, and only while an
-            // interlude is actually playing — which is a few seconds a song.
-            filled: (through * 3).floor().clamp(0, 3),
-          );
-        },
-      ),
+      child: dots,
     );
   }
 }
@@ -154,7 +151,7 @@ class LyricCredit extends StatelessWidget {
     padding: const EdgeInsets.only(top: 28),
     child: Text(
       'Lyrics from ${source.label}',
-      style: SunohType.sans(fontSize: 11.5, color: colors.fgMute),
+      style: SunohType.sans(fontSize: 12, color: colors.fgMute),
     ),
   );
 }
@@ -179,13 +176,13 @@ class LyricsHint extends StatelessWidget {
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            Text(label, style: SunohType.heading(fontSize: 22, color: c.fgDim)),
+            Text(label, style: SunohType.heading(fontSize: 22, color: c.fg)),
             if (detail != null) ...[
-              const SizedBox(height: 10),
+              const SizedBox(height: 8),
               Text(
                 detail!,
                 textAlign: TextAlign.center,
-                style: SunohType.sans(fontSize: 13, color: c.fgMute),
+                style: SunohType.sans(fontSize: 14, color: c.fgDim),
               ),
             ],
           ],

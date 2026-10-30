@@ -1,6 +1,6 @@
-// The Music / Podcasts / Audiobooks home feeds, as Android Auto browse nodes.
+// The Music / Podcasts home feeds, as Android Auto browse nodes.
 //
-// These mirror the three top tabs of the phone's Home screen. Each is a list
+// These mirror the two top tabs of the phone's Home screen. Each is a list
 // of editorial sections ("New releases", "Trending"), and each section is a
 // list of rows the car can either play or drill into.
 //
@@ -20,15 +20,14 @@ import '../api/dto.dart';
 import '../api/sunoh_api.dart';
 import 'auto_catalog.dart';
 
-/// The three home feeds, in the order the phone shows them.
-enum AutoFeed { music, podcasts, audiobooks }
+/// The home feeds, in the order the phone shows them.
+enum AutoFeed { music, podcasts }
 
 extension AutoFeedX on AutoFeed {
   String get id => '$kAutoFeedPrefix$name';
   String get title => switch (this) {
     AutoFeed.music => 'Music',
     AutoFeed.podcasts => 'Podcasts',
-    AutoFeed.audiobooks => 'Audiobooks',
   };
 }
 
@@ -48,14 +47,14 @@ class AutoFeeds {
   /// Sections per feed, cached for the life of the service.
   ///
   /// A car reconnect re-walks the whole tree, and these are the most
-  /// expensive nodes here — three network round trips, on a connection that
+  /// expensive nodes here — a network round trip each, on a connection that
   /// may be moving at speed. Holding them keeps a re-browse instant.
   final Map<AutoFeed, List<HomeSection>> _sections = {};
 
   static bool isFeed(String id) => id.startsWith(kAutoFeedPrefix);
   static bool isSection(String id) => id.startsWith(kAutoSectionPrefix);
 
-  /// The three feed rows, for the root.
+  /// The feed rows, for the root.
   List<MediaItem> feedTabs() => [
     for (final f in AutoFeed.values)
       MediaItem(
@@ -127,7 +126,6 @@ class AutoFeeds {
       final sections = switch (feed) {
         AutoFeed.music => await api.fetchHome(languages: languages?.call()),
         AutoFeed.podcasts => await api.fetchPodcastHome(),
-        AutoFeed.audiobooks => await api.fetchAudiobookHome(),
       };
       _sections[feed] = sections;
       return sections;

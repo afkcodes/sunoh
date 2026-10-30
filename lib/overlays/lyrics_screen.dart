@@ -1,28 +1,33 @@
-// Karaoke lyrics overlay: active-line highlight, a word-by-word sweep where
-// the source gave word timings, and auto-scroll.
+// Karaoke lyrics page: the line being sung in ink and the rest receded, a
+// word-by-word sweep where the source gave word timings, and auto-scroll.
 //
 // Lyrics are looked up across every source in `lib/api/lyrics/`, keyed by the
 // currently playing API song's title + artist + duration. When there's no API
 // song (dummy/local catalog tracks, the cold-launch landing track) we fall
 // back to the bundled `kLyrics` map so the screen still demos.
 //
-// This file is the sheet's chrome. The list itself is `lyrics_body.dart`.
+// This file is the page's chrome: the player's header and the player's
+// colour, so opening lyrics reads as turning the player over rather than as a
+// new screen. The colour and the scrims that match it are
+// `lyrics_backdrop.dart`; the list itself is `lyrics_body.dart`.
 
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
-import 'package:solar_icons/solar_icons.dart';
+import 'package:remixicon/remixicon.dart';
 
 import '../api/dto.dart';
 import '../audio/lyrics_clock.dart';
 import '../data/catalog.dart';
 import '../providers/app_state_provider.dart';
 import '../providers/lyrics_provider.dart';
+import '../providers/palette_provider.dart';
 import '../share/share_link.dart';
 import '../theme/tokens.dart';
-import '../widgets/album_art.dart';
+import '../widgets/motion.dart';
 import '../widgets/ui.dart';
+import 'lyrics_backdrop.dart';
 import 'lyrics_body.dart';
 import 'lyrics_parts.dart';
 
@@ -32,20 +37,13 @@ class LyricsScreen extends ConsumerStatefulWidget {
   ConsumerState<LyricsScreen> createState() => _LyricsScreenState();
 }
 
-/// The accent wash over the sheet: how strong it starts, and how far down it
-/// has faded to nothing. The scrim at the top of the lyric list has to
-/// reproduce this exactly at its own height, so both live here rather than
-/// inline in the one place that used to need them.
-const double _kTintAlpha = 0.22;
-const double _kTintStop = 0.55;
-
 class _LyricsScreenState extends ConsumerState<LyricsScreen>
     with SingleTickerProviderStateMixin {
   final controller = ScrollController();
 
   /// Milliseconds, running at vsync — the whole reason word timing is
-  /// possible. Lives for the length of the sheet only; nothing else in the app
-  /// needs a clock this fine, and one running behind a closed sheet would be a
+  /// possible. Lives for the length of the page only; nothing else in the app
+  /// needs a clock this fine, and one running behind a closed page would be a
   /// frame callback for nothing.
   LyricsClock? _clock;
 
@@ -66,7 +64,7 @@ class _LyricsScreenState extends ConsumerState<LyricsScreen>
       );
       return;
     }
-    // No engine behind the sheet — the bundled demo lyrics on a dummy track.
+    // No engine behind the page — the bundled demo lyrics on a dummy track.
     // The 1 Hz tick is all there is, and line-synced demo text is all it has
     // to drive.
     _tick = state.positionTick;
@@ -103,141 +101,91 @@ class _LyricsScreenState extends ConsumerState<LyricsScreen>
   Widget build(BuildContext context) {
     final s = ref.watch(appStateProvider);
     final c = s.colors;
-    final accent = s.resolvedAccent;
     final track = s.current;
     final apiSong = s.currentApiSong;
+
+    // The artwork's own accent, as the player takes it; the user's accent
+    // while the palette is loading or when there is no artwork.
+    final url = apiSong?.artwork ?? '';
+    final palette = url.isEmpty
+        ? null
+        : ref.watch(artPaletteProvider(url)).value;
+    final tone = s.themedAccent(palette?.accent ?? s.resolvedAccent);
 
     final query = _queryFor(apiSong);
     // No API song (dummy/local catalog) → keep the bundled lyrics demo.
     final fallbackLines = kLyrics[track.id] ?? kLyrics['t01']!;
 
-    // Opaque base + soft accent tint at the top edge. The previous
-    // gradient leaned on the route's transparent background, so the
-    // expanded player bled through and the sheet read as smoky. Layer
-    // the tint over an opaque c.bg so the page is its own thing.
+    final list = query == null
+        ? LyricsBody(
+            colors: c,
+            lines: fallbackLines,
+            synced: true,
+            controller: controller,
+            clock: _positionMs,
+            onSeek: _seekTo,
+          )
+        : _LiveLyrics(
+            query: query,
+            colors: c,
+            controller: controller,
+            clock: _positionMs,
+            onSeek: _seekTo,
+          );
+
     return ColoredBox(
       color: c.bg,
-      child: DecoratedBox(
-        decoration: BoxDecoration(
-          gradient: LinearGradient(
-            begin: Alignment.topCenter,
-            end: Alignment.bottomCenter,
-            colors: [
-              accent.withValues(alpha: _kTintAlpha),
-              Colors.transparent,
-            ],
-            stops: const [0, _kTintStop],
-          ),
-        ),
-        child: LayoutBuilder(
-          builder: (context, box) {
-            final sheetHeight = box.maxHeight;
-            return SafeArea(
+      child: LayoutBuilder(
+        builder: (context, box) => Stack(
+          children: [
+            Positioned.fill(
+              child: LyricsBackdrop(tone: tone, bg: c.bg),
+            ),
+            // Bottom left open: the list runs under the navigation bar and
+            // fades out there, rather than stopping short of it on a hard
+            // edge.
+            SafeArea(
+              bottom: false,
               child: Column(
                 children: [
-                  Padding(
-                    padding: const EdgeInsets.fromLTRB(20, 12, 20, 8),
-                    child: Row(
-                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                      children: [
-                        IconBtn(
-                          icon: SolarIconsOutline.altArrowDown,
-                          color: c.fgDim,
-                          size: 22,
-                          onTap: () => context.pop(),
-                        ),
-                        eyebrow('LYRICS', c.fgMute),
-                        IconBtn(
-                          icon: SolarIconsOutline.share,
-                          color: c.fgDim,
-                          size: 18,
-                          onTap: () {
-                            // Lyrics overlay is bound to the currently playing
-                            // song. Use the API song (real id + source) when
-                            // available; fall back silently if the queue is a
-                            // dummy/local entry with no shareable identity.
-                            if (apiSong == null) return;
-                            shareSunohLink(
-                              kind: 'song',
-                              id: apiSong.id,
-                              title: apiSong.title,
-                              subtitle:
-                                  apiSong.displaySubtitle ?? apiSong.subtitle,
-                              source: apiSong.source,
-                            );
-                          },
-                        ),
-                      ],
-                    ),
-                  ),
-                  Padding(
-                    padding: const EdgeInsets.fromLTRB(20, 8, 20, 20),
-                    child: Row(
-                      children: [
-                        SunohArt(
-                          id: apiSong?.id ?? track.id,
-                          imageUrl: apiSong?.artwork,
-                          size: 44,
-                          radius: 6,
-                        ),
-                        const SizedBox(width: 12),
-                        Expanded(
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              Text(
-                                track.title,
-                                style: SunohType.sans(
-                                  fontSize: 13.5,
-                                  fontWeight: FontWeight.w500,
-                                  color: c.fg,
-                                ),
-                              ),
-                              const SizedBox(height: 1),
-                              Text(
-                                track.artist,
-                                style: SunohType.sans(
-                                  fontSize: 12,
-                                  color: c.fgMute,
-                                ),
-                              ),
-                            ],
-                          ),
-                        ),
-                      ],
+                  FadeSlideIn(
+                    child: _Header(
+                      title: track.title,
+                      artist: track.artist,
+                      colors: c,
+                      onShare: apiSong == null ? null : () => _share(apiSong),
                     ),
                   ),
                   Expanded(
-                    child: _FadedEdges(
-                      colors: c,
-                      accent: accent,
-                      sheetHeight: sheetHeight,
-                      child: query == null
-                          ? LyricsBody(
-                              colors: c,
-                              lines: fallbackLines,
-                              synced: true,
-                              controller: controller,
-                              clock: _positionMs,
-                              onSeek: _seekTo,
-                            )
-                          : _LiveLyrics(
-                              query: query,
-                              colors: c,
-                              controller: controller,
-                              clock: _positionMs,
-                              onSeek: _seekTo,
-                            ),
+                    child: FadeSlideIn(
+                      index: 1,
+                      child: LyricsFadedEdges(
+                        tone: tone,
+                        bg: c.bg,
+                        pageHeight: box.maxHeight,
+                        child: list,
+                      ),
                     ),
                   ),
                 ],
               ),
-            );
-          },
+            ),
+          ],
         ),
       ),
     );
   }
+
+  /// The lyrics page is bound to the currently playing song, so share that.
+  /// Only an API song has an identity worth sharing; a dummy/local entry has
+  /// no share action at all.
+  static void _share(FeedItem song) => shareSunohLink(
+    kind: 'song',
+    id: song.id,
+    title: song.title,
+    subtitle: song.displaySubtitle ?? song.subtitle,
+    source: song.source,
+  );
 
   /// Build a [LyricsQuery] from the currently-playing API song. Returns
   /// null when there isn't enough metadata to attempt a lookup — the UI
@@ -272,6 +220,76 @@ class _LyricsScreenState extends ConsumerState<LyricsScreen>
     final raw = (song.duration ?? '').trim();
     if (raw.isEmpty) return null;
     return int.tryParse(raw);
+  }
+}
+
+/// The player's header row: close on the left, what is playing in the middle
+/// under a "Lyrics" eyebrow, share on the right.
+///
+/// The cover that used to sit in a row under the header is gone — the page is
+/// already the cover's colour, and the title and artist it carried are here.
+class _Header extends StatelessWidget {
+  const _Header({
+    required this.title,
+    required this.artist,
+    required this.colors,
+    required this.onShare,
+  });
+
+  final String title;
+  final String artist;
+  final SunohColors colors;
+  final VoidCallback? onShare;
+
+  @override
+  Widget build(BuildContext context) {
+    final c = colors;
+    return SizedBox(
+      height: 56,
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 8),
+        child: Row(
+          children: [
+            IconBtn(
+              icon: RemixIcons.arrow_down_s_line,
+              color: c.fg,
+              size: 24,
+              onTap: () => context.pop(),
+            ),
+            const SizedBox(width: 8),
+            Expanded(
+              child: Column(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  eyebrow('Lyrics', c.fgDim, letterSpacing: 0.8),
+                  const SizedBox(height: 2),
+                  Text(
+                    artist.isEmpty ? title : '$title · $artist',
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    textAlign: TextAlign.center,
+                    style: SunohType.sans(
+                      fontSize: 13.5,
+                      fontWeight: FontWeight.w600,
+                      color: c.fg,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            const SizedBox(width: 8),
+            // Kept in place, if inert, when there is nothing to share, so the
+            // title stays centred on the page.
+            IconBtn(
+              icon: RemixIcons.share_forward_line,
+              color: onShare == null ? c.fgMute : c.fg,
+              size: 22,
+              onTap: onShare,
+            ),
+          ],
+        ),
+      ),
+    );
   }
 }
 
@@ -327,128 +345,4 @@ class _LiveLyrics extends ConsumerWidget {
       },
     );
   }
-}
-
-/// Softens the top and bottom of the lyric list so lines dissolve into the
-/// sheet instead of being cut off mid-stroke at the header.
-///
-/// Two gradient scrims painted over the list, not a [ShaderMask] over it. The
-/// mask is the tidier tool and the wrong one here: it puts a layer the height
-/// of the whole list into every frame the list scrolls, which is the sort of
-/// thing this GPU is worst at. A scrim is one gradient rect and no layer.
-///
-/// The cost of that choice is that a scrim has to *match* what it fades into
-/// rather than erasing it — paint the wrong colour and the fade reads as a
-/// band across the top of the list rather than as nothing at all. Which is
-/// what a guessed accent alpha did: measured against the real backdrop it was
-/// eleven levels of red too bright, and the seam was visible.
-///
-/// So it isn't guessed. The sheet's wash is a known gradient over a known
-/// height ([_kTintAlpha] fading out by [_kTintStop]), and this widget is
-/// handed that height, so the tint at its own top edge is arithmetic. Paint a
-/// colour over itself and it disappears at any alpha, which is exactly what a
-/// scrim needs.
-class _FadedEdges extends StatelessWidget {
-  const _FadedEdges({
-    required this.colors,
-    required this.accent,
-    required this.sheetHeight,
-    required this.child,
-  });
-
-  final SunohColors colors;
-  final Color accent;
-
-  /// Height of the box the sheet's gradient is painted over.
-  final double sheetHeight;
-
-  final Widget child;
-
-  /// The colour the sheet is painting at [y] down its own gradient.
-  ///
-  /// Reproduced by lerping the same two stops the gradient has, rather than
-  /// by fading the accent's alpha — which is what the first attempt did, and
-  /// why the fade still showed as a band. The second stop is
-  /// `Colors.transparent`, and transparent is transparent *black*: the wash
-  /// darkens towards black as it thins, so accent-at-lower-alpha stays too
-  /// warm and too bright the whole way down. Measured, the scrim was painting
-  /// the sheet's full-strength colour a third of the way down the screen.
-  Color _sheetColourAt(double y) {
-    if (sheetHeight <= 0) return colors.bg;
-    final through = (y / (sheetHeight * _kTintStop)).clamp(0.0, 1.0);
-    final wash = Color.lerp(
-      accent.withValues(alpha: _kTintAlpha),
-      Colors.transparent,
-      through,
-    )!;
-    return Color.alphaBlend(wash, colors.bg);
-  }
-
-  @override
-  Widget build(BuildContext context) => LayoutBuilder(
-    builder: (context, box) {
-      // This widget fills what is left under the header, so its own top edge
-      // sits that far down the sheet.
-      final top = sheetHeight - box.maxHeight;
-      final atTop = _sheetColourAt(top);
-      final atBottom = _sheetColourAt(sheetHeight);
-
-      return Stack(
-        children: [
-          Positioned.fill(child: child),
-          // Ignoring pointers matters: a tap on a faded line still has to
-          // reach the line, now that tapping one seeks to it.
-          _Scrim(color: atTop, height: _kTopFade, fromTop: true),
-          _Scrim(color: atBottom, height: _kBottomFade, fromTop: false),
-        ],
-      );
-    },
-  );
-}
-
-/// Deep enough that a line dissolves over several of its own rows rather than
-/// stepping out over a few pixels — the fade being short is half of what made
-/// the old one read as an edge.
-const double _kTopFade = 76;
-const double _kBottomFade = 104;
-
-class _Scrim extends StatelessWidget {
-  const _Scrim({
-    required this.color,
-    required this.height,
-    required this.fromTop,
-  });
-
-  final Color color;
-  final double height;
-  final bool fromTop;
-
-  @override
-  Widget build(BuildContext context) => Positioned(
-    top: fromTop ? 0 : null,
-    bottom: fromTop ? null : 0,
-    left: 0,
-    right: 0,
-    height: height,
-    child: IgnorePointer(
-      child: DecoratedBox(
-        decoration: BoxDecoration(
-          gradient: LinearGradient(
-            begin: fromTop ? Alignment.topCenter : Alignment.bottomCenter,
-            end: fromTop ? Alignment.bottomCenter : Alignment.topCenter,
-            // Eased rather than linear. A straight ramp gives away where it
-            // starts, because alpha falls fastest exactly at the opaque end;
-            // holding it there and letting go slowly puts the visible part of
-            // the change in the middle, where there is no edge to notice.
-            colors: [
-              color,
-              color.withValues(alpha: 0.72),
-              color.withValues(alpha: 0),
-            ],
-            stops: const [0, 0.42, 1],
-          ),
-        ),
-      ),
-    ),
-  );
 }

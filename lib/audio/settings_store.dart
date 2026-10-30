@@ -52,11 +52,7 @@ class SavedPlayback {
     this.ytLanguage,
   });
 
-  /// 'auto' / 'high' / 'data' / 'lossless'.
-  ///
-  /// 'lossless' adds a hi-res tier ahead of the usual sources and otherwise
-  /// behaves like 'high'. Deliberately a choice rather than a default: a
-  /// 24-bit/96 kHz track is roughly 96 MB against ~10 MB for the usual stream.
+  /// 'auto' / 'high' / 'data'.
   final String? streamQuality;
 
   /// Persisted as the `LoopMode.name` ('off' / 'all' / 'one'). Null on
@@ -320,6 +316,10 @@ class SettingsStore {
     debugPrint('[settings-store] saved playback ${map.keys.join(",")}');
   }
 
+  /// 'lossless' (a removed tier) may still be on disk: read it as 'high', so
+  /// the picker shows a real option rather than nothing selected.
+  static String? _migrateQuality(String? v) => v == 'lossless' ? 'high' : v;
+
   Future<SavedPlayback?> loadPlayback() async {
     try {
       final box = await _box();
@@ -328,7 +328,7 @@ class SettingsStore {
           ? langsRaw.whereType<String>().toList()
           : null;
       return SavedPlayback(
-        streamQuality: box.get(_kStreamQuality) as String?,
+        streamQuality: _migrateQuality(box.get(_kStreamQuality) as String?),
         repeatMode: box.get(_kRepeatMode) as String?,
         languages: langs,
         endlessAutoplay: box.get(_kEndlessAutoplay) as bool?,

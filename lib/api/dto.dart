@@ -248,6 +248,12 @@ class FeedItem {
   /// when the embedded list is present.
   final List<ApiImage> mediaUrls;
 
+  /// True for an entry saved by a build that still had audiobooks. Persisted
+  /// queues, history and library buckets are filtered with it on load: the
+  /// feature is gone, so nothing can open or resolve these any more.
+  bool get isRetiredAudiobook =>
+      type == 'audiobook' || type == 'audiobook_category' || type == 'book';
+
   /// Subtitle to show under the title on a card. Falls through:
   /// explicit subtitle → joined artist names → type-specific metadata
   /// (track count, language, release year) → a sentence-cased type label.
@@ -982,71 +988,4 @@ class SpotifyImportResult {
       items: items,
     );
   }
-}
-
-/// Audiobook detail = book metadata + chapter playlist. Returned by
-/// `/audiobooks/:slug`. The chapter array is shaped as FeedItem (with
-/// `type: 'song'` so the existing player + queue handle them natively),
-/// which means tapping a chapter row can call `playApiQueue(chapters, i)`
-/// straight from the detail screen with zero wrapping.
-class AudiobookDetail {
-  const AudiobookDetail({
-    required this.id,
-    required this.title,
-    required this.chapters,
-    this.subtitle,
-    this.author,
-    this.cover,
-    this.link,
-  });
-  final String id;
-  final String title;
-  final String? subtitle;
-  final String? author;
-  final String? cover;
-  final String? link;
-  final List<FeedItem> chapters;
-
-  factory AudiobookDetail.fromJson(Map<String, dynamic> j) {
-    final chRaw = j['chapters'];
-    final chapters = chRaw is List
-        ? chRaw
-              .whereType<Map>()
-              .map((m) => FeedItem.fromJson(m.cast<String, dynamic>()))
-              .toList()
-        : const <FeedItem>[];
-    return AudiobookDetail(
-      id: (j['id'] ?? '').toString(),
-      title: _decode((j['title'] ?? '').toString()),
-      subtitle: _decodeNullable(j['subtitle']),
-      author: _decodeNullable(j['author']),
-      cover: j['cover'] as String?,
-      link: j['link'] as String?,
-      chapters: chapters,
-    );
-  }
-}
-
-/// One row from `/audiobooks/categories` — close to the podcasts facet
-/// shape, but audiobooks carry an id (numeric WP cat id) and slug
-/// instead of a free value/count pair.
-class AudiobookCategory {
-  const AudiobookCategory({
-    required this.id,
-    required this.name,
-    required this.slug,
-    required this.count,
-  });
-  final int id;
-  final String name;
-  final String slug;
-  final int count;
-
-  factory AudiobookCategory.fromJson(Map<String, dynamic> j) =>
-      AudiobookCategory(
-        id: (j['id'] as num?)?.toInt() ?? 0,
-        name: _decode((j['name'] ?? '').toString()),
-        slug: (j['slug'] ?? '').toString(),
-        count: (j['count'] as num?)?.toInt() ?? 0,
-      );
 }

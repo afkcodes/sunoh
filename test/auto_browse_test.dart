@@ -81,10 +81,9 @@ void main() {
         'Liked Songs',
         'Recently Played',
         'Playlists',
-        // Then the three home feeds, mirroring the phone's Home tabs.
+        // Then the home feeds, mirroring the phone's Home tabs.
         'Music',
         'Podcasts',
-        'Audiobooks',
       ]);
       expect(tabs.every((t) => t.playable == false), isTrue);
       expect(
@@ -268,19 +267,14 @@ void main() {
     test('each feed is reachable from the root', () async {
       final tabs = await tree.getChildren(AudioService.browsableRootId);
       final feedIds = tabs.map((t) => t.id).where(AutoFeeds.isFeed).toList();
-      expect(feedIds, hasLength(3));
-      expect(feedIds, [
-        'sunoh:f:music',
-        'sunoh:f:podcasts',
-        'sunoh:f:audiobooks',
-      ]);
+      expect(feedIds, hasLength(2));
+      expect(feedIds, ['sunoh:f:music', 'sunoh:f:podcasts']);
     });
 
     test('a feed whose fetch fails renders empty, not broken', () async {
       // Offline Dio — the car must get an empty tab it can back out of.
       expect(await tree.getChildren('sunoh:f:music'), isEmpty);
       expect(await tree.getChildren('sunoh:f:podcasts'), isEmpty);
-      expect(await tree.getChildren('sunoh:f:audiobooks'), isEmpty);
     });
 
     test('an unknown feed or section id yields empty', () async {

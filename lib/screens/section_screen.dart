@@ -1,18 +1,19 @@
-// SectionScreen — "See all" view: shows every item of a home-feed section in
-// a 2-column squircle grid. Reached via context.push('<branch>/section', extra: section).
+// SectionScreen — "See all" view: every item of a home-feed section as a
+// two-column grid of shelf tiles under a big page title. Reached via
+// context.openSection(section).
 
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:go_router/go_router.dart';
-import 'package:solar_icons/solar_icons.dart';
 
 import '../api/dto.dart';
 import '../data/models.dart';
 import '../providers/app_state_provider.dart';
 import '../router/router.dart';
-import '../theme/tokens.dart';
-import '../widgets/album_art.dart';
-import '../widgets/ui.dart';
+import '../widgets/cover_hero.dart';
+import '../widgets/motion.dart';
+import 'detail_chrome.dart';
+import 'detail_shelf.dart';
+import 'feed_tiles.dart';
 
 class SectionScreen extends ConsumerWidget {
   const SectionScreen({super.key, required this.section});
@@ -22,179 +23,91 @@ class SectionScreen extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final s = ref.watch(appStateProvider);
     final c = s.colors;
-    final topInset = MediaQuery.of(context).padding.top;
-    final isArtistGrid = section.items.every((it) => it.type == 'artist');
+    final items = section.items;
+    final round = items.every((it) => it.type == 'artist');
+    // Two columns on the 16 gutter with the shelf's 12 gap. A tile is its
+    // square cover, the 9 gap, a title line and — for anything but an
+    // artist — two subtitle lines, at whatever size the user's text is.
+    final tile = (MediaQuery.sizeOf(context).width - 32 - 12) / 2;
+    final lines = MediaQuery.textScalerOf(context).scale(round ? 18 : 51);
 
-    return ColoredBox(
-      color: c.bg,
-      child: ListView(
-        padding: EdgeInsets.only(top: topInset + 8, bottom: 140),
-        children: [
-          Padding(
-            padding: const EdgeInsets.fromLTRB(16, 0, 16, 8),
-            child: Row(
-              children: [
-                IconBtn(
-                  icon: SolarIconsOutline.altArrowLeft,
-                  color: c.fg,
-                  size: 22,
-                  background: c.surface,
-                  onTap: () => context.pop(),
+    return DetailPage(
+      colors: c,
+      colour: c.bg,
+      title: section.heading,
+      solidAt: PageTitle.solidAt,
+      builder: (_) => [
+        SliverToBoxAdapter(
+          child: PageTitle(colors: c, title: section.heading),
+        ),
+        SliverPadding(
+          padding: const EdgeInsets.symmetric(horizontal: 16),
+          sliver: SliverGrid.builder(
+            itemCount: items.length,
+            gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
+              crossAxisCount: 2,
+              crossAxisSpacing: 12,
+              mainAxisSpacing: 20,
+              mainAxisExtent: tile + 9 + lines + 4,
+            ),
+            itemBuilder: (context, i) {
+              final cell = Pressable(
+                onTap: () => _routeTap(
+                  context,
+                  ref,
+                  items[i],
+                  feedHeroRef(_scope, items, items[i], tile),
                 ),
-              ],
-            ),
-          ),
-          Padding(
-            padding: const EdgeInsets.fromLTRB(20, 8, 20, 20),
-            child: Text(
-              section.heading,
-              style: SunohType.heading(
-                fontSize: 30,
-                color: c.fg,
-                height: 1.05,
-                letterSpacing: -0.5,
-              ),
-            ),
-          ),
-          Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 20),
-            child: MediaQuery.removePadding(
-              context: context,
-              removeTop: true,
-              removeBottom: true,
-              child: GridView.builder(
-                shrinkWrap: true,
-                physics: const NeverScrollableScrollPhysics(),
-                itemCount: section.items.length,
-                gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
-                  crossAxisCount: 2,
-                  crossAxisSpacing: 14,
-                  mainAxisSpacing: 22,
-                  childAspectRatio: isArtistGrid ? 0.82 : 0.78,
+                child: ShelfTile(
+                  item: items[i],
+                  width: tile,
+                  colors: c,
+                  round: round,
+                  heroTag: feedHeroTag(_scope, items, items[i]),
                 ),
-                itemBuilder: (context, i) {
-                  final item = section.items[i];
-                  return GestureDetector(
-                    onTap: () => _routeTap(context, ref, item),
-                    behavior: HitTestBehavior.opaque,
-                    child: isArtistGrid
-                        ? _ArtistTile(item: item, colors: c)
-                        : _CoverTile(item: item, colors: c),
-                  );
-                },
-              ),
-            ),
+              );
+              return i < 9 ? Entrance(index: 1 + i, child: cell) : cell;
+            },
           ),
-          const SizedBox(height: 20),
-        ],
-      ),
+        ),
+      ],
     );
   }
 
-  void _routeTap(BuildContext context, WidgetRef ref, FeedItem item) {
+  /// The grid's hero scope (`feedHeroTag`): its own, so a cover here never
+  /// shares a tag with the same cover on the page this was opened from.
+  String get _scope => 'see all ${section.heading}';
+
+  void _routeTap(
+    BuildContext context,
+    WidgetRef ref,
+    FeedItem item,
+    CoverHeroRef? hero,
+  ) {
     final s = ref.read(appStateProvider);
     final src = item.source ?? section.source;
     // YouTube ids are browse ids sunoh-api can't resolve.
     if (src == 'youtube' && item.type != 'song') {
-      context.openYtItem(item);
+      context.openYtItem(item, hero: hero);
       return;
     }
     switch (item.type) {
-      case 'album':
-        context.openRef(DetailRef('album', item.id, source: src));
-        break;
-      case 'playlist':
-        context.openRef(DetailRef('playlist', item.id, source: src));
-        break;
-      case 'artist':
-        context.openRef(DetailRef('artist', item.id, source: src));
-        break;
+      case 'album' || 'playlist' || 'artist':
+        final at = DetailRef(item.type, item.id, source: src);
+        context.openRef(at, hero: hero);
       case 'song':
-        s.flashToast('Playback coming soon');
-        break;
+        // As on Home: the section's songs become the queue, from this one.
+        final songs = [
+          for (final it in section.items)
+            if (it.type == 'song') it,
+        ];
+        s.playApiQueue(
+          songs,
+          songs.indexOf(item),
+          sourceLabel: 'HOME · ${section.heading}',
+        );
       default:
         s.flashToast(item.type);
     }
-  }
-}
-
-class _CoverTile extends StatelessWidget {
-  const _CoverTile({required this.item, required this.colors});
-  final FeedItem item;
-  final SunohColors colors;
-  @override
-  Widget build(BuildContext context) {
-    final c = colors;
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        AspectRatio(
-          aspectRatio: 1,
-          child: SunohArt(
-            id: item.id,
-            width: double.infinity,
-            radius: 10,
-            imageUrl: item.artwork,
-          ),
-        ),
-        const SizedBox(height: 10),
-        Text(
-          item.title,
-          maxLines: 1,
-          overflow: TextOverflow.ellipsis,
-          style: SunohType.sans(
-            fontSize: 14,
-            fontWeight: FontWeight.w500,
-            color: c.fg,
-            height: 1.2,
-          ),
-        ),
-        if ((item.displaySubtitle ?? '').isNotEmpty) ...[
-          const SizedBox(height: 2),
-          Text(
-            item.displaySubtitle!,
-            maxLines: 1,
-            overflow: TextOverflow.ellipsis,
-            style: SunohType.sans(fontSize: 12, color: c.fgMute),
-          ),
-        ],
-      ],
-    );
-  }
-}
-
-class _ArtistTile extends StatelessWidget {
-  const _ArtistTile({required this.item, required this.colors});
-  final FeedItem item;
-  final SunohColors colors;
-  @override
-  Widget build(BuildContext context) {
-    final c = colors;
-    return Column(
-      children: [
-        AspectRatio(
-          aspectRatio: 1,
-          child: SunohArt(
-            id: item.id,
-            width: double.infinity,
-            radius: 999,
-            imageUrl: item.artwork,
-          ),
-        ),
-        const SizedBox(height: 10),
-        Text(
-          item.title,
-          textAlign: TextAlign.center,
-          maxLines: 2,
-          overflow: TextOverflow.ellipsis,
-          style: SunohType.sans(
-            fontSize: 13,
-            fontWeight: FontWeight.w500,
-            color: c.fg,
-            height: 1.2,
-          ),
-        ),
-      ],
-    );
   }
 }

@@ -1,24 +1,26 @@
-// Browse all PodcastIndex categories. Cards are accent-tinted squircle
-// pills with a category glyph + name; the per-glyph mapping below
-// gives News a microphone, Comedy a smiley, Sports a basketball, etc.
-// — so the page reads as graphic-rich, not "112 tinted rectangles".
+// Browse all PodcastIndex categories as the prototype's browse grid: two
+// columns of 96-tall tiles (see CategoryTile). Each category wears a colour
+// from the table below and a topic glyph from the name map — News a
+// notebook, Comedy a smiley, Sports a basketball — so the page reads as
+// graphic-rich, not "112 tinted rectangles".
 
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:go_router/go_router.dart';
-import 'package:solar_icons/solar_icons.dart';
+import 'package:remixicon/remixicon.dart';
 
 import '../api/dto.dart';
 import '../providers/app_state_provider.dart';
 import '../providers/podcast_provider.dart';
 import '../router/router.dart';
 import '../theme/tokens.dart';
-import '../widgets/ui.dart';
+import '../widgets/motion.dart';
+import 'category_tile.dart';
+import 'sub_page_bar.dart';
 
 /// 12-color curated palette used by [PodcastCategoryCard]. Each
 /// category picks one deterministically by `category.id % 12`, so the
 /// same category always wears the same color across renders. Hues are
-/// saturated enough to read clearly on the near-black bg without
+/// saturated enough to hold their own under the tile's dark scrim without
 /// crossing into neon. Sanctioned hex literals (per the design-system
 /// rule about not hardcoding colors outside the token layer — this is
 /// a category-art palette, the same kind of exception we make for the
@@ -49,71 +51,52 @@ class PodcastCategoriesScreen extends ConsumerWidget {
     final async = ref.watch(podcastCategoriesProvider);
     return ColoredBox(
       color: c.bg,
-      child: SafeArea(
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Padding(
-              padding: const EdgeInsets.fromLTRB(16, 12, 16, 4),
-              child: Row(
-                children: [
-                  IconBtn(
-                    icon: SolarIconsOutline.altArrowLeft,
-                    color: c.fg,
-                    size: 22,
-                    onTap: () => context.pop(),
-                  ),
-                  const SizedBox(width: 6),
-                  Text(
-                    'Categories',
-                    style: SunohType.heading(
-                      fontSize: 24,
-                      color: c.fg,
-                      letterSpacing: -0.3,
-                    ),
-                  ),
-                ],
-              ),
-            ),
-            Padding(
-              padding: const EdgeInsets.fromLTRB(20, 0, 20, 18),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          SubPageBar(title: 'Categories', colors: c),
+          FadeSlideIn(
+            child: Padding(
+              padding: const EdgeInsets.fromLTRB(16, 16, 16, 14),
               child: Text(
                 'Pick a category to discover podcasts in it.',
-                style: SunohType.sans(fontSize: 13, color: c.fgMute),
+                style: SunohType.sans(fontSize: 14, color: c.fgDim),
               ),
             ),
-            Expanded(
-              child: async.when(
-                loading: () => Center(
-                  child: SizedBox(
-                    width: 24,
-                    height: 24,
-                    child: CircularProgressIndicator(
-                      strokeWidth: 2,
-                      color: c.fgDim,
-                    ),
+          ),
+          Expanded(
+            child: async.when(
+              loading: () => Center(
+                child: SizedBox(
+                  width: 24,
+                  height: 24,
+                  child: CircularProgressIndicator(
+                    strokeWidth: 2,
+                    color: c.fgDim,
                   ),
                 ),
-                error: (e, _) => Center(
-                  child: Padding(
-                    padding: const EdgeInsets.all(24),
-                    child: Text(
-                      'Couldn’t load categories.\n$e',
-                      textAlign: TextAlign.center,
-                      style: SunohType.sans(fontSize: 13, color: c.fgMute),
-                    ),
+              ),
+              error: (e, _) => Center(
+                child: Padding(
+                  padding: const EdgeInsets.all(24),
+                  child: Text(
+                    'Couldn’t load categories.\n$e',
+                    textAlign: TextAlign.center,
+                    style: SunohType.sans(fontSize: 13, color: c.fgMute),
                   ),
                 ),
-                data: (cats) => GridView.builder(
-                  padding: const EdgeInsets.fromLTRB(20, 0, 20, 140),
+              ),
+              // The grid arrives as one block: staggering its tiles would
+              // replay their entrance each time a scroll brings them back.
+              data: (cats) => FadeSlideIn(
+                index: 1,
+                child: GridView.builder(
+                  padding: const EdgeInsets.fromLTRB(16, 0, 16, 140),
                   gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
                     crossAxisCount: 2,
-                    mainAxisSpacing: 10,
-                    crossAxisSpacing: 10,
-                    // Same aspect ratio as the channel tile (180w / 64h),
-                    // so the wide-gradient card fits cleanly with its
-                    // title block + rotated icon on the right.
-                    childAspectRatio: 180 / 64,
+                    mainAxisSpacing: 8,
+                    crossAxisSpacing: 8,
+                    mainAxisExtent: 96,
                   ),
                   itemCount: cats.length,
                   itemBuilder: (context, i) => PodcastCategoryCard(
@@ -124,23 +107,21 @@ class PodcastCategoriesScreen extends ConsumerWidget {
                 ),
               ),
             ),
-          ],
-        ),
+          ),
+        ],
       ),
     );
   }
 }
 
-/// Wide rectangular category card — mirrors `_ChannelTile` (the music
-/// home's Saavn "Browse" channel tiles): per-card gradient with title
-/// in heading typography on the left, topic glyph rotated + tucked
-/// off the right edge for dimensionality.
+/// One category as a browse tile ([CategoryTile]), sized by whatever holds
+/// it: the 96-tall grid here, the Podcasts tab's 64-tall preview rows there.
 ///
-/// Each category gets a distinct seed color from `_categoryPalette`,
-/// picked deterministically by `category.id % palette.length`. The
-/// user's accent stays out of this — every category having the same
-/// hue (just brightness variations on the accent) defeated the
-/// purpose of having a Categories surface.
+/// Each category gets a distinct colour from `_categoryPalette`, picked
+/// deterministically by `category.id % palette.length`. The user's accent
+/// stays out of this — every category having the same hue (just brightness
+/// variations on the accent) defeated the purpose of having a Categories
+/// surface.
 class PodcastCategoryCard extends StatelessWidget {
   const PodcastCategoryCard({
     super.key,
@@ -149,138 +130,81 @@ class PodcastCategoryCard extends StatelessWidget {
     required this.accent,
   });
   final PodcastCategory category;
-  final SunohColors colors;
 
-  /// Kept for API compatibility (the preview strip on the Podcasts
-  /// tab passes the user accent in), but no longer used for tinting —
-  /// see [_categoryPalette] above.
+  /// Kept for API compatibility with the Podcasts tab, which passes both in.
+  /// The tile draws in its category colour and the media ink in either theme,
+  /// so neither the app palette nor the accent reaches it.
+  final SunohColors colors;
   final Color accent;
+
   @override
   Widget build(BuildContext context) {
-    final c = colors;
-    final icon = _iconFor(category.name);
-    final seed = _categoryPalette[category.id % _categoryPalette.length];
-    return GestureDetector(
+    return CategoryTile(
+      title: category.name,
+      color: _categoryPalette[category.id % _categoryPalette.length],
+      icon: _iconFor(category.name),
       onTap: () => context.openPodcastCategory(
         category.id.toString(),
         name: category.name,
       ),
-      behavior: HitTestBehavior.opaque,
-      child: squircleClip(
-        radius: 10,
-        child: DecoratedBox(
-          decoration: BoxDecoration(
-            gradient: LinearGradient(
-              begin: Alignment.centerLeft,
-              end: Alignment.centerRight,
-              colors: [
-                Color.lerp(c.bg, seed, 0.62)!,
-                Color.lerp(c.bg, seed, 0.22)!,
-              ],
-            ),
-          ),
-          child: Row(
-            children: [
-              Expanded(
-                child: Padding(
-                  padding: const EdgeInsets.fromLTRB(14, 8, 8, 8),
-                  child: Align(
-                    alignment: Alignment.centerLeft,
-                    child: Text(
-                      category.name,
-                      maxLines: 2,
-                      overflow: TextOverflow.ellipsis,
-                      style: SunohType.heading(
-                        fontSize: 13.5,
-                        color: Colors.white,
-                        letterSpacing: -0.1,
-                        height: 1.15,
-                      ),
-                    ),
-                  ),
-                ),
-              ),
-              // Rotated topic glyph in a tinted square — mirrors the
-              // channel tile's "artwork off the right edge" affordance,
-              // but with a glyph instead since categories have no art.
-              Transform.rotate(
-                angle: 0.20,
-                child: Transform.translate(
-                  offset: const Offset(6, 4),
-                  child: Container(
-                    width: 56,
-                    height: 56,
-                    decoration: BoxDecoration(
-                      color: Colors.white.withValues(alpha: 0.16),
-                      borderRadius: BorderRadius.circular(8),
-                    ),
-                    alignment: Alignment.center,
-                    child: Icon(icon, color: Colors.white, size: 26),
-                  ),
-                ),
-              ),
-            ],
-          ),
-        ),
-      ),
     );
   }
 
-  /// Maps category names to a topical Solar icon. Falls back to a
+  /// Maps category names to a topical Remix icon. Falls back to a
   /// neutral tag glyph for anything not in the table.
   static IconData _iconFor(String name) {
     final n = name.toLowerCase();
-    if (n.contains('news')) return SolarIconsBold.notebookMinimalistic;
-    if (n.contains('comedy')) return SolarIconsBold.emojiFunnyCircle;
-    if (n.contains('sport')) return SolarIconsBold.basketball;
-    if (n.contains('tech')) return SolarIconsBold.cpu;
-    if (n.contains('music')) return SolarIconsBold.musicNote;
+    if (n.contains('news')) return RemixIcons.book_2_fill;
+    if (n.contains('comedy')) return RemixIcons.emotion_laugh_fill;
+    if (n.contains('sport')) return RemixIcons.basketball_fill;
+    if (n.contains('tech')) return RemixIcons.cpu_fill;
+    if (n.contains('music')) return RemixIcons.music_fill;
     if (n.contains('film') || n.contains('tv') || n.contains('cinema')) {
-      return SolarIconsBold.tv;
+      return RemixIcons.tv_2_fill;
     }
     if (n.contains('education') || n.contains('learn')) {
-      return SolarIconsBold.book;
+      return RemixIcons.book_fill;
     }
-    if (n.contains('history')) return SolarIconsBold.book2;
+    if (n.contains('history')) return RemixIcons.book_open_fill;
     if (n.contains('busin') || n.contains('career') || n.contains('econom')) {
-      return SolarIconsBold.caseMinimalistic;
+      return RemixIcons.briefcase_4_fill;
     }
     if (n.contains('health') || n.contains('fitness') || n.contains('medic')) {
-      return SolarIconsBold.dumbbellLargeMinimalistic;
+      return RemixIcons.boxing_fill;
     }
     if (n.contains('food') || n.contains('cook')) {
-      return SolarIconsBold.cup;
+      return RemixIcons.trophy_fill;
     }
     if (n.contains('art') || n.contains('design') || n.contains('visual')) {
-      return SolarIconsBold.paintRoller;
+      return RemixIcons.paint_fill;
     }
-    if (n.contains('travel')) return SolarIconsBold.planet;
+    if (n.contains('travel')) return RemixIcons.planet_fill;
     if (n.contains('religion') ||
         n.contains('spirit') ||
         n.contains('christ') ||
         n.contains('islam') ||
         n.contains('buddh') ||
         n.contains('hindu')) {
-      return SolarIconsBold.starsLine;
+      return RemixIcons.sparkling_2_fill;
     }
     if (n.contains('kids') || n.contains('famil') || n.contains('parent')) {
-      return SolarIconsBold.usersGroupTwoRounded;
+      return RemixIcons.group_fill;
     }
     if (n.contains('crime') || n.contains('true')) {
-      return SolarIconsBold.bag2;
+      return RemixIcons.shopping_bag_3_fill;
     }
     if (n.contains('science') || n.contains('astro') || n.contains('biol')) {
-      return SolarIconsBold.testTubeMinimalistic;
+      return RemixIcons.test_tube_fill;
     }
     if (n.contains('philo') || n.contains('soc') || n.contains('cult')) {
-      return SolarIconsBold.usersGroupRounded;
+      return RemixIcons.team_fill;
     }
     if (n.contains('govern') || n.contains('polit')) {
-      return SolarIconsBold.buildings_3;
+      return RemixIcons.building_2_fill;
     }
     if (n.contains('game') || n.contains('video') || n.contains('hobb')) {
-      return SolarIconsBold.gameboy;
+      return RemixIcons.gamepad_fill;
     }
-    return SolarIconsBold.tagHorizontal;
+    return RemixIcons.price_tag_3_fill;
   }
 }

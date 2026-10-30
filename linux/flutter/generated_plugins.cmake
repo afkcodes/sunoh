@@ -3,14 +3,14 @@
 #
 
 list(APPEND FLUTTER_PLUGIN_LIST
-  gtk
+  app_links_linux
+  mpv_audio_kit
   refresh_rate
   url_launcher_linux
 )
 
 list(APPEND FLUTTER_FFI_PLUGIN_LIST
   jni
-  mpv_audio_kit
 )
 
 set(PLUGIN_BUNDLED_LIBRARIES)

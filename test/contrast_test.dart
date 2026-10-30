@@ -74,6 +74,10 @@ void main() {
         expect(contrast(c.fgMute, c.bgSoft), greaterThanOrEqualTo(_aaText));
       });
 
+      test('the error colour reads as text', () {
+        expect(contrast(c.danger, c.bg), greaterThanOrEqualTo(_aaText));
+      });
+
       test('text on a surface fill stays readable', () {
         final surface = _flatten(c.surface, c.bg);
         expect(contrast(c.fg, surface), greaterThanOrEqualTo(_aaText));

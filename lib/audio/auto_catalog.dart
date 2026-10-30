@@ -230,18 +230,6 @@ class AutoCatalog {
         id: item.id,
         source: source,
       ),
-      'audiobook' || 'book' => AutoMediaId.collection(
-        kind: 'book',
-        id: item.id,
-        source: source,
-      ),
-      // A genre shelf, not a book. Its children are more collections rather
-      // than tracks, which `AutoBrowseTree` handles separately.
-      'audiobook_category' => AutoMediaId.collection(
-        kind: 'cat',
-        id: item.id,
-        source: source,
-      ),
       // A curated page (Saavn calls them channels, Gaana occasions). Opens to
       // a mixed list of playlists and songs, like a home-feed section.
       'channel' || 'occasion' => AutoMediaId.collection(

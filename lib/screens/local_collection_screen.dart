@@ -1,4 +1,6 @@
-// One on-device album or artist: its tracks, with play and shuffle.
+// One on-device album or artist, laid out as an album page: hero, shuffle
+// and play, then its tracks — numbered for an album, with covers for an
+// artist.
 //
 // Reached by id from the device library. The id is the grouping key
 // (`album|artist`, lowercased), not a MediaStore id, because that is what
@@ -8,16 +10,16 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
-import 'package:phosphor_icons/phosphor_icons.dart';
-import 'package:solar_icons/solar_icons.dart';
+import 'package:remixicon/remixicon.dart';
 
 import '../audio/local_library.dart';
 import '../providers/app_state_provider.dart';
 import '../providers/local_library_provider.dart';
 import '../theme/tokens.dart';
-import '../widgets/album_art.dart';
-import '../widgets/ui.dart';
-import 'local_track_row.dart';
+import '../widgets/motion.dart';
+import 'detail_chrome.dart';
+import 'detail_hero.dart';
+import 'detail_track_row.dart';
 
 class LocalCollectionScreen extends ConsumerWidget {
   const LocalCollectionScreen({
@@ -28,8 +30,8 @@ class LocalCollectionScreen extends ConsumerWidget {
 
   final String id;
 
-  /// True for an album, false for an artist. Decides both the lookup and
-  /// whether the cover renders square or round.
+  /// True for an album, false for an artist. Decides the lookup, whether the
+  /// cover renders square or round, and whether tracks are numbered.
   final bool album;
 
   @override
@@ -51,112 +53,68 @@ class LocalCollectionScreen extends ConsumerWidget {
         .map((s) => s.artwork)
         .firstWhere((a) => a != null && a.isNotEmpty, orElse: () => null);
     final label = '${album ? 'ALBUM' : 'ARTIST'} · $title';
+    final labels = TrackLabels.of(songs);
+    final accent = c.accent;
+    // The queue is this collection when it was started from here.
+    final here = s.apiSourceRef == null && s.apiSourceLabel == label;
 
-    return ColoredBox(
-      color: c.bg,
-      child: CustomScrollView(
-        slivers: [
-          SliverToBoxAdapter(
-            child: Padding(
-              padding: EdgeInsets.fromLTRB(
-                20,
-                MediaQuery.of(context).padding.top + 20,
-                20,
-                8,
-              ),
-              child: Row(
-                children: [
-                  IconBtn(
-                    icon: SolarIconsOutline.altArrowLeft,
-                    color: c.fgDim,
-                    size: 18,
-                    onTap: () => context.pop(),
-                  ),
-                ],
-              ),
-            ),
+    return DetailPage(
+      colors: c,
+      colour: accent,
+      title: title,
+      builder: (scroll) => [
+        SliverToBoxAdapter(
+          child: DetailHero(
+            colors: c,
+            colour: accent,
+            scroll: scroll,
+            cover: DetailCover(id: id, imageUrl: artwork, round: !album),
+            title: title,
+            meta: joinMeta([
+              album ? 'Album' : 'Artist',
+              labels.countLine('song'),
+              'On this device',
+            ]),
           ),
-          SliverToBoxAdapter(
-            child: Padding(
-              padding: const EdgeInsets.fromLTRB(20, 4, 20, 20),
-              child: Row(
-                crossAxisAlignment: CrossAxisAlignment.end,
-                children: [
-                  SunohArt(
-                    id: id,
-                    size: 104,
-                    radius: album ? 10 : 999,
-                    imageUrl: artwork,
-                  ),
-                  const SizedBox(width: 14),
-                  Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        eyebrow(album ? 'ALBUM' : 'ARTIST', c.fgMute),
-                        const SizedBox(height: 6),
-                        Text(
-                          title,
-                          maxLines: 2,
-                          overflow: TextOverflow.ellipsis,
-                          style: SunohType.heading(
-                            fontSize: 20,
-                            color: c.fg,
-                            height: 1.1,
-                            letterSpacing: -0.3,
-                          ),
-                        ),
-                        const SizedBox(height: 6),
-                        Text(
-                          '${songs.length} '
-                          '${songs.length == 1 ? 'song' : 'songs'} · on this device',
-                          style: SunohType.sans(fontSize: 12, color: c.fgMute),
-                        ),
-                      ],
-                    ),
-                  ),
-                ],
-              ),
-            ),
-          ),
-          SliverToBoxAdapter(
-            child: Padding(
-              padding: const EdgeInsets.fromLTRB(20, 0, 20, 14),
-              child: Row(
-                children: [
-                  _Action(
-                    icon: PhosphorIconsFill.play,
-                    label: 'Play',
-                    filled: true,
-                    colors: c,
-                    accent: s.resolvedAccent,
-                    onTap: () => s.playApiQueue(songs, 0, sourceLabel: label),
-                  ),
-                  const SizedBox(width: 10),
-                  _Action(
-                    icon: PhosphorIconsBold.shuffle,
-                    label: 'Shuffle',
-                    filled: false,
-                    colors: c,
-                    accent: s.resolvedAccent,
-                    onTap: () => s.playShuffled(songs, sourceLabel: label),
-                  ),
-                ],
-              ),
-            ),
-          ),
-          SliverList.builder(
-            itemCount: songs.length,
-            itemBuilder: (context, i) => LocalTrackRow(
-              song: songs[i],
+        ),
+        SliverToBoxAdapter(
+          child: FadeSlideIn(
+            index: 3,
+            child: DetailActions(
               colors: c,
-              onTap: () => s.playApiQueue(songs, i, sourceLabel: label),
+              colour: accent,
+              playing: here && s.isPlaying,
+              onShuffle: () => s.playShuffled(songs, sourceLabel: label),
+              onPlay: () => here
+                  ? s.playPause()
+                  : s.playApiQueue(songs, 0, sourceLabel: label),
             ),
           ),
-          const SliverToBoxAdapter(child: SizedBox(height: 140)),
-        ],
-      ),
+        ),
+        SliverPadding(
+          padding: const EdgeInsets.only(top: 8),
+          sliver: SliverList.builder(
+            itemCount: songs.length,
+            itemBuilder: (context, i) {
+              // An album numbers its tracks; an artist's span albums, so
+              // they show their own covers instead.
+              final row = DetailTrackRow(
+                n: album ? i + 1 : null,
+                song: songs[i],
+                subtitle: labels.subtitles[i],
+                duration: labels.durations[i],
+                colors: c,
+                accent: accent,
+                showArt: !album,
+                showLike: false,
+                showMenu: false,
+                onTap: () => s.playApiQueue(songs, i, sourceLabel: label),
+              );
+              return i < 6 ? Entrance(index: 4 + i, child: row) : row;
+            },
+          ),
+        ),
+      ],
     );
   }
 
@@ -168,54 +126,6 @@ class LocalCollectionScreen extends ConsumerWidget {
       if (col.id == id) return col.name;
     }
     return id;
-  }
-}
-
-class _Action extends StatelessWidget {
-  const _Action({
-    required this.icon,
-    required this.label,
-    required this.filled,
-    required this.colors,
-    required this.accent,
-    required this.onTap,
-  });
-  final IconData icon;
-  final String label;
-  final bool filled;
-  final SunohColors colors;
-  final Color accent;
-  final VoidCallback onTap;
-
-  @override
-  Widget build(BuildContext context) {
-    return GestureDetector(
-      onTap: onTap,
-      behavior: HitTestBehavior.opaque,
-      child: Container(
-        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 9),
-        decoration: squircleDecoration(
-          radius: 999,
-          color: filled ? accent : colors.surface,
-          borderColor: filled ? null : colors.line,
-        ),
-        child: Row(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Icon(icon, size: 15, color: filled ? colors.onAccent : colors.fg),
-            const SizedBox(width: 7),
-            Text(
-              label,
-              style: SunohType.sans(
-                fontSize: 13,
-                fontWeight: FontWeight.w600,
-                color: filled ? colors.onAccent : colors.fg,
-              ),
-            ),
-          ],
-        ),
-      ),
-    );
   }
 }
 
@@ -234,11 +144,7 @@ class _Missing extends StatelessWidget {
           child: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
-              Icon(
-                SolarIconsOutline.smartphone,
-                size: 30,
-                color: colors.fgMute,
-              ),
+              Icon(RemixIcons.smartphone_line, size: 30, color: colors.fgMute),
               const SizedBox(height: 14),
               Text(
                 scanning ? 'Still scanning…' : 'Not on this device any more',

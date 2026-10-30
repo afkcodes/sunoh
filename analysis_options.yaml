@@ -22,6 +22,10 @@ analyzer:
   exclude:
     - build/**
     - "**/*.g.dart"
+    - android/**
+    - ios/**
+    - web/**
+    - linux/**
 
 linter:
   rules:

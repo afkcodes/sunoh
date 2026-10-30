@@ -1,4 +1,4 @@
-// Tests for the Music / Podcasts / Audiobooks browse nodes.
+// Tests for the Music / Podcasts browse nodes.
 //
 // These run against a stubbed HTTP adapter rather than the offline Dio the
 // other Auto tests use, because what matters here is how real feed *shapes*
@@ -136,24 +136,6 @@ void main() {
 
     expect(songRows[0].id, 'sunoh:s:$sectionId#0');
     expect(songRows[1].id, 'sunoh:s:$sectionId#1');
-  });
-
-  test('audiobook genre shelves are browsable, not dropped', () async {
-    // These carry type `audiobook_category` and appear in the real audiobooks
-    // feed as "Browse genres". Unhandled, every row is dropped and the whole
-    // section renders blank in the car.
-    expect(
-      AutoCatalog.collectionIdFor(
-        const FeedItem(
-          id: '104',
-          title: 'Literature & Fiction',
-          type: 'audiobook_category',
-          image: [],
-          source: 'saavn',
-        ),
-      ),
-      'sunoh:c:cat:104:saavn',
-    );
   });
 
   test('radio stations are playable rows, not browsable ones', () async {

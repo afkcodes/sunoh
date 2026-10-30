@@ -1,19 +1,23 @@
 // The browse view: what Search shows before anything has been typed —
-// recent searches, trending carousels and the occasions grid — plus the
+// recent searches, trending carousels and the browse-all grid — plus the
 // skeletons each of those shows while loading.
 //
 // Split out of `search_screen.dart`, which was 1115 lines.
 
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:solar_icons/solar_icons.dart';
 
 import '../providers/app_state_provider.dart';
 import '../providers/search_provider.dart';
+import '../router/router.dart';
 import '../theme/tokens.dart';
 import '../widgets/ui.dart';
+import 'feed_motion.dart';
+import 'feed_tiles.dart';
 import 'search_tiles.dart';
 
+/// Recent searches as rows under a header with "Clear". At most ten — the
+/// store caps them — so a plain column.
 class RecentSearches extends StatelessWidget {
   const RecentSearches({
     super.key,
@@ -34,67 +38,44 @@ class RecentSearches extends StatelessWidget {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
+        // SectionHeader's measures with "Clear" where "See all" would be.
         Padding(
-          padding: const EdgeInsets.fromLTRB(20, 0, 20, 12),
+          padding: const EdgeInsets.fromLTRB(16, 0, 16, 14),
           child: Row(
+            crossAxisAlignment: CrossAxisAlignment.end,
             children: [
-              eyebrow('RECENT', c.fgMute),
-              const Spacer(),
+              Expanded(
+                child: Text(
+                  'Recent searches',
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: SunohType.heading(
+                    fontSize: 20,
+                    color: c.fg,
+                    height: 1.1,
+                  ),
+                ),
+              ),
               GestureDetector(
                 behavior: HitTestBehavior.opaque,
                 onTap: onClear,
-                child: Text(
-                  'Clear',
-                  style: SunohType.sans(
-                    fontSize: 11,
-                    fontWeight: FontWeight.w500,
-                    color: c.fgMute,
+                child: Padding(
+                  padding: const EdgeInsets.only(left: 12, top: 6),
+                  child: Text(
+                    'Clear',
+                    style: SunohType.sans(
+                      fontSize: 13,
+                      fontWeight: FontWeight.w500,
+                      color: c.fgDim,
+                    ),
                   ),
                 ),
               ),
             ],
           ),
         ),
-        SingleChildScrollView(
-          scrollDirection: Axis.horizontal,
-          padding: const EdgeInsets.symmetric(horizontal: 20),
-          child: Row(
-            children: [
-              for (var i = 0; i < recents.length; i++) ...[
-                if (i > 0) const SizedBox(width: 8),
-                GestureDetector(
-                  behavior: HitTestBehavior.opaque,
-                  onTap: () => onTap(recents[i]),
-                  child: Container(
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: 14,
-                      vertical: 8,
-                    ),
-                    decoration: squircleDecoration(
-                      radius: 999,
-                      color: c.surface,
-                      borderColor: c.line,
-                    ),
-                    child: Row(
-                      children: [
-                        Icon(
-                          SolarIconsOutline.clockCircle,
-                          size: 13,
-                          color: c.fgMute,
-                        ),
-                        const SizedBox(width: 6),
-                        Text(
-                          recents[i],
-                          style: SunohType.sans(fontSize: 13, color: c.fg),
-                        ),
-                      ],
-                    ),
-                  ),
-                ),
-              ],
-            ],
-          ),
-        ),
+        for (final q in recents)
+          RecentRow(query: q, colors: c, onTap: () => onTap(q)),
       ],
     );
   }
@@ -104,34 +85,37 @@ class TrendingSkeleton extends StatelessWidget {
   const TrendingSkeleton({super.key});
   @override
   Widget build(BuildContext context) {
-    const tile = 140.0;
     return Pulse(
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           const Padding(
-            padding: EdgeInsets.fromLTRB(20, 0, 20, 14),
+            padding: EdgeInsets.fromLTRB(16, 0, 16, 14),
             child: SkeletonBar(height: 22, width: 160, radius: 6),
           ),
           SingleChildScrollView(
             scrollDirection: Axis.horizontal,
             physics: const NeverScrollableScrollPhysics(),
-            padding: const EdgeInsets.symmetric(horizontal: 20),
+            padding: const EdgeInsets.symmetric(horizontal: 16),
             child: Row(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 for (var i = 0; i < 4; i++) ...[
-                  if (i > 0) const SizedBox(width: 12),
+                  if (i > 0) const SizedBox(width: kTileGap),
                   const SizedBox(
-                    width: tile,
+                    width: kTileWidth,
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        SkeletonBar(height: tile, width: tile, radius: 10),
-                        SizedBox(height: 8),
-                        SkeletonBar(height: 13, width: tile * 0.85, radius: 4),
-                        SizedBox(height: 3),
-                        SkeletonBar(height: 11, width: tile * 0.55, radius: 4),
+                        SkeletonBar(
+                          height: kTileWidth,
+                          width: kTileWidth,
+                          radius: SunohRadius.tile,
+                        ),
+                        SizedBox(height: 9),
+                        SkeletonBar(height: 13, width: 116, radius: 4),
+                        SizedBox(height: 4),
+                        SkeletonBar(height: 11, width: 76, radius: 4),
                       ],
                     ),
                   ),
@@ -139,7 +123,6 @@ class TrendingSkeleton extends StatelessWidget {
               ],
             ),
           ),
-          const SizedBox(height: 28),
         ],
       ),
     );
@@ -152,20 +135,20 @@ class OccasionsSkeleton extends StatelessWidget {
   Widget build(BuildContext context) {
     return Pulse(
       child: Padding(
-        padding: const EdgeInsets.symmetric(horizontal: 20),
+        padding: const EdgeInsets.symmetric(horizontal: 16),
         child: GridView.count(
           crossAxisCount: 2,
           shrinkWrap: true,
           physics: const NeverScrollableScrollPhysics(),
-          crossAxisSpacing: 10,
-          mainAxisSpacing: 10,
-          childAspectRatio: 171 / 110,
+          crossAxisSpacing: 8,
+          mainAxisSpacing: 8,
+          childAspectRatio: 175 / BrowseTile.height,
           children: [
             for (var i = 0; i < 6; i++)
               const SkeletonBar(
                 height: double.infinity,
                 width: double.infinity,
-                radius: 14,
+                radius: SunohRadius.card,
               ),
           ],
         ),
@@ -177,9 +160,10 @@ class OccasionsSkeleton extends StatelessWidget {
 /// What Search shows before anything has been typed.
 ///
 /// A sliver group rather than one adapter: the trending carousels are a
-/// handful of rows and the occasions grid is another, and building them as
-/// they are reached costs nothing over building them together.
-class SearchBrowse extends ConsumerWidget {
+/// handful of rows and the browse grid is another, and building them as
+/// they are reached costs nothing over building them together. Each block
+/// is 30dp below the last; the first sits 12dp under the field.
+class SearchBrowse extends ConsumerStatefulWidget {
   const SearchBrowse({
     super.key,
     required this.colors,
@@ -190,30 +174,49 @@ class SearchBrowse extends ConsumerWidget {
   final void Function(String query) onPickRecent;
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
-    final c = colors;
+  ConsumerState<SearchBrowse> createState() => _SearchBrowseState();
+}
+
+class _SearchBrowseState extends ConsumerState<SearchBrowse> {
+  /// A new State each time the browse view comes back from results, so the
+  /// view enters again then and not on every scroll back up.
+  final _gate = EntranceGate();
+
+  @override
+  Widget build(BuildContext context) {
+    final c = widget.colors;
     final trending = ref.watch(trendingSearchProvider);
     final occasions = ref.watch(occasionsProvider('gaana'));
     final recents = ref.watch(appStateProvider).searchRecents;
+    final lead = recents.isEmpty ? 0 : 1;
 
     return SliverMainAxisGroup(
       slivers: [
-        const SliverToBoxAdapter(child: SizedBox(height: 12)),
         if (recents.isNotEmpty)
           SliverToBoxAdapter(
-            child: Padding(
-              padding: const EdgeInsets.only(bottom: 28),
-              child: RecentSearches(
-                colors: c,
-                recents: recents,
-                onTap: onPickRecent,
-                onClear: () => ref.read(appStateProvider).clearSearchRecents(),
+            child: GatedEntrance(
+              gate: _gate,
+              index: 0,
+              child: Padding(
+                padding: const EdgeInsets.only(top: 12),
+                child: RecentSearches(
+                  colors: c,
+                  recents: recents,
+                  onTap: widget.onPickRecent,
+                  onClear: () =>
+                      ref.read(appStateProvider).clearSearchRecents(),
+                ),
               ),
             ),
           ),
-        // Trending — same shape as home, horizontal carousels per section.
+        // Trending — the feed's tile rows, one per section.
         trending.when(
-          loading: () => const SliverToBoxAdapter(child: TrendingSkeleton()),
+          loading: () => SliverToBoxAdapter(
+            child: Padding(
+              padding: EdgeInsets.only(top: lead == 0 ? 12 : 30),
+              child: const TrendingSkeleton(),
+            ),
+          ),
           error: (e, _) => const SliverToBoxAdapter(child: SizedBox.shrink()),
           data: (sections) {
             final nonEmpty = sections.where((s) => s.items.isNotEmpty).toList();
@@ -222,20 +225,23 @@ class SearchBrowse extends ConsumerWidget {
             }
             return SliverList.builder(
               itemCount: nonEmpty.length,
-              itemBuilder: (context, i) => Padding(
-                padding: EdgeInsets.only(
-                  top: i == 0 ? 0 : 24,
-                  bottom: i == nonEmpty.length - 1 ? 28 : 0,
+              itemBuilder: (context, i) => GatedEntrance(
+                gate: _gate,
+                index: lead + i,
+                child: Padding(
+                  padding: EdgeInsets.only(top: lead + i == 0 ? 12 : 30),
+                  child: TrendingRow(section: nonEmpty[i], colors: c),
                 ),
-                child: TrendingRow(section: nonEmpty[i], colors: c),
               ),
             );
           },
         ),
-        // Explore Categories — live occasions. Default SectionHeader padding
-        // so the header-to-content gap matches the home feed's sections.
+        // Browse all — live occasions, as browse tiles two to a row.
         SliverToBoxAdapter(
-          child: SectionHeader(title: 'Explore Categories', colors: c),
+          child: Padding(
+            padding: const EdgeInsets.only(top: 30),
+            child: SectionHeader(title: 'Browse all', colors: c),
+          ),
         ),
         occasions.when(
           loading: () => const SliverToBoxAdapter(child: OccasionsSkeleton()),
@@ -245,15 +251,19 @@ class SearchBrowse extends ConsumerWidget {
               return const SliverToBoxAdapter(child: SizedBox.shrink());
             }
             return SliverPadding(
-              padding: const EdgeInsets.symmetric(horizontal: 20),
-              sliver: SliverGrid.count(
-                crossAxisCount: 2,
-                crossAxisSpacing: 10,
-                mainAxisSpacing: 10,
-                childAspectRatio: 171 / 110,
-                children: [
-                  for (final item in items) OccasionTile(item: item, colors: c),
-                ],
+              padding: const EdgeInsets.symmetric(horizontal: 16),
+              sliver: SliverGrid.builder(
+                gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+                  crossAxisCount: 2,
+                  crossAxisSpacing: 8,
+                  mainAxisSpacing: 8,
+                  mainAxisExtent: BrowseTile.height,
+                ),
+                itemCount: items.length,
+                itemBuilder: (context, i) => BrowseTile(
+                  item: items[i],
+                  onTap: () => context.openOccasion(items[i]),
+                ),
               ),
             );
           },

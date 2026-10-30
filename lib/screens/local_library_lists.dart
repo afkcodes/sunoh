@@ -19,14 +19,17 @@ class _SongList extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final playingId = state.currentApiSong?.id;
     // Lazy: a device library runs to thousands of tracks, and an eager Column
     // would build and lay out every one of them.
     return ListView.builder(
-      padding: const EdgeInsets.only(top: 8, bottom: 140),
+      padding: EdgeInsets.only(top: 4, bottom: shellClearance(context)),
       itemCount: songs.length,
       itemBuilder: (context, i) => LocalTrackRow(
         song: songs[i],
         colors: colors,
+        playing: songs[i].id == playingId,
+        animate: state.isPlaying,
         onTap: () =>
             state.playApiQueue(songs, i, sourceLabel: 'ON THIS DEVICE'),
       ),
@@ -47,22 +50,22 @@ class _CollectionList extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return ListView.builder(
-      padding: const EdgeInsets.only(top: 8, bottom: 140),
+      padding: EdgeInsets.only(top: 4, bottom: shellClearance(context)),
       itemCount: collections.length,
       itemBuilder: (context, i) {
         final col = collections[i];
-        return GestureDetector(
+        return Pressable(
+          scale: 0.99,
           onTap: () => context.openLocalCollection(col.id, album: album),
-          behavior: HitTestBehavior.opaque,
           child: Padding(
-            padding: const EdgeInsets.fromLTRB(20, 6, 20, 6),
+            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
             child: Row(
               children: [
                 SunohArt(
                   id: col.id,
                   size: 48,
                   // Artists read as circles throughout the app; albums square.
-                  radius: album ? 8 : 999,
+                  radius: album ? SunohRadius.row : 999,
                   imageUrl: col.artwork,
                   shadow: false,
                 ),
@@ -77,19 +80,20 @@ class _CollectionList extends StatelessWidget {
                         maxLines: 1,
                         overflow: TextOverflow.ellipsis,
                         style: SunohType.sans(
-                          fontSize: 14,
+                          fontSize: 15,
                           fontWeight: FontWeight.w500,
                           color: colors.fg,
+                          height: 1.3,
                         ),
                       ),
-                      const SizedBox(height: 2),
+                      const SizedBox(height: 1),
                       Text(
                         col.subtitle ?? '${col.songs.length} songs',
                         maxLines: 1,
                         overflow: TextOverflow.ellipsis,
                         style: SunohType.sans(
-                          fontSize: 12,
-                          color: colors.fgMute,
+                          fontSize: 13,
+                          color: colors.fgDim,
                         ),
                       ),
                     ],
@@ -105,6 +109,8 @@ class _CollectionList extends StatelessWidget {
 }
 
 /// The ways this screen can be empty, each with the action that fixes it.
+/// Set as the prototype's zero state: a heading, a paragraph, and the fix as
+/// an option row rather than a lone button floating in the middle.
 class _EmptyState extends StatelessWidget {
   const _EmptyState({required this.library, required this.colors});
   final LocalLibrary library;
@@ -112,6 +118,7 @@ class _EmptyState extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final c = colors;
     final (title, body, action, onTap) = switch (library.status) {
       LocalLibraryStatus.denied => (
         'Access needed',
@@ -141,46 +148,45 @@ class _EmptyState extends StatelessWidget {
     };
 
     return Padding(
-      padding: const EdgeInsets.fromLTRB(32, 80, 32, 40),
+      padding: const EdgeInsets.fromLTRB(16, 24, 16, 40),
       child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          Icon(SolarIconsOutline.smartphone, size: 34, color: colors.fgMute),
-          const SizedBox(height: 16),
-          Text(
-            title,
-            textAlign: TextAlign.center,
-            style: SunohType.heading(fontSize: 18, color: colors.fg),
-          ),
+          Text(title, style: SunohType.heading(fontSize: 22, color: c.fg)),
           const SizedBox(height: 8),
           Text(
             body,
-            textAlign: TextAlign.center,
-            style: SunohType.sans(
-              fontSize: 13,
-              color: colors.fgMute,
-              height: 1.5,
-            ),
+            style: SunohType.sans(fontSize: 14, color: c.fgDim, height: 1.45),
           ),
           if (action != null && onTap != null) ...[
-            const SizedBox(height: 20),
-            GestureDetector(
+            const SizedBox(height: 16),
+            Pressable(
               onTap: onTap,
               child: Container(
-                padding: const EdgeInsets.symmetric(
-                  horizontal: 18,
-                  vertical: 10,
-                ),
+                height: 48,
+                padding: const EdgeInsets.symmetric(horizontal: 14),
                 decoration: squircleDecoration(
-                  radius: 999,
-                  color: colors.accent,
+                  radius: SunohRadius.card,
+                  color: c.surface,
                 ),
-                child: Text(
-                  action,
-                  style: SunohType.sans(
-                    fontSize: 13,
-                    fontWeight: FontWeight.w600,
-                    color: colors.onAccent,
-                  ),
+                child: Row(
+                  children: [
+                    Expanded(
+                      child: Text(
+                        action,
+                        style: SunohType.sans(
+                          fontSize: 14,
+                          fontWeight: FontWeight.w500,
+                          color: c.fg,
+                        ),
+                      ),
+                    ),
+                    Icon(
+                      RemixIcons.arrow_right_s_line,
+                      size: 16,
+                      color: c.fgMute,
+                    ),
+                  ],
                 ),
               ),
             ),
@@ -192,6 +198,8 @@ class _EmptyState extends StatelessWidget {
 }
 
 /// Search across the whole device library, replacing the tabs while open.
+/// The Search tab's inverted field — ink fill, page-coloured text — so a
+/// search box looks like one wherever it appears.
 class _SearchField extends StatelessWidget {
   const _SearchField({
     required this.controller,
@@ -206,36 +214,35 @@ class _SearchField extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final c = colors;
-    return Padding(
-      padding: const EdgeInsets.fromLTRB(20, 4, 20, 12),
-      child: Container(
-        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 2),
-        decoration: squircleDecoration(
-          radius: 999,
-          color: c.surface,
-          borderColor: c.line,
-        ),
-        child: Row(
-          children: [
-            Icon(SolarIconsOutline.magnifier, size: 16, color: c.fgMute),
-            const SizedBox(width: 10),
-            Expanded(
-              child: TextField(
-                controller: controller,
-                autofocus: true,
-                onChanged: onChanged,
-                style: SunohType.sans(fontSize: 14, color: c.fg),
-                decoration: InputDecoration(
-                  hintText: 'Search this device',
-                  hintStyle: SunohType.sans(fontSize: 14, color: c.fgMute),
-                  border: InputBorder.none,
-                  isDense: true,
-                  contentPadding: const EdgeInsets.symmetric(vertical: 12),
+    return Container(
+      height: 46,
+      margin: const EdgeInsets.fromLTRB(16, 12, 16, 12),
+      padding: const EdgeInsets.only(left: 12, right: 14),
+      decoration: squircleDecoration(radius: SunohRadius.card, color: c.fg),
+      child: Row(
+        children: [
+          Icon(RemixIcons.search_line, size: 20, color: c.bg),
+          const SizedBox(width: 10),
+          Expanded(
+            child: TextField(
+              controller: controller,
+              autofocus: true,
+              onChanged: onChanged,
+              cursorColor: c.bg,
+              style: SunohType.sans(fontSize: 15.5, color: c.bg),
+              decoration: InputDecoration(
+                hintText: 'Search this device',
+                hintStyle: SunohType.sans(
+                  fontSize: 15.5,
+                  color: c.bg.withValues(alpha: 0.55),
                 ),
+                border: InputBorder.none,
+                isDense: true,
+                contentPadding: EdgeInsets.zero,
               ),
             ),
-          ],
-        ),
+          ),
+        ],
       ),
     );
   }

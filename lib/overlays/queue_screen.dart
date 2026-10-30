@@ -7,11 +7,10 @@
 //     delegate through AppState → AudioRepo → mpv playlist mutations.
 //   - Dummy mode: keeps the legacy Track-based catalog path.
 
-import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
-import 'package:solar_icons/solar_icons.dart';
+import 'package:remixicon/remixicon.dart';
 
 import '../api/dto.dart';
 import '../data/catalog.dart';
@@ -21,6 +20,8 @@ import '../widgets/album_art.dart';
 import '../widgets/playing_bars.dart';
 import '../widgets/ui.dart';
 import 'queue_menu_sheet.dart';
+import 'queue_rows.dart';
+import 'sheet.dart';
 
 class QueueScreen extends ConsumerWidget {
   const QueueScreen({super.key});
@@ -29,43 +30,54 @@ class QueueScreen extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final s = ref.watch(appStateProvider);
     final c = s.colors;
-    final accent = s.resolvedAccent;
 
     // If a real API song is playing, render the API queue. Otherwise fall
     // back to the dummy track queue (stations / podcast paths).
     final inApi = s.currentApiSong != null && s.audioRepo != null;
     final repo = s.audioRepo;
 
-    return ColoredBox(
-      color: c.bg,
+    // A sheet over the player (see player_route.dart): rounded top, the
+    // soft surface, a grabber, and the title where the old eyebrow was.
+    return DecoratedBox(
+      decoration: ShapeDecoration(
+        color: c.bgSoft,
+        shape: squircleTopBorder(SunohRadius.sheet),
+      ),
       child: SafeArea(
+        top: false,
         child: Column(
           children: [
+            const SizedBox(height: 8),
+            SheetHandle(colors: c),
             Padding(
-              padding: const EdgeInsets.fromLTRB(20, 12, 20, 8),
+              padding: const EdgeInsets.fromLTRB(16, 0, 8, 6),
               child: Row(
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 children: [
-                  IconBtn(
-                    icon: SolarIconsOutline.altArrowDown,
-                    color: c.fgDim,
-                    size: 22,
-                    onTap: () => context.pop(),
+                  Expanded(
+                    child: Text(
+                      'Queue',
+                      style: SunohType.heading(fontSize: 22, color: c.fg),
+                    ),
                   ),
-                  eyebrow('QUEUE', c.fgMute),
                   IconBtn(
-                    icon: SolarIconsBold.menuDots,
+                    icon: RemixIcons.more_fill,
                     color: c.fgDim,
                     size: 20,
                     onTap: () => showQueueMenuSheet(context),
+                  ),
+                  IconBtn(
+                    icon: RemixIcons.arrow_down_s_line,
+                    color: c.fg,
+                    size: 22,
+                    onTap: () => context.pop(),
                   ),
                 ],
               ),
             ),
             Expanded(
               child: inApi
-                  ? _ApiQueueBody(accent: accent, colors: c, ref: ref)
-                  : _DummyQueueBody(s: s, accent: accent, colors: c),
+                  ? _ApiQueueBody(colors: c, ref: ref)
+                  : _DummyQueueBody(s: s, colors: c),
             ),
             // Hint about how many tracks are in the live queue.
             if (inApi && repo != null)
@@ -78,10 +90,9 @@ class QueueScreen extends ConsumerWidget {
                     child: Row(
                       mainAxisAlignment: MainAxisAlignment.center,
                       children: [
-                        eyebrow(
-                          '$upNext ${upNext == 1 ? 'TRACK' : 'TRACKS'} REMAINING',
-                          c.fgMute,
-                          size: 10,
+                        Text(
+                          '$upNext ${upNext == 1 ? 'track' : 'tracks'} remaining',
+                          style: SunohType.sans(fontSize: 12, color: c.fgMute),
                         ),
                       ],
                     ),
@@ -98,12 +109,7 @@ class QueueScreen extends ConsumerWidget {
 // ── API mode (real engine queue) ───────────────────────────────────────────
 
 class _ApiQueueBody extends StatelessWidget {
-  const _ApiQueueBody({
-    required this.accent,
-    required this.colors,
-    required this.ref,
-  });
-  final Color accent;
+  const _ApiQueueBody({required this.colors, required this.ref});
   final SunohColors colors;
   final WidgetRef ref;
 
@@ -124,27 +130,42 @@ class _ApiQueueBody extends StatelessWidget {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
+                  const SizedBox(height: 6),
+                  QueueNowPlayingRow(song: cur, accent: c.accent, colors: c),
                   Padding(
-                    padding: const EdgeInsets.fromLTRB(20, 14, 20, 8),
-                    child: eyebrow('NOW PLAYING', c.fgMute),
-                  ),
-                  _ApiNowPlayingRow(song: cur, accent: accent, colors: c),
-                  Padding(
-                    padding: const EdgeInsets.fromLTRB(20, 14, 20, 8),
+                    padding: const EdgeInsets.fromLTRB(16, 6, 16, 6),
                     child: Row(
                       mainAxisAlignment: MainAxisAlignment.spaceBetween,
                       crossAxisAlignment: CrossAxisAlignment.baseline,
                       textBaseline: TextBaseline.alphabetic,
                       children: [
-                        eyebrow('NEXT UP · ${upNext.length} TRACKS', c.fgMute),
+                        Text.rich(
+                          TextSpan(
+                            text: 'Next up',
+                            style: SunohType.sans(
+                              fontSize: 14,
+                              fontWeight: FontWeight.w600,
+                              color: c.fg,
+                            ),
+                            children: [
+                              TextSpan(
+                                text: '  ${upNext.length}',
+                                style: SunohType.mono(
+                                  fontSize: 12.5,
+                                  color: c.fgDim,
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
                         if (upNext.isNotEmpty)
                           GestureDetector(
                             onTap: s.apiClearUpNext,
                             child: Text(
                               'Clear',
                               style: SunohType.sans(
-                                fontSize: 11,
-                                color: c.fgMute,
+                                fontSize: 13,
+                                color: c.fgDim,
                                 fontWeight: FontWeight.w500,
                               ),
                             ),
@@ -175,9 +196,10 @@ class _ApiQueueBody extends StatelessWidget {
               SliverReorderableList(
                 itemCount: upNext.length,
                 onReorderItem: s.apiReorderUpNext,
+                proxyDecorator: (child, _, a) => liftedQueueRow(child, a, c),
                 itemBuilder: (context, i) {
                   final song = upNext[i];
-                  return _ApiQueueRow(
+                  return QueueRow(
                     key: ValueKey('${song.id}:$i'),
                     index: i,
                     song: song,
@@ -199,7 +221,7 @@ class _ApiQueueBody extends StatelessWidget {
                     for (final h in s.playedHistory.take(10))
                       Opacity(
                         opacity: 0.7,
-                        child: _ApiHistoryRow(song: h, colors: c),
+                        child: QueueHistoryRow(song: h, colors: c),
                       ),
                     const SizedBox(height: 80),
                   ],
@@ -214,228 +236,17 @@ class _ApiQueueBody extends StatelessWidget {
   }
 }
 
-class _ApiNowPlayingRow extends StatelessWidget {
-  const _ApiNowPlayingRow({
-    required this.song,
-    required this.accent,
-    required this.colors,
-  });
-  final FeedItem song;
-  final Color accent;
-  final SunohColors colors;
-
-  @override
-  Widget build(BuildContext context) {
-    final c = colors;
-    final artist = (song.artists ?? const <ApiArtistRef>[])
-        .map((a) => a.name)
-        .where((n) => n.isNotEmpty)
-        .take(2)
-        .join(', ');
-    return Padding(
-      padding: const EdgeInsets.fromLTRB(20, 6, 20, 14),
-      child: Row(
-        children: [
-          SunohArt(id: song.id, imageUrl: song.artwork, size: 56, radius: 6),
-          const SizedBox(width: 12),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  song.title,
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                  style: SunohType.sans(
-                    fontSize: 15,
-                    fontWeight: FontWeight.w500,
-                    color: accent,
-                  ),
-                ),
-                const SizedBox(height: 2),
-                Text(
-                  artist.isEmpty ? '—' : artist,
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                  style: SunohType.sans(fontSize: 12.5, color: c.fgMute),
-                ),
-              ],
-            ),
-          ),
-          PlayingBars(color: accent, size: 20),
-        ],
-      ),
-    );
-  }
-}
-
-class _ApiQueueRow extends StatelessWidget {
-  const _ApiQueueRow({
-    super.key,
-    required this.index,
-    required this.song,
-    required this.colors,
-    required this.onTap,
-    required this.onRemove,
-  });
-  final int index;
-  final FeedItem song;
-  final SunohColors colors;
-  final VoidCallback onTap;
-  final VoidCallback onRemove;
-
-  @override
-  Widget build(BuildContext context) {
-    final c = colors;
-    final artist = (song.artists ?? const <ApiArtistRef>[])
-        .map((a) => a.name)
-        .where((n) => n.isNotEmpty)
-        .take(2)
-        .join(', ');
-    final dur = _fmtDuration(song.duration);
-    // Wrap the whole row in a faster delayed-drag listener so a long
-    // press anywhere on the row (not just the hamburger handle) starts
-    // reordering. Flutter's built-in `ReorderableDelayedDragStartListener`
-    // hard-codes ~500 ms via `kLongPressTimeout` — see [_FastReorderListener]
-    // for the local subclass that drops that to 200 ms.
-    return _FastReorderListener(
-      index: index,
-      child: Container(
-        color: c.bg,
-        padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 8),
-        child: Row(
-          children: [
-            ReorderableDragStartListener(
-              index: index,
-              child: Icon(
-                SolarIconsOutline.hamburgerMenu,
-                size: 16,
-                color: c.fgMute.withValues(alpha: 0.6),
-              ),
-            ),
-            const SizedBox(width: 8),
-            SunohArt(id: song.id, imageUrl: song.artwork, size: 42, radius: 4),
-            const SizedBox(width: 12),
-            Expanded(
-              child: GestureDetector(
-                onTap: onTap,
-                behavior: HitTestBehavior.opaque,
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      song.title,
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                      style: SunohType.sans(
-                        fontSize: 13.5,
-                        fontWeight: FontWeight.w500,
-                        color: c.fg,
-                      ),
-                    ),
-                    if (artist.isNotEmpty) ...[
-                      const SizedBox(height: 1),
-                      Text(
-                        artist,
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                        style: SunohType.sans(fontSize: 11.5, color: c.fgMute),
-                      ),
-                    ],
-                  ],
-                ),
-              ),
-            ),
-            if (dur != null) ...[
-              const SizedBox(width: 8),
-              Text(dur, style: SunohType.mono(fontSize: 10, color: c.fgMute)),
-            ],
-            IconBtn(
-              icon: SolarIconsOutline.closeCircle,
-              color: c.fgMute,
-              size: 14,
-              width: 32,
-              height: 32,
-              onTap: onRemove,
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-}
-
-class _ApiHistoryRow extends StatelessWidget {
-  const _ApiHistoryRow({required this.song, required this.colors});
-  final FeedItem song;
-  final SunohColors colors;
-
-  @override
-  Widget build(BuildContext context) {
-    final c = colors;
-    final artist = (song.artists ?? const <ApiArtistRef>[])
-        .map((a) => a.name)
-        .where((n) => n.isNotEmpty)
-        .take(2)
-        .join(', ');
-    return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 8),
-      child: Row(
-        children: [
-          SunohArt(id: song.id, imageUrl: song.artwork, size: 36, radius: 4),
-          const SizedBox(width: 12),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  song.title,
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                  style: SunohType.sans(fontSize: 13, color: c.fgDim),
-                ),
-                if (artist.isNotEmpty) ...[
-                  const SizedBox(height: 1),
-                  Text(
-                    artist,
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                    style: SunohType.sans(fontSize: 11, color: c.fgMute),
-                  ),
-                ],
-              ],
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-}
-
-String? _fmtDuration(String? raw) {
-  if (raw == null || raw.isEmpty) return null;
-  final n = int.tryParse(raw);
-  if (n == null) return raw;
-  final m = n ~/ 60;
-  final s = n % 60;
-  return '$m:${s.toString().padLeft(2, '0')}';
-}
-
 // ── Dummy mode (legacy Track-based catalog path) ───────────────────────────
 
 class _DummyQueueBody extends StatelessWidget {
-  const _DummyQueueBody({
-    required this.s,
-    required this.accent,
-    required this.colors,
-  });
+  const _DummyQueueBody({required this.s, required this.colors});
   final dynamic s;
-  final Color accent;
   final SunohColors colors;
 
   @override
   Widget build(BuildContext context) {
     final c = colors;
+    final accent = c.accent;
     return CustomScrollView(
       slivers: [
         SliverToBoxAdapter(
@@ -450,7 +261,11 @@ class _DummyQueueBody extends StatelessWidget {
                 padding: const EdgeInsets.fromLTRB(20, 6, 20, 14),
                 child: Row(
                   children: [
-                    SunohArt(id: s.current.id, size: 56, radius: 6),
+                    SunohArt(
+                      id: s.current.id,
+                      size: 56,
+                      radius: SunohRadius.row,
+                    ),
                     const SizedBox(width: 12),
                     Expanded(
                       child: Column(
@@ -489,7 +304,11 @@ class _DummyQueueBody extends StatelessWidget {
                     eyebrow('NEXT UP · ${s.queue.length} TRACKS', c.fgMute),
                     Text(
                       'Clear',
-                      style: SunohType.sans(fontSize: 11, color: c.fgMute),
+                      style: SunohType.sans(
+                        fontSize: 13,
+                        color: c.fgDim,
+                        fontWeight: FontWeight.w500,
+                      ),
                     ),
                   ],
                 ),
@@ -511,13 +330,13 @@ class _DummyQueueBody extends StatelessWidget {
                   ReorderableDragStartListener(
                     index: i,
                     child: Icon(
-                      SolarIconsOutline.hamburgerMenu,
+                      RemixIcons.draggable,
                       size: 16,
                       color: c.fgMute.withValues(alpha: 0.6),
                     ),
                   ),
                   const SizedBox(width: 8),
-                  SunohArt(id: t.id, size: 42, radius: 4),
+                  SunohArt(id: t.id, size: 42, radius: SunohRadius.row),
                   const SizedBox(width: 12),
                   Expanded(
                     child: GestureDetector(
@@ -556,7 +375,7 @@ class _DummyQueueBody extends StatelessWidget {
                     style: SunohType.mono(fontSize: 10, color: c.fgMute),
                   ),
                   IconBtn(
-                    icon: SolarIconsOutline.closeCircle,
+                    icon: RemixIcons.close_circle_line,
                     color: c.fgMute,
                     size: 14,
                     width: 32,
@@ -587,7 +406,7 @@ class _DummyQueueBody extends StatelessWidget {
                       ),
                       child: Row(
                         children: [
-                          SunohArt(id: t.id, size: 36, radius: 4),
+                          SunohArt(id: t.id, size: 36, radius: SunohRadius.row),
                           const SizedBox(width: 12),
                           Expanded(
                             child: Column(
@@ -624,24 +443,6 @@ class _DummyQueueBody extends StatelessWidget {
         else
           const SliverToBoxAdapter(child: SizedBox(height: 40)),
       ],
-    );
-  }
-}
-
-/// `ReorderableDragStartListener` subclass that uses a 200 ms long-press
-/// delay instead of Flutter's built-in ~500 ms. The Material library's
-/// `ReorderableDelayedDragStartListener` doesn't expose the delay, so
-/// we re-implement the one line that matters: which recognizer to
-/// construct. Everything else (drag handling, scroll-while-dragging,
-/// proxyDecorator hookup) is inherited.
-class _FastReorderListener extends ReorderableDragStartListener {
-  const _FastReorderListener({required super.child, required super.index});
-
-  @override
-  MultiDragGestureRecognizer createRecognizer() {
-    return DelayedMultiDragGestureRecognizer(
-      delay: const Duration(milliseconds: 200),
-      debugOwner: this,
     );
   }
 }

@@ -1,32 +1,48 @@
-// Home screen — sunoh wordmark + top tabs (Music / Podcasts / Audiobooks).
-// The Music tab consumes the live /music/home feed via Riverpod.
+// Home — a greeting over the colour of whatever is playing, the Music /
+// Podcasts chips, and the feed of whichever tab is open.
+//
+// The header is pinned. It starts transparent so the wash behind the top of
+// the page shows through it, and turns solid — the page ground tinted a
+// tenth toward the playing colour, with a hairline under it — once the feed
+// has scrolled 40dp under it. A transparent bar over moving rows reads as
+// the rows' text colliding with the greeting; a solid one from the start
+// would cut the wash off at the chips.
 
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:solar_icons/solar_icons.dart';
+import 'package:remixicon/remixicon.dart';
 
-import '../api/dto.dart';
-import '../api/ytmusic_api.dart' show YtCategoryChip;
-import '../audio/radio_actions.dart';
-import '../data/models.dart';
+import '../overlays/support_sheet.dart';
 import '../providers/app_state_provider.dart';
-import '../providers/home_provider.dart';
 import '../providers/palette_provider.dart';
 import '../providers/update_provider.dart';
-import '../providers/ytmusic_provider.dart';
 import '../router/router.dart';
 import '../theme/tokens.dart';
-import '../widgets/album_art.dart';
-import '../widgets/playing_bars.dart';
+import '../widgets/art_wash.dart';
 import '../widgets/top_tabs.dart';
 import '../widgets/ui.dart';
 import '../widgets/update_sheet.dart';
-// Tab implementations: Music (the original /music/home feed), Podcasts
-// (backed by /podcasts/home via `podcastHomeProvider`, since v1.5.5),
-// and Audiobooks (cozyaudiobooks.com, since v1.8.0).
-import 'audiobooks_tab.dart';
+// Tab implementations: Music (the /music/home feed) and Podcasts (backed by
+// /podcasts/home via `podcastHomeProvider`, since v1.5.5).
+import 'home_feed.dart';
 import 'podcasts_tab.dart';
-import 'ytmusic_screens.dart' show YtCategoryChipTile, kYtChipRowGap;
+
+/// Scroll past which the header turns solid.
+const double _kSolidAfter = 40;
+
+/// Height of the wash at the top of the page.
+const double _kWashHeight = 340;
+
+const List<String> _kTabs = ['Music', 'Podcasts'];
+
+/// Good morning / afternoon / evening / night, by the device's clock.
+String _greeting(int hour) => hour < 5
+    ? 'Good night'
+    : hour < 12
+    ? 'Good morning'
+    : hour < 17
+    ? 'Good afternoon'
+    : 'Good evening';
 
 class HomeScreen extends ConsumerStatefulWidget {
   const HomeScreen({super.key});
@@ -41,23 +57,30 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
   // next launch).
   String? _promptedVersion;
 
-  /// Drives the tab-change fade. The body used to be wrapped in a
-  /// TweenAnimationBuilder, which only worked because it was a box; the feed
-  /// is slivers now, so the fade moves to SliverAnimatedOpacity and this is
-  /// the value it animates towards.
-  double _tabFade = 1;
-  String? _shownTab;
+  final _scroll = ScrollController();
 
-  /// Restart the fade when the tab actually changes. Called from build, so it
-  /// mutates directly and schedules the settle for the next frame rather than
-  /// calling setState mid-build.
-  void _noteTab(String tab) {
-    if (_shownTab == tab) return;
-    _shownTab = tab;
-    _tabFade = 0;
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      if (mounted) setState(() => _tabFade = 1);
-    });
+  /// Whether the feed has scrolled under the header. A notifier rather than
+  /// state: it flips twice per trip up and down the page, and only the
+  /// header's ground listens to it.
+  final _solid = ValueNotifier(false);
+
+  @override
+  void initState() {
+    super.initState();
+    _scroll.addListener(_onScroll);
+  }
+
+  void _onScroll() {
+    final solid = _scroll.offset > _kSolidAfter;
+    if (solid != _solid.value) _solid.value = solid;
+  }
+
+  @override
+  void dispose() {
+    _scroll.removeListener(_onScroll);
+    _scroll.dispose();
+    _solid.dispose();
+    super.dispose();
   }
 
   @override
@@ -78,1020 +101,228 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
       });
     }
 
-    _noteTab(s.topTab);
-
     // Home owns its scrolling rather than sitting inside the shared
     // _RootScroll, because that is a SingleChildScrollView and a
     // SingleChildScrollView builds every one of its children. The music feed
     // is over twenty sections, each with its own strip of artwork, so a single
     // appStateProvider notification — the tint shifting back as you return
     // from an album, say — rebuilt all of them at once. As slivers only the
-    // sections actually on screen get built.
-    return CustomScrollView(
-      slivers: [
-        SliverToBoxAdapter(
-          child: SizedBox(height: MediaQuery.of(context).padding.top),
-        ),
-        SliverToBoxAdapter(
-          child: Padding(
-            padding: const EdgeInsets.fromLTRB(20, 12, 20, 0),
-            child: Row(
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-              children: [
-                Text(
-                  'sunoh.',
-                  style: SunohType.heading(
-                    fontSize: 22,
-                    color: c.fg,
-                    letterSpacing: -0.5,
-                  ),
-                ),
-                IconBtn(
-                  icon: SolarIconsOutline.settings,
-                  color: c.fgDim,
-                  size: 18,
-                  width: 32,
-                  height: 32,
-                  onTap: () => context.openSettings(),
-                ),
-              ],
-            ),
-          ),
-        ),
-        SliverToBoxAdapter(
-          child: SunohTabs(
-            tabs: const ['Music', 'Podcasts', 'Audiobooks'],
-            active: s.topTab,
-            onChange: s.setTopTab,
-            colors: c,
-          ),
-        ),
-        const SliverToBoxAdapter(child: SizedBox(height: 22)),
-        SliverAnimatedOpacity(
-          opacity: _tabFade,
-          duration: const Duration(milliseconds: 260),
-          curve: Curves.easeOut,
-          sliver: switch (s.topTab) {
-            'Podcasts' => SliverToBoxAdapter(child: PodcastsTab(colors: c)),
-            'Audiobooks' => SliverToBoxAdapter(child: AudiobooksTab(colors: c)),
-            _ => MusicTab(colors: c),
-          },
-        ),
-        // Clears the mini player and nav bar, which the shell paints over the
-        // last 140 logical pixels of every screen.
-        const SliverToBoxAdapter(child: SizedBox(height: 140)),
-      ],
-    );
-  }
-}
-
-/// Horizontal strip of YouTube Music mood/genre chips, with a "See all"
-/// into the full index. Renders nothing until the chips load, so a slow or
-/// failed fetch just leaves the feed as it was.
-class _MoodsRow extends ConsumerWidget {
-  const _MoodsRow({required this.colors});
-  final SunohColors colors;
-
-  @override
-  Widget build(BuildContext context, WidgetRef ref) {
-    final c = colors;
-    final groups = ref.watch(ytMusicMoodsProvider).asData?.value;
-    if (groups == null || groups.isEmpty) return const SizedBox.shrink();
-
-    // Flatten across grids ("Moods & moments" then "Genres") and take a
-    // sample — the full 49 chips live behind See all.
-    final chips = [for (final g in groups) ...g.chips].take(21).toList();
-    if (chips.isEmpty) return const SizedBox.shrink();
-
-    // Lay out as a horizontally-scrolling grid of `rows` stacked chips
-    // rather than one long line: three short rows fit far more categories
-    // in the same vertical space and read as a browsable block instead of
-    // an endless strip. Falls back to fewer rows when there aren't enough
-    // chips to fill them.
-    final rows = chips.length >= 9 ? 3 : (chips.length >= 4 ? 2 : 1);
-    final columns = <List<YtCategoryChip>>[];
-    for (var i = 0; i < chips.length; i += rows) {
-      columns.add(chips.sublist(i, (i + rows).clamp(0, chips.length)));
-    }
-    final gridHeight =
-        YtCategoryChipTile.height * rows + kYtChipRowGap * (rows - 1);
-
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
+    // sections actually on screen get built. Slivers are also what lets the
+    // header pin.
+    //
+    // A tab switch swaps the sliver below the header for a new one, and the
+    // new tab's blocks play their own entrance — the fade the whole body used
+    // to run on a switch would only have doubled it.
+    return Stack(
       children: [
-        Padding(
-          padding: const EdgeInsets.fromLTRB(20, 0, 20, 14),
-          child: Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-            children: [
-              Text(
-                'Moods & genres',
-                style: SunohType.heading(
-                  fontSize: 19,
-                  color: c.fg,
-                  letterSpacing: -0.2,
-                ),
-              ),
-              GestureDetector(
-                onTap: () => context.openYtMoods(),
-                behavior: HitTestBehavior.opaque,
-                child: Row(
-                  children: [
-                    Text(
-                      'See all',
-                      style: SunohType.sans(fontSize: 12.5, color: c.fgMute),
-                    ),
-                    const SizedBox(width: 4),
-                    Icon(
-                      SolarIconsOutline.altArrowRight,
-                      size: 14,
-                      color: c.fgMute,
-                    ),
-                  ],
-                ),
-              ),
-            ],
-          ),
+        Positioned(
+          top: 0,
+          left: 0,
+          right: 0,
+          child: _ScrollingWash(scroll: _scroll),
         ),
-        SizedBox(
-          height: gridHeight,
-          child: ListView.separated(
-            scrollDirection: Axis.horizontal,
-            padding: const EdgeInsets.symmetric(horizontal: 20),
-            itemCount: columns.length,
-            separatorBuilder: (_, _) => const SizedBox(width: 10),
-            itemBuilder: (context, col) {
-              final cells = columns[col];
-              return Column(
-                mainAxisAlignment: MainAxisAlignment.start,
-                children: [
-                  for (var r = 0; r < rows; r++) ...[
-                    if (r > 0) const SizedBox(height: kYtChipRowGap),
-                    // Short trailing columns keep their slots so the grid
-                    // stays rectangular instead of ragged at the edge.
-                    if (r < cells.length)
-                      YtCategoryChipTile(chip: cells[r], colors: c, width: 148)
-                    else
-                      const SizedBox(
-                        width: 148,
-                        height: YtCategoryChipTile.height,
-                      ),
-                  ],
-                ],
-              );
+        CustomScrollView(
+          controller: _scroll,
+          slivers: [
+            SliverPersistentHeader(
+              pinned: true,
+              delegate: _HomeHeader(
+                inset: MediaQuery.paddingOf(context).top,
+                greeting: _greeting(DateTime.now().hour),
+                colors: c,
+                tab: s.topTab,
+                onTab: s.setTopTab,
+                solid: _solid,
+              ),
+            ),
+            switch (s.topTab) {
+              'Podcasts' => SliverToBoxAdapter(child: PodcastsTab(colors: c)),
+              _ => MusicTab(colors: c),
             },
-          ),
+            // Clears the mini player and nav bar, which the shell paints over
+            // the last 156 logical pixels plus the system inset (shellClearance).
+            SliverToBoxAdapter(
+              child: SizedBox(height: shellClearance(context)),
+            ),
+          ],
         ),
       ],
     );
   }
 }
 
-/// Songs shown in a shelf before it defers to "See all". Three full
-/// columns of four.
-const int _kSongShelfMax = 12;
-
-/// A row of songs, rendered as horizontally-paging columns of compact
-/// track rows instead of cover tiles.
+/// The wash, behind the scroll view and moved with it.
 ///
-/// Two reasons this exists rather than reusing the cover carousel:
-///
-///  - A song tile and a playlist tile looked identical, but tapping one
-///    starts playback and the other opens a screen. Same affordance for
-///    two different actions.
-///  - Tapping a song used to start a single-track queue, discarding the
-///    row it came from. Here a tap plays the whole shelf from that point,
-///    so "Trending" behaves like a playlist you dropped into.
-///
-/// The next column deliberately peeks past the right edge — without it
-/// there's nothing to suggest the shelf scrolls.
-class _SongShelf extends ConsumerWidget {
-  const _SongShelf({
-    required this.songs,
-    required this.colors,
-    required this.sectionLabel,
-  });
-  final List<FeedItem> songs;
-  final SunohColors colors;
-  final String sectionLabel;
-
-  static const double _rowHeight = 58;
-  static const double _peek = 30;
-
-  @override
-  Widget build(BuildContext context, WidgetRef ref) {
-    final c = colors;
-    final s = ref.watch(appStateProvider);
-    final rows = songs.length >= 8 ? 4 : 3;
-
-    final columns = <List<FeedItem>>[];
-    for (var i = 0; i < songs.length; i += rows) {
-      columns.add(songs.sublist(i, (i + rows).clamp(0, songs.length)));
-    }
-
-    // Full-bleed column minus the page gutters, leaving a peek of the next
-    // one. Snaps per column so a swipe lands cleanly.
-    final columnWidth = MediaQuery.of(context).size.width - 40 - _peek;
-
-    return SizedBox(
-      height: _rowHeight * rows,
-      child: ListView.separated(
-        scrollDirection: Axis.horizontal,
-        padding: const EdgeInsets.symmetric(horizontal: 20),
-        physics: const PageScrollPhysics(),
-        itemCount: columns.length,
-        separatorBuilder: (_, _) => const SizedBox(width: 10),
-        itemBuilder: (context, col) {
-          final cells = columns[col];
-          return SizedBox(
-            width: columnWidth,
-            child: Column(
-              children: [
-                for (final song in cells)
-                  SizedBox(
-                    height: _rowHeight,
-                    child: _SongShelfRow(
-                      song: song,
-                      colors: c,
-                      playing: s.currentApiSong?.id == song.id,
-                      onTap: () => s.playApiQueue(
-                        songs,
-                        songs.indexOf(song),
-                        sourceLabel: 'HOME · $sectionLabel',
-                      ),
-                    ),
-                  ),
-              ],
-            ),
-          );
-        },
-      ),
-    );
-  }
-}
-
-class _SongShelfRow extends StatelessWidget {
-  const _SongShelfRow({
-    required this.song,
-    required this.colors,
-    required this.playing,
-    required this.onTap,
-  });
-  final FeedItem song;
-  final SunohColors colors;
-  final bool playing;
-  final VoidCallback onTap;
+/// It sits under the header as well as the hero, which no single sliver can
+/// do once the header is the pinned first one: the header paints over the
+/// slivers after it, and a sliver can only reach up under it by overflowing.
+/// A translation per scroll frame is one layer moving; the gradient itself is
+/// behind a repaint boundary and is not redrawn.
+class _ScrollingWash extends StatelessWidget {
+  const _ScrollingWash({required this.scroll});
+  final ScrollController scroll;
 
   @override
   Widget build(BuildContext context) {
+    return AnimatedBuilder(
+      animation: scroll,
+      builder: (_, child) => Transform.translate(
+        offset: Offset(0, scroll.hasClients ? -scroll.offset : 0),
+        child: child,
+      ),
+      child: const RepaintBoundary(child: PlayingArtWash(height: _kWashHeight)),
+    );
+  }
+}
+
+/// Status-bar inset, the greeting row, then the tab chips.
+///
+/// A persistent header has to state its height before it builds, so the two
+/// rows are numbers here and the build below lays them out at exactly those
+/// heights — the chips are 32 high with 4 above and 12 below.
+class _HomeHeader extends SliverPersistentHeaderDelegate {
+  _HomeHeader({
+    required this.inset,
+    required this.greeting,
+    required this.colors,
+    required this.tab,
+    required this.onTab,
+    required this.solid,
+  });
+
+  final double inset;
+  final String greeting;
+  final SunohColors colors;
+  final String tab;
+  final ValueChanged<String> onTab;
+  final ValueNotifier<bool> solid;
+
+  static const double _rowHeight = 56;
+  static const double _tabsHeight = 48;
+
+  double get _extent => inset + _rowHeight + _tabsHeight;
+
+  @override
+  double get minExtent => _extent;
+
+  @override
+  double get maxExtent => _extent;
+
+  @override
+  Widget build(BuildContext context, double shrinkOffset, bool overlaps) {
     final c = colors;
-    final sub = song.subtitle ?? '';
-    return GestureDetector(
-      onTap: onTap,
-      behavior: HitTestBehavior.opaque,
-      child: Padding(
-        padding: const EdgeInsets.symmetric(vertical: 5),
-        child: Row(
-          children: [
-            squircleClip(
-              radius: 8,
-              child: SunohArt(
-                id: song.id,
-                imageUrl: song.artwork,
-                size: 48,
-                radius: 8,
-                shadow: false,
-              ),
-            ),
-            const SizedBox(width: 12),
-            Expanded(
-              child: Column(
-                mainAxisAlignment: MainAxisAlignment.center,
-                crossAxisAlignment: CrossAxisAlignment.start,
+    return _HeaderGround(
+      solid: solid,
+      colors: c,
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          SizedBox(height: inset),
+          SizedBox(
+            height: _rowHeight,
+            child: Padding(
+              padding: const EdgeInsets.fromLTRB(16, 0, 12, 0),
+              child: Row(
                 children: [
-                  Text(
-                    song.title,
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                    style: SunohType.sans(
-                      fontSize: 13.5,
-                      fontWeight: FontWeight.w500,
-                      // The playing track picks up the accent, matching
-                      // how detail-screen rows mark the current song.
-                      color: playing ? c.accent : c.fg,
-                    ),
-                  ),
-                  if (sub.isNotEmpty) ...[
-                    const SizedBox(height: 2),
-                    Text(
-                      sub,
+                  Expanded(
+                    child: Text(
+                      greeting,
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,
-                      style: SunohType.sans(fontSize: 11.5, color: c.fgMute),
+                      style: SunohType.heading(fontSize: 26, color: c.fg),
                     ),
-                  ],
+                  ),
+                  const SizedBox(width: 8),
+                  // Support sits beside Settings, not a scroll away inside
+                  // it. A cup: in a music app a heart reads as Liked songs.
+                  IconBtn(
+                    icon: RemixIcons.cup_line,
+                    color: c.fg,
+                    onTap: () => showSupportSheet(context),
+                  ),
+                  const SizedBox(width: 8),
+                  IconBtn(
+                    icon: RemixIcons.settings_3_line,
+                    color: c.fg,
+                    onTap: () => context.openSettings(),
+                  ),
                 ],
               ),
             ),
-            const SizedBox(width: 10),
-            if (playing)
-              PlayingBars(color: c.accent, size: 16)
-            else if ((song.duration ?? '').isNotEmpty)
-              Text(
-                _fmtDuration(song.duration!),
-                style: SunohType.mono(fontSize: 11, color: c.fgMute),
-              ),
-          ],
-        ),
+          ),
+          SunohTabs(
+            tabs: _kTabs,
+            active: tab,
+            onChange: onTab,
+            colors: c,
+            padding: const EdgeInsets.fromLTRB(16, 4, 16, 12),
+          ),
+        ],
       ),
     );
   }
 
-  static String _fmtDuration(String seconds) {
-    final total = int.tryParse(seconds);
-    if (total == null || total <= 0) return '';
-    final m = total ~/ 60;
-    final r = total % 60;
-    return '$m:${r.toString().padLeft(2, '0')}';
-  }
+  @override
+  bool shouldRebuild(_HomeHeader old) =>
+      old.inset != inset ||
+      old.greeting != greeting ||
+      old.colors != colors ||
+      old.tab != tab ||
+      old.solid != solid;
 }
 
-/// How many primary-feed sections to show between each interleaved
-/// YouTube Music row. 3 keeps sunoh's own feed dominant while surfacing the
-/// YouTube rows well before the user hits the bottom.
-const int _kYtInterleaveEvery = 3;
-
-/// Weave [secondary] sections into [primary], one after every [everyN]
-/// primary sections. Leftover secondary sections are appended.
+/// The header's ground: nothing at the top of the page, then the page colour
+/// tinted toward what is playing, with a hairline beneath, once [solid].
 ///
-/// Slot 0 is never taken: the first section gets the featured treatment and
-/// should stay sunoh's own.
-List<HomeSection> _interleave({
-  required List<HomeSection> primary,
-  required List<HomeSection> secondary,
-  required int everyN,
-}) {
-  if (secondary.isEmpty) return primary;
-  if (primary.isEmpty) return secondary;
+/// The tint selects only the three things it depends on, so the position
+/// tick and every unrelated app-state change pass it by. The hairline is a
+/// zero-blur shadow rather than a border, so it hangs below the header
+/// instead of taking a pixel from the rows inside it.
+class _HeaderGround extends ConsumerWidget {
+  const _HeaderGround({
+    required this.solid,
+    required this.colors,
+    required this.child,
+  });
 
-  final out = <HomeSection>[];
-  final queue = [...secondary];
-  for (var i = 0; i < primary.length; i++) {
-    out.add(primary[i]);
-    final placed = i + 1;
-    if (placed % everyN == 0 && queue.isNotEmpty) {
-      out.add(queue.removeAt(0));
-    }
-  }
-  out.addAll(queue);
-  return out;
-}
-
-// ── Music tab ──────────────────────────────────────────────────────────────
-// Live data: fetches the unified /music/home feed and renders each section
-// (preserves the design system — Gilroy, squircles, 40px inter-section gaps).
-class MusicTab extends ConsumerWidget {
-  const MusicTab({super.key, required this.colors});
+  final ValueNotifier<bool> solid;
   final SunohColors colors;
+  final Widget child;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final c = colors;
-    final s = ref.watch(appStateProvider);
-    final feedAsync = ref.watch(homeFeedProvider(s.selectedLanguagesCsv));
-    final gap = 40 * s.density.scale;
-
-    return feedAsync.when(
-      loading: () => const SliverToBoxAdapter(child: _LoadingFeed()),
-      error: (e, _) => SliverToBoxAdapter(
-        child: _ErrorFeed(
-          message: 'Couldn’t load the home feed.',
-          detail: '$e',
-          onRetry: () =>
-              ref.invalidate(homeFeedProvider(s.selectedLanguagesCsv)),
-          colors: c,
-        ),
-      ),
-      data: (sections) {
-        final nonEmpty = sections.where((s) => s.items.isNotEmpty).toList();
-        if (nonEmpty.isEmpty) {
-          return SliverToBoxAdapter(
-            child: _ErrorFeed(
-              message: 'Nothing in the feed right now.',
-              colors: c,
-              onRetry: () =>
-                  ref.invalidate(homeFeedProvider(s.selectedLanguagesCsv)),
-            ),
-          );
-        }
-        // YouTube Music rows. Watched separately (not awaited alongside the
-        // main feed) so a slow or failing InnerTube response never holds up
-        // or breaks the home screen — the rows simply aren't there.
-        final ytSections =
-            ref.watch(ytMusicHomeProvider).asData?.value ??
-            const <HomeSection>[];
-        final ytNonEmpty = ytSections.where((s) => s.items.isNotEmpty).toList();
-
-        // Interleave rather than append. Bolting them on the end buries them
-        // below a long feed, and makes the tail read as a separate app. The
-        // first slot is deliberately left to sunoh's own featured section.
-        final merged = _interleave(
-          primary: nonEmpty,
-          secondary: ytNonEmpty,
-          everyN: _kYtInterleaveEvery,
-        );
-
-        // Widget instances, not built widgets. Constructing twenty-odd of
-        // these is nothing; it is their build methods — each resolving a
-        // strip of artwork — that cost, and the delegate below only calls
-        // those for rows actually on screen.
-        final rows = <Widget>[];
-        for (var i = 0; i < merged.length; i++) {
-          rows.add(
-            Padding(
-              padding: EdgeInsets.only(top: i == 0 ? 0 : gap),
-              // First section gets the big feature-tile treatment (matches the
-              // prototype's "Editorial picks" hierarchy).
-              child: _ApiSection(
-                section: merged[i],
-                colors: c,
-                featured: i == 0,
-              ),
-            ),
-          );
-          // Moods & genres sits after the first couple of rows — high enough
-          // to be discoverable, not so high it displaces the feed.
-          if (i == 1) {
-            rows.add(
-              Padding(
-                padding: EdgeInsets.only(top: gap),
-                child: _MoodsRow(colors: c),
-              ),
-            );
-          }
-        }
-
-        return SliverList.builder(
-          itemCount: rows.length,
-          itemBuilder: (_, i) => rows[i],
-        );
-      },
-    );
-  }
-}
-
-class _ApiSection extends ConsumerWidget {
-  const _ApiSection({
-    required this.section,
-    required this.colors,
-    this.featured = false,
-  });
-  final HomeSection section;
-  final SunohColors colors;
-  final bool featured;
-
-  @override
-  Widget build(BuildContext context, WidgetRef ref) {
-    final c = colors;
-    // Items that should render as round chips: artists + radio stations.
-    final isCircleRow =
-        section.items.isNotEmpty &&
-        section.items.every(
-          (it) =>
-              it.type == 'artist' ||
-              it.type == 'radio_station' ||
-              it.type == 'radio',
-        );
-    // Channels (the Saavn "Browse" row) are a distinct shape — wide
-    // rectangular tiles in a 3-row horizontal-scroll grid. Different
-    // enough from regular cards/circles that they get their own renderer
-    // entirely.
-    final isChannelRow =
-        section.items.isNotEmpty &&
-        section.items.every((it) => it.type == 'channel');
-    // Song rows get a different shape entirely — see _SongShelf. A cover
-    // tile and a song tile currently look identical even though one opens
-    // a screen and the other starts playback, and a row of 20 tracks reads
-    // as "20 albums" at a glance.
-    final isSongRow =
-        section.items.length >= 4 &&
-        section.items.every((it) => it.type == 'song');
-
-    // Cap each row at 10 items; if there are more, show "See all →" linking
-    // to the full section. Song shelves hold more — they're denser, so a
-    // full screen of them is three columns rather than three tiles.
-    final visible = section.items
-        .take(isSongRow ? _kSongShelfMax : 10)
-        .toList();
-    final hasMore = section.items.length > (isSongRow ? _kSongShelfMax : 10);
-
-    if (isSongRow) {
-      return Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          SectionHeader(
-            title: section.heading,
-            colors: c,
-            onSeeAll: hasMore ? () => context.openSection(section) : null,
-          ),
-          _SongShelf(songs: visible, colors: c, sectionLabel: section.heading),
-        ],
-      );
-    }
-
-    if (isChannelRow) {
-      return Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          SectionHeader(
-            title: section.heading,
-            colors: c,
-            onSeeAll: hasMore ? () => context.openSection(section) : null,
-          ),
-          _ChannelGrid(
-            items: section.items.take(15).toList(),
-            colors: c,
-            sectionSource: section.source,
-          ),
-        ],
-      );
-    }
-    // featured (first section) → big 220px tiles like the prototype's
-    // Editorial picks. Circle rows stay round but a touch larger when featured.
-    final width = isCircleRow
-        ? (featured ? 120.0 : 96.0)
-        : (featured ? 220.0 : 148.0);
-    final gap = isCircleRow ? 18.0 : (featured ? 14.0 : 12.0);
-
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        SectionHeader(
-          title: section.heading,
-          colors: c,
-          onSeeAll: hasMore ? () => context.openSection(section) : null,
-        ),
-        HCardRow<FeedItem>(
-          items: visible,
-          width: width,
-          gap: gap,
-          onTap: (item) => _routeTap(context, ref, item, section.source),
-          builder: (item, w) => isCircleRow
-              ? _ArtistCard(item: item, size: w, colors: c)
-              : _CoverCard(item: item, width: w, colors: c, featured: featured),
-        ),
-      ],
-    );
-  }
-
-  void _routeTap(
-    BuildContext context,
-    WidgetRef ref,
-    FeedItem item,
-    String? sectionSource,
-  ) {
-    final s = ref.read(appStateProvider);
-    final src = item.source ?? sectionSource;
-
-    // YouTube items are routed separately: their ids are YouTube browse ids
-    // (VLRDCLAK5uy_…), which sunoh-api's album/playlist endpoints can't
-    // resolve. Songs still fall through to the shared `song` case below —
-    // those play via the resolver's native YouTube tier.
-    if (src == 'youtube' && item.type != 'song') {
-      context.openYtItem(item);
-      return;
-    }
-
-    switch (item.type) {
-      case 'album':
-        context.openRef(DetailRef('album', item.id, source: src));
-        break;
-      case 'playlist':
-        context.openRef(DetailRef('playlist', item.id, source: src));
-        break;
-      case 'artist':
-        // Pure artist tiles navigate to the artist screen. The
-        // "Recommended Artist Stations" tiles are a separate concept
-        // — they come back as `type='radio_station'` with
-        // `stationType='artist'` (via the API's mapSaavnChannel
-        // rebrand) and are caught by the radio_station case below.
-        context.openRef(DetailRef('artist', item.id, source: src));
-        break;
-      case 'song':
-        // Songs play immediately — home rows full of songs (Trending,
-        // Popular, New Releases) should kick playback on tap, not navigate
-        // to a non-existent "song detail" screen.
-        s.playApiSong(item, sourceLabel: 'HOME · ${section.heading}');
-        break;
-      case 'radio_station':
-      case 'radio':
-        // Radio stations need a two-step session bootstrap (create
-        // session → fetch first batch of songs). Shared with the channel
-        // detail screen via lib/audio/radio_actions.dart so both tap
-        // sources behave identically.
-        startRadioStation(ref, item, provider: src);
-        break;
-      case 'channel':
-        // Channels (the Saavn "Browse" row) aren't radio stations and
-        // can't be opened via /music/radio/session — but the backend
-        // routes them through the occasion detail endpoint just fine
-        // (/music/occasions/<channelId>?provider=saavn returns the
-        // expected sections). Re-use OccasionScreen for the layout.
-        context.openOccasion(item);
-        break;
-      case 'occasion':
-        context.openOccasion(item);
-        break;
-      default:
-        s.flashToast(item.type);
-    }
-  }
-}
-
-class _CoverCard extends StatelessWidget {
-  const _CoverCard({
-    required this.item,
-    required this.width,
-    required this.colors,
-    this.featured = false,
-  });
-  final FeedItem item;
-  final double width;
-  final SunohColors colors;
-  final bool featured;
-  @override
-  Widget build(BuildContext context) {
-    final c = colors;
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        SunohArt(
-          id: item.id,
-          size: width,
-          radius: featured ? 12 : 10,
-          imageUrl: item.artwork,
-        ),
-        SizedBox(height: featured ? 10 : 8),
-        Text(
-          item.title,
-          // One line, always. A wrapped title shifts the subtitle and the
-          // card below it, so a long name in the featured shelf made the row
-          // sit at a different height from its neighbours.
-          maxLines: 1,
-          overflow: TextOverflow.ellipsis,
-          style: featured
-              ? SunohType.heading(
-                  fontSize: 18,
-                  color: c.fg,
-                  height: 1.15,
-                  letterSpacing: -0.2,
-                )
-              : SunohType.sans(
-                  fontSize: 13.5,
-                  fontWeight: FontWeight.w500,
-                  color: c.fg,
-                  height: 1.2,
-                ),
-        ),
-        if ((item.displaySubtitle ?? '').isNotEmpty) ...[
-          SizedBox(height: featured ? 4 : 2),
-          Text(
-            item.displaySubtitle!,
-            maxLines: 1,
-            overflow: TextOverflow.ellipsis,
-            style: SunohType.sans(
-              fontSize: featured ? 12.5 : 11.5,
-              color: c.fgDim,
-              height: featured ? 1.35 : 1.2,
-            ),
-          ),
-        ],
-      ],
-    );
-  }
-}
-
-class _ArtistCard extends StatelessWidget {
-  const _ArtistCard({
-    required this.item,
-    required this.size,
-    required this.colors,
-  });
-  final FeedItem item;
-  final double size;
-  final SunohColors colors;
-  @override
-  Widget build(BuildContext context) {
-    final c = colors;
-    return Column(
-      children: [
-        SunohArt(
-          id: item.id,
-          size: size - 10,
-          radius: 999,
-          imageUrl: item.artwork,
-        ),
-        const SizedBox(height: 10),
-        Text(
-          item.title,
-          textAlign: TextAlign.center,
-          maxLines: 2,
-          overflow: TextOverflow.ellipsis,
-          style: SunohType.sans(
-            fontSize: 12.5,
-            fontWeight: FontWeight.w500,
-            color: c.fg,
-            height: 1.2,
-          ),
-        ),
-      ],
-    );
-  }
-}
-
-// Skeleton placeholder for the home feed — mirrors the real layout (one
-// featured row + standard rows) and pulses so the wait feels intentional
-// rather than stuck.
-class _LoadingFeed extends StatelessWidget {
-  const _LoadingFeed();
-  @override
-  Widget build(BuildContext context) {
-    return const Pulse(
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          _SkeletonSection(featured: true),
-          SizedBox(height: 40),
-          _SkeletonSection(),
-          SizedBox(height: 40),
-          _SkeletonSection(),
-          SizedBox(height: 20),
-        ],
+    final (url, isLight, fallback) = ref.watch(
+      appStateProvider.select(
+        (s) => (s.currentApiSong?.artwork ?? '', s.isLight, s.resolvedAccent),
       ),
     );
-  }
-}
-
-class _SkeletonSection extends StatelessWidget {
-  const _SkeletonSection({this.featured = false});
-  final bool featured;
-  @override
-  Widget build(BuildContext context) {
-    final tileSize = featured ? 220.0 : 148.0;
-    final tileCount = featured ? 2 : 4;
-    final titleHeight = featured ? 16.0 : 13.0;
-    final subHeight = featured ? 12.0 : 11.0;
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        const Padding(
-          padding: EdgeInsets.fromLTRB(20, 0, 20, 14),
-          child: SkeletonBar(height: 22, width: 180, radius: 6),
-        ),
-        SingleChildScrollView(
-          scrollDirection: Axis.horizontal,
-          physics: const NeverScrollableScrollPhysics(),
-          padding: const EdgeInsets.symmetric(horizontal: 20),
-          child: Row(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              for (var i = 0; i < tileCount; i++) ...[
-                if (i > 0) SizedBox(width: featured ? 14 : 12),
-                SizedBox(
-                  width: tileSize,
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      SkeletonBar(
-                        height: tileSize,
-                        width: tileSize,
-                        radius: featured ? 12 : 10,
-                      ),
-                      SizedBox(height: featured ? 10 : 8),
-                      SkeletonBar(
-                        height: titleHeight,
-                        width: tileSize * 0.85,
-                        radius: 4,
-                      ),
-                      SizedBox(height: featured ? 4 : 2),
-                      SkeletonBar(
-                        height: subHeight,
-                        width: tileSize * 0.55,
-                        radius: 4,
-                      ),
-                    ],
-                  ),
-                ),
-              ],
-            ],
-          ),
-        ),
-      ],
-    );
-  }
-}
-
-class _ErrorFeed extends StatelessWidget {
-  const _ErrorFeed({
-    required this.message,
-    required this.colors,
-    required this.onRetry,
-    this.detail,
-  });
-  final String message;
-  final String? detail;
-  final SunohColors colors;
-  final VoidCallback onRetry;
-  @override
-  Widget build(BuildContext context) {
-    final c = colors;
-    return Padding(
-      padding: const EdgeInsets.fromLTRB(20, 80, 20, 80),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.center,
-        children: [
-          Text(
-            message,
-            textAlign: TextAlign.center,
-            style: SunohType.heading(fontSize: 18, color: c.fg),
-          ),
-          if (detail != null) ...[
-            const SizedBox(height: 8),
-            Text(
-              detail!,
-              textAlign: TextAlign.center,
-              style: SunohType.sans(fontSize: 12, color: c.fgMute),
-            ),
-          ],
-          const SizedBox(height: 20),
-          GestureDetector(
-            onTap: onRetry,
-            child: Container(
-              padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 10),
-              decoration: squircleDecoration(
-                radius: 999,
-                color: c.surface,
-                borderColor: c.line,
-              ),
-              child: Text(
-                'Try again',
-                style: SunohType.sans(
-                  fontSize: 13,
-                  fontWeight: FontWeight.w600,
-                  color: c.fg,
-                ),
-              ),
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-}
-
-/// Saavn-style "Browse" channels — 3-row horizontal-scroll grid of wide
-/// rectangular tiles. Used when an entire section is channel-typed.
-class _ChannelGrid extends StatelessWidget {
-  const _ChannelGrid({
-    required this.items,
-    required this.colors,
-    required this.sectionSource,
-  });
-  final List<FeedItem> items;
-  final SunohColors colors;
-  final String? sectionSource;
-
-  // Layout sizing — kept as constants so the SizedBox height matches the
-  // grid's actual row arithmetic exactly.
-  static const double _tileH = 64;
-  static const double _gap = 10;
-  static const int _rows = 3;
-  static const double _tileW = 180;
-
-  @override
-  Widget build(BuildContext context) {
-    // GridView in horizontal mode: `crossAxisCount` is the ROW count.
-    const totalHeight = _rows * _tileH + (_rows - 1) * _gap;
-    return SizedBox(
-      height: totalHeight,
-      // No `physics:` override — `SunohScrollBehavior` (app-wide) owns scroll
-      // feel. Earlier inline BouncingScrollPhysics ignored the global friction
-      // tuning and made this row feel different from the rest of the app.
-      child: GridView.builder(
-        scrollDirection: Axis.horizontal,
-        padding: const EdgeInsets.symmetric(horizontal: 20),
-        gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-          crossAxisCount: _rows,
-          // In a horizontal GridView, `childAspectRatio` is cross/main —
-          // i.e. height/width here, not width/height. Passing _tileW/_tileH
-          // collapsed each tile to ~19 px wide (the colored-strip bug).
-          childAspectRatio: _tileH / _tileW,
-          mainAxisSpacing: _gap,
-          crossAxisSpacing: _gap,
-        ),
-        itemCount: items.length,
-        itemBuilder: (_, i) => _ChannelTile(
-          item: items[i],
-          colors: colors,
-          sectionSource: sectionSource,
-        ),
-      ),
-    );
-  }
-}
-
-/// One wide rectangular channel tile — accent-tinted gradient + title on
-/// the left, artwork tucked off the right edge at a slight angle for a
-/// bit of dimensionality. Tap opens via openOccasion (Saavn channels
-/// route through `music/occasions/[id]` per the API).
-class _ChannelTile extends ConsumerWidget {
-  const _ChannelTile({
-    required this.item,
-    required this.colors,
-    required this.sectionSource,
-  });
-  final FeedItem item;
-  final SunohColors colors;
-  final String? sectionSource;
-
-  @override
-  Widget build(BuildContext context, WidgetRef ref) {
-    final c = colors;
-    final url = item.artwork ?? '';
-    // Tint priority: real artwork palette > deterministic id hash. The
-    // hash stands in until palette extraction completes so the tile has
-    // a stable color identity from the first frame instead of flashing
-    // a placeholder. `artPaletteProvider` is autoDispose + 30-min keep-
-    // alive, so a scrolled-away tile won't keep extracting forever.
     final palette = url.isEmpty
         ? null
         : ref.watch(artPaletteProvider(url)).value;
-    final tint = palette?.accent ?? artAccent(item.id);
-    return GestureDetector(
-      onTap: () => context.openOccasion(item),
-      behavior: HitTestBehavior.opaque,
-      child: squircleClip(
-        radius: 10,
-        child: DecoratedBox(
-          decoration: BoxDecoration(
-            gradient: LinearGradient(
-              begin: Alignment.centerLeft,
-              end: Alignment.centerRight,
-              colors: [
-                Color.lerp(c.bg, tint, 0.55)!,
-                Color.lerp(c.bg, tint, 0.18)!,
-              ],
+    final raw = palette?.accent ?? fallback;
+    final tone = isLight ? lightAccentFor(raw) : raw;
+    final ground = Color.lerp(colors.bg, tone, 0.10)!;
+    return Stack(
+      fit: StackFit.expand,
+      children: [
+        ValueListenableBuilder<bool>(
+          valueListenable: solid,
+          builder: (_, on, _) => AnimatedOpacity(
+            opacity: on ? 1 : 0,
+            duration: SunohMotion.ui,
+            curve: SunohMotion.ease,
+            child: DecoratedBox(
+              decoration: BoxDecoration(
+                color: ground,
+                boxShadow: [
+                  BoxShadow(color: colors.line, offset: const Offset(0, 1)),
+                ],
+              ),
             ),
           ),
-          child: Row(
-            children: [
-              Expanded(
-                child: Padding(
-                  padding: const EdgeInsets.fromLTRB(14, 8, 8, 8),
-                  child: Align(
-                    alignment: Alignment.centerLeft,
-                    child: Text(
-                      item.title,
-                      maxLines: 2,
-                      overflow: TextOverflow.ellipsis,
-                      style: SunohType.heading(
-                        fontSize: 13.5,
-                        color: Colors.white,
-                        letterSpacing: -0.1,
-                        height: 1.15,
-                      ),
-                    ),
-                  ),
-                ),
-              ),
-              Transform.rotate(
-                angle: 0.20,
-                child: Transform.translate(
-                  offset: const Offset(6, 4),
-                  child: squircleClip(
-                    radius: 4,
-                    child: SizedBox(
-                      width: 56,
-                      height: 56,
-                      child: url.isEmpty
-                          ? ColoredBox(
-                              color: Colors.white.withValues(alpha: 0.18),
-                            )
-                          : SunohArt(
-                              id: item.id,
-                              imageUrl: url,
-                              size: 56,
-                              radius: 0,
-                              shadow: false,
-                            ),
-                    ),
-                  ),
-                ),
-              ),
-            ],
-          ),
         ),
-      ),
+        child,
+      ],
     );
   }
 }

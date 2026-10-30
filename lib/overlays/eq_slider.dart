@@ -1,14 +1,30 @@
-// One band's vertical gain slider, and the gesture recogniser that makes it
-// usable inside a sheet.
+// One band's vertical gain slider, the gesture recogniser that makes it
+// usable inside a sheet, and the gain-to-height mapping the rack draws with.
 //
 // Split out of `eq_sheet.dart` because the arena problem below is the
 // interesting part and it has nothing to do with the sheet's layout.
+//
+// The slider draws nothing. The rack paints every band's track, the curve
+// through them and the handles in one CustomPainter (`eq_rack.dart`), so a
+// preset morphing between curves repaints one layer rather than rebuilding
+// ten widget stacks a frame. What is left here is the hit target — and the
+// one mapping both halves must agree on, so a handle is drawn exactly where
+// the finger that moved it is.
 
 import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
-import '../theme/tokens.dart';
+/// How far in from the top and bottom of the fader field ±12 dB sits — the
+/// prototype's 14, so a handle at full boost is not half off the rack.
+const double kEqTravelInset = 14;
+
+/// The y a [gain] is drawn at in a fader field [height] tall, 0 dB in the
+/// middle and [min]/[max] [kEqTravelInset] in from either edge.
+double eqGainToY(double gain, double height, double min, double max) {
+  final travel = height - 2 * kEqTravelInset;
+  return kEqTravelInset + (1 - (gain - min) / (max - min)) * travel;
+}
 
 /// A vertical drag that refuses to lose the gesture arena.
 ///
@@ -34,10 +50,9 @@ class _EagerVerticalDrag extends VerticalDragGestureRecognizer {
 
 /// A single band's gain slider: drag anywhere in the column to set it.
 ///
-/// The whole column is the target, not the 4 px track — ten of these share a
-/// phone's width, so each is about 32 dp across and every pixel of that has to
-/// count. The visible track stays thin because a fat one would read as ten
-/// scrollbars.
+/// The whole column is the target, not the drawn track — ten of these share a
+/// phone's width, so each is about 36 dp across and every pixel of that has
+/// to count.
 class EqBandSlider extends StatelessWidget {
   const EqBandSlider({
     super.key,
@@ -45,8 +60,6 @@ class EqBandSlider extends StatelessWidget {
     required this.min,
     required this.max,
     required this.onChanged,
-    required this.colors,
-    required this.accent,
     this.enabled = true,
   });
 
@@ -54,23 +67,19 @@ class EqBandSlider extends StatelessWidget {
   final double min;
   final double max;
   final ValueChanged<double> onChanged;
-  final SunohColors colors;
-  final Color accent;
   final bool enabled;
 
   @override
   Widget build(BuildContext context) {
-    final c = colors;
+    if (!enabled) return const SizedBox.expand();
     return LayoutBuilder(
       builder: (context, constraints) {
         final h = constraints.maxHeight;
-        final w = constraints.maxWidth;
-
-        // Gain to a y offset from the top. 0 dB sits in the middle.
-        double gainToY(double g) => (1 - (g - min) / (max - min)) * h;
+        final travel = h - 2 * kEqTravelInset;
 
         void apply(Offset local) {
-          final t = 1 - (local.dy.clamp(0.0, h) / h);
+          final y = (local.dy - kEqTravelInset).clamp(0.0, travel);
+          final t = 1 - y / travel;
           // Whole dB, so the travel has twenty-four detents rather than a
           // continuum nobody can hit twice.
           final value = (min + t * (max - min)).roundToDouble();
@@ -84,68 +93,19 @@ class EqBandSlider extends StatelessWidget {
           onChanged(value);
         }
 
-        final centreY = gainToY(0);
-        final thumbY = gainToY(gain);
-        final fillTop = thumbY < centreY ? thumbY : centreY;
-        final fillHeight = (thumbY - centreY).abs();
-        final active = gain.abs() > 0.05;
-
         return RawGestureDetector(
           behavior: HitTestBehavior.opaque,
-          gestures: enabled
-              ? {
-                  _EagerVerticalDrag:
-                      GestureRecognizerFactoryWithHandlers<_EagerVerticalDrag>(
-                        _EagerVerticalDrag.new,
-                        (r) {
-                          r.onStart = (d) => apply(d.localPosition);
-                          r.onUpdate = (d) => apply(d.localPosition);
-                        },
-                      ),
-                }
-              : const {},
-          child: Stack(
-            alignment: Alignment.center,
-            children: [
-              // Unfilled track.
-              Container(
-                width: 3,
-                decoration: BoxDecoration(
-                  color: c.surface2,
-                  borderRadius: BorderRadius.circular(2),
+          gestures: {
+            _EagerVerticalDrag:
+                GestureRecognizerFactoryWithHandlers<_EagerVerticalDrag>(
+                  _EagerVerticalDrag.new,
+                  (r) {
+                    r.onStart = (d) => apply(d.localPosition);
+                    r.onUpdate = (d) => apply(d.localPosition);
+                  },
                 ),
-              ),
-              // Fill from the 0 dB line out to the current gain, so a cut
-              // reads as clearly downward as a boost reads upward. A bar
-              // growing from the bottom would make -12 dB look like "a little"
-              // rather than "as far down as it goes".
-              Positioned(
-                top: fillTop,
-                child: Container(
-                  width: 3,
-                  height: fillHeight.clamp(0, h),
-                  decoration: BoxDecoration(
-                    color: active ? accent : c.fgMute,
-                    borderRadius: BorderRadius.circular(2),
-                  ),
-                ),
-              ),
-              // Thumb. Wide enough to look grabbable at a glance; the actual
-              // target is the entire column regardless.
-              Positioned(
-                top: (thumbY - 7).clamp(0.0, h - 14),
-                child: Container(
-                  width: (w * 0.62).clamp(16.0, 26.0),
-                  height: 14,
-                  decoration: BoxDecoration(
-                    color: active ? accent : c.fg,
-                    borderRadius: BorderRadius.circular(4),
-                    border: Border.all(color: c.bgSoft, width: 1.5),
-                  ),
-                ),
-              ),
-            ],
-          ),
+          },
+          child: const SizedBox.expand(),
         );
       },
     );

@@ -9,6 +9,8 @@
 // works without an account, and a permanent advert for signing in would say
 // otherwise. The invitation lives in Settings, once.
 
+import 'dart:math' as math;
+
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
@@ -18,6 +20,7 @@ import '../router/router.dart';
 import '../theme/tokens.dart';
 import '../widgets/album_art.dart';
 import '../widgets/ui.dart';
+import 'cover_tile.dart';
 
 /// Covers per shelf before the row stops building cards nobody scrolled to.
 const int _kPreviewCount = 12;
@@ -34,33 +37,34 @@ class LibraryYouTubeSection extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final withItems = sections.where((s) => s.items.isNotEmpty).toList();
-    if (withItems.isEmpty) return const SizedBox.shrink();
+    if (!sections.any((s) => s.items.isNotEmpty)) {
+      return const SizedBox.shrink();
+    }
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        for (final section in withItems) ...[
-          SectionHeader(
-            title: section.heading,
-            colors: colors,
-            eyebrowText: 'YOUTUBE MUSIC',
-            padding: const EdgeInsets.fromLTRB(20, 0, 20, 12),
-          ),
-          _Strip(
-            items: section.items,
-            heading: section.heading,
-            colors: colors,
-          ),
-          const SizedBox(height: 22),
-        ],
+        for (final section in sections)
+          if (section.items.isNotEmpty) ...[
+            const SizedBox(height: 30),
+            SectionHeader(
+              title: section.heading,
+              colors: colors,
+              eyebrowText: 'YOUTUBE MUSIC',
+            ),
+            _Shelf(
+              items: section.items,
+              heading: section.heading,
+              colors: colors,
+            ),
+          ],
       ],
     );
   }
 }
 
-class _Strip extends ConsumerWidget {
-  const _Strip({
+class _Shelf extends ConsumerWidget {
+  const _Shelf({
     required this.items,
     required this.heading,
     required this.colors,
@@ -72,101 +76,43 @@ class _Strip extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    const width = 116.0;
-    final shown = items.take(_kPreviewCount).toList();
-    return SizedBox(
-      height: width + 46,
-      child: ListView.separated(
-        scrollDirection: Axis.horizontal,
-        padding: const EdgeInsets.symmetric(horizontal: 20),
-        itemCount: shown.length,
-        separatorBuilder: (_, _) => const SizedBox(width: 12),
-        itemBuilder: (context, i) => _Tile(
-          item: shown[i],
+    return CoverShelf(
+      // The first covers of the full list, indexed in place: the index is
+      // then the item's position in the queue a song tap plays.
+      itemCount: math.min(items.length, _kPreviewCount),
+      itemBuilder: (context, i) {
+        final item = items[i];
+        // Artists read as people, everything else as artwork — the same rule
+        // the home feed follows, so a shelf does not change shape between
+        // tabs.
+        final round = item.type == 'artist';
+        return CoverTile(
+          cover: SunohArt(
+            id: item.id,
+            size: kCoverTileWidth,
+            radius: round ? 999 : SunohRadius.tile,
+            imageUrl: _art(item),
+            shadow: false,
+          ),
+          title: item.title,
+          subtitle: item.subtitle,
+          round: round,
           colors: colors,
           // A song plays; an album, playlist or artist opens. Routing every
           // tap through openYtItem was the bug: its default case is `break`,
           // so tapping a liked song did nothing at all — no navigation, no
           // playback, and nothing in the log to show for it.
           onTap: () {
-            final item = shown[i];
             if (item.type == 'song') {
               ref
                   .read(appStateProvider)
-                  .playApiQueue(
-                    items,
-                    items.indexOf(item),
-                    sourceLabel: 'YOUTUBE · $heading',
-                  );
+                  .playApiQueue(items, i, sourceLabel: 'YOUTUBE · $heading');
             } else {
               context.openYtItem(item);
             }
           },
-        ),
-      ),
-    );
-  }
-}
-
-class _Tile extends StatelessWidget {
-  const _Tile({required this.item, required this.colors, required this.onTap});
-
-  final FeedItem item;
-  final SunohColors colors;
-  final VoidCallback onTap;
-
-  @override
-  Widget build(BuildContext context) {
-    final c = colors;
-    const width = 116.0;
-    // Artists read as people, everything else as artwork — the same rule the
-    // home feed follows, so a shelf does not change shape between tabs.
-    final round = item.type == 'artist';
-    return GestureDetector(
-      onTap: onTap,
-      behavior: HitTestBehavior.opaque,
-      child: SizedBox(
-        width: width,
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            if (round)
-              ClipOval(
-                child: SunohArt(
-                  id: item.id,
-                  size: width,
-                  radius: 0,
-                  imageUrl: _art(item),
-                ),
-              )
-            else
-              SunohArt(
-                id: item.id,
-                size: width,
-                radius: 10,
-                imageUrl: _art(item),
-              ),
-            const SizedBox(height: 8),
-            Text(
-              item.title,
-              maxLines: 1,
-              overflow: TextOverflow.ellipsis,
-              style: SunohType.sans(
-                fontSize: 12.5,
-                fontWeight: FontWeight.w500,
-                color: c.fg,
-              ),
-            ),
-            if ((item.subtitle ?? '').isNotEmpty)
-              Text(
-                item.subtitle!,
-                maxLines: 1,
-                overflow: TextOverflow.ellipsis,
-                style: SunohType.sans(fontSize: 11, color: c.fgMute),
-              ),
-          ],
-        ),
-      ),
+        );
+      },
     );
   }
 }
@@ -174,7 +120,7 @@ class _Tile extends StatelessWidget {
 /// The largest artwork the item carries, or null to fall back to the painted
 /// placeholder. YouTube ships several sizes; the biggest is the one that still
 /// looks right on a high-density screen.
-String? _art(FeedItem item) {
-  if (item.image.isEmpty) return null;
-  return item.image.last.link;
-}
+///
+/// Not `.last`: that is only the biggest while the API happens to list sizes
+/// ascending. [FeedItem.artwork] ranks by the labelled dimension.
+String? _art(FeedItem item) => item.artwork;

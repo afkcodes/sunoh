@@ -1,8 +1,9 @@
 // Track context-menu bottom sheet. The ⋯ button on every track row (album,
 // playlist, search, library, etc.) routes here.
 //
-// Header is the song's artwork + title + artist. Below it: a vertical list
-// of actions — play next, add to queue, like / unlike, view artist, share.
+// Header is the song's artwork + title + artist (SheetSubject). Below it: a
+// vertical list of actions — like, play next, add to queue, add to playlist,
+// download, go to source, view artist, share — as the shared SheetRow.
 //
 // Reusable: callers pass the song (+ optional source label for play-next /
 // add-to-queue) and we wire everything off `AppState`. Each action closes
@@ -13,25 +14,27 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
-import 'package:solar_icons/solar_icons.dart';
+import 'package:remixicon/remixicon.dart';
 
 import '../api/dto.dart';
-import '../audio/download_store.dart';
 import '../data/models.dart';
 import '../providers/app_state_provider.dart';
-import '../providers/downloads_provider.dart';
 import '../providers/ytmusic_provider.dart';
 import '../share/share_link.dart';
-import '../theme/tokens.dart';
-import '../widgets/album_art.dart';
-import '../widgets/ui.dart';
 import 'add_to_playlist_sheet.dart';
+import 'sheet.dart';
+import 'sheet_row.dart';
+import 'track_download_row.dart';
 
 /// Open the bottom sheet for [song]. [sourceLabel] is the "PLAYING FROM"
 /// label that gets passed to play-next / add-to-queue so the engine knows
 /// where the user kicked the queue from. [sourceRef] is the optional
 /// album/playlist/artist the song came from — surfaces a "View Album"/
 /// "View Playlist"/"View Artist" navigation row when provided.
+///
+/// Through [showSunohSheet], which puts it on the root navigator — anchored
+/// to the active tab's branch navigator instead, the sheet rendered behind
+/// the bottom nav and mini player.
 Future<void> showTrackMenuSheet(
   BuildContext context, {
   required FeedItem song,
@@ -40,15 +43,8 @@ Future<void> showTrackMenuSheet(
   bool fromPlayer = false,
   String? removeFromUserPlaylistId,
 }) {
-  return showModalBottomSheet<void>(
-    context: context,
-    backgroundColor: Colors.transparent,
-    isScrollControlled: true,
-    // Root navigator — without this the sheet is anchored to the active
-    // tab's branch navigator (inside StatefulShellRoute), which is BELOW
-    // the bottom nav + mini player in the widget tree, so the sheet renders
-    // behind them. Using the root navigator promotes it above everything.
-    useRootNavigator: true,
+  return showSunohSheet<void>(
+    context,
     builder: (_) => _TrackMenuSheet(
       song: song,
       sourceLabel: sourceLabel,
@@ -57,6 +53,16 @@ Future<void> showTrackMenuSheet(
       removeFromUserPlaylistId: removeFromUserPlaylistId,
     ),
   );
+}
+
+/// The tab a detail route should be pushed under, read from where the router
+/// is now. Read after the sheet (and maybe the player) has popped, so it
+/// reflects the page underneath rather than the modal.
+String _branchPrefix(GoRouter router) {
+  final loc = router.state.matchedLocation;
+  if (loc.startsWith('/search')) return '/search';
+  if (loc.startsWith('/library')) return '/library';
+  return '/home';
 }
 
 /// Find a YouTube artist page by name and open it.
@@ -89,17 +95,12 @@ Future<void> _openYtArtistByName(
   if (fromPlayer && root.canPop()) {
     root.pop(); // player
   }
-  final loc = goRouter.state.matchedLocation;
-  final prefix = loc.startsWith('/search')
-      ? '/search'
-      : loc.startsWith('/library')
-      ? '/library'
-      : '/home';
+  final prefix = _branchPrefix(goRouter);
 
   state.flashToast('Finding $name…');
   final results = await api.searchArtists(name);
   if (results.isEmpty) {
-    state.flashToast('Couldn\u2019t find $name');
+    state.flashToast('Couldn’t find $name');
     return;
   }
   goRouter.push(
@@ -135,220 +136,141 @@ class _TrackMenuSheet extends ConsumerWidget {
     final s = ref.watch(appStateProvider);
     final c = s.colors;
     final liked = s.isLikedId(song.id);
-    final accent = s.resolvedAccent;
     final artistsLabel = (song.artists ?? const <ApiArtistRef>[])
         .map((a) => a.name.trim())
         .where((sa) => sa.isNotEmpty)
         .take(2)
         .join(', ');
     final hasArtist = (song.artists ?? const []).isNotEmpty;
-    final topInset = MediaQuery.of(context).padding.bottom;
+    final src = sourceRef;
 
-    return SafeArea(
-      top: false,
-      child: Container(
-        margin: const EdgeInsets.fromLTRB(8, 0, 8, 8),
-        decoration: squircleDecoration(
-          radius: 20,
-          color: c.bgSoft,
-          borderColor: c.line,
-        ),
-        padding: EdgeInsets.fromLTRB(0, 8, 0, 8 + topInset),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            // Drag handle.
-            Container(
-              width: 36,
-              height: 4,
-              margin: const EdgeInsets.only(bottom: 12),
-              decoration: BoxDecoration(
-                color: Colors.white.withValues(alpha: 0.18),
-                borderRadius: BorderRadius.circular(2),
+    // Close first, then act — see the file header.
+    VoidCallback closeThen(VoidCallback action) => () {
+      Navigator.of(context).pop();
+      action();
+    };
+
+    return SunohSheet(
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          SheetSubject(
+            id: song.id,
+            imageUrl: song.artwork,
+            title: song.title,
+            subtitle: artistsLabel,
+            colors: c,
+          ),
+          SheetRow(
+            icon: liked ? RemixIcons.heart_3_fill : RemixIcons.heart_3_line,
+            iconColor: liked ? c.accent : null,
+            label: liked ? 'Remove from Liked' : 'Add to Liked',
+            onTap: closeThen(() => s.toggleLikedSong(song)),
+            colors: c,
+          ),
+          SheetRow(
+            icon: RemixIcons.play_list_add_line,
+            label: 'Play next',
+            onTap: closeThen(() => s.playApiSongNext(song)),
+            colors: c,
+          ),
+          SheetRow(
+            icon: RemixIcons.add_circle_line,
+            label: 'Add to queue',
+            onTap: closeThen(() => s.addApiSongToQueue(song)),
+            colors: c,
+          ),
+          SheetRow(
+            icon: RemixIcons.play_list_2_line,
+            label: 'Add to playlist',
+            onTap: () async {
+              Navigator.of(context).pop();
+              await showAddToPlaylistSheet(context, song: song);
+            },
+            colors: c,
+          ),
+          if (removeFromUserPlaylistId != null)
+            SheetRow(
+              icon: RemixIcons.indeterminate_circle_line,
+              label: 'Remove from this playlist',
+              onTap: closeThen(
+                () => s.removeSongFromUserPlaylist(
+                  removeFromUserPlaylistId!,
+                  song.id,
+                ),
               ),
-            ),
-            // Track header.
-            Padding(
-              padding: const EdgeInsets.fromLTRB(18, 6, 18, 12),
-              child: Row(
-                children: [
-                  SunohArt(
-                    id: song.id,
-                    imageUrl: song.artwork,
-                    size: 52,
-                    radius: 8,
-                  ),
-                  const SizedBox(width: 14),
-                  Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(
-                          song.title,
-                          maxLines: 2,
-                          overflow: TextOverflow.ellipsis,
-                          style: SunohType.sans(
-                            fontSize: 14.5,
-                            fontWeight: FontWeight.w500,
-                            color: c.fg,
-                            height: 1.2,
-                          ),
-                        ),
-                        if (artistsLabel.isNotEmpty) ...[
-                          const SizedBox(height: 3),
-                          Text(
-                            artistsLabel,
-                            maxLines: 1,
-                            overflow: TextOverflow.ellipsis,
-                            style: SunohType.sans(
-                              fontSize: 12,
-                              color: c.fgMute,
-                            ),
-                          ),
-                        ],
-                      ],
-                    ),
-                  ),
-                ],
-              ),
-            ),
-            Container(
-              height: 0.5,
-              color: c.line,
-              margin: const EdgeInsets.symmetric(horizontal: 12),
-            ),
-            // Actions.
-            _MenuRow(
-              icon: liked ? SolarIconsBold.heart : SolarIconsOutline.heart,
-              iconColor: liked ? accent : c.fg,
-              label: liked ? 'Remove from Liked' : 'Add to Liked',
-              onTap: () {
-                Navigator.of(context).pop();
-                s.toggleLikedSong(song);
-              },
-            ),
-            _MenuRow(
-              icon: SolarIconsOutline.playlistMinimalistic,
-              label: 'Play next',
-              onTap: () {
-                Navigator.of(context).pop();
-                s.playApiSongNext(song);
-              },
               colors: c,
             ),
-            _MenuRow(
-              icon: SolarIconsOutline.addCircle,
-              label: 'Add to queue',
-              onTap: () {
-                Navigator.of(context).pop();
-                s.addApiSongToQueue(song);
-              },
+          // Download / Downloaded / Remove download.
+          //
+          // Gaana used to be excluded here because it ships HLS playlists
+          // rather than a file. It is downloadable now — the segments are
+          // concatenated into one MPEG-TS, see audio/hls_download.dart.
+          TrackDownloadRow(song: song, colors: c),
+          if (src != null && src.kind != 'artist')
+            SheetRow(
+              icon: src.kind == 'album'
+                  ? RemixIcons.album_line
+                  : RemixIcons.play_list_add_line,
+              label:
+                  'Go to ${src.kind[0].toUpperCase()}${src.kind.substring(1)}',
+              onTap: () => _navigateAfterClose(context, src),
               colors: c,
             ),
-            _MenuRow(
-              icon: SolarIconsOutline.playlist,
-              label: 'Add to playlist',
-              onTap: () async {
-                Navigator.of(context).pop();
-                await showAddToPlaylistSheet(context, song: song);
-              },
+          if (hasArtist)
+            SheetRow(
+              icon: RemixIcons.user_3_line,
+              label: 'View ${song.artists!.first.name}',
+              onTap: () => _viewArtist(context, ref),
               colors: c,
             ),
-            if (removeFromUserPlaylistId != null)
-              _MenuRow(
-                icon: SolarIconsOutline.minusCircle,
-                label: 'Remove from this playlist',
-                onTap: () {
-                  Navigator.of(context).pop();
-                  s.removeSongFromUserPlaylist(
-                    removeFromUserPlaylistId!,
-                    song.id,
-                  );
-                },
-                colors: c,
+          SheetRow(
+            icon: RemixIcons.share_forward_line,
+            label: 'Share',
+            onTap: closeThen(
+              () => shareSunohLink(
+                kind: 'song',
+                id: song.id,
+                title: song.title,
+                subtitle: song.displaySubtitle ?? song.subtitle,
+                source: song.source,
               ),
-            // Download / Downloaded / Remove download.
-            //
-            // Gaana used to be excluded here because it ships HLS playlists
-            // rather than a file. It is downloadable now — the segments are
-            // concatenated into one MPEG-TS, see audio/hls_download.dart.
-            _DownloadRow(song: song, colors: c),
-            if (sourceRef != null && sourceRef!.kind != 'artist')
-              _MenuRow(
-                icon: sourceRef!.kind == 'album'
-                    ? SolarIconsOutline.musicLibrary2
-                    : SolarIconsOutline.playlistMinimalistic,
-                label:
-                    'Go to ${sourceRef!.kind[0].toUpperCase()}${sourceRef!.kind.substring(1)}',
-                onTap: () => _navigateAfterClose(context, sourceRef!),
-                colors: c,
-              ),
-            if (hasArtist)
-              _MenuRow(
-                icon: SolarIconsOutline.user,
-                label: 'View ${song.artists!.first.name}',
-                onTap: () {
-                  final artist = song.artists!.first;
-                  // ignore: avoid_print
-                  print(
-                    '[artist-nav] source=${song.source} '
-                    'name="${artist.name}" id="${artist.id}"',
-                  );
-                  // YouTube artist ids are channel browse ids, which
-                  // sunoh-api's artist endpoint can't resolve — they need
-                  // the YouTube artist screen.
-                  if (song.source == 'youtube') {
-                    if (artist.id.isNotEmpty) {
-                      _navigateToYtArtistAfterClose(
-                        context,
-                        artist.id,
-                        artist.name,
-                      );
-                    } else {
-                      // No linked channel on this row. Happens for
-                      // auto-generated art tracks whose byline isn't
-                      // navigable, and for queue entries persisted before
-                      // artist ids were captured. Resolve by name instead
-                      // of dead-ending on a toast.
-                      _openYtArtistByName(
-                        context,
-                        ref,
-                        artist.name,
-                        fromPlayer: fromPlayer,
-                      );
-                    }
-                    return;
-                  }
-                  if (artist.id.isEmpty) {
-                    Navigator.of(context).pop();
-                    s.flashToast('Artist details unavailable');
-                    return;
-                  }
-                  _navigateAfterClose(
-                    context,
-                    DetailRef('artist', artist.id, source: song.source),
-                  );
-                },
-                colors: c,
-              ),
-            _MenuRow(
-              icon: SolarIconsOutline.share,
-              label: 'Share',
-              onTap: () {
-                Navigator.of(context).pop();
-                shareSunohLink(
-                  kind: 'song',
-                  id: song.id,
-                  title: song.title,
-                  subtitle: song.displaySubtitle ?? song.subtitle,
-                  source: song.source,
-                );
-              },
-              colors: c,
             ),
-          ],
-        ),
+            colors: c,
+          ),
+        ],
       ),
+    );
+  }
+
+  void _viewArtist(BuildContext context, WidgetRef ref) {
+    final artist = song.artists!.first;
+    debugPrint(
+      '[artist-nav] source=${song.source} '
+      'name="${artist.name}" id="${artist.id}"',
+    );
+    // YouTube artist ids are channel browse ids, which sunoh-api's artist
+    // endpoint can't resolve — they need the YouTube artist screen.
+    if (song.source == 'youtube') {
+      if (artist.id.isNotEmpty) {
+        _navigateToYtArtistAfterClose(context, artist.id, artist.name);
+      } else {
+        // No linked channel on this row. Happens for auto-generated art
+        // tracks whose byline isn't navigable, and for queue entries
+        // persisted before artist ids were captured. Resolve by name instead
+        // of dead-ending on a toast.
+        _openYtArtistByName(context, ref, artist.name, fromPlayer: fromPlayer);
+      }
+      return;
+    }
+    if (artist.id.isEmpty) {
+      Navigator.of(context).pop();
+      ref.read(appStateProvider).flashToast('Artist details unavailable');
+      return;
+    }
+    _navigateAfterClose(
+      context,
+      DetailRef('artist', artist.id, source: song.source),
     );
   }
 
@@ -366,12 +288,7 @@ class _TrackMenuSheet extends ConsumerWidget {
       root.pop(); // player
     }
     // Recompute branch prefix from current location now that modals are gone.
-    final loc = goRouter.state.matchedLocation;
-    final prefix = loc.startsWith('/search')
-        ? '/search'
-        : loc.startsWith('/library')
-        ? '/library'
-        : '/home';
+    final prefix = _branchPrefix(goRouter);
     final src = ref.source;
     final query = (src == null || src.isEmpty)
         ? ''
@@ -397,162 +314,10 @@ class _TrackMenuSheet extends ConsumerWidget {
     if (fromPlayer && root.canPop()) {
       root.pop(); // player
     }
-    final loc = goRouter.state.matchedLocation;
-    final prefix = loc.startsWith('/search')
-        ? '/search'
-        : loc.startsWith('/library')
-        ? '/library'
-        : '/home';
+    final prefix = _branchPrefix(goRouter);
     goRouter.push(
       '$prefix/yt-artist/${Uri.encodeComponent(browseId)}',
       extra: name,
-    );
-  }
-}
-
-class _MenuRow extends StatelessWidget {
-  const _MenuRow({
-    required this.icon,
-    required this.label,
-    required this.onTap,
-    this.iconColor,
-    this.colors,
-  });
-  final IconData icon;
-  final String label;
-  final VoidCallback onTap;
-  final Color? iconColor;
-  final SunohColors? colors;
-
-  @override
-  Widget build(BuildContext context) {
-    // Late-binding the color tokens lets _MenuRow take only an iconColor
-    // (for the like-state highlight) without callers having to repeat the
-    // whole tokens object for every row.
-    final c =
-        colors ??
-        const SunohColors(
-          bg: Color(0xFF15151A),
-          bgSoft: Color(0xFF15151A),
-          surface: Color(0x00000000),
-          surface2: Color(0x00000000),
-          line: Color(0xFF2A2A30),
-          fg: Color(0xFFFAFAFA),
-          fgDim: Color(0xB3FAFAFA),
-          onAccent: Color(0xFF000000),
-          fgMute: Color(0x73FAFAFA),
-          accent: Color(0xFFD97757),
-        );
-    return InkWell(
-      onTap: onTap,
-      child: Padding(
-        padding: const EdgeInsets.symmetric(horizontal: 22, vertical: 14),
-        child: Row(
-          children: [
-            Icon(icon, size: 20, color: iconColor ?? c.fg),
-            const SizedBox(width: 16),
-            Expanded(
-              child: Text(
-                label,
-                maxLines: 1,
-                overflow: TextOverflow.ellipsis,
-                style: SunohType.sans(fontSize: 14, color: c.fg),
-              ),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-}
-
-/// The Download row in the track-action sheet. Renders four states based
-/// on the current [DownloadEntry] (or absence of one):
-///   * no entry     → "Download" with a download glyph; tap queues
-///   * queued       → "Queued…" disabled with a hint
-///   * downloading  → "Downloading…" with live percent
-///   * done         → "Downloaded" with a check + tap to remove
-///   * failed       → "Retry download" with a refresh glyph
-///
-/// Subscribes to [downloadProgressProvider] for the live percent so the
-/// row stays in sync while staying decoupled from the manager internals.
-class _DownloadRow extends ConsumerWidget {
-  const _DownloadRow({required this.song, required this.colors});
-  final FeedItem song;
-  final SunohColors colors;
-
-  @override
-  Widget build(BuildContext context, WidgetRef ref) {
-    final c = colors;
-    final entry = watchDownloadEntry(ref, song.id);
-    final mgr = ref.read(downloadManagerProvider);
-
-    IconData icon;
-    String label;
-    VoidCallback? onTap;
-    Color? iconColor;
-
-    switch (entry?.state) {
-      case null:
-        icon = SolarIconsOutline.downloadMinimalistic;
-        label = 'Download';
-        onTap = () {
-          Navigator.of(context).pop();
-          mgr.enqueue(song);
-          ref.read(appStateProvider).flashToast('Downloading…');
-        };
-      case DownloadState.queued:
-        icon = SolarIconsOutline.clockCircle;
-        label = 'Queued…';
-        onTap = null;
-      case DownloadState.downloading:
-        final progress = ref
-            .watch(downloadProgressProvider(song.id))
-            .asData
-            ?.value;
-        final pct = progress == null
-            ? null
-            : (progress.fraction * 100).clamp(0.0, 100.0);
-        icon = SolarIconsOutline.downloadMinimalistic;
-        label = pct == null
-            ? 'Downloading…'
-            : 'Downloading… ${pct.toStringAsFixed(0)}%';
-        onTap = () {
-          Navigator.of(context).pop();
-          mgr.pause(song.id);
-          ref.read(appStateProvider).flashToast('Paused');
-        };
-      case DownloadState.paused:
-        icon = SolarIconsOutline.playCircle;
-        label = 'Resume download';
-        onTap = () {
-          Navigator.of(context).pop();
-          mgr.resume(song.id);
-        };
-      case DownloadState.done:
-        icon = SolarIconsBold.checkCircle;
-        iconColor = c.accent;
-        label = 'Downloaded — tap to remove';
-        onTap = () {
-          Navigator.of(context).pop();
-          mgr.remove(song.id);
-          ref.read(appStateProvider).flashToast('Removed from downloads');
-        };
-      case DownloadState.failed:
-        icon = SolarIconsOutline.refreshCircle;
-        label = 'Retry download';
-        onTap = () {
-          Navigator.of(context).pop();
-          mgr.resume(song.id);
-        };
-    }
-
-    return _MenuRow(
-      icon: icon,
-      label: label,
-      iconColor: iconColor,
-      onTap: onTap ?? () {},
-      colors: c,
     );
   }
 }

@@ -46,8 +46,13 @@ class HlsDownloader {
     required String toPath,
     required CancelToken cancel,
     required void Function(int done, int total) onProgress,
+    bool lowestBitrate = false,
   }) async {
-    final playlistUrl = await _mediaPlaylistUrl(masterUrl, cancel);
+    final playlistUrl = await _mediaPlaylistUrl(
+      masterUrl,
+      cancel,
+      lowest: lowestBitrate,
+    );
     final playlist = await _text(playlistUrl, cancel);
 
     if (playlist.contains('#EXT-X-KEY')) {
@@ -90,34 +95,48 @@ class HlsDownloader {
   /// arrive at this URL depending on the provider, so the shape is detected
   /// rather than assumed. When it is a master, the highest bandwidth wins:
   /// a download is kept, so it is worth its size in a way a stream on mobile
-  /// data is not.
-  Future<String> _mediaPlaylistUrl(String masterUrl, CancelToken cancel) async {
+  /// data is not. [lowest] flips that for a caller that only wants the shape
+  /// of the audio (the waveform fetch-ahead), not its quality.
+  Future<String> _mediaPlaylistUrl(
+    String masterUrl,
+    CancelToken cancel, {
+    required bool lowest,
+  }) async {
     final text = await _text(masterUrl, cancel);
-    if (!text.contains('#EXT-X-STREAM-INF')) return masterUrl;
+    final uri = pickVariant(text, lowest: lowest);
+    if (uri == null) {
+      if (!text.contains('#EXT-X-STREAM-INF')) return masterUrl;
+      throw const HlsUnsupported('This track’s playlist had no streams');
+    }
+    return Uri.parse(masterUrl).resolve(uri).toString();
+  }
 
+  /// The variant URI a master playlist [text] points at with the highest (or,
+  /// with [lowest], the lowest) BANDWIDTH; null when it lists none, which is
+  /// how a media playlist looks.
+  @visibleForTesting
+  static String? pickVariant(String text, {bool lowest = false}) {
     final lines = text.split('\n');
-    var bestBandwidth = -1;
+    int? bestBandwidth;
     String? bestUri;
     for (var i = 0; i < lines.length; i++) {
       final line = lines[i].trim();
       if (!line.startsWith('#EXT-X-STREAM-INF')) continue;
-      final match = RegExp(r'BANDWIDTH=(\d+)').firstMatch(line);
+      final match = RegExp(r'[:,]BANDWIDTH=(\d+)').firstMatch(line);
       final bandwidth = int.tryParse(match?.group(1) ?? '') ?? 0;
       // The URI is the next line that is neither blank nor a tag.
       for (var j = i + 1; j < lines.length; j++) {
         final candidate = lines[j].trim();
         if (candidate.isEmpty || candidate.startsWith('#')) continue;
-        if (bandwidth > bestBandwidth) {
+        final best = bestBandwidth;
+        if (best == null || (lowest ? bandwidth < best : bandwidth > best)) {
           bestBandwidth = bandwidth;
           bestUri = candidate;
         }
         break;
       }
     }
-    if (bestUri == null) {
-      throw const HlsUnsupported('This track’s playlist had no streams');
-    }
-    return Uri.parse(masterUrl).resolve(bestUri).toString();
+    return bestUri;
   }
 
   /// Playlist lines that are neither blank nor tags — the segment URIs.

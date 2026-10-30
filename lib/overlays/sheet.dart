@@ -20,6 +20,17 @@ import '../providers/app_state_provider.dart';
 import '../theme/tokens.dart';
 import '../widgets/ui.dart';
 
+/// How every sheet arrives and leaves: the overlay timing from SunohMotion,
+/// the same rise the lyrics page and the queue make. Material's default is a
+/// 250 ms decelerate both ways, which opened sluggishly, closed softly, and
+/// made a sheet the one thing in the app that moved on a clock of its own.
+const AnimationStyle kSheetMotion = AnimationStyle(
+  duration: SunohMotion.sheet,
+  curve: SunohMotion.arrive,
+  reverseDuration: SunohMotion.away,
+  reverseCurve: SunohMotion.leave,
+);
+
 /// Present [builder] as a sheet with the app's chrome.
 ///
 /// [dismissible] false is for a sheet mid-operation — a download in flight has
@@ -40,6 +51,7 @@ Future<T?> showSunohSheet<T>(
     // are drawn over every page — so its buttons sit behind the player, which
     // is exactly where they cannot be tapped.
     useRootNavigator: true,
+    sheetAnimationStyle: kSheetMotion,
     builder: builder,
   );
 }
@@ -72,30 +84,30 @@ class SunohSheet extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final s = ref.watch(appStateProvider);
-    final c = s.colors;
-    final accent = s.resolvedAccent;
+    final c = ref.watch(appStateProvider).colors;
     final media = MediaQuery.of(context);
 
     return Padding(
       // Lifts above the keyboard when a sheet contains a field.
       padding: EdgeInsets.only(bottom: media.viewInsets.bottom),
-      child: SafeArea(
-        top: false,
-        child: Container(
-          margin: const EdgeInsets.fromLTRB(8, 0, 8, 8),
-          constraints: BoxConstraints(maxHeight: media.size.height * 0.88),
-          decoration: squircleDecoration(
-            radius: 22,
-            color: c.bgSoft,
-            borderColor: c.line,
-          ),
-          padding: const EdgeInsets.fromLTRB(0, 10, 0, 12),
+      // Attached to the bottom edge with only its top corners rounded, the
+      // same sheet the queue and the equalizer use over the player. The
+      // fill runs under the system navigation bar; SafeArea pads the
+      // content, not the surface.
+      child: Container(
+        constraints: BoxConstraints(maxHeight: media.size.height * 0.88),
+        decoration: ShapeDecoration(
+          color: c.bgSoft,
+          shape: squircleTopBorder(SunohRadius.sheet),
+        ),
+        padding: const EdgeInsets.fromLTRB(0, 8, 0, 12),
+        child: SafeArea(
+          top: false,
           child: Column(
             mainAxisSize: MainAxisSize.min,
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              _Handle(colors: c),
+              SheetHandle(colors: c),
               if (title != null)
                 _Header(
                   title: title!,
@@ -103,7 +115,6 @@ class SunohSheet extends ConsumerWidget {
                   icon: icon,
                   trailing: trailing,
                   colors: c,
-                  accent: accent,
                 ),
               // The body scrolls and the header and actions do not, so a long
               // changelog cannot push the buttons off the bottom.
@@ -121,8 +132,10 @@ class SunohSheet extends ConsumerWidget {
   }
 }
 
-class _Handle extends StatelessWidget {
-  const _Handle({required this.colors});
+/// The grab handle. Public so the sheets that still build their own card
+/// draw the same one rather than each carrying a copy in a raw white.
+class SheetHandle extends StatelessWidget {
+  const SheetHandle({super.key, required this.colors});
   final SunohColors colors;
 
   @override
@@ -131,10 +144,9 @@ class _Handle extends StatelessWidget {
       width: 34,
       height: 4,
       margin: const EdgeInsets.only(bottom: 12),
-      decoration: BoxDecoration(
-        color: colors.line,
-        borderRadius: BorderRadius.circular(2),
-      ),
+      // fgMute, not line: at line's 7% the handle all but vanished on the
+      // dark sheet, and it is the one cue that the sheet can be pulled down.
+      decoration: squircleDecoration(radius: 2, color: colors.fgMute),
     ),
   );
 }
@@ -146,7 +158,6 @@ class _Header extends StatelessWidget {
     required this.icon,
     required this.trailing,
     required this.colors,
-    required this.accent,
   });
 
   final String title;
@@ -154,11 +165,11 @@ class _Header extends StatelessWidget {
   final IconData? icon;
   final Widget? trailing;
   final SunohColors colors;
-  final Color accent;
 
   @override
   Widget build(BuildContext context) {
     final c = colors;
+    final accent = c.accent;
     return Padding(
       padding: const EdgeInsets.fromLTRB(16, 0, 12, 14),
       child: Row(
@@ -184,11 +195,7 @@ class _Header extends StatelessWidget {
               children: [
                 Text(
                   title,
-                  style: SunohType.heading(
-                    fontSize: 18,
-                    color: c.fg,
-                    letterSpacing: -0.3,
-                  ),
+                  style: SunohType.heading(fontSize: 18, color: c.fg),
                 ),
                 if ((subtitle ?? '').isNotEmpty) ...[
                   const SizedBox(height: 3),
@@ -234,24 +241,29 @@ class SheetActions extends StatelessWidget {
   }
 }
 
-/// A sheet button. Filled reads as the action, outlined as the way out.
+/// A sheet button. Accent reads as the action, the quiet fill as the way out
+/// — both filled, so neither is a hairline that reads as disabled.
 class SheetButton extends ConsumerWidget {
   const SheetButton({
     super.key,
     required this.label,
     required this.onTap,
     this.filled = false,
+    this.danger = false,
   });
 
   final String label;
   final VoidCallback? onTap;
   final bool filled;
 
+  /// Filled in the danger colour: the action throws something away.
+  final bool danger;
+
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final s = ref.watch(appStateProvider);
-    final c = s.colors;
+    final c = ref.watch(appStateProvider).colors;
     final enabled = onTap != null;
+    final fill = danger ? c.danger : (filled ? c.accent : c.surface2);
 
     return GestureDetector(
       onTap: onTap,
@@ -261,17 +273,13 @@ class SheetButton extends ConsumerWidget {
         child: Container(
           alignment: Alignment.center,
           padding: const EdgeInsets.symmetric(vertical: 13),
-          decoration: squircleDecoration(
-            radius: 999,
-            color: filled ? s.resolvedAccent : Colors.transparent,
-            borderColor: filled ? null : c.line,
-          ),
+          decoration: squircleDecoration(radius: 999, color: fill),
           child: Text(
             label,
             style: SunohType.sans(
               fontSize: 13.5,
               fontWeight: FontWeight.w600,
-              color: filled ? c.onAccent : c.fg,
+              color: danger ? inkOn(fill) : (filled ? c.onAccent : c.fg),
             ),
           ),
         ),

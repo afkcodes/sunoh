@@ -20,6 +20,7 @@ import '../player/mini_player.dart';
 import '../providers/app_state_provider.dart';
 import '../theme/tokens.dart';
 import '../widgets/spotify_import_banner.dart';
+import '../widgets/ui.dart';
 import 'bottom_nav.dart';
 
 class AppScaffold extends ConsumerWidget {
@@ -52,13 +53,33 @@ class AppScaffold extends ConsumerWidget {
           children: [
             Positioned.fill(child: shell),
 
-            if (s.toast.isNotEmpty)
-              Positioned(
-                left: 0,
-                right: 0,
-                bottom: 150 + MediaQuery.of(context).padding.bottom,
-                child: _Toast(message: s.toast, colors: c),
+            Positioned(
+              left: 16,
+              right: 16,
+              bottom: 156 + MediaQuery.of(context).padding.bottom,
+              child: AnimatedSwitcher(
+                duration: SunohMotion.ui,
+                switchInCurve: SunohMotion.arrive,
+                switchOutCurve: SunohMotion.ease,
+                transitionBuilder: (child, a) => FadeTransition(
+                  opacity: a,
+                  child: SlideTransition(
+                    position: Tween(
+                      begin: const Offset(0, 0.25),
+                      end: Offset.zero,
+                    ).animate(a),
+                    child: child,
+                  ),
+                ),
+                child: s.toast.isEmpty
+                    ? const SizedBox.shrink()
+                    : _Toast(
+                        key: ValueKey(s.toast),
+                        message: s.toast,
+                        colors: c,
+                      ),
               ),
+            ),
 
             // Full-width, edge-to-edge bottom bar (mini player + nav).
             Positioned(
@@ -84,51 +105,56 @@ class _BottomBar extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final c = colors;
+    // The mini player floats over the feed: the content fades into the
+    // ground behind it (one gradient, no blur) and the nav bar below is
+    // solid. Transparent areas of the gradient do not take taps, so the feed
+    // stays scrollable right up to the card.
     return Column(
       mainAxisSize: MainAxisSize.min,
       children: [
-        // Soft fade so feed content dissolves into the bar instead of
-        // being cut off by a hard edge — the read the blur used to give
-        // us, for the cost of one gradient.
-        IgnorePointer(
-          child: SizedBox(
-            height: 24,
-            child: DecoratedBox(
-              decoration: BoxDecoration(
-                gradient: LinearGradient(
-                  begin: Alignment.topCenter,
-                  end: Alignment.bottomCenter,
-                  colors: [c.bg.withValues(alpha: 0), c.bg],
-                ),
-              ),
+        DecoratedBox(
+          decoration: BoxDecoration(
+            gradient: LinearGradient(
+              begin: Alignment.topCenter,
+              end: Alignment.bottomCenter,
+              stops: const [0, 0.6, 1],
+              colors: [
+                c.bg.withValues(alpha: 0),
+                c.bg.withValues(alpha: 0.92),
+                c.bg,
+              ],
+            ),
+          ),
+          // Kept non-const all the way down to MiniPlayer — see below.
+          // ignore: prefer_const_constructors
+          child: Padding(
+            padding: const EdgeInsets.only(top: 28),
+            // ignore: prefer_const_constructors
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              // ignore: prefer_const_literals_to_create_immutables
+              children: [
+                // Persistent Spotify-import banner — visible across all
+                // screens while an import is running, completed, or
+                // failed. Renders nothing in the idle state.
+                const SpotifyImportBanner(),
+                // NOT const — `const MiniPlayer()` made Flutter compare the
+                // same widget reference between rebuilds and short-circuit
+                // subtree reconciliation, which interfered with the mini
+                // player's reactive subscription to appStateProvider (the
+                // expanded player updated, the mini didn't).
+                // ignore: prefer_const_constructors
+                MiniPlayer(),
+              ],
             ),
           ),
         ),
-        DecoratedBox(
-          decoration: BoxDecoration(
-            color: c.bg,
-            border: Border(top: BorderSide(color: c.line, width: 0.5)),
-          ),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              // Persistent Spotify-import banner — visible across all
-              // screens while an import is running, completed, or
-              // failed. Renders nothing in the idle state.
-              const SpotifyImportBanner(),
-              // NOT const — `const MiniPlayer()` made Flutter compare the
-              // same widget reference between rebuilds and short-circuit
-              // subtree reconciliation, which interfered with the mini
-              // player's reactive subscription to appStateProvider (the
-              // expanded player updated, the mini didn't).
-              // ignore: prefer_const_constructors
-              MiniPlayer(),
-              BottomNav(
-                currentIndex: shell.currentIndex,
-                onTap: (i) =>
-                    shell.goBranch(i, initialLocation: i == shell.currentIndex),
-              ),
-            ],
+        ColoredBox(
+          color: c.bg,
+          child: BottomNav(
+            currentIndex: shell.currentIndex,
+            onTap: (i) =>
+                shell.goBranch(i, initialLocation: i == shell.currentIndex),
           ),
         ),
       ],
@@ -136,42 +162,37 @@ class _BottomBar extends StatelessWidget {
   }
 }
 
+/// A one-line confirmation in an ink bar above the mini player — the
+/// inverse of the page, so it reads as a message rather than as content.
 class _Toast extends StatelessWidget {
-  const _Toast({required this.message, required this.colors});
+  const _Toast({super.key, required this.message, required this.colors});
   final String message;
   final SunohColors colors;
+
   @override
   Widget build(BuildContext context) {
     return IgnorePointer(
-      child: Center(
-        child: Container(
-          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-          decoration: BoxDecoration(
-            // Opaque: at alpha 0.92 the blur behind this was paying a full
-            // framebuffer read-back to tint 8% of a pill. On a tile-based
-            // GPU (Mali) that read-back is disproportionately expensive;
-            // visually it's indistinguishable from solid.
-            color: const Color(0xFF141418),
-            borderRadius: BorderRadius.circular(999),
-            border: Border.all(
-              color: Colors.white.withValues(alpha: 0.1),
-              width: 0.5,
+      child: Container(
+        constraints: const BoxConstraints(minHeight: 48),
+        alignment: Alignment.centerLeft,
+        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+        decoration: squircleDecoration(
+          radius: SunohRadius.card,
+          color: colors.fg,
+          shadows: [
+            BoxShadow(
+              color: Colors.black.withValues(alpha: 0.3),
+              blurRadius: 24,
+              offset: const Offset(0, 8),
             ),
-            boxShadow: [
-              BoxShadow(
-                color: Colors.black.withValues(alpha: 0.4),
-                blurRadius: 24,
-                offset: const Offset(0, 8),
-              ),
-            ],
-          ),
-          child: Text(
-            message,
-            style: SunohType.sans(
-              fontSize: 12,
-              fontWeight: FontWeight.w500,
-              color: const Color(0xFFFAFAFA),
-            ),
+          ],
+        ),
+        child: Text(
+          message,
+          style: SunohType.sans(
+            fontSize: 13.5,
+            fontWeight: FontWeight.w500,
+            color: colors.bg,
           ),
         ),
       ),

@@ -17,6 +17,7 @@ import 'package:dio/dio.dart';
 import 'package:flutter/foundation.dart';
 
 import '../config/env.dart';
+import 'art_urls.dart';
 import 'dto.dart';
 import 'yt_auth_channel.dart';
 import 'yt_locale.dart';
@@ -26,6 +27,9 @@ part 'ytmusic_renderers.dart';
 
 /// The signed-in surface: account identity and your own library.
 part 'ytmusic_account.dart';
+
+/// Writes: rating a video and the "Sunoh Tracks" playlist.
+part 'ytmusic_likes.dart';
 
 /// Supplies the headers for one authenticated InnerTube call, or an empty map
 /// when signed out.
@@ -753,7 +757,7 @@ class YtMusicApi {
                   ? t
                   : _withImages(t, [
                       ApiImage(
-                        quality: '${_kMaxArtSize}x$_kMaxArtSize',
+                        quality: '${kMaxArtSize}x$kMaxArtSize',
                         link: headerArt,
                       ),
                     ]),

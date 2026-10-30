@@ -10,6 +10,7 @@ import 'package:palette_generator/palette_generator.dart';
 import '../audio/audio_repo.dart';
 import '../state/app_state.dart';
 import 'api_providers.dart';
+import 'yt_like_provider.dart';
 
 final appStateProvider = ChangeNotifierProvider<AppState>((ref) {
   final repo = ref.watch(audioRepoProvider);
@@ -17,6 +18,10 @@ final appStateProvider = ChangeNotifierProvider<AppState>((ref) {
   return AppState(
     audioRepo: repo,
     api: api,
+    // Mirrors YouTube-sourced likes onto the user's account. Read lazily:
+    // the sync's own dependencies lead back to this provider.
+    onYtLike: (videoId, liked) =>
+        ref.read(ytLikeSyncProvider).enqueue(videoId, like: liked),
     // Extract the artwork's vibrant accent for the tint-from-artwork
     // feature.
     //

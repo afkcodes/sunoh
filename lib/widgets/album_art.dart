@@ -2,12 +2,11 @@
 // art.jsx. Each id hashes into a palette + shape arrangement, drawn on a canvas.
 // No external images.
 
-import 'dart:io' show File;
 import 'dart:math' as math;
 import 'dart:ui' as ui;
-import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
 
+import 'network_art.dart';
 import 'ui.dart';
 
 // A 96×96 grain tile, rasterized once and reused as a repeating shader across
@@ -85,20 +84,6 @@ ArtData artFor(String id) {
   return ArtData(palette[0], palette[1], palette[2], shape, angle, seed);
 }
 
-/// Artwork can come from the network or, for on-device music, from a JPEG the
-/// local-library scan cached on disk. Everything downstream treats artwork as
-/// a single string, so the distinction is made here rather than threaded
-/// through every call site.
-bool _isLocalArt(String url) =>
-    url.startsWith('/') || url.startsWith('file://');
-
-ImageProvider _providerFor(String url) {
-  if (!_isLocalArt(url)) return CachedNetworkImageProvider(url);
-  return FileImage(
-    File(url.startsWith('file://') ? Uri.parse(url).toFilePath() : url),
-  );
-}
-
 /// Accent color of an artwork — used for the album-tinted theme.
 Color artAccent(String id) => artFor(id).accent;
 
@@ -117,6 +102,7 @@ class SunohArt extends StatelessWidget {
     this.label,
     this.shadow = true,
     this.imageUrl,
+    this.fallback,
   });
 
   final String id;
@@ -131,6 +117,11 @@ class SunohArt extends StatelessWidget {
   /// deterministic painted art is shown while the image loads (and as a
   /// fallback if it fails) — so the placeholder still feels of-a-piece.
   final String? imageUrl;
+
+  /// Shown instead of the painted art while [imageUrl] loads — a smaller
+  /// copy of the same cover that is already on screen, so a page that opens
+  /// on a cover never flashes the placeholder before its own art arrives.
+  final Widget? fallback;
 
   Widget _innerArt() => CustomPaint(
     painter: _ArtPainter(artFor(id), label),
@@ -150,8 +141,23 @@ class SunohArt extends StatelessWidget {
     // card to a 200-px detail hero would re-decode (the same URL at a new
     // size = a new memCache entry), making the image fade in fresh on every
     // nav — exactly the "image re-renders weird" symptom.
-    final dpr = MediaQuery.maybeOf(context)?.devicePixelRatio ?? 2.0;
-    final largest = (w.isFinite && h.isFinite ? (w > h ? w : h) : 0) * dpr;
+    final media = MediaQuery.maybeOf(context);
+    final dpr = media?.devicePixelRatio ?? 2.0;
+    // An unbounded side means "as big as whatever is holding me", and the
+    // only thing that has ever been is the player's full-bleed backdrop. It
+    // used to fall to `0` here, which is below the first rung, so the largest
+    // surface in the app decoded at 192x192 and was stretched across the whole
+    // screen. That is what "the artwork looks blurry" was: not the source, not
+    // the scrim, a 14x upscale of a thumbnail.
+    //
+    // The screen is the right answer rather than a fixed ceiling, because it
+    // is genuinely what an unbounded box resolves to here and it keeps the
+    // tiering honest on a small device instead of always asking for 1200.
+    final screen = media?.size;
+    final bounded = w.isFinite && h.isFinite
+        ? (w > h ? w : h)
+        : math.max(screen?.width ?? 0, screen?.height ?? 0);
+    final largest = bounded * dpr;
     // Tiers cap the DECODED bitmap. 720 used to be the ceiling, which left
     // the expanded player's 336pt hero decoding at 720 on a 3x screen
     // (~1008px of actual surface) and looking soft no matter how large the
@@ -208,45 +214,10 @@ class SunohArt extends StatelessWidget {
           radius: radius,
           child: url == null || url.isEmpty
               ? _innerArt()
-              // Bypass CachedNetworkImage entirely (its placeholder fires for
-              // ≥1 frame even on memory-cache hits → the "flicker on nav"
-              // symptom). Use raw Image with CachedNetworkImageProvider so
-              // we own the placeholder logic via frameBuilder:
-              //   - `wasSynchronouslyLoaded: true` → bitmap was in Flutter's
-              //     ImageCache and resolved this frame → show it immediately,
-              //     no placeholder, no flicker.
-              //   - `frame != null` → first decoded frame is ready → show it.
-              //   - otherwise → still loading from disk/net → painted art bridges.
-              // No fade animations — direct swap, which "looks instant" when
-              // cached and "loads naturally" when cold.
-              : Image(
-                  image: ResizeImage(
-                    _providerFor(url),
-                    width: cacheTier,
-                    height: cacheTier,
-                    policy: ResizeImagePolicy.fit,
-                  ),
-                  fit: BoxFit.cover,
-                  // medium = trilinear with mipmaps; low = plain bilinear.
-                  // The CDN tops out at 500×500 so the HERO upscales
-                  // slightly, and bilinear made that read as soft/blocky —
-                  // so large art keeps mipmaps.
-                  //
-                  // Small tiles don't: they're already resized to their
-                  // cache tier and drawn at roughly 1:1, where trilinear is
-                  // visually indistinguishable from bilinear. Mipmap
-                  // generation is a per-image GPU cost paid as art scrolls
-                  // into view, and it's disproportionately expensive on
-                  // tile-based (Mali) GPUs — so pay it only where it shows.
-                  filterQuality: cacheTier >= 720
-                      ? FilterQuality.medium
-                      : FilterQuality.low,
-                  gaplessPlayback: true,
-                  frameBuilder: (context, child, frame, wasSyncLoaded) {
-                    if (wasSyncLoaded || frame != null) return child;
-                    return _innerArt();
-                  },
-                  errorBuilder: (_, _, _) => _innerArt(),
+              : NetworkArt(
+                  url: url,
+                  cacheTier: cacheTier,
+                  placeholder: fallback == null ? _innerArt : () => fallback!,
                 ),
         ),
       ),

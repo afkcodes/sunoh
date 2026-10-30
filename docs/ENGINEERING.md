@@ -171,8 +171,8 @@ rounded corner from `squircleBorder` / `squircleDecoration` / `squircleClip`.
 
 A raw `Color(0xFF…)` outside `theme/tokens.dart` or `widgets/album_art.dart`
 is a bug. So is a bare `TextStyle(...)`, a `BorderRadius.circular` on a card,
-or a Material icon where the app uses Solar (Phosphor for transport controls
-only).
+or a Material icon where the app uses Remix (`_line` by default, `_fill` for
+selected states; Phosphor for transport controls only).
 
 Density-aware padding multiplies by `density.scale`. It applies to vertical
 padding and gaps only — never to font size or card dimensions.
@@ -194,6 +194,15 @@ Two rules follow from that:
 - **Text on an accent is `onAccent`**, never a literal `Colors.black` or
   `Colors.white`. It flips with the palette, and getting it wrong is the
   commonest way an accent becomes unreadable.
+- **Text on artwork is `SunohMedia.ink`, over `SunohMedia.scrim`.** A cover is
+  as likely to be dark in light mode as in dark, so `fg` cannot be trusted on
+  one. Ink on an arbitrary fill whose luminance is not known in advance — an
+  artwork accent filling a button — comes from `inkOn(fill)`; do not write the
+  luminance ternary again.
+
+Filter and scope chips are `SunohChip` (`widgets/ui.dart`), tab strips are
+`SunohTabs`. A pill built by hand in a screen is the drift this section exists
+to prevent.
 
 Anything else that reads the theme — a shadow that needs to be heavier on dark
 than light, say — takes it from `Theme.of(context).brightness`, which tracks the

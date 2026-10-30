@@ -12,8 +12,7 @@
 
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:go_router/go_router.dart';
-import 'package:solar_icons/solar_icons.dart';
+import 'package:remixicon/remixicon.dart';
 
 import '../api/dto.dart';
 import '../api/local_media_channel.dart';
@@ -25,9 +24,11 @@ import '../router/router.dart';
 import '../state/app_state.dart';
 import '../theme/tokens.dart';
 import '../widgets/album_art.dart';
+import '../widgets/motion.dart';
 import '../widgets/top_tabs.dart';
 import '../widgets/ui.dart';
 import 'local_track_row.dart';
+import 'sub_page_bar.dart';
 
 /// The tab content. See the file header there.
 part 'local_library_lists.dart';
@@ -98,6 +99,40 @@ class _LocalLibraryScreenState extends ConsumerState<LocalLibraryScreen> {
     );
   }
 
+  /// Search, sort and folders in the bar; a spinner in their place while a
+  /// scan runs, since all three would act on a library that is changing.
+  List<Widget> _actions(BuildContext context, LocalLibrary lib, SunohColors c) {
+    if (lib.isScanning) {
+      return [
+        Padding(
+          padding: const EdgeInsets.all(12),
+          child: SizedBox(
+            width: 16,
+            height: 16,
+            child: CircularProgressIndicator(strokeWidth: 2, color: c.fgMute),
+          ),
+        ),
+      ];
+    }
+    return [
+      IconBtn(
+        icon: RemixIcons.search_line,
+        color: _searching ? c.accent : c.fg,
+        onTap: _toggleSearch,
+      ),
+      IconBtn(
+        icon: RemixIcons.sort_desc,
+        color: c.fg,
+        onTap: () => showLocalSortSheet(context),
+      ),
+      IconBtn(
+        icon: RemixIcons.folder_3_line,
+        color: c.fg,
+        onTap: () => context.openLocalFolders(),
+      ),
+    ];
+  }
+
   @override
   Widget build(BuildContext context) {
     final s = ref.watch(appStateProvider);
@@ -112,11 +147,10 @@ class _LocalLibraryScreenState extends ConsumerState<LocalLibraryScreen> {
       color: c.bg,
       child: Column(
         children: [
-          _Header(
-            library: lib,
+          SubPageBar(
+            title: 'On this device',
             colors: c,
-            searching: _searching,
-            onToggleSearch: _toggleSearch,
+            actions: _actions(context, lib, c),
           ),
           if (_searching)
             _SearchField(
@@ -130,6 +164,7 @@ class _LocalLibraryScreenState extends ConsumerState<LocalLibraryScreen> {
               active: tabs[index],
               colors: c,
               onChange: (t) => _select(tabs.indexOf(t)),
+              padding: const EdgeInsets.fromLTRB(16, 12, 16, 8),
             ),
           Expanded(
             child: !lib.hasMusic
@@ -172,79 +207,6 @@ class _LocalLibraryScreenState extends ConsumerState<LocalLibraryScreen> {
                     ],
                   ),
           ),
-        ],
-      ),
-    );
-  }
-}
-
-class _Header extends StatelessWidget {
-  const _Header({
-    required this.library,
-    required this.colors,
-    required this.searching,
-    required this.onToggleSearch,
-  });
-  final LocalLibrary library;
-  final SunohColors colors;
-  final bool searching;
-  final VoidCallback onToggleSearch;
-
-  @override
-  Widget build(BuildContext context) {
-    final c = colors;
-    return Padding(
-      padding: EdgeInsets.fromLTRB(
-        20,
-        MediaQuery.of(context).padding.top + 20,
-        20,
-        6,
-      ),
-      child: Row(
-        children: [
-          IconBtn(
-            icon: SolarIconsOutline.altArrowLeft,
-            color: c.fgDim,
-            size: 18,
-            onTap: () => context.pop(),
-          ),
-          const SizedBox(width: 4),
-          Expanded(
-            child: Text(
-              'On this device',
-              style: SunohType.heading(
-                fontSize: 24,
-                color: c.fg,
-                letterSpacing: -0.4,
-              ),
-            ),
-          ),
-          if (library.isScanning)
-            SizedBox(
-              width: 16,
-              height: 16,
-              child: CircularProgressIndicator(strokeWidth: 2, color: c.fgMute),
-            )
-          else ...[
-            IconBtn(
-              icon: SolarIconsOutline.magnifier,
-              color: searching ? c.accent : c.fgDim,
-              size: 18,
-              onTap: onToggleSearch,
-            ),
-            IconBtn(
-              icon: SolarIconsOutline.sort,
-              color: c.fgDim,
-              size: 18,
-              onTap: () => showLocalSortSheet(context),
-            ),
-            IconBtn(
-              icon: SolarIconsOutline.folder,
-              color: c.fgDim,
-              size: 18,
-              onTap: () => context.openLocalFolders(),
-            ),
-          ],
         ],
       ),
     );

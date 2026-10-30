@@ -2,7 +2,9 @@
 //
 // A single sheet used for both lists — they're the same shape (a code to
 // label map, one current selection, plus an Auto entry that clears the
-// override rather than setting a value).
+// override rather than setting a value). Rows rather than chips: each option
+// carries its code on the right, and Auto carries what it resolves to, which
+// a chip has nowhere to put.
 
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -11,7 +13,8 @@ import '../api/yt_locale.dart';
 import '../providers/app_state_provider.dart';
 import '../providers/ytmusic_provider.dart';
 import '../theme/tokens.dart';
-import '../widgets/ui.dart';
+import 'sheet.dart';
+import 'sheet_row.dart';
 
 /// Pick the YouTube region (`gl`). This is the one that matters — it
 /// decides which charts and home rows come back.
@@ -51,10 +54,8 @@ Future<void> _show(
   required String Function(YtLocale locale) autoLabelOf,
   required Future<void> Function(dynamic s, String code) onPick,
 }) {
-  return showModalBottomSheet<void>(
-    context: context,
-    backgroundColor: Colors.transparent,
-    isScrollControlled: true,
+  return showSunohSheet<void>(
+    context,
     builder: (_) => _YtLocaleSheet(
       title: title,
       blurb: blurb,
@@ -89,145 +90,49 @@ class _YtLocaleSheet extends ConsumerWidget {
     final c = s.colors;
     final locale = ref.watch(ytLocaleProvider);
     final selected = selectedOf(s);
-    final bottomInset = MediaQuery.of(context).padding.bottom;
 
-    return SafeArea(
-      top: false,
-      child: Container(
-        margin: const EdgeInsets.fromLTRB(8, 0, 8, 8),
-        constraints: BoxConstraints(
-          maxHeight: MediaQuery.of(context).size.height * 0.78,
-        ),
-        decoration: squircleDecoration(
-          radius: 20,
-          color: c.bgSoft,
-          borderColor: c.line,
-        ),
-        padding: EdgeInsets.fromLTRB(0, 10, 0, 8 + bottomInset),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Center(
-              child: Container(
-                width: 34,
-                height: 4,
-                decoration: BoxDecoration(
-                  color: c.line,
-                  borderRadius: BorderRadius.circular(999),
-                ),
-              ),
+    Future<void> pick(String code) async {
+      await onPick(s, code);
+      if (context.mounted) Navigator.of(context).pop();
+    }
+
+    // Eighteen-odd entries apiece: short enough to build in one go inside
+    // the sheet's own scroll view rather than as a lazy list.
+    return SunohSheet(
+      title: title,
+      subtitle: blurb,
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          SheetRow(
+            label: 'Auto',
+            // Show what auto currently resolves to, so the choice isn't a
+            // guess.
+            trailing: _Code(autoLabelOf(locale), colors: c),
+            selected: selected.isEmpty,
+            colors: c,
+            onTap: () => pick(''),
+          ),
+          for (final entry in options.entries)
+            SheetRow(
+              label: entry.value,
+              trailing: _Code(entry.key.toUpperCase(), colors: c),
+              selected: selected == entry.key,
+              colors: c,
+              onTap: () => pick(entry.key),
             ),
-            Padding(
-              padding: const EdgeInsets.fromLTRB(20, 16, 20, 6),
-              child: Text(
-                title,
-                style: SunohType.heading(
-                  fontSize: 20,
-                  color: c.fg,
-                  letterSpacing: -0.2,
-                ),
-              ),
-            ),
-            Padding(
-              padding: const EdgeInsets.fromLTRB(20, 0, 20, 12),
-              child: Text(
-                blurb,
-                style: SunohType.sans(
-                  fontSize: 12,
-                  color: c.fgMute,
-                  height: 1.35,
-                ),
-              ),
-            ),
-            Flexible(
-              child: ListView(
-                shrinkWrap: true,
-                padding: const EdgeInsets.only(bottom: 8),
-                children: [
-                  _Option(
-                    label: 'Auto',
-                    // Show what auto currently resolves to, so the choice
-                    // isn't a guess.
-                    trailing: autoLabelOf(locale),
-                    selected: selected.isEmpty,
-                    colors: c,
-                    accent: s.resolvedAccent,
-                    onTap: () async {
-                      await onPick(s, '');
-                      if (context.mounted) Navigator.of(context).pop();
-                    },
-                  ),
-                  for (final entry in options.entries)
-                    _Option(
-                      label: entry.value,
-                      trailing: entry.key.toUpperCase(),
-                      selected: selected == entry.key,
-                      colors: c,
-                      accent: s.resolvedAccent,
-                      onTap: () async {
-                        await onPick(s, entry.key);
-                        if (context.mounted) Navigator.of(context).pop();
-                      },
-                    ),
-                ],
-              ),
-            ),
-          ],
-        ),
+        ],
       ),
     );
   }
 }
 
-class _Option extends StatelessWidget {
-  const _Option({
-    required this.label,
-    required this.trailing,
-    required this.selected,
-    required this.colors,
-    required this.accent,
-    required this.onTap,
-  });
-  final String label;
-  final String trailing;
-  final bool selected;
+class _Code extends StatelessWidget {
+  const _Code(this.text, {required this.colors});
+  final String text;
   final SunohColors colors;
-  final Color accent;
-  final VoidCallback onTap;
 
   @override
-  Widget build(BuildContext context) {
-    final c = colors;
-    return GestureDetector(
-      onTap: onTap,
-      behavior: HitTestBehavior.opaque,
-      child: Padding(
-        padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 13),
-        child: Row(
-          children: [
-            Expanded(
-              child: Text(
-                label,
-                style: SunohType.sans(
-                  fontSize: 14.5,
-                  fontWeight: selected ? FontWeight.w600 : FontWeight.w400,
-                  color: selected ? accent : c.fg,
-                ),
-              ),
-            ),
-            Text(
-              trailing,
-              style: SunohType.mono(fontSize: 11, color: c.fgMute),
-            ),
-            const SizedBox(width: 10),
-            Opacity(
-              opacity: selected ? 1 : 0,
-              child: Icon(Icons.check_rounded, size: 17, color: accent),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
+  Widget build(BuildContext context) =>
+      Text(text, style: SunohType.mono(fontSize: 12.5, color: colors.fgMute));
 }

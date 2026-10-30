@@ -2,10 +2,12 @@ package codes.afk.sunoh
 
 import android.content.Intent
 import codes.afk.sunoh.auth.YtAuthBridge
+import codes.afk.sunoh.background.BackgroundPolicyBridge
 import codes.afk.sunoh.auth.YtAuthStore
 import codes.afk.sunoh.auth.YtLoginActivity
 import codes.afk.sunoh.localmedia.LocalMediaBridge
 import codes.afk.sunoh.sync.SyncBridge
+import codes.afk.sunoh.waveform.WaveformBridge
 import codes.afk.sunoh.ytmusic.YtMusicBridge
 import com.ryanheise.audioservice.AudioServiceActivity
 import io.flutter.embedding.engine.FlutterEngine
@@ -65,6 +67,10 @@ class MainActivity : AudioServiceActivity() {
 
         YtMusicBridge.initialize(applicationContext)
         YtAuthBridge.restore(applicationContext)
+
+        // Bridges that own their channel and handler (see each object).
+        BackgroundPolicyBridge.register(this, flutterEngine.dartExecutor.binaryMessenger)
+        WaveformBridge.register(applicationContext, flutterEngine.dartExecutor.binaryMessenger)
 
         // Stream resolution for the YouTube Music tier. Lives natively because
         // the required BotGuard PO token can only be minted by running

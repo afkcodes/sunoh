@@ -33,16 +33,16 @@ dependencies:
 
   # The following adds the Cupertino Icons font to your application.
   # Use with the CupertinoIcons class for iOS style icons.
-  cupertino_icons: ^1.0.8
-  go_router: ^17.2.3
+  cupertino_icons: ^2.0.0
+  go_router: ^18.1.2
   smooth_corner: ^1.1.1
   dio: ^5.9.2
   flutter_riverpod: ^3.3.1
-  cached_network_image: ^3.4.1
+  cached_network_image: ^4.0.6
   palette_generator: ^0.3.3+6
   # Audio engine — libmpv-based, gives us DSP/EQ/gapless. The native libs
   # are heavy (~10–15 MB to APK) but acceptable for this private app.
-  mpv_audio_kit: ^0.2.1
+  mpv_audio_kit: ^0.5.3
   # OS integration: lockscreen, notification, headset, audio focus. ADDITIVE
   # — if init fails or hangs, in-app playback (Phase 1) still works.
   audio_service: ^0.18.18
@@ -51,7 +51,7 @@ dependencies:
   # on phone calls + headphone unplug.
   audio_session: ^0.2.3
   # Runtime POST_NOTIFICATIONS request on Android 13+.
-  permission_handler: ^12.0.1
+  permission_handler: ^13.0.2
   # Local persistence — RN's MMKV equivalent in the Flutter ecosystem. Pure
   # Dart (no native deps), object-friendly, fast. We use separate boxes per
   # concern: 'playback' (queue/index/position), and later 'library' /
@@ -62,14 +62,20 @@ dependencies:
   # (e.g. "Mama&#39;s Boy"). Decode once at parse time so the UI never sees
   # the entities.
   html_unescape: ^2.0.0
-  # Solar icon set — replaces Material icons everywhere for a consistent
-  # outline-style aesthetic. Use SolarIconsOutline by default and
-  # SolarIconsBold for active/selected states.
-  solar_icons: ^0.1.0
+  # Remix icon set — replaces Material icons everywhere. Use the `_line`
+  # variant by default and `_fill` for active/selected states.
+  #
+  # Replaced solar_icons in the 2026 redesign: Solar's glyphs are drawn on a
+  # rounder, heavier grid than the prototype's icons, and several shapes it
+  # lacked (an outline library glyph, a bare tick) were being faked with the
+  # wrong weight. Remix pairs every glyph as line + fill on one grid, so the
+  # selected state is always the same shape filled in. Cost is the same as
+  # before: one icon font, tree-shaken to the glyphs actually referenced.
+  remixicon: ^4.9.3
   # Phosphor for the playback controls (play/pause/skip/shuffle/repeat).
-  # Solar's filled play/pause looked off — Phosphor's Fill weight has
-  # better proportions for media buttons. Used ONLY for transport icons;
-  # everything else stays on Solar.
+  # Phosphor's Fill weight has better proportions for media buttons than the
+  # general icon set's. Used ONLY for transport icons; everything else is
+  # Remix.
   #
   # NOTE: this is `phosphor_icons`, NOT the original `phosphor_flutter`.
   # Flutter 3.43 marked `IconData` final, and phosphor_flutter 2.1.0
@@ -90,11 +96,11 @@ dependencies:
   # `https://sunoh.online/*` (App Links) through one stream + the
   # initial cold-start URI. See `lib/router/deep_links.dart` for the
   # dispatch + `android/app/src/main/AndroidManifest.xml` intent filters.
-  app_links: ^6.4.1
+  app_links: ^7.2.2
   # Outbound — opens the OS share sheet so the user can hand off a
   # sunoh.online deep-link to any app (WhatsApp, mail, copy, etc.).
   # See `lib/share/share_link.dart` for the helper that pairs with this.
-  share_plus: ^11.1.0
+  share_plus: ^13.3.1
   # Used by `lib/audio/storage_stats.dart` to summarise Hive + image-
   # cache bytes for the Settings → Storage row. Transitive via several
   # other packages; declared directly so the storage helper doesn't rely
@@ -104,7 +110,7 @@ dependencies:
   # Reads versionName/versionCode from the running APK so the in-app
   # update notifier (`lib/api/updates.dart`) can compare against the
   # JSON published at https://sunoh.online/.well-known/sunoh-updates.json.
-  package_info_plus: ^8.1.2
+  package_info_plus: ^10.2.2
   # Conceptually a dev-only generator (only its `dart run
   # flutter_native_splash:create` matters to us, splash assets are
   # already committed under android/app/src/main/res/). Listed here in
@@ -125,7 +131,7 @@ dependencies:
   # AudioRepo routes transport commands to whichever backend currently
   # owns playback. Requires Google Play Services on the phone — devices
   # without GApps can't cast.
-  flutter_chrome_cast: ^1.4.6
+  flutter_chrome_cast: ^2.0.0
   # SHA-256 for SponsorBlock's privacy-preserving hash-prefix lookup — we
   # send only the first 4 chars of sha256(videoId) so the server can't tell
   # which track is playing. Transitive already; declared because we import it.
@@ -135,9 +141,9 @@ dependencies:
   # that shape — the nesting is the format — and Dart has no XML parser in the
   # SDK. Cost is one pure-Dart package used by the lyric parser alone; it is
   # never on a scroll or playback path.
-  xml: ^6.5.0
-  open_filex: ^4.7.0
-  device_info_plus: ^12.4.0
+  xml: ^7.1.0
+  open_filex: ^5.0.0
+  device_info_plus: ^13.3.0
   # Opts the window into 90/120/144 Hz. Android renders an app at 60 Hz unless
   # it asks otherwise, so on a high-refresh phone every animation this app has
   # was being displayed at half the rate it was drawn at — the swept lyric line
@@ -151,7 +157,16 @@ dependencies:
   # permissions, no manifest entry. It also ships an FPS/Hz debug overlay and a
   # benchmarking session API — neither is used here, and neither runs unless
   # called.
-  refresh_rate: ^1.0.2
+  refresh_rate: ^2.0.1
+
+  # Pure-Dart ciphers for the on-device Gaana port: AES-128-CBC stream-URL
+  # decryption (src/gaana/crypto.ts), and Saavn's DES media-URL decryption if
+  # it is needed.
+  pointycastle: ^4.0.0
+
+  # Parses pages the backend used to scrape on the server (cozyaudiobooks
+  # chapters and covers, the Spotify embed page), now that it runs on the phone.
+  html: ^0.15.7
 
 dev_dependencies:
   flutter_test:

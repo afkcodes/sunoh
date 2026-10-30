@@ -13,7 +13,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 // ChangeNotifierProvider lives in the legacy namespace as of
 // flutter_riverpod 2.x.
 import 'package:flutter_riverpod/legacy.dart';
-import 'package:solar_icons/solar_icons.dart';
+import 'package:remixicon/remixicon.dart';
 
 import '../api/updates.dart';
 import '../overlays/sheet.dart';
@@ -55,7 +55,6 @@ class _UpdateSheet extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final s = ref.watch(appStateProvider);
     final c = s.colors;
-    final accent = s.resolvedAccent;
     final updater = ref.watch(updaterControllerProvider);
     final notes = info.notes ?? '';
     // Closing mid-download would strand a running job behind a sheet with no
@@ -65,50 +64,46 @@ class _UpdateSheet extends ConsumerWidget {
         updater.stage == UpdateStage.failed;
 
     return SunohSheet(
-      icon: SolarIconsBold.downloadMinimalistic,
       title: 'Update available',
       subtitle: 'Version ${info.version}',
       trailing: canClose
-          ? IconButton(
-              onPressed: () => Navigator.of(context).pop(),
-              icon: Icon(
-                SolarIconsOutline.closeCircle,
-                size: 20,
-                color: c.fgDim,
-              ),
-              splashRadius: 18,
-              padding: EdgeInsets.zero,
-              constraints: const BoxConstraints(),
+          ? IconBtn(
+              icon: RemixIcons.close_circle_line,
+              color: c.fgDim,
+              onTap: () => Navigator.of(context).pop(),
             )
           : null,
-      actions: _Body(info: info, updater: updater, accent: accent, colors: c),
+      actions: _Body(info: info, updater: updater, colors: c),
+      // A card on a sheet takes surface2: bgSoft is already a step up.
       child: notes.isEmpty
           ? const SizedBox.shrink()
-          : Padding(
-              padding: const EdgeInsets.fromLTRB(16, 0, 16, 4),
-              child: Container(
-                width: double.infinity,
-                padding: const EdgeInsets.fromLTRB(14, 12, 14, 12),
-                decoration: squircleDecoration(
-                  radius: 14,
-                  color: c.surface,
-                  borderColor: c.line,
-                ),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    eyebrow("WHAT'S NEW", c.fgMute),
-                    const SizedBox(height: 8),
-                    Text(
-                      notes,
-                      style: SunohType.sans(
-                        fontSize: 13,
-                        color: c.fgDim,
-                        height: 1.5,
-                      ),
+          : Container(
+              width: double.infinity,
+              margin: const EdgeInsets.fromLTRB(16, 0, 16, 4),
+              padding: const EdgeInsets.all(14),
+              decoration: squircleDecoration(
+                radius: SunohRadius.card,
+                color: c.surface2,
+              ),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  eyebrow(
+                    "What's new",
+                    c.fgMute,
+                    size: 10.5,
+                    letterSpacing: 0.84,
+                  ),
+                  const SizedBox(height: 8),
+                  Text(
+                    notes,
+                    style: SunohType.sans(
+                      fontSize: 13.5,
+                      color: c.fgDim,
+                      height: 1.5,
                     ),
-                  ],
-                ),
+                  ),
+                ],
               ),
             ),
     );
@@ -119,86 +114,55 @@ class _Body extends ConsumerWidget {
   const _Body({
     required this.info,
     required this.updater,
-    required this.accent,
     required this.colors,
   });
   final UpdateInfo info;
   final UpdaterController updater;
-  final Color accent;
   final SunohColors colors;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     switch (updater.stage) {
       case UpdateStage.idle:
-        return _IdleActions(info: info, accent: accent, colors: colors);
+        return _IdleActions(info: info);
       case UpdateStage.preparing:
       case UpdateStage.downloading:
-        return _ProgressBody(updater: updater, accent: accent, colors: colors);
+        return _ProgressBody(updater: updater, colors: colors);
       case UpdateStage.installing:
-        return _InstallingBody(info: info, accent: accent, colors: colors);
+        return _InstallingBody(colors: colors);
       case UpdateStage.failed:
-        return _FailedBody(
-          info: info,
-          updater: updater,
-          accent: accent,
-          colors: colors,
-        );
+        return _FailedBody(info: info, updater: updater, colors: colors);
     }
   }
 }
 
 class _IdleActions extends ConsumerWidget {
-  const _IdleActions({
-    required this.info,
-    required this.accent,
-    required this.colors,
-  });
+  const _IdleActions({required this.info});
   final UpdateInfo info;
-  final Color accent;
-  final SunohColors colors;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final c = colors;
-    return Row(
-      children: [
-        Expanded(
-          child: _DialogButton(
-            label: 'Skip this version',
-            kind: _DialogButtonKind.subtle,
-            colors: c,
-            accent: accent,
-            onTap: () {
-              dismissAvailableUpdate(ref, info.version);
-              Navigator.of(context).pop();
-            },
-          ),
-        ),
-        const SizedBox(width: 10),
-        Expanded(
-          child: _DialogButton(
-            label: 'Update',
-            kind: _DialogButtonKind.primary,
-            colors: c,
-            accent: accent,
-            onTap: () =>
-                ref.read(updaterControllerProvider).downloadAndInstall(info),
-          ),
-        ),
-      ],
+    return SheetActions(
+      secondary: SheetButton(
+        label: 'Skip this version',
+        onTap: () {
+          dismissAvailableUpdate(ref, info.version);
+          Navigator.of(context).pop();
+        },
+      ),
+      primary: SheetButton(
+        label: 'Update',
+        filled: true,
+        onTap: () =>
+            ref.read(updaterControllerProvider).downloadAndInstall(info),
+      ),
     );
   }
 }
 
 class _ProgressBody extends StatelessWidget {
-  const _ProgressBody({
-    required this.updater,
-    required this.accent,
-    required this.colors,
-  });
+  const _ProgressBody({required this.updater, required this.colors});
   final UpdaterController updater;
-  final Color accent;
   final SunohColors colors;
 
   @override
@@ -211,24 +175,24 @@ class _ProgressBody extends StatelessWidget {
     final mbTotal = updater.totalBytes > 0
         ? updater.totalBytes / 1024 / 1024
         : 0.0;
+    // The prototype's download bar: a 2 px rule in the line colour, filled
+    // in ink, with the figures under it in tabular digits so they do not
+    // shuffle as they count.
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        ClipRRect(
-          borderRadius: BorderRadius.circular(999),
-          child: LinearProgressIndicator(
-            value: updater.progress > 0 ? updater.progress : null,
-            minHeight: 6,
-            backgroundColor: c.surface,
-            color: accent,
-          ),
+        LinearProgressIndicator(
+          value: updater.progress > 0 ? updater.progress : null,
+          minHeight: 2,
+          backgroundColor: c.line,
+          color: c.fg,
         ),
         const SizedBox(height: 10),
         Text(
           updater.totalBytes > 0
               ? 'Downloading · $pct%  ·  ${mbReceived.toStringAsFixed(1)} / ${mbTotal.toStringAsFixed(1)} MB'
               : 'Preparing…',
-          style: SunohType.sans(fontSize: 12, color: c.fgMute),
+          style: SunohType.mono(fontSize: 12.5, color: c.fgDim),
         ),
       ],
     );
@@ -236,13 +200,7 @@ class _ProgressBody extends StatelessWidget {
 }
 
 class _InstallingBody extends ConsumerWidget {
-  const _InstallingBody({
-    required this.info,
-    required this.accent,
-    required this.colors,
-  });
-  final UpdateInfo info;
-  final Color accent;
+  const _InstallingBody({required this.colors});
   final SunohColors colors;
 
   @override
@@ -253,13 +211,13 @@ class _InstallingBody extends ConsumerWidget {
       children: [
         Row(
           children: [
-            Icon(SolarIconsBold.checkCircle, color: accent, size: 18),
+            Icon(RemixIcons.checkbox_circle_fill, color: c.accent, size: 18),
             const SizedBox(width: 8),
             Expanded(
               child: Text(
                 'Downloaded. Continue in the system installer.',
                 style: SunohType.sans(
-                  fontSize: 13,
+                  fontSize: 14,
                   fontWeight: FontWeight.w500,
                   color: c.fg,
                 ),
@@ -268,21 +226,12 @@ class _InstallingBody extends ConsumerWidget {
           ],
         ),
         const SizedBox(height: 14),
-        Row(
-          children: [
-            Expanded(
-              child: _DialogButton(
-                label: 'Close',
-                kind: _DialogButtonKind.subtle,
-                colors: c,
-                accent: accent,
-                onTap: () {
-                  ref.read(updaterControllerProvider).reset();
-                  Navigator.of(context).pop();
-                },
-              ),
-            ),
-          ],
+        SheetButton(
+          label: 'Close',
+          onTap: () {
+            ref.read(updaterControllerProvider).reset();
+            Navigator.of(context).pop();
+          },
         ),
       ],
     );
@@ -293,12 +242,10 @@ class _FailedBody extends ConsumerWidget {
   const _FailedBody({
     required this.info,
     required this.updater,
-    required this.accent,
     required this.colors,
   });
   final UpdateInfo info;
   final UpdaterController updater;
-  final Color accent;
   final SunohColors colors;
 
   @override
@@ -309,96 +256,34 @@ class _FailedBody extends ConsumerWidget {
       children: [
         Row(
           children: [
-            const Icon(
-              SolarIconsBold.dangerCircle,
-              color: Color(0xFFE05656),
-              size: 18,
-            ),
+            Icon(RemixIcons.error_warning_fill, color: c.danger, size: 18),
             const SizedBox(width: 8),
             Expanded(
               child: Text(
                 updater.errorMessage ?? 'Update failed.',
-                style: SunohType.sans(fontSize: 13, color: c.fg, height: 1.4),
+                style: SunohType.sans(fontSize: 14, color: c.fg, height: 1.4),
               ),
             ),
           ],
         ),
         const SizedBox(height: 14),
-        Row(
-          children: [
-            Expanded(
-              child: _DialogButton(
-                label: 'View release',
-                kind: _DialogButtonKind.subtle,
-                colors: c,
-                accent: accent,
-                onTap: () {
-                  ref.read(updaterControllerProvider).openReleasePage(info);
-                  ref.read(updaterControllerProvider).reset();
-                  Navigator.of(context).pop();
-                },
-              ),
-            ),
-            const SizedBox(width: 10),
-            Expanded(
-              child: _DialogButton(
-                label: 'Retry',
-                kind: _DialogButtonKind.primary,
-                colors: c,
-                accent: accent,
-                onTap: () => ref
-                    .read(updaterControllerProvider)
-                    .downloadAndInstall(info),
-              ),
-            ),
-          ],
-        ),
-      ],
-    );
-  }
-}
-
-enum _DialogButtonKind { primary, subtle }
-
-class _DialogButton extends StatelessWidget {
-  const _DialogButton({
-    required this.label,
-    required this.kind,
-    required this.colors,
-    required this.accent,
-    required this.onTap,
-  });
-  final String label;
-  final _DialogButtonKind kind;
-  final SunohColors colors;
-  final Color accent;
-  final VoidCallback onTap;
-
-  @override
-  Widget build(BuildContext context) {
-    final c = colors;
-    final isPrimary = kind == _DialogButtonKind.primary;
-    return GestureDetector(
-      onTap: onTap,
-      child: Container(
-        height: 42,
-        alignment: Alignment.center,
-        decoration: squircleDecoration(
-          radius: 12,
-          color: isPrimary
-              ? accent
-              : Color.alphaBlend(accent.withValues(alpha: 0.08), c.surface),
-          borderColor: isPrimary ? Colors.transparent : c.line,
-        ),
-        child: Text(
-          label,
-          style: SunohType.sans(
-            fontSize: 13.5,
-            fontWeight: FontWeight.w600,
-            color: isPrimary ? Colors.white : c.fg,
+        SheetActions(
+          secondary: SheetButton(
+            label: 'View release',
+            onTap: () {
+              ref.read(updaterControllerProvider).openReleasePage(info);
+              ref.read(updaterControllerProvider).reset();
+              Navigator.of(context).pop();
+            },
+          ),
+          primary: SheetButton(
+            label: 'Retry',
+            filled: true,
+            onTap: () =>
+                ref.read(updaterControllerProvider).downloadAndInstall(info),
           ),
         ),
-      ),
+      ],
     );
   }
 }

@@ -127,7 +127,7 @@ class UrlRefreshScheduler {
       _scheduledFor = now.add(deferral);
       _timer = Timer(deferral, _fire);
       debugPrint(
-        '[url-refresh] $songId past safety; '
+        '[url-refresh] ${_short(songId)} past safety; '
         'deferred ${deferral.inSeconds}s '
         '(expiry=${expiry?.toIso8601String() ?? 'unparsed'})',
       );
@@ -138,17 +138,22 @@ class UrlRefreshScheduler {
     _scheduledFor = refreshAt;
     _timer = Timer(delay, _fire);
     debugPrint(
-      '[url-refresh] $songId scheduled in ${delay.inMinutes} min '
+      '[url-refresh] ${_short(songId)} scheduled in ${delay.inMinutes} min '
       '(expiry=${expiry?.toIso8601String() ?? 'unparsed'})',
     );
   }
+
+  /// A song id as logs may show it: a prefix, since for YouTube-sourced
+  /// songs the id is a video id.
+  static String _short(String? id) =>
+      id == null ? '?' : (id.length > 4 ? '${id.substring(0, 4)}…' : id);
 
   /// Cancel any pending refresh. Call when the playing track changes so
   /// the previous track's timer doesn't fire into a different now-playing
   /// track. Also call on dispose.
   void cancel() {
     if (_timer != null) {
-      debugPrint('[url-refresh] cancel ${_scheduledForSongId ?? '?'}');
+      debugPrint('[url-refresh] cancel ${_short(_scheduledForSongId)}');
     }
     _timer?.cancel();
     _timer = null;
@@ -217,34 +222,9 @@ class UrlRefreshScheduler {
     if (uri == null) return null;
     // Walk every query param — gaana sometimes nests the token in the path
     // segments but the readable expiry is consistently in the query.
-    // 'etsp' is the lossless CDN's name for the same thing. Without it a
-    // signed lossless URL parses as "no expiry", which the resolver cache
-    // reads as "never stale" and would hand mpv a dead URL an hour later.
-    for (final key in const [
-      'expires',
-      'expire',
-      'e',
-      'oe',
-      'exp',
-      'ttl',
-      'etsp',
-    ]) {
-      final raw = uri.queryParameters[key];
-      if (raw == null || raw.isEmpty) continue;
-      final n = int.tryParse(raw);
-      if (n == null) continue;
-      // Heuristic: epoch millis (>= 1e12), epoch secs (>= 1e9), or a
-      // delta in seconds. Anything else we don't trust.
-      if (n >= 1000000000000) {
-        return DateTime.fromMillisecondsSinceEpoch(n);
-      }
-      if (n >= 1000000000) {
-        return DateTime.fromMillisecondsSinceEpoch(n * 1000);
-      }
-      if (n > 0 && n < 86400 * 7) {
-        // Looks like a TTL in seconds (within a week).
-        return DateTime.now().add(Duration(seconds: n));
-      }
+    for (final key in const ['expires', 'expire', 'e', 'oe', 'exp', 'ttl']) {
+      final at = expiryFromNumber(uri.queryParameters[key]);
+      if (at != null) return at;
     }
     return null;
   }

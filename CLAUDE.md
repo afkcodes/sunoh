@@ -7,8 +7,8 @@ is the short version and the trap list.
 ## What this is
 
 `sunoh.` — a Flutter/Dart Android music app fronting YouTube Music, Gaana and
-Saavn behind one interface, plus the music already on the phone, podcasts and
-audiobooks. No accounts, no ads, no analytics of any kind. GPL-3.0 (it links
+Saavn behind one interface, plus the music already on the phone, and
+podcasts. No accounts, no ads, no analytics of any kind. GPL-3.0 (it links
 MetrolistGroup's `innertubex`).
 
 Android is the only supported target. The YouTube path is native Kotlin, so
@@ -58,8 +58,8 @@ conventions (`reorder`). The rest of the app is uncovered — see
 - **Design tokens only.** Every colour from `SunohColors`, every text style
   from `SunohType`, every corner from `squircleBorder`/`squircleDecoration`/
   `squircleClip`. A raw `Color(0xFF…)` or bare `TextStyle` outside
-  `lib/theme/tokens.dart` is a bug. Icons are Solar, except transport controls
-  which are Phosphor Fill.
+  `lib/theme/tokens.dart` is a bug. Icons are Remix (`_line`, `_fill` when
+  selected), except transport controls which are Phosphor Fill.
 - **Dependencies point downward.** `api/` never imports `state/` or UI.
   `audio/` never imports a screen. `providers/` is wiring only.
 - **Navigation is typed.** Use the `SunohNav` extension in `router/router.dart`.

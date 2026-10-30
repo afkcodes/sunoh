@@ -1,8 +1,8 @@
 // Resolving a collection id to its children, for the Android Auto tree.
 //
 // A "collection" is anything the car can drill into that is not a tab or a
-// feed section: a user playlist, a saved album, an artist, a podcast show, an
-// audiobook, an audiobook genre shelf, or a curated channel page. They share
+// feed section: a user playlist, a saved album, an artist, a podcast show, or a curated
+// channel page. They share
 // one id form (`sunoh:c:<kind>:<id>:<source>`) and differ only in where their
 // children come from.
 //
@@ -47,10 +47,8 @@ class AutoCollections {
     // name for the "playing from" label.
     if (ref.kind == 'user') return _userPlaylist(id, ref.id);
 
-    // These two return rows rather than a queue, so they bypass the track
-    // switch below: a genre shelf holds books, and a channel page holds a
-    // mixed list — neither is something to play from top to bottom.
-    if (ref.kind == 'cat') return _categoryBooks(ref.id);
+    // A channel page returns a mixed list of rows rather than a queue, so it
+    // bypasses the track switch below.
     if (ref.kind == 'occ') return _channel(id, ref);
 
     return _tracks(id, ref);
@@ -80,9 +78,6 @@ class AutoCollections {
           provider: provider,
         )).topSongs,
         'show' => (await api.fetchPodcastShow(ref.id)).episodes,
-        'book' =>
-          (await api.fetchAudiobookDetail(ref.id))?.chapters ??
-              const <FeedItem>[],
         _ => const <FeedItem>[],
       };
       return catalog.tracks(
@@ -93,25 +88,6 @@ class AutoCollections {
     } catch (_) {
       // A dead collection must not take the car UI down with it — an empty
       // list renders as "nothing here", which is recoverable by backing out.
-      return const [];
-    }
-  }
-
-  /// Books in one audiobook genre, as browsable rows.
-  Future<List<MediaItem>> _categoryBooks(String categoryId) async {
-    final id = int.tryParse(categoryId);
-    if (id == null) return const [];
-    try {
-      final books = await api.fetchAudiobooksByCategory(categoryId: id);
-      final rows = <MediaItem>[];
-      for (final b in books) {
-        final bookId = AutoCatalog.collectionIdFor(b);
-        if (bookId == null) continue;
-        catalog.label(bookId, 'AUDIOBOOK · ${b.title}');
-        rows.add(catalog.browsable(b, id: bookId));
-      }
-      return rows;
-    } catch (_) {
       return const [];
     }
   }

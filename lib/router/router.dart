@@ -16,9 +16,7 @@ import '../data/models.dart';
 import '../overlays/lyrics_screen.dart';
 import '../overlays/queue_screen.dart';
 import '../player/expanded_player.dart';
-import '../screens/audiobook_categories_screen.dart';
-import '../screens/audiobook_category_screen.dart';
-import '../screens/audiobook_detail_screen.dart';
+import '../player/player_route.dart';
 import '../screens/detail_screens.dart';
 import '../screens/downloads_screen.dart';
 import '../screens/episode_detail_screen.dart';
@@ -38,8 +36,13 @@ import '../screens/settings_screen.dart';
 import '../screens/spotify_import_screen.dart';
 import '../screens/sync_screen.dart';
 import '../screens/user_playlist_screen.dart';
+import '../screens/yt_moods_screens.dart';
 import '../screens/ytmusic_screens.dart';
 import '../shell/app_scaffold.dart';
+import '../shell/branch_fade.dart';
+import '../widgets/cover_hero.dart';
+import '../widgets/ui.dart';
+import 'transitions.dart';
 
 final rootNavigatorKey = GlobalKey<NavigatorState>();
 final _homeKey = GlobalKey<NavigatorState>();
@@ -68,16 +71,19 @@ GoRouter buildRouter() {
       return '/home';
     },
     routes: [
-      StatefulShellRoute.indexedStack(
+      StatefulShellRoute(
         builder: (context, state, navigationShell) =>
             AppScaffold(shell: navigationShell),
+        // Same keep-alive model as indexedStack, with a fade on switch.
+        navigatorContainerBuilder: (context, shell, children) =>
+            BranchFade(index: shell.currentIndex, children: children),
         branches: [
           StatefulShellBranch(
             navigatorKey: _homeKey,
             routes: [
               GoRoute(
                 path: '/home',
-                pageBuilder: (c, s) => _fade(const HomeScreen(), s),
+                pageBuilder: (c, s) => fadePage(const HomeScreen(), s),
                 routes: _detailRoutes(),
               ),
             ],
@@ -90,7 +96,7 @@ GoRouter buildRouter() {
                 pageBuilder: (c, s) =>
                     // Not wrapped in _RootScroll: SearchScreen is its own
                     // CustomScrollView so its field and pills can pin.
-                    _fade(const SearchScreen(), s),
+                    fadePage(const SearchScreen(), s),
                 routes: _detailRoutes(),
               ),
             ],
@@ -101,7 +107,7 @@ GoRouter buildRouter() {
               GoRoute(
                 path: '/library',
                 pageBuilder: (c, s) =>
-                    _fade(const _RootScroll(LibraryScreen()), s),
+                    fadePage(const _RootScroll(LibraryScreen()), s),
                 routes: _detailRoutes(),
               ),
             ],
@@ -113,19 +119,20 @@ GoRouter buildRouter() {
       GoRoute(
         path: '/player',
         parentNavigatorKey: rootNavigatorKey,
-        // Asymmetric: slide-up + fade on open; fade-out only on close (Hero
-        // contracts the album art back into the mini player — no double slide).
-        pageBuilder: (c, s) => _playerTransition(const ExpandedPlayer(), s),
+        // Opens out of the mini player; closes by sliding down. See
+        // player/player_route.dart.
+        pageBuilder: (c, s) =>
+            PlayerPage(key: s.pageKey, child: const ExpandedPlayer()),
         routes: [
           GoRoute(
             path: 'queue',
             parentNavigatorKey: rootNavigatorKey,
-            pageBuilder: (c, s) => _slideUp(const QueueScreen(), s),
+            pageBuilder: (c, s) => playerSheetPage(const QueueScreen(), s),
           ),
           GoRoute(
             path: 'lyrics',
             parentNavigatorKey: rootNavigatorKey,
-            pageBuilder: (c, s) => _slideUp(const LyricsScreen(), s),
+            pageBuilder: (c, s) => slideUpPage(const LyricsScreen(), s),
           ),
         ],
       ),
@@ -136,32 +143,27 @@ GoRouter buildRouter() {
 // Detail routes shared by every tab branch (fresh instances per branch).
 // `?source=saavn|gaana|spotify` is read off the query string — the sunoh-api
 // album/playlist endpoints route by provider hint.
+/// The tapped cover a detail page flies in from, when it was opened by a tap.
+CoverHeroRef? _heroOf(GoRouterState s) =>
+    s.extra is CoverHeroRef ? s.extra as CoverHeroRef : null;
+
 List<RouteBase> _detailRoutes() => [
-  GoRoute(
-    path: 'album/:id',
-    pageBuilder: (c, s) => _slideRight(
-      AlbumScreen(
-        id: s.pathParameters['id']!,
-        kind: 'album',
-        source: s.uri.queryParameters['source'],
+  for (final kind in const ['album', 'playlist'])
+    GoRoute(
+      path: '$kind/:id',
+      pageBuilder: (c, s) => pushPage(
+        AlbumScreen(
+          id: s.pathParameters['id']!,
+          kind: kind,
+          source: s.uri.queryParameters['source'],
+          hero: _heroOf(s),
+        ),
+        s,
       ),
-      s,
     ),
-  ),
-  GoRoute(
-    path: 'playlist/:id',
-    pageBuilder: (c, s) => _slideRight(
-      AlbumScreen(
-        id: s.pathParameters['id']!,
-        kind: 'playlist',
-        source: s.uri.queryParameters['source'],
-      ),
-      s,
-    ),
-  ),
   GoRoute(
     path: 'artist/:id',
-    pageBuilder: (c, s) => _slideRight(
+    pageBuilder: (c, s) => pushPage(
       ArtistScreen(
         id: s.pathParameters['id']!,
         source: s.uri.queryParameters['source'],
@@ -172,16 +174,16 @@ List<RouteBase> _detailRoutes() => [
   GoRoute(
     path: 'podcast/:id',
     pageBuilder: (c, s) =>
-        _slideRight(PodcastShowScreen(id: s.pathParameters['id']!), s),
+        pushPage(PodcastShowScreen(id: s.pathParameters['id']!), s),
   ),
   GoRoute(
     path: 'podcast-episode/:guid',
     pageBuilder: (c, s) =>
-        _slideRight(EpisodeDetailScreen(guid: s.pathParameters['guid']!), s),
+        pushPage(EpisodeDetailScreen(guid: s.pathParameters['guid']!), s),
   ),
   GoRoute(
     path: 'podcast-categories',
-    pageBuilder: (c, s) => _slideRight(const PodcastCategoriesScreen(), s),
+    pageBuilder: (c, s) => pushPage(const PodcastCategoriesScreen(), s),
   ),
   GoRoute(
     path: 'podcast-category/:slug',
@@ -190,7 +192,7 @@ List<RouteBase> _detailRoutes() => [
       // categories grid so the per-category screen can show a clean
       // title without a second fetch.
       final name = s.extra is String ? s.extra as String : null;
-      return _slideRight(
+      return pushPage(
         PodcastCategoryScreen(slug: s.pathParameters['slug']!, name: name),
         s,
       );
@@ -203,7 +205,7 @@ List<RouteBase> _detailRoutes() => [
       // its title + artwork available before the detail fetch resolves
       // (avoids a flash of "?" in the hero).
       final item = s.extra is FeedItem ? s.extra as FeedItem : null;
-      return _slideRight(
+      return pushPage(
         OccasionScreen(
           slug: s.pathParameters['slug']!,
           title: item?.title ?? s.pathParameters['slug']!,
@@ -218,39 +220,36 @@ List<RouteBase> _detailRoutes() => [
     path: 'section',
     pageBuilder: (c, s) {
       final section = s.extra as HomeSection;
-      return _slideRight(SectionScreen(section: section), s);
+      return pushPage(SectionScreen(section: section), s);
     },
   ),
   GoRoute(
     path: 'settings',
-    pageBuilder: (c, s) => _slideRight(const SettingsScreen(), s),
+    pageBuilder: (c, s) => pushPage(const SettingsScreen(), s),
   ),
   GoRoute(
     path: 'liked',
-    pageBuilder: (c, s) => _slideRight(const LikedSongsScreen(), s),
+    pageBuilder: (c, s) => pushPage(const LikedSongsScreen(), s),
   ),
   GoRoute(
     path: 'history',
-    pageBuilder: (c, s) => _slideRight(const RecentlyPlayedScreen(), s),
+    pageBuilder: (c, s) => pushPage(const RecentlyPlayedScreen(), s),
   ),
-  GoRoute(
-    path: 'sync',
-    pageBuilder: (c, s) => _slideRight(const SyncScreen(), s),
-  ),
+  GoRoute(path: 'sync', pageBuilder: (c, s) => pushPage(const SyncScreen(), s)),
   GoRoute(
     path: 'local',
-    pageBuilder: (c, s) => _slideRight(const LocalLibraryScreen(), s),
+    pageBuilder: (c, s) => pushPage(const LocalLibraryScreen(), s),
   ),
   GoRoute(
     path: 'local-folders',
-    pageBuilder: (c, s) => _slideRight(const LocalFoldersScreen(), s),
+    pageBuilder: (c, s) => pushPage(const LocalFoldersScreen(), s),
   ),
   GoRoute(
     // `kind` is album|artist. The id is the grouping key, which embeds the
     // album and artist names, so it travels as a query parameter rather than
     // a path segment — names contain slashes.
     path: 'local-collection',
-    pageBuilder: (c, s) => _slideRight(
+    pageBuilder: (c, s) => pushPage(
       LocalCollectionScreen(
         id: s.uri.queryParameters['id'] ?? '',
         album: s.uri.queryParameters['kind'] != 'artist',
@@ -260,33 +259,39 @@ List<RouteBase> _detailRoutes() => [
   ),
   GoRoute(
     path: 'downloads',
-    pageBuilder: (c, s) => _slideRight(const DownloadsScreen(), s),
+    pageBuilder: (c, s) => pushPage(const DownloadsScreen(), s),
   ),
   GoRoute(
     path: 'user-playlist/:id',
     pageBuilder: (c, s) =>
-        _slideRight(UserPlaylistScreen(id: s.pathParameters['id']!), s),
+        pushPage(UserPlaylistScreen(id: s.pathParameters['id']!), s),
   ),
   GoRoute(
     path: 'spotify-import',
-    pageBuilder: (c, s) => _slideRight(const SpotifyImportScreen(), s),
+    pageBuilder: (c, s) => pushPage(const SpotifyImportScreen(), s),
   ),
   // ── YouTube Music ──────────────────────────────────────────────
   // Separate from the generic detail routes because YouTube browse ids
   // (VLRDCLAK5uy_…, FEmusic_…) mean nothing to sunoh-api.
   GoRoute(
     path: 'yt-playlist/:id',
-    pageBuilder: (c, s) => _slideRight(
-      YtPlaylistScreen(
-        browseId: Uri.decodeComponent(s.pathParameters['id']!),
-        name: s.extra is String ? s.extra as String : null,
-      ),
-      s,
-    ),
+    pageBuilder: (c, s) {
+      final (name, hero) = s.extra is (String?, CoverHeroRef?)
+          ? s.extra! as (String?, CoverHeroRef?)
+          : (null, null);
+      return pushPage(
+        YtPlaylistScreen(
+          browseId: Uri.decodeComponent(s.pathParameters['id']!),
+          name: name,
+          hero: hero,
+        ),
+        s,
+      );
+    },
   ),
   GoRoute(
     path: 'yt-artist/:id',
-    pageBuilder: (c, s) => _slideRight(
+    pageBuilder: (c, s) => pushPage(
       YtArtistScreen(
         browseId: Uri.decodeComponent(s.pathParameters['id']!),
         name: s.extra is String ? s.extra as String : null,
@@ -296,7 +301,7 @@ List<RouteBase> _detailRoutes() => [
   ),
   GoRoute(
     path: 'yt-moods',
-    pageBuilder: (c, s) => _slideRight(const YtMoodsScreen(), s),
+    pageBuilder: (c, s) => pushPage(const YtMoodsScreen(), s),
   ),
   GoRoute(
     path: 'yt-category/:id',
@@ -304,36 +309,12 @@ List<RouteBase> _detailRoutes() => [
       // `params` is opaque and travels with the browseId; passed via
       // extra alongside the display name rather than in the path.
       final extra = s.extra is Map ? s.extra as Map : const {};
-      return _slideRight(
+      return pushPage(
         YtCategoryScreen(
           browseId: Uri.decodeComponent(s.pathParameters['id']!),
           params: (extra['params'] ?? '').toString(),
           name: extra['name'] as String?,
         ),
-        s,
-      );
-    },
-  ),
-  GoRoute(
-    path: 'audiobook-categories',
-    pageBuilder: (c, s) => _slideRight(const AudiobookCategoriesScreen(), s),
-  ),
-  GoRoute(
-    path: 'audiobook-category/:id',
-    pageBuilder: (c, s) {
-      final id = int.tryParse(s.pathParameters['id']!) ?? 0;
-      final name = s.extra is String ? s.extra as String : null;
-      return _slideRight(AudiobookCategoryScreen(id: id, name: name), s);
-    },
-  ),
-  GoRoute(
-    path: 'audiobook/:slug',
-    pageBuilder: (c, s) {
-      // `extra` carries the FeedItem tile that opened this screen so
-      // the hero shows title + cover before the network detail resolves.
-      final seed = s.extra is FeedItem ? s.extra as FeedItem : null;
-      return _slideRight(
-        AudiobookDetailScreen(slug: s.pathParameters['slug']!, seed: seed),
         s,
       );
     },
@@ -354,95 +335,11 @@ class _RootScroll extends StatelessWidget {
     return SingleChildScrollView(
       padding: EdgeInsets.only(
         top: MediaQuery.of(context).padding.top,
-        bottom: 140,
+        bottom: shellClearance(context),
       ),
       child: child,
     );
   }
-}
-
-// ── Transition pages ────────────────────────────────────────────────────────
-CustomTransitionPage<void> _fade(Widget child, GoRouterState state) {
-  return CustomTransitionPage(
-    key: state.pageKey,
-    child: child,
-    transitionDuration: const Duration(milliseconds: 200),
-    transitionsBuilder: (c, a, sa, ch) => FadeTransition(opacity: a, child: ch),
-  );
-}
-
-CustomTransitionPage<void> _slideRight(Widget child, GoRouterState state) {
-  return CustomTransitionPage(
-    key: state.pageKey,
-    child: child,
-    transitionDuration: const Duration(milliseconds: 300),
-    reverseTransitionDuration: const Duration(milliseconds: 240),
-    transitionsBuilder: (c, a, sa, ch) {
-      final curved = CurvedAnimation(parent: a, curve: Curves.easeOutCubic);
-      return SlideTransition(
-        position: Tween(
-          begin: const Offset(0.06, 0),
-          end: Offset.zero,
-        ).animate(curved),
-        child: FadeTransition(opacity: curved, child: ch),
-      );
-    },
-  );
-}
-
-CustomTransitionPage<void> _slideUp(Widget child, GoRouterState state) {
-  return CustomTransitionPage(
-    key: state.pageKey,
-    child: Material(type: MaterialType.transparency, child: child),
-    opaque: false,
-    transitionDuration: const Duration(milliseconds: 340),
-    reverseTransitionDuration: const Duration(milliseconds: 280),
-    transitionsBuilder: (c, a, sa, ch) {
-      final curved = CurvedAnimation(parent: a, curve: Curves.easeOutCubic);
-      return SlideTransition(
-        position: Tween(
-          begin: const Offset(0, 1),
-          end: Offset.zero,
-        ).animate(curved),
-        child: ch,
-      );
-    },
-  );
-}
-
-/// Asymmetric transition used by `/player`: open = slide-up + fade. Close =
-/// pure fade-out (no slide), so the Hero-flying album art is the visual focus
-/// and the sheet appears to *contract* into the mini player rather than slide
-/// away.
-CustomTransitionPage<void> _playerTransition(
-  Widget child,
-  GoRouterState state,
-) {
-  return CustomTransitionPage(
-    key: state.pageKey,
-    child: Material(type: MaterialType.transparency, child: child),
-    opaque: false,
-    transitionDuration: const Duration(milliseconds: 340),
-    reverseTransitionDuration: const Duration(milliseconds: 320),
-    transitionsBuilder: (c, a, sa, ch) {
-      final closing = a.status == AnimationStatus.reverse;
-      final curved = CurvedAnimation(
-        parent: a,
-        curve: Curves.easeOutCubic,
-        reverseCurve: Curves.easeIn,
-      );
-      if (closing) {
-        return FadeTransition(opacity: curved, child: ch);
-      }
-      return SlideTransition(
-        position: Tween(
-          begin: const Offset(0, 1),
-          end: Offset.zero,
-        ).animate(curved),
-        child: FadeTransition(opacity: curved, child: ch),
-      );
-    },
-  );
 }
 
 // ── Navigation helpers ───────────────────────────────────────────────────────
@@ -455,12 +352,15 @@ extension SunohNav on BuildContext {
   }
 
   /// Navigate to a detail screen for [ref].
-  void openRef(DetailRef ref) {
+  ///
+  /// [hero] is the tapped cover's tag and art, so the page's big cover can
+  /// fly in from it (widgets/cover_hero.dart).
+  void openRef(DetailRef ref, {CoverHeroRef? hero}) {
     final src = ref.source;
     final query = (src == null || src.isEmpty)
         ? ''
         : '?source=${Uri.encodeQueryComponent(src)}';
-    push('$_branchPrefix/${ref.kind}/${ref.id}$query');
+    push('$_branchPrefix/${ref.kind}/${ref.id}$query', extra: hero);
   }
 
   void openPlayer() => push('/player');
@@ -525,10 +425,11 @@ extension SunohNav on BuildContext {
   void openSpotifyImport() => push('$_branchPrefix/spotify-import');
 
   /// Open a YouTube Music playlist/album track list.
-  void openYtPlaylist(String browseId, {String? name}) => push(
-    '$_branchPrefix/yt-playlist/${Uri.encodeComponent(browseId)}',
-    extra: name,
-  );
+  void openYtPlaylist(String browseId, {String? name, CoverHeroRef? hero}) =>
+      push(
+        '$_branchPrefix/yt-playlist/${Uri.encodeComponent(browseId)}',
+        extra: (name, hero),
+      );
 
   /// Open a YouTube Music artist page.
   void openYtArtist(String browseId, {String? name}) => push(
@@ -551,11 +452,11 @@ extension SunohNav on BuildContext {
 
   /// Dispatch a YouTube feed item by type. Songs play immediately (there's
   /// no track detail screen); collections open their track list.
-  void openYtItem(FeedItem item) {
+  void openYtItem(FeedItem item, {CoverHeroRef? hero}) {
     switch (item.type) {
       case 'playlist':
       case 'album':
-        openYtPlaylist(item.id, name: item.title);
+        openYtPlaylist(item.id, name: item.title, hero: hero);
       case 'artist':
         openYtArtist(item.id, name: item.title);
       default:
@@ -567,12 +468,4 @@ extension SunohNav on BuildContext {
         debugPrint('[deeplink] openYtItem: nothing to open for ${item.type}');
     }
   }
-
-  void openAudiobookCategories() => push('$_branchPrefix/audiobook-categories');
-  void openAudiobookCategory(int id, {String? name}) =>
-      push('$_branchPrefix/audiobook-category/$id', extra: name);
-  void openAudiobook(String slug, {FeedItem? item}) => push(
-    '$_branchPrefix/audiobook/${Uri.encodeComponent(slug)}',
-    extra: item,
-  );
 }

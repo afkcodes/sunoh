@@ -12,6 +12,7 @@ import 'package:flutter_riverpod/legacy.dart';
 
 import '../api/yt_auth_channel.dart';
 import '../api/ytmusic_api.dart';
+import 'yt_like_provider.dart';
 import 'ytmusic_provider.dart';
 
 class YtAuthController extends ChangeNotifier {
@@ -39,6 +40,8 @@ class YtAuthController extends ChangeNotifier {
     if (_account.signedIn && _account.name.isEmpty) {
       await _refreshName();
     }
+    // Likes made while offline or signed out of a previous session.
+    if (_account.signedIn) _ref.read(ytLikeSyncProvider).drain();
   }
 
   Future<bool> signIn() async {
@@ -51,6 +54,7 @@ class YtAuthController extends ChangeNotifier {
       _account = await _channel.state();
       await _refreshName();
       _invalidateFeeds();
+      _ref.read(ytLikeSyncProvider).drain();
       return true;
     } finally {
       _busy = false;

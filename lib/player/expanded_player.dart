@@ -1,40 +1,53 @@
-// Expanded full-screen player — single rich design driven by the artwork's
-// palette. (The old Minimal / Immersive variants were removed 2026-05-23 —
-// one well-considered layout beat three OK ones.)
+// The expanded player.
 //
-// Visual ingredients:
-//   - Soft palette-tinted radial wash at the top that bleeds into c.bg.
-//   - Swipeable cover carousel — prev/next peek at the sides, ambient halo
-//     ring behind the centered cover that pulses with playback.
-//   - Title + artist + optional synced-lyric teaser.
-//   - Scrubber + palette-accent play button.
-//   - Bottom strip: LYRICS · EQ · QUEUE.
+// Top to bottom: where the music is playing from, the cover (swipe it to
+// skip), title and artist with the like button, a waveform scrubber, the
+// transport, and the output device with the player's tools. The ground is a
+// gradient taken from the cover's colour, strongest at the top and gone by
+// the controls, so the colour belongs to the song but never sits behind text
+// it was not checked against.
 //
-// Swipe-down dismisses; Hero album art animates back into the mini player.
+// The full-bleed artwork backdrop (immersive_backdrop.dart) was replaced by
+// this layout in the 2026 redesign; the cover is a square again so it can
+// fly in from the mini player's thumbnail and be swiped between songs.
+//
+// Opening and closing are owned by player_route.dart. Drag the page down to
+// close; it follows the finger and springs back if let go early.
+//
+// PERF: the position tick only reaches the scrubber (a ValueListenableBuilder
+// inside WaveformScrubber); the rest of the page rebuilds on track and state
+// changes only.
 
 import 'dart:math' as math;
 
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
-import 'package:phosphor_icons/phosphor_icons.dart';
-import 'package:solar_icons/solar_icons.dart';
+import 'package:remixicon/remixicon.dart';
 
-import '../cast/cast_button.dart';
+import '../api/dto.dart';
 import '../data/catalog.dart';
-import '../data/models.dart';
-import '../overlays/eq_sheet.dart';
-import '../overlays/sleep_sheet.dart';
+import '../data/lyric_line.dart';
 import '../overlays/track_menu_sheet.dart';
 import '../providers/app_state_provider.dart';
 import '../providers/palette_provider.dart';
 import '../router/router.dart';
 import '../state/app_state.dart';
 import '../theme/tokens.dart';
-import '../widgets/album_art.dart';
 import '../widgets/quality_tag.dart';
 import '../widgets/ui.dart';
-import 'scrubber.dart';
+import 'cover_carousel.dart';
+import 'marquee_text.dart';
+import 'player_bottom.dart';
+import 'player_controls.dart';
+import 'player_route.dart';
+import 'waveform_scrubber.dart';
+
+/// Height everything under the cover needs at its gaps, used to shrink the
+/// cover on a short screen rather than overflow. On a tall screen the cover
+/// stops at the width and the Spacers around the block in _Body share the
+/// rest.
+const double _kBelowCover = 362;
 
 class ExpandedPlayer extends ConsumerStatefulWidget {
   const ExpandedPlayer({super.key});
@@ -42,534 +55,297 @@ class ExpandedPlayer extends ConsumerStatefulWidget {
   ConsumerState<ExpandedPlayer> createState() => _ExpandedPlayerState();
 }
 
-/// Reserved height for the title block. Sized so a 2-line title, the artist
-/// and the quality tag all fit without forcing the cover or scrubber below to
-/// shift on track change.
-///
-/// Measured, not guessed: a 2-line title is 58, the artist 14, the two gaps 11,
-/// and the quality tag 32 — a HI-RES wordmark of about 17 with its numbers set
-/// underneath. 115, plus slack for a font whose own line height runs taller
-/// than the test harness's.
-///
-/// It is a *floor*, not the height. Held as a fixed minimum it reserved the
-/// worst case for every track: a one-line title on a track with no hi-res tag
-/// measures about 59, so the block sat two-thirds empty and left an obvious
-/// hole between the artist and the scrubber. The floor now covers only what is
-/// always present — title, artist, and the gap under them — and [AnimatedSize]
-/// takes up the difference when a tag or a second line appears.
-///
-/// That was the reason for the fixed height in the first place: stopping the
-/// cover and transport jumping as tracks change. Animating the block does the
-/// same job without paying for it on every track that does not need the room.
-const double _titleBlockHeight = 64;
-
-class _ExpandedPlayerState extends ConsumerState<ExpandedPlayer>
-    with TickerProviderStateMixin {
-  double _drag = 0;
-  late final AnimationController _snapBack = AnimationController(
-    vsync: this,
-    duration: const Duration(milliseconds: 240),
-  );
+class _ExpandedPlayerState extends ConsumerState<ExpandedPlayer> {
+  /// The route's hand-driven close (player_route.dart). The drag below only
+  /// reports distance; the route moves the page and the cover together.
+  PlayerDismiss? _dismiss;
+  bool _dragging = false;
 
   @override
-  void dispose() {
-    _snapBack.dispose();
-    super.dispose();
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    _dismiss = playerDismissOf(context);
   }
 
-  void _snapBackToTop() {
-    final anim = Tween<double>(
-      begin: _drag,
-      end: 0,
-    ).animate(CurvedAnimation(parent: _snapBack, curve: Curves.easeOutCubic));
-    void tick() => setState(() => _drag = anim.value);
-    anim.addListener(tick);
-    _snapBack.forward(from: 0).whenComplete(() => anim.removeListener(tick));
+  void _onDragUpdate(DragUpdateDetails d) {
+    final dismiss = _dismiss;
+    if (dismiss == null) return;
+    if (!_dragging) {
+      // Only a downward pull starts a close; an upward flick does nothing.
+      if (d.delta.dy <= 0) return;
+      _dragging = true;
+      dismiss.begin();
+    }
+    dismiss.update(d.delta.dy);
+  }
+
+  void _onDragEnd(DragEndDetails d) {
+    if (!_dragging) return;
+    _dragging = false;
+    _dismiss?.end(d.primaryVelocity ?? 0);
   }
 
   @override
   Widget build(BuildContext context) {
     final s = ref.watch(appStateProvider);
     final c = s.colors;
-    final track = s.current;
-
-    // Live palette for the current artwork. While loading or missing, fall
-    // back to the user/deterministic accent so the UI never looks broken.
     final url = s.currentApiSong?.artwork ?? '';
     final palette = url.isEmpty
         ? null
         : ref.watch(artPaletteProvider(url)).value;
-    final fallbackAccent = s.resolvedAccent;
-    final accent = s.themedAccent(palette?.accent ?? fallbackAccent);
-    final tint = palette?.dominant ?? fallbackAccent;
-    final lyricLine = _currentLyric(s);
+    final accent = s.themedAccent(palette?.accent ?? s.resolvedAccent);
 
     return GestureDetector(
-      onVerticalDragUpdate: (d) {
-        if (d.delta.dy > 0 || _drag > 0) {
-          setState(
-            () => _drag = (_drag + d.delta.dy).clamp(0, double.infinity),
-          );
-        }
-      },
-      onVerticalDragEnd: (d) {
-        if (_drag > 120 || (d.primaryVelocity ?? 0) > 700) {
-          context.pop();
-        } else {
-          _snapBackToTop();
-        }
-      },
-      child: Transform.translate(
-        offset: Offset(0, _drag),
-        child: Stack(
-          children: [
-            // Base bg.
-            Positioned.fill(child: ColoredBox(color: c.bg)),
-            // Palette wash at the top — gives the screen per-track character
-            // without flooding it. Note all stops use `tint.withValues(alpha: …)`
-            // so the gradient stays in the same hue across alpha; mixing
-            // `Colors.transparent` (= black) would muddy the fade.
-            Positioned.fill(
-              child: IgnorePointer(
-                child: DecoratedBox(
-                  decoration: BoxDecoration(
-                    gradient: RadialGradient(
-                      center: const Alignment(0, -1),
-                      radius: 1.15,
-                      colors: [
-                        tint.withValues(alpha: 0.38),
-                        tint.withValues(alpha: 0.10),
-                        tint.withValues(alpha: 0),
-                      ],
-                      stops: const [0, 0.45, 1],
+      onVerticalDragUpdate: _onDragUpdate,
+      onVerticalDragEnd: _onDragEnd,
+      onVerticalDragCancel: () => _onDragEnd(DragEndDetails()),
+      child: Stack(
+        children: [
+          Positioned.fill(
+            child: _Backdrop(tint: accent, colors: c, isLight: s.isLight),
+          ),
+          SafeArea(
+            child: Column(
+              children: [
+                PlayerEntrance(
+                  order: 0,
+                  child: _Header(s: s, colors: c),
+                ),
+                Expanded(
+                  child: LayoutBuilder(
+                    builder: (context, box) => _Body(
+                      s: s,
+                      colors: c,
+                      coverSize: math.min(
+                        box.maxWidth - 48,
+                        box.maxHeight - _kBelowCover,
+                      ),
                     ),
                   ),
                 ),
-              ),
+              ],
             ),
-            SafeArea(
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+/// The cover's colour, strongest at the top and gone by the controls. Half
+/// the strength on light, where the same mix turns the page muddy behind
+/// dark text.
+class _Backdrop extends StatelessWidget {
+  const _Backdrop({
+    required this.tint,
+    required this.colors,
+    required this.isLight,
+  });
+  final Color tint;
+  final SunohColors colors;
+  final bool isLight;
+
+  @override
+  Widget build(BuildContext context) {
+    final bg = colors.bg;
+    return TweenAnimationBuilder<Color?>(
+      tween: ColorTween(end: tint),
+      duration: const Duration(milliseconds: 700),
+      curve: Curves.easeOut,
+      builder: (_, t, _) {
+        final tone = t ?? tint;
+        return DecoratedBox(
+          decoration: BoxDecoration(
+            gradient: LinearGradient(
+              begin: Alignment.topCenter,
+              end: Alignment.bottomCenter,
+              stops: const [0, 0.52, 0.92],
+              colors: [
+                Color.lerp(bg, tone, isLight ? 0.22 : 0.42)!,
+                Color.lerp(bg, tone, isLight ? 0.08 : 0.16)!,
+                bg,
+              ],
+            ),
+          ),
+        );
+      },
+    );
+  }
+}
+
+class _Header extends StatelessWidget {
+  const _Header({required this.s, required this.colors});
+  final AppState s;
+  final SunohColors colors;
+
+  @override
+  Widget build(BuildContext context) {
+    final c = colors;
+    // API songs carry "PLAYLIST · Title" / "ALBUM · Title": the category is
+    // the eyebrow and the rest is the name. The dummy path falls back to the
+    // album.
+    var eyebrowText = 'PLAYING FROM';
+    final String mainText;
+    final label = s.apiSourceLabel;
+    if (label != null && label.isNotEmpty) {
+      final parts = label.split(' · ');
+      if (parts.length >= 2) eyebrowText = parts.first;
+      mainText = parts.length >= 2 ? parts.sublist(1).join(' · ') : label;
+    } else {
+      mainText = albumOf(s.current.album)?.title ?? 'Library';
+    }
+    return SizedBox(
+      height: 56,
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 8),
+        child: Row(
+          children: [
+            IconBtn(
+              icon: RemixIcons.arrow_down_s_line,
+              color: c.fg,
+              size: 24,
+              onTap: () => context.pop(),
+            ),
+            Expanded(
               child: Column(
+                mainAxisSize: MainAxisSize.min,
                 children: [
-                  const SizedBox(height: 4),
-                  _header(context, s, c, track, s.apiSourceLabel),
-                  Expanded(
-                    child: _classic(
-                      context: context,
-                      s: s,
-                      c: c,
-                      track: track,
-                      accent: accent,
-                      tint: tint,
-                      lyricLine: lyricLine,
+                  eyebrow(eyebrowText, c.fgDim, size: 10, letterSpacing: 1.2),
+                  const SizedBox(height: 2),
+                  Text(
+                    mainText,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    textAlign: TextAlign.center,
+                    style: SunohType.sans(
+                      fontSize: 13.5,
+                      fontWeight: FontWeight.w600,
+                      color: c.fg,
                     ),
                   ),
                 ],
               ),
+            ),
+            IconBtn(
+              icon: RemixIcons.more_fill,
+              color: c.fg,
+              size: 22,
+              onTap: () {
+                final song = s.currentApiSong;
+                if (song == null) return;
+                showTrackMenuSheet(
+                  context,
+                  song: song,
+                  sourceLabel: s.apiSourceLabel,
+                  sourceRef: s.apiSourceRef,
+                  // Pop the player before pushing a destination, or the
+                  // album lands behind it and looks like nothing happened.
+                  fromPlayer: true,
+                );
+              },
             ),
           ],
         ),
       ),
     );
   }
+}
 
-  Widget _header(
-    BuildContext context,
-    AppState s,
-    SunohColors c,
-    Track track,
-    String? sourceLabel,
-  ) {
-    // Resolve the eyebrow + main label. API-mode songs pass an explicit
-    // `apiSourceLabel` in the form "PLAYLIST · Title" / "ALBUM · Title".
-    // Split on ' · ' so the eyebrow gets the category and the main line
-    // gets the title. Falls back to album lookup for the dummy path.
-    String eyebrowText = 'PLAYING FROM';
-    String mainText;
-    if (sourceLabel != null && sourceLabel.isNotEmpty) {
-      final parts = sourceLabel.split(' · ');
-      if (parts.length >= 2) {
-        eyebrowText = parts.first;
-        mainText = parts.sublist(1).join(' · ');
-      } else {
-        mainText = sourceLabel;
-      }
-    } else {
-      mainText = albumOf(track.album)?.title ?? 'Library';
-    }
-    return Padding(
-      padding: const EdgeInsets.fromLTRB(16, 0, 16, 0),
-      child: Row(
-        mainAxisAlignment: MainAxisAlignment.spaceBetween,
-        children: [
-          IconBtn(
-            icon: SolarIconsOutline.altArrowDown,
-            color: c.fg,
-            size: 22,
-            onTap: () => context.pop(),
-          ),
-          Expanded(
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
+class _Body extends StatelessWidget {
+  const _Body({required this.s, required this.colors, required this.coverSize});
+  final AppState s;
+  final SunohColors colors;
+  final double coverSize;
+
+  @override
+  Widget build(BuildContext context) {
+    final c = colors;
+    final track = s.current;
+    final repo = s.currentApiSong == null ? null : s.audioRepo;
+    final q = repo?.queue ?? const <FeedItem>[];
+    final i = repo?.currentIndex ?? 0;
+
+    // The prototype's fixed gaps between cover, title, waveform, controls and
+    // tools, with the height the cover cannot use (it is capped by the width)
+    // split around the whole block, a third above and two thirds below, so
+    // the cover stays high under the header. Shared
+    // between the gaps instead, it opened a hole under the controls once the
+    // up-next card was gone.
+    return Column(
+      children: [
+        const SizedBox(height: 14),
+        const Spacer(),
+        CoverCarousel(
+          size: coverSize,
+          currentId: track.id,
+          currentArt: s.currentApiSong?.artwork,
+          prev: i > 0 && i - 1 < q.length ? q[i - 1] : null,
+          next: i + 1 < q.length ? q[i + 1] : null,
+          onNext: s.next,
+          // The swipe means "the song before", even past the first few
+          // seconds where the back button restarts the current one.
+          onPrev: () => repo == null ? s.prev() : repo.previous(),
+        ),
+        const SizedBox(height: 20),
+        PlayerEntrance(
+          order: 0,
+          child: Padding(
+            padding: const EdgeInsets.fromLTRB(24, 0, 16, 0),
+            child: Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                eyebrow(eyebrowText, c.fgMute, size: 9, letterSpacing: 1.4),
-                const SizedBox(height: 2),
-                Text(
-                  mainText,
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                  textAlign: TextAlign.center,
-                  style: SunohType.sans(
-                    fontSize: 12,
-                    fontWeight: FontWeight.w500,
-                    color: c.fg,
-                  ),
+                Expanded(
+                  child: _TitleBlock(s: s, c: c, lyric: _currentLyric(s)),
+                ),
+                LikeButton(
+                  liked: s.isLikedCurrentApi,
+                  colors: c,
+                  onTap: () {
+                    final item = s.currentApiSong;
+                    item != null ? s.toggleLikedApi(item) : s.toggleLike();
+                  },
                 ),
               ],
             ),
           ),
-          IconBtn(
-            icon: SolarIconsBold.menuDots,
-            color: c.fg,
-            size: 20,
-            // Opens the reusable track-actions sheet for the currently-
-            // playing song (Like / Play next / Add to queue / View Artist
-            // / Share). No-op when the current track is a dummy entry
-            // (no FeedItem to act on).
-            onTap: () {
-              final song = s.currentApiSong;
-              if (song == null) return;
-              showTrackMenuSheet(
-                context,
-                song: song,
-                sourceLabel: s.apiSourceLabel,
-                sourceRef: s.apiSourceRef,
-                // True so the sheet's navigation rows also pop the
-                // player itself before pushing the destination —
-                // otherwise the album/artist lands behind the still-
-                // open player and looks like nothing happened.
-                fromPlayer: true,
-              );
-            },
+        ),
+        PlayerEntrance(
+          order: 1,
+          child: Padding(
+            // 10 over the prototype's gaps: it crowded the title and controls.
+            padding: const EdgeInsets.fromLTRB(24, 28, 24, 0),
+            child: WaveformScrubber(
+              trackId: track.id,
+              waveform: repo?.waveform,
+              position: s.positionTick,
+              duration: s.currentDurationSec,
+              onSeek: s.seek,
+              colors: c,
+            ),
           ),
-        ],
-      ),
-    );
-  }
-
-  Widget _classic({
-    required BuildContext context,
-    required AppState s,
-    required SunohColors c,
-    required dynamic track,
-    required Color accent,
-    required Color tint,
-    required String? lyricLine,
-  }) {
-    // The icon strip is overlaid via `Positioned` so its vertical position
-    // can be tuned without redistributing the Spacer slack above it (which
-    // would shift the cover / title / transport). The Column reserves a
-    // SizedBox of the strip's intrinsic height so the transport stays
-    // anchored at the same y as before.
-    return LayoutBuilder(
-      builder: (context, constraints) => Stack(
-        children: [
-          Column(
-            children: [
-              const Spacer(flex: 2),
-              _StaticCover(
-                id: track.id,
-                url: s.currentApiSong?.artwork,
-                playing: s.isPlaying,
-                accent: accent,
-                // The height this column really has. Asking `MediaQuery` here
-                // returns the *screen*, and an ancestor `SafeArea` has already
-                // spent the status bar and the navigation bar out of it — so on
-                // a phone with three-button navigation the cover was sized
-                // against about 70 logical pixels that were never available, and
-                // the transport still landed on the icon strip.
-                available: constraints.maxHeight,
-              ),
-              const SizedBox(height: 24),
-              // Title block sized to its content, with the change animated so a
-              // 2-line title or a hi-res tag appearing does not snap the cover
-              // and transport to a new position. A fixed minimum used to do that
-              // job, but it reserved the tallest possible block for every track
-              // and left a hole under anything shorter.
-              Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 24),
-                child: AnimatedSize(
-                  duration: const Duration(milliseconds: 220),
-                  curve: Curves.easeOutCubic,
-                  alignment: Alignment.topCenter,
-                  child: ConstrainedBox(
-                    constraints: const BoxConstraints(
-                      minHeight: _titleBlockHeight,
-                    ),
-                    child: Row(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Expanded(
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              Text(
-                                track.title,
-                                maxLines: 2,
-                                overflow: TextOverflow.ellipsis,
-                                style: SunohType.heading(
-                                  fontSize: 26,
-                                  color: c.fg,
-                                  height: 1.1,
-                                  letterSpacing: -0.3,
-                                ),
-                              ),
-                              const SizedBox(height: 4),
-                              Text(
-                                track.artist,
-                                maxLines: 1,
-                                overflow: TextOverflow.ellipsis,
-                                style: SunohType.sans(
-                                  fontSize: 13.5,
-                                  color: c.fgDim,
-                                ),
-                              ),
-                              // Directly under the artist, where the rest of the
-                              // track's metadata already lives. Renders nothing
-                              // for an ordinary lossy track, so it costs no space
-                              // when there is nothing to say.
-                              const SizedBox(height: 7),
-                              QualityTag(colors: c),
-                              if (lyricLine != null) ...[
-                                const SizedBox(height: 8),
-                                _LyricsTeaser(
-                                  line: lyricLine,
-                                  accent: accent,
-                                  onTap: () => context.openLyrics(),
-                                ),
-                              ],
-                            ],
-                          ),
-                        ),
-                        Padding(
-                          padding: const EdgeInsets.only(top: 4),
-                          child: IconBtn(
-                            icon: s.isLikedCurrentApi
-                                ? SolarIconsBold.heart
-                                : SolarIconsOutline.heart,
-                            color: s.isLikedCurrentApi ? accent : c.fgDim,
-                            size: 26,
-                            onTap: () {
-                              final item = s.currentApiSong;
-                              if (item != null) {
-                                s.toggleLikedApi(item);
-                              } else {
-                                s.toggleLike();
-                              }
-                            },
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-                ),
-              ),
-              const SizedBox(height: 20),
-              Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 24),
-                child: _progress(
-                  s,
-                  accent,
-                  c.fg,
-                  layout: (scrubber, pos, remaining) => Column(
-                    children: [
-                      scrubber,
-                      const SizedBox(height: 4),
-                      _times(c, fmt(pos), '-${fmt(remaining)}'),
-                    ],
-                  ),
-                ),
-              ),
-              const SizedBox(height: 18),
-              Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 24),
-                child: Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                  children: [
-                    IconBtn(
-                      icon: PhosphorIconsBold.shuffle,
-                      color: s.shuffle ? accent : c.fgMute,
-                      size: 22,
-                      onTap: s.toggleShuffle,
-                    ),
-                    IconBtn(
-                      icon: PhosphorIconsFill.skipBack,
-                      color: c.fg,
-                      size: 30,
-                      onTap: s.prev,
-                    ),
-                    _PlayButton(
-                      playing: s.isPlaying,
-                      accent: accent,
-                      onTap: s.playPause,
-                    ),
-                    IconBtn(
-                      icon: PhosphorIconsFill.skipForward,
-                      color: c.fg,
-                      size: 30,
-                      onTap: s.next,
-                    ),
-                    IconBtn(
-                      icon: s.repeat == LoopMode.one
-                          ? PhosphorIconsBold.repeatOnce
-                          : PhosphorIconsBold.repeat,
-                      color: s.repeat != LoopMode.off ? accent : c.fgMute,
-                      size: 22,
-                      onTap: s.cycleRepeat,
-                    ),
-                  ],
-                ),
-              ),
-              const Spacer(flex: 3),
-              // Reservation for the floating strip below. Keeps the
-              // transport row anchored at the same y it had before the
-              // strip was lifted out of the column flow.
-              const SizedBox(height: _bottomBarReservedHeight),
-            ],
-          ),
-          Positioned(
-            left: 0,
-            right: 0,
-            bottom: _bottomBarLift,
-            child: _bottomBar(context, c),
-          ),
-        ],
-      ),
-    );
-  }
-
-  // Strip's intrinsic height with the original padding (top 4 + bottom 12 +
-  // icon's own vertical 10×2 + glyph 22 ≈ 58). Bump if the iconBtn padding
-  // changes.
-  /// Height the column must keep clear for the floating icon strip.
-  ///
-  /// The strip is `Positioned` at [_bottomBarLift] above the bottom and is
-  /// roughly 64 high, so it really occupies about 84 — not the 58 this
-  /// reserved. The 26 it was short by never showed, because `Spacer(flex: 3)`
-  /// happened to leave slack below the transport on the phones it was written
-  /// on. Growing the cover to fit the screen consumed that slack and the strip
-  /// landed on top of the transport controls, which is how the gap was found.
-  static const double _bottomBarReservedHeight = 84;
-  // Distance the strip floats above the SafeArea bottom inset. Increasing
-  // this lifts ONLY the strip — the column reservation above keeps every
-  // other element pinned.
-  static const double _bottomBarLift = 20;
-
-  Widget _progress(
-    AppState s,
-    Color accent,
-    Color fg, {
-    required Widget Function(Widget scrubber, int pos, int remaining) layout,
-  }) {
-    return ValueListenableBuilder<int>(
-      valueListenable: s.positionTick,
-      builder: (_, pos, _) {
-        final dur = s.currentDurationSec;
-        final remaining = (dur - pos).clamp(0, dur);
-        final scrubber = Scrubber(
-          value: pos,
-          max: dur,
-          accent: accent,
-          fg: fg,
-          onChanged: s.seek,
-          compact: false,
-        );
-        return layout(scrubber, pos, remaining);
-      },
-    );
-  }
-
-  Widget _times(SunohColors c, String left, String right) {
-    final style = SunohType.mono(
-      fontSize: 11,
-      color: c.fgMute,
-      letterSpacing: 0.4,
-    );
-    return Row(
-      mainAxisAlignment: MainAxisAlignment.spaceBetween,
-      children: [
-        Text(left, style: style),
-        Text(right, style: style),
+        ),
+        PlayerEntrance(
+          order: 2,
+          child: PlayerTransport(s: s, c: c),
+        ),
+        const SizedBox(height: 16),
+        PlayerEntrance(
+          order: 3,
+          child: PlayerTools(s: s, c: c),
+        ),
+        // The queue is one tap away in the tools row; the player does not
+        // preview the next song.
+        const Spacer(flex: 2),
+        const SizedBox(height: 16),
       ],
     );
   }
 
-  Widget _bottomBar(BuildContext context, SunohColors c) {
-    Widget iconBtn(IconData icon, VoidCallback onTap, {Color? color}) =>
-        GestureDetector(
-          onTap: onTap,
-          behavior: HitTestBehavior.opaque,
-          child: Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 10),
-            child: Icon(icon, size: 22, color: color ?? c.fgMute),
-          ),
-        );
-    return Padding(
-      // Strip is overlaid by `_classic`'s Stack with a `Positioned.bottom`
-      // offset (`_bottomBarLift`) that handles the visual lift off the
-      // home indicator. Internal padding stays minimal so the strip's
-      // intrinsic height matches `_bottomBarReservedHeight`.
-      padding: const EdgeInsets.fromLTRB(4, 4, 4, 12),
-      child: Consumer(
-        builder: (ctx, ref, _) {
-          final s = ref.watch(appStateProvider);
-          final accent = s.resolvedAccent;
-          return Row(
-            mainAxisAlignment: MainAxisAlignment.spaceAround,
-            children: [
-              // Lyrics — `subtitles` is the CC-style two-line frame,
-              // the canonical "lyrics / captions" glyph. Distinct from a
-              // microphone (which reads as "record").
-              iconBtn(SolarIconsOutline.subtitles, () => context.openLyrics()),
-              // EQ — Solar's `tuning` is the three-slider stack, exactly
-              // the EQ metaphor.
-              iconBtn(SolarIconsOutline.tuning, () => showEqSheet(context)),
-              // Cast — accent + filled glyph when a session is live so
-              // the user can spot the connected state at a glance.
-              iconBtn(
-                s.isCasting
-                    ? SolarIconsBold.screencast
-                    : SolarIconsOutline.screencast,
-                () => openCastPicker(context),
-                color: s.isCasting ? accent : null,
-              ),
-              // Sleep timer — accent + filled when armed (a duration is
-              // counting down OR end-of-track is queued). Tapping opens
-              // the sheet which shows the live countdown.
-              iconBtn(
-                s.sleepArmed
-                    ? SolarIconsBold.moonSleep
-                    : SolarIconsOutline.moonSleep,
-                () => showSleepSheet(context),
-                color: s.sleepArmed ? accent : null,
-              ),
-              // Queue — `playlist` (the lined-card with a music-note
-              // accent) reads as "music queue" more clearly than the
-              // minimalistic stack-of-lines variant we had before.
-              iconBtn(SolarIconsOutline.playlist, () => context.openQueue()),
-            ],
-          );
-        },
-      ),
-    );
-  }
-
-  /// Current synced lyric line for the playing track. Returns null when no
-  /// lyrics are available (most live API songs).
-  String? _currentLyric(AppState s) {
-    final id = s.currentApiSong?.id ?? s.current.id;
-    final lines = kLyrics[id];
+  /// The synced lyric line at the current position, or null when the song
+  /// has no lyrics (most live API songs).
+  static String? _currentLyric(AppState s) {
+    final lines = kLyrics[s.currentApiSong?.id ?? s.current.id];
     if (lines == null || lines.isEmpty) return null;
-    // kLyrics is stamped in milliseconds; AppState.position is seconds.
     final posMs = s.position * 1000;
     LyricLine? active;
     for (final l in lines) {
@@ -580,167 +356,45 @@ class _ExpandedPlayerState extends ConsumerState<ExpandedPlayer>
   }
 }
 
-// ── Reusable parts ──────────────────────────────────────────────────────────
-
-/// Big accent play/pause button. Icon color picks black-or-white based on
-/// accent luminance so it always reads.
-class _PlayButton extends StatelessWidget {
-  const _PlayButton({
-    required this.playing,
-    required this.accent,
-    required this.onTap,
-  });
-  final bool playing;
-  final Color accent;
-  final VoidCallback onTap;
-  static const double size = 72;
+class _TitleBlock extends StatelessWidget {
+  const _TitleBlock({required this.s, required this.c, required this.lyric});
+  final AppState s;
+  final SunohColors c;
+  final String? lyric;
 
   @override
   Widget build(BuildContext context) {
-    final icon = playing ? PhosphorIconsFill.pause : PhosphorIconsFill.play;
-    final iconColor = accent.computeLuminance() > 0.55
-        ? const Color(0xFF0B0B0D)
-        : const Color(0xFFFAFAFA);
-    return GestureDetector(
-      onTap: onTap,
-      child: AnimatedContainer(
-        duration: const Duration(milliseconds: 280),
-        curve: Curves.easeOutCubic,
-        width: size,
-        height: size,
-        decoration: BoxDecoration(
-          color: accent,
-          shape: BoxShape.circle,
-          boxShadow: [
-            BoxShadow(
-              color: accent.withValues(alpha: 0.42),
-              blurRadius: 26,
-              offset: const Offset(0, 8),
-            ),
-          ],
+    final track = s.current;
+    final line = lyric;
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        MarqueeText(
+          track.title,
+          style: SunohType.heading(fontSize: 23, color: c.fg, height: 1.2),
         ),
-        child: Icon(icon, size: size * 0.45, color: iconColor),
-      ),
-    );
-  }
-}
-
-/// One-line teaser pulled from the synced lyric matching the current pos.
-class _LyricsTeaser extends StatelessWidget {
-  const _LyricsTeaser({
-    required this.line,
-    required this.accent,
-    required this.onTap,
-  });
-  final String line;
-  final Color accent;
-  final VoidCallback onTap;
-
-  @override
-  Widget build(BuildContext context) {
-    return GestureDetector(
-      onTap: onTap,
-      behavior: HitTestBehavior.opaque,
-      child: Row(
-        children: [
-          Flexible(
-            child: Text(
-              line,
-              maxLines: 1,
-              overflow: TextOverflow.ellipsis,
-              style: SunohType.sans(
-                fontSize: 13,
-                color: accent.withValues(alpha: 0.85),
-                fontWeight: FontWeight.w500,
-                letterSpacing: 0.1,
-              ),
+        const SizedBox(height: 2),
+        Text(
+          track.artist,
+          maxLines: 1,
+          overflow: TextOverflow.ellipsis,
+          style: SunohType.sans(fontSize: 16, color: c.fgDim),
+        ),
+        // Renders nothing for an ordinary lossy track.
+        Padding(
+          padding: const EdgeInsets.only(top: 6),
+          child: QualityTag(colors: c),
+        ),
+        if (line != null)
+          Padding(
+            padding: const EdgeInsets.only(top: 6),
+            child: LyricsTeaser(
+              line: line,
+              accent: c.accent,
+              onTap: () => context.openLyrics(),
             ),
           ),
-        ],
-      ),
-    );
-  }
-}
-
-/// Static centered cover. The drop shadow from SunohArt provides the visual
-/// lift — no separate palette halo (tried it, looked weird while playing).
-/// `playing ? 1.0 : 0.92` scale is the play/paused cue.
-class _StaticCover extends StatelessWidget {
-  const _StaticCover({
-    required this.id,
-    required this.url,
-    required this.playing,
-    required this.accent,
-    required this.available,
-  });
-  final String id;
-  final String? url;
-  final bool playing;
-  final Color accent;
-
-  /// Height the player's column was actually given, already inside any
-  /// `SafeArea`. Passed in rather than read from `MediaQuery`, which reports
-  /// the whole screen and would count insets the column never had.
-  final double available;
-
-  /// Widest the cover is allowed to get, and narrowest it may shrink to.
-  ///
-  /// The ceiling is only an absurdity guard for a very large screen; the real
-  /// limit is [_heightShare], which is proportional and so keeps the same
-  /// balance everywhere. Set too low it becomes the binding constraint on
-  /// exactly the wide-logical-screen phones this is meant to fix — at 380 a
-  /// 540 dp screen got a cover spanning 70% of its width where a stock phone
-  /// gets 85%, which still read as marooned.
-  static const double _maxCover = 480;
-  static const double _minCover = 180;
-
-  /// Everything in the column other than the cover, measured.
-  ///
-  /// Gap 24, title block up to 127, gap 20, scrubber and times 60, gap 18,
-  /// transport 72, and 84 kept clear for the icon strip — plus a little so the
-  /// Spacers are never squeezed to nothing and the layout does not read as
-  /// bolted to the edges.
-  ///
-  /// Subtracted rather than expressed as a fraction of screen height. A
-  /// fraction is fine until the remainder stops being enough: at 0.42 the
-  /// cover kept growing on short screens until the transport was pushed into
-  /// the icon strip. What the cover can have is whatever is left, which is a
-  /// thing that can be measured rather than guessed.
-  static const double _columnFixedHeight = 421;
-
-  @override
-  Widget build(BuildContext context) {
-    // Sized against the screen rather than fixed at 336 logical pixels.
-    //
-    // That constant was tuned on one phone and silently assumed every other
-    // device reported a similar number of logical pixels. It does not: DPI is
-    // a user setting on Android, and lowering it — or picking a smaller
-    // "display size" — hands the app a much wider logical screen. The cover
-    // stayed 336 while everything around it grew, the `Spacer(flex: 2)` and
-    // `Spacer(flex: 3)` either side swallowed the difference, and the player
-    // came out as a small square marooned in empty space.
-    //
-    // Bounded by width *and* height so it cannot crowd the controls on a short
-    // screen or balloon on a tall one.
-    final coverSize = math
-        .min(
-          MediaQuery.sizeOf(context).width - 56,
-          available - _columnFixedHeight,
-        )
-        .clamp(_minCover, _maxCover);
-
-    return SizedBox(
-      width: coverSize,
-      height: coverSize,
-      child: Hero(
-        tag: 'sunoh-player-art',
-        child: AnimatedScale(
-          scale: playing ? 1.0 : 0.92,
-          duration: const Duration(milliseconds: 340),
-          curve: Curves.easeOutCubic,
-          child: SunohArt(id: id, imageUrl: url, size: coverSize, radius: 16),
-        ),
-      ),
+      ],
     );
   }
 }

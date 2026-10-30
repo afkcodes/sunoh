@@ -1,145 +1,65 @@
-// What the current track's audio actually is, and what the app is doing about
-// it.
+// What the current track's audio actually is, named from mpv's own decoder.
 //
-// Three states, one slot. The point of the tag is to answer a question the
-// listener would otherwise have no way to settle: "the setting says lossless —
-// am I actually getting it?"
-//
-//   - **Looking.** A cold catalog lookup takes a moment, and silence during it
-//     reads as the feature doing nothing at all.
-//   - **Found.** Named from mpv's own decoder, so it cannot claim hi-res for a
-//     stream that is not. See AppState.currentQualityLabel.
-//   - **Not found.** Most hi-res catalogues are a fraction of the size of the
-//     streaming ones, so this is the common case and not an error. It says so
-//     in those terms, and then gets out of the way.
-//
-// Nothing is shown for a lossy track when the setting is off. A tag that is
-// always present answers nothing.
-
-import 'dart:async';
+// A lossless file (a local or downloaded FLAC, say) gets the hi-res mark; every
+// other stream gets a plain format line, because a YouTube track with no line
+// at all is indistinguishable from a broken tag. See
+// AppState.currentFormatLabel.
 
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
-import '../api/lossless_api.dart';
 import '../providers/app_state_provider.dart';
 import '../theme/tokens.dart';
 import 'ui.dart';
 
-/// How long "no hi-res" stays up before fading.
-///
-/// Long enough to read, short enough that a permanent apology does not become
-/// part of the layout. The found state has no timer — that one is worth
-/// keeping on screen.
-const Duration _kMissLinger = Duration(seconds: 6);
-
-class QualityTag extends ConsumerStatefulWidget {
+class QualityTag extends ConsumerWidget {
   const QualityTag({super.key, required this.colors, this.compact = false});
 
   final SunohColors colors;
 
-  /// The mini player's variant: shorter copy, smaller type, no spinner.
+  /// The mini player's variant: shorter copy and smaller type.
   final bool compact;
 
   @override
-  ConsumerState<QualityTag> createState() => _QualityTagState();
-}
-
-class _QualityTagState extends ConsumerState<QualityTag> {
-  Timer? _hideMiss;
-  bool _missExpired = false;
-  String? _lastSongId;
-
-  @override
-  void dispose() {
-    _hideMiss?.cancel();
-    super.dispose();
-  }
-
-  /// Restart the linger whenever the track changes, so a new miss gets its own
-  /// six seconds rather than inheriting the previous track's expired timer.
-  void _noteSong(String? songId) {
-    if (songId == _lastSongId) return;
-    _lastSongId = songId;
-    _hideMiss?.cancel();
-    _missExpired = false;
-  }
-
-  void _startMissTimer() {
-    if (_hideMiss?.isActive ?? false) return;
-    _hideMiss = Timer(_kMissLinger, () {
-      if (mounted) setState(() => _missExpired = true);
-    });
-  }
-
-  @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
     final s = ref.watch(appStateProvider);
     final listenable = s.qualityListenable;
     if (listenable == null) return const SizedBox.shrink();
-    _noteSong(s.currentApiSong?.id);
 
     return ListenableBuilder(
       listenable: listenable,
       builder: (context, _) {
-        final format = widget.compact
+        final format = compact
             ? s.currentFormatLabelCompact
             : s.currentFormatLabel;
-        final lookup = s.losslessLookup;
-
-        // Found beats everything: if mpv says the audio is lossless, the
-        // lookup's own opinion is history.
-        if (format != null && s.currentIsLossless) {
-          return _HiResMark(
-            label: format,
-            colors: widget.colors,
-            compact: widget.compact,
-          );
-        }
-
-        // Every other stream still says what it is. Showing nothing here used
-        // to be deliberate — "am I getting what I turned on" answered by
-        // silence — but from the listening end a YouTube track with no line at
-        // all is indistinguishable from a broken tag, and the codec and rate
-        // are worth knowing whatever they are.
-        if (format != null) {
-          return _FormatLine(
-            text: format,
-            colors: widget.colors,
-            compact: widget.compact,
-          );
-        }
-
-        switch (lookup) {
-          case LosslessLookup.searching:
-            return _Chip(
-              text: widget.compact ? 'HI-RES…' : 'Finding hi-res…',
-              colors: widget.colors,
-              tone: _Tone.busy,
-              compact: widget.compact,
-              spinner: !widget.compact,
-            );
-          case LosslessLookup.unavailable:
-            _startMissTimer();
-            if (_missExpired || widget.compact) {
-              return const SizedBox.shrink();
-            }
-            return _Chip(
-              text: 'No hi-res for this one · standard quality',
-              colors: widget.colors,
-              tone: _Tone.quiet,
-              compact: false,
-            );
-          case null:
-          case LosslessLookup.found:
-            return const SizedBox.shrink();
-        }
+        // Until mpv reports the new track's format, a blank line holds the
+        // label's height: collapsing to nothing moved everything under the
+        // title on every track change. The text fades in when it lands.
+        final Widget tag = format == null
+            ? _FormatLine(text: ' ', colors: colors, compact: compact)
+            // mpv says the audio is lossless: that earns the badge.
+            : s.currentIsLossless
+            ? _HiResMark(label: format, colors: colors, compact: compact)
+            : _FormatLine(text: format, colors: colors, compact: compact);
+        return AnimatedSwitcher(
+          duration: SunohMotion.ui,
+          switchInCurve: SunohMotion.ease,
+          layoutBuilder: (current, previous) => Stack(
+            alignment: AlignmentDirectional.centerStart,
+            children: [...previous, ?current],
+          ),
+          // Keyed on which kind of tag, not its text: mpv revises the
+          // bitrate as a track plays, and a fade on every revision made the
+          // line breathe.
+          child: KeyedSubtree(
+            key: ValueKey(format == null ? 0 : (s.currentIsLossless ? 2 : 1)),
+            child: tag,
+          ),
+        );
       },
     );
   }
 }
-
-enum _Tone { busy, quiet }
 
 /// The plain format line, for streams with no hi-res claim to make.
 ///
@@ -275,63 +195,6 @@ class _HiResMark extends StatelessWidget {
           ),
         ),
       ],
-    );
-  }
-}
-
-class _Chip extends StatelessWidget {
-  const _Chip({
-    required this.text,
-    required this.colors,
-    required this.tone,
-    required this.compact,
-    this.spinner = false,
-  });
-
-  final String text;
-  final SunohColors colors;
-  final _Tone tone;
-  final bool compact;
-  final bool spinner;
-
-  @override
-  Widget build(BuildContext context) {
-    final c = colors;
-    final fg = switch (tone) {
-      _Tone.busy => c.fgDim,
-      _Tone.quiet => c.fgMute,
-    };
-    return AnimatedSwitcher(
-      duration: const Duration(milliseconds: 220),
-      child: Row(
-        key: ValueKey('$text$compact'),
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          if (spinner)
-            SizedBox(
-              width: 9,
-              height: 9,
-              child: CircularProgressIndicator(strokeWidth: 1.4, color: fg),
-            )
-          else
-            Container(
-              width: 5,
-              height: 5,
-              decoration: BoxDecoration(color: fg, shape: BoxShape.circle),
-            ),
-          SizedBox(width: compact ? 5 : 7),
-          Text(
-            text,
-            maxLines: 1,
-            overflow: TextOverflow.ellipsis,
-            style: SunohType.mono(
-              fontSize: compact ? 8.5 : 10,
-              fontWeight: FontWeight.w600,
-              color: fg,
-            ),
-          ),
-        ],
-      ),
     );
   }
 }
