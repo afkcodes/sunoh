@@ -1,5 +1,6 @@
 import 'package:flutter_test/flutter_test.dart';
 import 'package:sunoh/backend/gaana/gaana.dart';
+import 'package:sunoh/backend/gaana/http.dart' show gaanaCallLabel;
 
 // Produced independently with `openssl enc -aes-128-cbc` under the key
 // words from src/gaana/crypto.ts, so this checks the port against another
@@ -215,5 +216,32 @@ void main() {
         expect((await getGaanaHeaders()).containsKey('Cookie'), false);
       },
     );
+
+    test('headers are the set gaana.com sends', () async {
+      final h = await getGaanaHeaders();
+      expect(h.containsKey('X-Requested-With'), false);
+      expect(h['User-Agent'], contains('Chrome/154'));
+      expect(h['deviceType'], 'GaanaWebsiteApp');
+      expect(h['deviceId'], 'website');
+      expect(h['COUNTRY'], 'IN');
+      expect(h['appVersion'], 'V6');
+      expect(h['gaanaAppVersion'], 'gaanaAndroid-8.60.2');
+    });
+
+    test('a call label names the call and nothing private', () {
+      String label(String u) => gaanaCallLabel(Uri.parse(u));
+      expect(
+        label('https://gaana.com/apiv2?type=search&keyword=SECRET'),
+        'type=search',
+      );
+      expect(
+        label('https://apiv2.gaana.com/home/occasion/metadata/SECRET-slug'),
+        'apiv2.gaana.com/home/occasion',
+      );
+      expect(
+        label('https://apiv2.gaana.com/artist/12345/songs'),
+        'apiv2.gaana.com/artist',
+      );
+    });
   });
 }

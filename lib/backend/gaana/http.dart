@@ -17,9 +17,10 @@ import 'request_gate.dart';
 
 const gaanaBaseUrl = 'https://gaana.com/apiv2';
 
+/// The User-Agent gaana.com's own site sends (seen 2026-11-03).
 const _userAgent =
-    'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, '
-    'like Gecko) Chrome/91.0.4472.124 Safari/537.36';
+    'Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) '
+    'Chrome/154.0.0.0 Safari/537.36';
 
 /// Gaana's firewall refused this connection (403 "Access Denied"), or the gate
 /// is in its cooldown after such a refusal and skipped the call.
@@ -48,13 +49,24 @@ class GaanaResult {
   final String message;
 }
 
+/// The headers on every Gaana call, mirroring gaana.com's own requests.
+///
+/// Why this exact set: with the old Chrome 91 set and none of the
+/// `deviceType` family, apiv2.gaana.com answers 200 with no entities (Home's
+/// sections, occasions, categories, artist songs), while gaana.com/apiv2
+/// answers either way. The site does not send X-Requested-With.
 Future<Map<String, String>> getGaanaHeaders([String? languages]) async {
   final headers = {
     'User-Agent': _userAgent,
     'Accept': 'application/json, text/plain, */*',
-    'X-Requested-With': 'XMLHttpRequest',
     'Origin': 'https://gaana.com',
     'Referer': 'https://gaana.com/',
+    'deviceType': 'GaanaWebsiteApp',
+    'deviceId': 'website',
+    'COUNTRY': 'IN',
+    'appVersion': 'V6',
+    'gaanaAppVersion': 'gaanaAndroid-8.60.2',
+    'Content-Type': 'application/x-www-form-urlencoded',
   };
   if (languages != null && languages.isNotEmpty) {
     final formatted = languages
@@ -89,19 +101,6 @@ Future<GaanaResult> fetchGet(
 }) async =>
     _request('GET', Uri.parse(url), await getGaanaHeaders(languages), timeout);
 
-/// The search call: same endpoint but a `{}` JSON body instead of
-/// Content-Length 0, as the server sent it.
-Future<GaanaResult> gaanaSearchPost(String keyword, String? languages) async =>
-    _request(
-      'POST',
-      Uri.parse(
-        gaanaBaseUrl,
-      ).replace(queryParameters: {'keyword': keyword, 'type': 'search'}),
-      await getGaanaHeaders(languages),
-      const Duration(seconds: 30),
-      body: const <String, Object?>{},
-    );
-
 // One keep-alive client per timeout: a home load fires ~20 requests and each
 // would otherwise pay its own TLS handshake.
 final _clients = <Duration, Dio>{};
@@ -121,21 +120,48 @@ Future<GaanaResult> _request(
   String method,
   Uri uri,
   Map<String, String> headers,
-  Duration timeout, {
-  Object? body,
-}) async =>
-    await gaanaGate.run(
-      () => _send(method, uri, headers, timeout, body: body),
-    ) ??
+  Duration timeout,
+) async =>
+    await gaanaGate.run(() => _send(method, uri, headers, timeout)) ??
     (throw const GaanaBlocked('cooldown after a 403'));
+
+/// Gaana calls sent in the last minute, oldest first, so a refusal can say
+/// how many led up to it. What trips Gaana's block is not known yet.
+final _recent = <DateTime>[];
+const _recentWindow = Duration(seconds: 60);
+
+int _recordCall() {
+  final now = DateTime.now();
+  _recent.removeWhere((t) => now.difference(t) >= _recentWindow);
+  _recent.add(now);
+  return _recent.length;
+}
+
+final _notWord = RegExp(r'[^A-Za-z0-9]');
+final _digit = RegExp(r'\d');
+
+/// Which call this is, for a log line: the `type` of an apiv2 POST, or the
+/// host and first two path segments of a GET. Never the query or the rest of
+/// the path, which carry search text, ids and slugs; a segment holding a
+/// digit is an id and is left out.
+@visibleForTesting
+String gaanaCallLabel(Uri uri) {
+  final type = uri.queryParameters['type'];
+  if (type != null) {
+    final word = type.replaceAll(_notWord, '');
+    return 'type=${word.length > 32 ? word.substring(0, 32) : word}';
+  }
+  final segments = uri.pathSegments.take(2).where((s) => !_digit.hasMatch(s));
+  return '${uri.host}/${segments.join('/')}';
+}
 
 Future<GaanaResult> _send(
   String method,
   Uri uri,
   Map<String, String> headers,
-  Duration timeout, {
-  Object? body,
-}) async {
+  Duration timeout,
+) async {
+  final recent = _recordCall();
   final dio = _clients.putIfAbsent(timeout, () {
     final d = upstreamDio(timeout: timeout);
     final test = _testAdapter;
@@ -145,7 +171,6 @@ Future<GaanaResult> _send(
   try {
     final res = await dio.requestUri<String>(
       uri,
-      data: body,
       options: Options(
         method: method,
         headers: headers,
@@ -154,6 +179,12 @@ Future<GaanaResult> _send(
       ),
     );
     final text = res.data ?? '';
+    if (res.statusCode == 403 || res.statusCode == 429) {
+      debugPrint(
+        '[gaana] refused ${gaanaCallLabel(uri)} (${res.statusCode}); '
+        '$recent Gaana calls in the last 60 s',
+      );
+    }
     if (res.statusCode == 403 && text.contains('Access Denied')) {
       gaanaGate.tripped();
       throw const GaanaBlocked();

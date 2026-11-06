@@ -123,7 +123,7 @@ Future<List<Json>> getGaanaRadioStations([String? lang]) async {
 }
 
 Future<List<Json>> getGaanaSearchData(String q, [String? lang]) async {
-  final r = await gaanaSearchPost(q, lang);
+  final r = await gaanaFetch({'type': 'search', 'keyword': q}, languages: lang);
   if (r.error != null) {
     throw GaanaException(failureText(r, 'Gaana search failed'));
   }
